@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Welcome to {{company_name}}!</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #f4f6f9;
+      font-family:
+        -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, &quot;Helvetica Neue&quot;,
+        Arial, sans-serif;
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    "
+  >
+    <table
+      role="presentation"
+      cellpadding="0"
+      cellspacing="0"
+      width="100%"
+      style="background-color: #f4f6f9; border-collapse: collapse"
+    >
+      <tr>
+        <td align="center" style="padding: 32px 16px">
+          <table
+            role="presentation"
+            cellpadding="0"
+            cellspacing="0"
+            width="600"
+            style="
+              max-width: 600px;
+              width: 100%;
+              background-color: #ffffff;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              overflow: hidden;
+              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+              border-collapse: collapse;
+            "
+          >
+            <!-- Header -->
+            <tr>
+              <td style="background-color: #2563eb; padding: 32px" align="center">
+                <p
+                  style="
+                    margin: 0;
+                    font-size: 24px;
+                    font-weight: 700;
+                    color: #ffffff;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Arial,
+                      sans-serif;
+                  "
+                >
+                  DNMS
+                </p>
+                <p
+                  style="
+                    margin: 8px 0 0 0;
+                    font-size: 20px;
+                    font-weight: 600;
+                    color: #bfdbfe;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Arial,
+                      sans-serif;
+                  "
+                >
+                  Welcome to {{company_name}}!
+                </p>
+              </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+              <td style="padding: 32px 32px 8px 32px">
+                <p
+                  style="
+                    margin: 0 0 16px 0;
+                    font-size: 16px;
+                    color: #1e293b;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Arial,
+                      sans-serif;
+                    line-height: 1.6;
+                  "
+                >
+                  Hi {{first_name}},
+                </p>
+                <p
+                  style="
+                    margin: 0 0 16px 0;
+                    font-size: 15px;
+                    color: #334155;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Arial,
+                      sans-serif;
+                    line-height: 1.6;
+                  "
+                >
+                  We're thrilled to have you on board! Your account has been created and you can now
+                  access the DNMS portal to manage your profile, view payslips, apply for leaves,
+                  and more.
+                </p>
+                <p
+                  style="
+                    margin: 0 0 24px 0;
+                    font-size: 15px;
+                    color: #334155;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Arial,
+                      sans-serif;
+                    line-height: 1.6;
+                  "
+                >
+                  You've joined us as <strong>{{designation}}</strong> in the
+                  <strong>{{department}}</strong> department. We look forward to working with you!
+                </p>
+              </td>
+            </tr>
+
+            <!-- CTA Button -->
+            <tr>
+              <td align="center" style="padding: 0 32px 32px 32px">
+                <table
+                  role="presentation"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="border-collapse: collapse"
+                >
+                  <tr>
+                    <td style="border-radius: 6px; background-color: #2563eb">
+                      <a
+                        href="{{login_url}}"
+                        target="_blank"
+                        style="
+                          display: inline-block;
+                          padding: 14px 28px;
+                          font-size: 15px;
+                          font-weight: 600;
+                          color: #ffffff;
+                          text-decoration: none;
+                          font-family:
+                            -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Arial,
+                            sans-serif;
+                          border-radius: 6px;
+                          letter-spacing: 0.1px;
+                        "
+                      >
+                        Access DNMS Portal
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Details Section -->
+            <tr>
+              <td style="padding: 0 32px 32px 32px">
+                <table
+                  role="presentation"
+                  cellpadding="0"
+                  cellspacing="0"
+                  width="100%"
+                  style="
+                    border-collapse: collapse;
+                    background-color: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 6px;
+                    overflow: hidden;
+                  "
+                >
+                  <tr>
+                    <td style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0">
+                      <p
+                        style="
+                          margin: 0;
+                          font-size: 11px;
+                          font-weight: 600;
+                          text-transform: uppercase;
+                          letter-spacing: 0.5px;
+                          color: #94a3b8;
+                          font-family:
+                            -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Arial,
+                            sans-serif;
+                        "
+                      >
+                        Your Details
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 0">
+                      <table
+                        role="presentation"
+                        cellpadding="0"
+                        cellspacing="0"
+                        width="100%"
+                        style="border-collapse: collapse"
+                      >
+                        <tr>
+                          <td
+                            style="padding: 12px 20px; border-bottom: 1px solid #f1f5f9; width: 40%"
+                          >
+                            <p
+                              style="
+                                margin: 0;
+                                font-size: 13px;
+                                color: #64748b;
+                                font-family:
+                                  -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
+                                  Arial, sans-serif;
+                              "
+                            >
+                              Employee No.
+                            </p>
+                          </td>
+                          <td style="padding: 12px 20px; border-bottom: 1px solid #f1f5f9">
+                            <p
+                              style="
+                                margin: 0;
+                                font-size: 13px;
+                                font-weight: 500;
+                                color: #1e293b;
+                                font-family:
+                                  -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
+                                  Arial, sans-serif;
+                              "
+                            >
+                              {{employee_no}}
+                            </p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 12px 20px; border-bottom: 1px solid #f1f5f9">
+                            <p
+                              style="
+                                margin: 0;
+                                font-size: 13px;
+                                color: #64748b;
+                                font-family:
+                                  -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
+                                  Arial, sans-serif;
+                              "
+                            >
+                              Department
+                            </p>
+                          </td>
+                          <td style="padding: 12px 20px; border-bottom: 1px solid #f1f5f9">
+                            <p
+                              style="
+                                margin: 0;
+                                font-size: 13px;
+                                font-weight: 500;
+                                color: #1e293b;
+                                font-family:
+                                  -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
+                                  Arial, sans-serif;
+                              "
+                            >
+                              {{department}}
+                            </p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 12px 20px">
+                            <p
+                              style="
+                                margin: 0;
+                                font-size: 13px;
+                                color: #64748b;
+                                font-family:
+                                  -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
+                                  Arial, sans-serif;
+                              "
+                            >
+                              Designation
+                            </p>
+                          </td>
+                          <td style="padding: 12px 20px">
+                            <p
+                              style="
+                                margin: 0;
+                                font-size: 13px;
+                                font-weight: 500;
+                                color: #1e293b;
+                                font-family:
+                                  -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
+                                  Arial, sans-serif;
+                              "
+                            >
+                              {{designation}}
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Divider -->
+            <tr>
+              <td style="padding: 0 32px">
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 0" />
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding: 20px 32px; background-color: #f8fafc" align="center">
+                <p
+                  style="
+                    margin: 0;
+                    font-size: 12px;
+                    color: #94a3b8;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Arial,
+                      sans-serif;
+                    line-height: 1.6;
+                  "
+                >
+                  &copy; {{year}} {{company_name}}. All rights reserved.
+                </p>
+                <p
+                  style="
+                    margin: 6px 0 0 0;
+                    font-size: 11px;
+                    color: #cbd5e1;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Arial,
+                      sans-serif;
+                  "
+                >
+                  This email was sent automatically. Please do not reply.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

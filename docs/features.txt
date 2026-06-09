@@ -1,0 +1,531 @@
+================================================================================
+DNMS - FEATURES INVENTORY
+================================================================================
+Source: derived from the live codebase (app/, app/api/, prisma/schema.prisma,
+lib/, middleware.ts, components/, PRD.md, USER_FLOWS.md).
+Each section maps a feature to the actual page route, API route and Prisma model
+that implements it.
+
+LEGEND
+  PAGE   = Next.js page route under /app
+  API    = Next.js Route Handler under /app/api
+  MODEL  = Prisma model in prisma/schema.prisma
+  CRON   = Server cron endpoint
+================================================================================
+
+
+================================================================================
+M1 - AUTHENTICATION & PERMISSION-BASED ACCESS CONTROL (PBAC)
+================================================================================
+
+Authentication
+  - Email + password login (Next-Auth v5 / Auth.js)
+  - Forgot password flow with secure tokenized reset link
+  - Password reset (token expiry, single-use enforcement)
+  - Edge middleware session guard on all non-public routes
+  - 401 JSON for protected /api/* without session; redirect to /login for pages
+  - Session attached to Employee record (combined User+Employee model)
+  PAGE  : /login, /forgot-password, /reset-password
+  API   : /api/auth/[...nextauth], /api/auth/forgot-password,
+          /api/auth/reset-password
+  MODEL : Account, Session, VerificationToken, PasswordReset, Employee
+  CORE  : middleware.ts, lib/auth-options.ts
+
+Permission-Based Access Control (PBAC)
+  - Role-based access with permission scopes (module:action pattern)
+  - System roles seeded: super_admin, hr_admin, hr_manager, employee, viewer
+  - Per-employee multi-role assignment with optional scope_type / scope_id
+  - withAuth() route wrapper enforces required permission(s) per API route
+  - withSession() wrapper for routes that only need an authenticated user
+  - hasPermission / hasAnyPermission / hasAllPermissions helpers
+  - canAccessEmployee helper (self-or-permission gate)
+  - Super-admin short-circuit (bypasses all permission checks)
+  PAGE  : /admin/roles, /admin/permissions
+  API   : /api/roles, /api/roles/[id], /api/permissions
+  MODEL : Role, Permission, RolePermission, EmployeeRole
+  CORE  : lib/permissions.ts, lib/constants.ts
+
+Audit Log
+  - System-wide audit trail (actor, action, module, entity, changes JSON,
+    IP, user-agent)
+  - Filterable by module, actor, date
+  PAGE  : /admin/audit-log
+  API   : /api/audit-log
+  MODEL : AuditLog
+
+
+================================================================================
+M2 - EMPLOYEE MANAGEMENT
+================================================================================
+
+Employee Directory
+  - List + search by name/employee number
+  - Filter by department, designation, status
+  - Card grid and table views
+  PAGE  : /employees
+  API   : /api/employees
+
+Employee Profile (full CRUD)
+  - Identity: first/last name, email, personal email, phone, personal phone
+  - Personal info: DOB, gender, nationality, blood group, profile photo
+  - Addresses (current, permanent) and emergency contact as JSON
+  - Employment info: department, designation, manager, employment type,
+    status, date of joining, probation end, confirmation date,
+    work location, resignation date, last working date
+  - Device ID mapping (for Hikvision badge linkage)
+  - Tabbed profile view (Info / Documents / Roles)
+  - Add Employee multi-field form
+  - Edit / Deactivate employee
+  - Per-employee document listing
+  PAGE  : /employees, /employees/new, /employees/[id]
+  API   : /api/employees, /api/employees/[id],
+          /api/employees/[id]/documents
+  MODEL : Employee, Department, Designation
+
+Org Chart
+  - Interactive hierarchy tree built from manager-subordinate relations
+  PAGE  : /employees/org-chart
+  API   : /api/employees/org-chart
+  MODEL : Employee (managerId / subordinates)
+
+Departments & Designations
+  - Department hierarchy with parent/children + head assignment
+  - Designation levels (1-13 with phase, max-monthly-salary cap)
+  API   : /api/departments, /api/designations
+  MODEL : Department, Designation
+
+Self-Service Profile
+  - Employee views/edits own profile (phone, current address,
+    emergency contact)
+  - Change password (Security tab)
+  PAGE  : /profile
+  API   : /api/profile
+
+
+================================================================================
+M3 - RECRUITMENT & SCREENING
+================================================================================
+
+Job Postings
+  - Create / edit / publish job postings (Draft, Open, Closed, On Hold)
+  - Fields: title, department, description, requirements, location,
+    type, salary min/max, openings, closing date, posted-by
+  PAGE  : /recruitment, /recruitment/jobs/[id]
+  API   : /api/recruitment/jobs, /api/recruitment/jobs/[id]
+  MODEL : JobPosting
+
+Applicant Pipeline (Kanban)
+  - Stages: APPLIED → SCREENING → INTERVIEW → OFFER → HIRED / REJECTED
+  - Add applicant with source attribution (LinkedIn, Naukri, Referral, etc.)
+  - Move applicants between stages via dropdown
+  - Resume URL, cover letter, notes, rating, rejection reason
+  API   : /api/recruitment/applicants, /api/recruitment/applicants/[id]
+  MODEL : Applicant
+
+Interview Scheduling
+  - Types: PHONE, VIDEO, IN_PERSON, TECHNICAL, HR
+  - Schedule with date/time, duration, interviewer, location/meeting link
+  - Result: PENDING / PASSED / FAILED / NO_SHOW
+  - Feedback, notes, rating
+  API   : /api/recruitment/interviews, /api/recruitment/interviews/[id]
+  MODEL : Interview
+
+
+================================================================================
+M4 - ATTENDANCE & TIME TRACKING
+================================================================================
+
+Attendance Overview & Logs
+  - Monthly attendance grid (all employees)
+  - Per-day record: check-in, check-out, work hours, status, source, notes
+  - Statuses: PRESENT, ABSENT, HALF_DAY, LATE, ON_LEAVE, HOLIDAY, WEEKEND
+  - Manual add/edit/delete attendance record
+  - Attendance summary stats endpoint
+  PAGE  : /attendance
+  API   : /api/attendance, /api/attendance/[id], /api/attendance/summary
+  MODEL : AttendanceLog
+
+My Attendance (Self-Service)
+  - Employee sees own monthly attendance, totals (present/absent/late/hours)
+  PAGE  : /attendance/me
+  API   : /api/attendance/me
+
+Hikvision Device Management & Sync
+  - Register devices: name, IP, port, username/password, location
+  - Test device reachability
+  - Trigger ISAPI sync to pull entry/exit events
+  - View raw device events
+  - Track last sync timestamp
+  PAGE  : /attendance/devices
+  API   : /api/attendance/devices, /api/attendance/devices/[id],
+          /api/attendance/devices/[id]/sync,
+          /api/attendance/devices/[id]/test,
+          /api/attendance/devices/[id]/events
+  MODEL : HikvisionDevice
+  CORE  : lib/hikvision.ts
+
+GPS Check-In (multi-source attendance - M12)
+  - Browser geolocation capture (lat, lng, accuracy)
+  - Office geofence validation (configurable radius, default 200m)
+  - Check-in / check-out actions with timestamp
+  - Source tagged as GPS
+  PAGE  : /attendance/checkin
+  API   : /api/attendance/gps-checkin
+  MODEL : GpsCheckIn, AttendancePolicy
+
+QR Kiosk Attendance (multi-source attendance - M12)
+  - Tablet-mode kiosk page rendering rotating QR code (~5 min token)
+  - Scan endpoint marks check-in/out for employee tied to scan
+  PAGE  : /attendance/kiosk
+  API   : /api/attendance/qr/generate, /api/attendance/qr/scan
+  MODEL : QrSession
+
+CSV Import (multi-source attendance - M12)
+  - Download template, upload CSV, validate preview, import
+  - Upsert by (employeeId, date) - no duplicates
+  PAGE  : /attendance/import
+  API   : /api/attendance/import
+
+Attendance Policy
+  - Configurable: work hours/day, work days/week, check-in/out time,
+    late grace minutes, geofence (office lat/lng + radius)
+  MODEL : AttendancePolicy
+
+Holiday Calendar
+  - Fixed + floating (optional) holidays
+  - HR adds custom holidays
+  - Employees pick 3 of 12 floating holidays per year
+  PAGE  : /attendance/holidays
+  API   : /api/attendance/holidays, /api/attendance/holidays/[id]
+  MODEL : Holiday, FloatingHolidaySelection
+
+
+================================================================================
+M5 - LEAVE MANAGEMENT
+================================================================================
+
+Leave Types
+  - Configurable types: name, code, paid/unpaid, max days/year,
+    carry-forward + max carry days, requires-approval, active flag
+  PAGE  : /leave/types
+  API   : /api/leave/types, /api/leave/types/[id]
+  MODEL : LeaveType
+
+Leave Balances
+  - Per (employee, leave type, year): allocated, used, pending, carried
+  - Annual EL accrual cron job
+  PAGE  : /leave (My Leaves)
+  API   : /api/leave/balances
+  CRON  : /api/cron/el-accrual
+  MODEL : LeaveBalance
+
+Leave Application
+  - Employee applies with leave type, start/end dates, total days, reason
+  - Half-day / multi-day supported (totalDays = float)
+  - Late notice penalty flag
+  - Status flow: PENDING → APPROVED / REJECTED / CANCELLED
+  - Email notification on decision (via M10)
+  PAGE  : /leave/apply
+  API   : /api/leave/requests, /api/leave/requests/[id]
+  MODEL : LeaveRequest
+
+Team / Manager Approvals
+  - Manager sees pending requests for direct reports
+  - Approve / reject with rejection reason
+  PAGE  : /leave/team
+  API   : /api/leave/team
+
+Floating Holiday Selection
+  - Each employee selects 3 of 12 floating holidays per year
+  - Status tracked (PENDING / APPROVED / REJECTED / CANCELLED)
+  MODEL : FloatingHolidaySelection
+
+
+================================================================================
+WFH (WORK FROM HOME)
+================================================================================
+
+WFH Requests
+  - Single-day WFH application with reason
+  - Two-stage approval: Manager → HR
+  - Emergency override flag for short-notice requests
+  - Approval timestamps and approver tracking for each stage
+  - Rejection reason
+  PAGE  : /wfh, /wfh/apply, /wfh/team
+  API   : /api/wfh/requests, /api/wfh/requests/[id]
+  MODEL : WfhRequest
+
+WFH Eligibility Check
+  - Endpoint validates employee eligibility (tenure, quota, etc.) before
+    allowing a new WFH request
+  API   : /api/wfh/eligibility
+
+
+================================================================================
+M6 - PAYROLL
+================================================================================
+
+Salary Structures
+  - Per-employee salary structure: basic, HRA, conveyance, medical,
+    other allowances, employee+employer PF, ESI, TDS, effective-from date
+  PAGE  : /payroll/salary-structures
+  API   : /api/payroll/salary-structures, /api/payroll/salary-structures/[id]
+  MODEL : SalaryStructure
+
+Payroll Records (Monthly Run)
+  - Per (employee, month, year): working days, present days, leave days,
+    LOP days
+  - Earnings: basic, HRA, conveyance, medical, other allowances, overtime,
+    gross
+  - Deductions: PF (employee+employer), ESI, TDS, other; total deductions
+  - Net salary calculation
+  - Status flow: DRAFT → PROCESSING → APPROVED → PAID
+  - Process / approve / paid-at audit fields
+  - Notes per record
+  PAGE  : /payroll
+  API   : /api/payroll/records, /api/payroll/records/[id],
+          /api/payroll/summary
+  MODEL : PayrollRecord
+
+My Payslips (Self-Service)
+  - Employee views all their monthly payroll records
+  PAGE  : /payroll/me
+  API   : /api/payroll/me, /api/payroll/me/[id]
+
+
+================================================================================
+M7 - PERFORMANCE EVALUATION
+================================================================================
+
+Review Cycles
+  - Annual / quarterly cycles with name, year, quarter, start/end, active
+  - Creating a cycle auto-creates PerformanceReview rows
+  PAGE  : /performance
+  API   : /api/performance/cycles
+  MODEL : ReviewCycle
+
+Performance Reviews
+  - Per (cycle, reviewee): self rating + comments, achievements,
+    improvements, manager rating + comments, task score, final rating
+  - Status flow: PENDING → DRAFT → SELF_REVIEW → MANAGER_REVIEW
+                 → COMPLETED / CANCELLED
+  - Submission and completion timestamps
+  PAGE  : /performance/me  (self-review submission)
+  API   : /api/performance/reviews, /api/performance/reviews/[id]
+  MODEL : PerformanceReview
+
+Goals
+  - Per-employee SMART goals: title, description, target date, progress
+    (0-100), status, year
+  - Statuses: NOT_STARTED, IN_PROGRESS, COMPLETED, CANCELLED
+  PAGE  : /performance/goals
+  API   : /api/performance/goals, /api/performance/goals/[id]
+  MODEL : Goal
+
+
+================================================================================
+M8 - DOCUMENT MANAGEMENT
+================================================================================
+
+Documents
+  - Categories: IDENTITY, ACADEMIC, PROFESSIONAL, EMPLOYMENT, TAX,
+    COMPANY_POLICY, TEMPLATE, OTHER
+  - Metadata: title, description, fileName, fileSize, mimeType, version,
+    expiresAt
+  - Tracks: uploadedById, isCompanyDoc flag, employeeId for personal docs
+  PAGE  : /documents, /documents/employee/[id]
+  API   : /api/documents/upload, /api/documents/[id],
+          /api/documents/company
+  MODEL : Document
+
+Object Storage
+  - Upload to S3-compatible store (MinIO/Supabase) with signed download URLs
+  CORE  : lib/storage.ts
+
+Employee Document Locker
+  - Per-employee document list from profile or /documents/employee/[id]
+  API   : /api/employees/[id]/documents
+
+
+================================================================================
+M9 - PROJECTS & TASKS
+================================================================================
+
+Projects
+  - Fields: name, code, description, status (PLANNING/ACTIVE/ON_HOLD/
+    COMPLETED/CANCELLED), priority, owner, start/end dates, budget,
+    isArchived
+  PAGE  : /projects, /projects/[id]
+  API   : /api/projects, /api/projects/[id]
+  MODEL : Project
+
+Project Members
+  - Roles: OWNER, MANAGER, MEMBER, VIEWER
+  - Unique per (project, employee)
+  MODEL : ProjectMember
+
+Tasks (Kanban)
+  - Fields: title, description, status (TODO/IN_PROGRESS/IN_REVIEW/DONE/
+    CANCELLED), priority (LOW/MEDIUM/HIGH/URGENT)
+  - Assignee + creator, start/due dates, completedAt, estimatedHours,
+    loggedHours, tags
+  - Kanban board on the project detail page
+  PAGE  : /projects/[id]
+  API   : /api/projects/[id]/tasks, /api/tasks, /api/tasks/[id]
+  MODEL : ProjectTask
+
+My Tasks (Cross-Project)
+  - Employee sees all assigned tasks across projects
+  PAGE  : /projects/my-tasks
+
+Timesheets
+  - Per (employee, project, task, date) logged hours with notes
+  MODEL : Timesheet
+
+
+================================================================================
+M10 - NOTIFICATIONS & AUTO-MAILER
+================================================================================
+
+In-App Notification Inbox
+  - Bell-icon inbox listing notifications (title, message, type, link,
+    isRead, readAt)
+  - Mark as read
+  PAGE  : /notifications
+  API   : /api/notifications/inbox
+  MODEL : Notification
+  CORE  : lib/notifications.ts
+
+Email Sending
+  - In-process SMTP via Nodemailer
+  - Templated emails (rendered with merge fields)
+  - Outbound logged with status + error capture
+  CORE  : lib/mailer.ts, emails/
+  MODEL : EmailLog
+
+Email Templates
+  - Slug, name, subject, body HTML/text, merge fields, isActive, trigger
+  - Edit subject/body with merge tokens (e.g. {{employee_name}})
+  PAGE  : /admin/email-templates
+  API   : /api/notifications/templates
+  MODEL : EmailTemplate
+
+Automatic Triggers
+  - Welcome email on employee create
+  - Payslip email on payroll run
+  - Leave-approved / leave-rejected on decision
+  - Password-reset link email
+  - Birthday greetings (cron)
+  - Earned Leave annual accrual (cron)
+
+Cron Endpoints
+  - Birthday mailer (daily): /api/cron/birthdays
+  - EL accrual:              /api/cron/el-accrual
+  Both protected by CRON_SECRET bearer header.
+
+
+================================================================================
+M11 - ANALYTICS & REPORTING
+================================================================================
+
+Executive Dashboard (home)
+  - KPI cards: total / active employees, new hires (month),
+    pending leave requests, present today, open jobs, active projects,
+    last payroll total
+  - Loading skeletons for cards
+  PAGE  : /dashboard
+  API   : /api/dashboard/stats
+
+Analytics Charts
+  - Monthly hire trend (last 6 months)
+  - Department headcount
+  - Employee status distribution (donut)
+  - Recruitment pipeline by stage (bar)
+  PAGE  : /analytics
+  API   : /api/analytics
+
+
+================================================================================
+ADMIN
+================================================================================
+
+Roles & Permissions
+  - Role CRUD with permission picker
+  - System-role guard (is_system flag)
+  - Permission matrix (module × scope)
+  PAGE  : /admin/roles, /admin/permissions
+  API   : /api/roles, /api/roles/[id], /api/permissions
+  MODEL : Role, Permission, RolePermission
+
+Audit Log Viewer
+  PAGE  : /admin/audit-log
+  API   : /api/audit-log
+
+Email Template Manager
+  PAGE  : /admin/email-templates
+  API   : /api/notifications/templates
+
+
+================================================================================
+DOCS / IN-APP HELP
+================================================================================
+
+In-app documentation viewer
+  - Slug-based docs rendered at /docs and /docs/[slug]
+  PAGE  : /docs, /docs/[slug]
+
+
+================================================================================
+CROSS-CUTTING / INFRASTRUCTURE
+================================================================================
+
+Framework
+  - Next.js 14 App Router (pages + Route Handlers in one project)
+  - TypeScript end-to-end
+  - Edge middleware for auth gate
+  - Prisma 5 ORM on PostgreSQL 16
+
+UI / UX
+  - Tailwind CSS + shadcn/ui components (Radix primitives)
+  - Lucide icons, Recharts, TanStack Table
+  - React Hook Form + Zod for forms and validation
+  - TanStack Query for server state, Zustand for client state
+  - Theme provider (light/dark via next-themes)
+  - Sonner toast notifications
+  - Collapsible sidebar layout
+
+Validation & Schemas
+  - Shared Zod schemas in lib/schemas/ used by forms + API routes
+
+Storage
+  - Supabase / S3-compatible object storage wrapper (lib/storage.ts)
+
+Email
+  - Nodemailer-based mailer with template rendering (lib/mailer.ts,
+    emails/)
+
+Notifications
+  - In-process notification helper that creates DB rows and optionally
+    sends email (lib/notifications.ts)
+
+Constants & System Roles
+  - lib/constants.ts (SYSTEM_ROLES, permission scopes)
+
+Seeding
+  - prisma/seed.ts initializes roles, permissions, demo accounts,
+    departments, designations, leave types, holidays
+
+
+================================================================================
+TEST ACCOUNTS (from USER_FLOWS.md - seeded)
+================================================================================
+  Super Admin : admin@hrms.dev
+  HR Admin    : priya.sharma@hrms.dev
+  HR Manager  : rahul.verma@hrms.dev
+  Employee    : neha.gupta@hrms.dev
+  Viewer      : viewer@hrms.dev
+  Password    : Admin@123
+
+================================================================================
+END OF FEATURES INVENTORY
+================================================================================

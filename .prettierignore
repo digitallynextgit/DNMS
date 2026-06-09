@@ -1,0 +1,45 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build output
+.next
+out
+dist
+build
+coverage
+
+# Static assets
+public
+
+# Prisma
+prisma/migrations
+
+# Lockfiles
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE / editor
+.vscode
+.idea
+.zed
+.DS_Store
+
+# Misc generated
+next-env.d.ts
+.prettierignore
+.gitignore
+.npmrc

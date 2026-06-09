@@ -1,0 +1,217 @@
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { CheckCircle, Info, AlertCircle, CheckCheck } from "lucide-react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+
+import { PageHeader } from "@/components/shared/page-header"
+import { EmptyState } from "@/components/shared/empty-state"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { cn, formatRelativeTime, truncate } from "@/lib/utils"
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Notification {
+  id: string
+  title: string
+  message: string
+  type: string
+  link: string | null
+  isRead: boolean
+  readAt: string | null
+  createdAt: string
+}
+
+interface NotificationsResponse {
+  data: Notification[]
+  meta: { page: number; limit: number; total: number; totalPages: number }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getNotificationIcon(type: string) {
+  switch (type) {
+    case "success":
+      return <CheckCircle className="h-5 w-5 text-green-500" />
+    case "warning":
+      return <AlertCircle className="h-5 w-5 text-amber-500" />
+    case "error":
+      return <AlertCircle className="h-5 w-5 text-red-500" />
+    default:
+      return <Info className="h-5 w-5 text-blue-500" />
+  }
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function NotificationSkeleton() {
+  return (
+    <div className="bg-card flex items-start gap-3 rounded border p-4">
+      <Skeleton className="h-9 w-9 rounded-full" />
+      <div className="flex flex-1 flex-col gap-2">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-3 w-64" />
+        <Skeleton className="h-3 w-20" />
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+const LIMIT = 20
+
+export default function NotificationsPage() {
+  const router = useRouter()
+  const qc = useQueryClient()
+  const [page, setPage] = useState(1)
+
+  const { data, isLoading } = useQuery<NotificationsResponse>({
+    queryKey: ["notifications", page],
+    queryFn: async () => {
+      const res = await fetch(`/api/notifications/inbox?page=${page}&limit=${LIMIT}`)
+      if (!res.ok) throw new Error("Failed to load notifications")
+      return res.json()
+    },
+  })
+
+  const markReadMutation = useMutation({
+    mutationFn: async (payload: { ids?: string[]; all?: boolean }) => {
+      const res = await fetch("/api/notifications/inbox", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error("Failed to update notifications")
+      return res.json()
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] })
+    },
+    onError: () => {
+      toast.error("Failed to mark notifications as read")
+    },
+  })
+
+  const handleMarkAllRead = () => {
+    markReadMutation.mutate({ all: true })
+  }
+
+  const handleNotificationClick = (notification: Notification) => {
+    if (!notification.isRead) {
+      markReadMutation.mutate({ ids: [notification.id] })
+    }
+    if (notification.link) {
+      router.push(notification.link)
+    }
+  }
+
+  const notifications = data?.data ?? []
+  const meta = data?.meta
+  const hasUnread = notifications.some((n) => !n.isRead)
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Notifications"
+        description="Your activity feed and system notifications."
+        actions={
+          hasUnread ? (
+            <Button
+              variant="outline"
+              onClick={handleMarkAllRead}
+              disabled={markReadMutation.isPending}
+            >
+              <CheckCheck className="mr-2 h-4 w-4" />
+              Mark all as read
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <div className="flex flex-col gap-2">
+        {isLoading ? (
+          Array.from({ length: 6 }).map((_, i) => <NotificationSkeleton key={i} />)
+        ) : notifications.length === 0 ? (
+          <EmptyState
+            icon={CheckCircle}
+            title="You're all caught up!"
+            description="No new notifications at the moment. Check back later."
+          />
+        ) : (
+          notifications.map((notification) => (
+            <button
+              key={notification.id}
+              type="button"
+              onClick={() => handleNotificationClick(notification)}
+              className={cn(
+                "bg-card hover:bg-muted/40 focus-visible:ring-ring flex w-full items-start gap-3 rounded border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2",
+                !notification.isRead &&
+                  "border-l-4 border-l-blue-500 bg-blue-50/30 hover:bg-blue-50/50",
+              )}
+            >
+              <div className="bg-muted mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full">
+                {getNotificationIcon(notification.type)}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p
+                    className={cn(
+                      "text-sm",
+                      notification.isRead
+                        ? "text-foreground font-normal"
+                        : "text-foreground font-semibold",
+                    )}
+                  >
+                    {notification.title}
+                  </p>
+                  <span className="text-muted-foreground shrink-0 text-xs">
+                    {formatRelativeTime(notification.createdAt)}
+                  </span>
+                </div>
+                <p className="text-muted-foreground mt-0.5 text-sm">
+                  {truncate(notification.message, 100)}
+                </p>
+              </div>
+
+              {!notification.isRead && (
+                <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+              )}
+            </button>
+          ))
+        )}
+      </div>
+
+      {/* Pagination */}
+      {meta && meta.totalPages > 1 && (
+        <div className="flex items-center justify-between border-t pt-4">
+          <p className="text-muted-foreground text-sm">
+            Page {meta.page} of {meta.totalPages} &mdash; {meta.total} total
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
+              disabled={page === meta.totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
