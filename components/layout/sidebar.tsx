@@ -80,10 +80,10 @@ const PROJECT_ITEMS: NavItem[] = [
   },
 ]
 
-// ── Management: only privileged roles. Gated by manage-level permissions
+// ── HRMS: only privileged roles. Gated by manage-level permissions
 //    (WRITE/APPROVE/REVIEW) so regular employees never see these groups; they
 //    use the flat Employee links above instead. ──────────────────────────────
-const MANAGEMENT_ITEMS: NavItem[] = [
+const HRMS_ITEMS: NavItem[] = [
   {
     label: "Employees",
     icon: Users,
@@ -451,6 +451,13 @@ export function Sidebar({ session }: { session: Session }) {
           first
         />
         <SidebarSection
+          label="HRMS"
+          items={HRMS_ITEMS}
+          isCollapsed={isCollapsed}
+          permissions={permissions}
+          roles={roles}
+        />
+        <SidebarSection
           label="Project"
           items={PROJECT_ITEMS}
           isCollapsed={isCollapsed}
@@ -458,22 +465,15 @@ export function Sidebar({ session }: { session: Session }) {
           roles={roles}
         />
         <SidebarSection
-          label="Company"
-          items={COMPANY_ITEMS}
-          isCollapsed={isCollapsed}
-          permissions={permissions}
-          roles={roles}
-        />
-        <SidebarSection
-          label="Management"
-          items={MANAGEMENT_ITEMS}
-          isCollapsed={isCollapsed}
-          permissions={permissions}
-          roles={roles}
-        />
-        <SidebarSection
           label="Admin"
           items={ADMIN_ITEMS}
+          isCollapsed={isCollapsed}
+          permissions={permissions}
+          roles={roles}
+        />
+        <SidebarSection
+          label="Company"
+          items={COMPANY_ITEMS}
           isCollapsed={isCollapsed}
           permissions={permissions}
           roles={roles}

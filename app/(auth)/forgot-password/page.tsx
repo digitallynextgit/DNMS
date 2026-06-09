@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useMutation } from "@tanstack/react-query"
 import Link from "next/link"
@@ -29,6 +29,16 @@ export default function ForgotPasswordPage() {
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [show, setShow] = useState(false)
+  // Seconds left before "Resend code" is allowed again. Set to 60 each time a
+  // code is sent (initial send and every resend).
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  // Tick the resend cooldown down to zero, one second at a time.
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const id = setInterval(() => setResendCooldown((s) => (s <= 1 ? 0 : s - 1)), 1000)
+    return () => clearInterval(id)
+  }, [resendCooldown])
 
   // Step 1 - request the code (server confirms the active employee first).
   const requestOtp = useMutation({
@@ -39,6 +49,7 @@ export default function ForgotPasswordPage() {
     },
     onSuccess: () => {
       setStep("otp")
+      setResendCooldown(60)
       toast.success("Verification code sent to your email.")
     },
     onError: (e: Error) => toast.error(e.message),
@@ -182,10 +193,14 @@ export default function ForgotPasswordPage() {
             <button
               type="button"
               onClick={() => requestOtp.mutate()}
-              disabled={requestOtp.isPending}
-              className="text-muted-foreground hover:text-foreground text-xs disabled:opacity-50"
+              disabled={requestOtp.isPending || resendCooldown > 0}
+              className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground text-xs disabled:opacity-50"
             >
-              {requestOtp.isPending ? "Resending…" : "Didn't get it? Resend code"}
+              {requestOtp.isPending
+                ? "Resending…"
+                : resendCooldown > 0
+                  ? `Resend code in ${resendCooldown}s`
+                  : "Didn't get it? Resend code"}
             </button>
           </div>
         </form>
