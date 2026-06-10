@@ -15,7 +15,7 @@ export default async function NewEmployeePage() {
   }
 
   if (!hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)) {
-    redirect("/employees")
+    redirect("/employees/employee-directory")
   }
 
   return (
@@ -25,7 +25,7 @@ export default async function NewEmployeePage() {
         description="Create a new employee profile"
         actions={
           <Button variant="outline" asChild>
-            <Link href="/employees" className="flex items-center gap-1.5">
+            <Link href="/employees/employee-directory" className="flex items-center gap-1.5">
               <ChevronLeft className="h-4 w-4" />
               Back
             </Link>

@@ -1,4 +1,12 @@
-export type ThemeCategory = "purple" | "blue" | "black" | "green" | "red" | "amber" | "teal"
+export type ThemeCategory =
+  | "vibrant"
+  | "purple"
+  | "blue"
+  | "black"
+  | "green"
+  | "red"
+  | "amber"
+  | "teal"
 
 export type Palette = {
   background: string
@@ -119,6 +127,246 @@ function makeDark(s: DarkSpec): Theme {
     },
   }
 }
+
+// Vibrant themes: deep, saturated backgrounds paired with a neon primary and a
+// distinct second accent hue, so the swatch reads as bold/multi-colour. The
+// `accent` UI surface stays subtle (it drives hover states) while the energy
+// comes from the saturated background + neon primary.
+type VibrantSpec = {
+  id: string
+  name: string
+  bgHue: number
+  bgSat: number
+  bgLight: number
+  primaryHue: number
+  primarySat: number
+  primaryLight: number
+  accentHue: number
+}
+
+function makeVibrant(s: VibrantSpec): Theme {
+  const { bgHue, bgSat, bgLight, primaryHue, primarySat, primaryLight, accentHue } = s
+  const hsl = (h: number, sat: number, light: number) => `${h} ${sat}% ${light}%`
+  const surface = Math.min(bgLight + 4, 24)
+  const elevated = Math.min(bgLight + 9, 30)
+  const accentSurface = Math.min(bgLight + 13, 34)
+  const borderLight = Math.min(bgLight + 11, 32)
+
+  return {
+    id: s.id,
+    name: s.name,
+    category: "vibrant",
+    mode: "dark",
+    swatchBg: hslToHex(bgHue, bgSat, bgLight),
+    swatchPrimary: hslToHex(primaryHue, primarySat, primaryLight),
+    swatchAccent: hslToHex(accentHue, 88, 62),
+    palette: {
+      background: hsl(bgHue, bgSat, bgLight),
+      foreground: hsl(bgHue, 25, 96),
+      card: hsl(bgHue, Math.floor(bgSat * 0.9), surface),
+      "card-foreground": hsl(bgHue, 25, 96),
+      popover: hsl(bgHue, Math.floor(bgSat * 0.9), surface),
+      "popover-foreground": hsl(bgHue, 25, 96),
+      primary: hsl(primaryHue, primarySat, primaryLight),
+      "primary-foreground":
+        primaryLight > 58 ? hsl(bgHue, bgSat, Math.max(bgLight - 2, 6)) : "0 0% 100%",
+      secondary: hsl(bgHue, Math.floor(bgSat * 0.7), elevated),
+      "secondary-foreground": hsl(bgHue, 25, 96),
+      muted: hsl(bgHue, Math.floor(bgSat * 0.7), elevated),
+      "muted-foreground": hsl(bgHue, 18, 70),
+      accent: hsl(accentHue, 32, accentSurface),
+      "accent-foreground": hsl(bgHue, 25, 96),
+      destructive: "0 82% 62%",
+      "destructive-foreground": "0 0% 100%",
+      success: "150 72% 50%",
+      "success-foreground": "0 0% 100%",
+      warning: "40 95% 58%",
+      "warning-foreground": "0 0% 10%",
+      border: hsl(bgHue, Math.floor(bgSat * 0.6), borderLight),
+      input: hsl(bgHue, Math.floor(bgSat * 0.6), borderLight),
+      ring: hsl(primaryHue, primarySat, primaryLight),
+    },
+  }
+}
+
+const vibrantThemes: Theme[] = [
+  makeVibrant({
+    id: "vibrant-synthwave",
+    name: "Synthwave",
+    bgHue: 270,
+    bgSat: 48,
+    bgLight: 10,
+    primaryHue: 322,
+    primarySat: 95,
+    primaryLight: 65,
+    accentHue: 190,
+  }),
+  makeVibrant({
+    id: "vibrant-cyberpunk",
+    name: "Cyberpunk",
+    bgHue: 222,
+    bgSat: 55,
+    bgLight: 8,
+    primaryHue: 186,
+    primarySat: 95,
+    primaryLight: 58,
+    accentHue: 320,
+  }),
+  makeVibrant({
+    id: "vibrant-neon-sunset",
+    name: "Neon Sunset",
+    bgHue: 286,
+    bgSat: 42,
+    bgLight: 11,
+    primaryHue: 24,
+    primarySat: 95,
+    primaryLight: 60,
+    accentHue: 330,
+  }),
+  makeVibrant({
+    id: "vibrant-electric-violet",
+    name: "Electric Violet",
+    bgHue: 262,
+    bgSat: 55,
+    bgLight: 10,
+    primaryHue: 274,
+    primarySat: 95,
+    primaryLight: 70,
+    accentHue: 300,
+  }),
+  makeVibrant({
+    id: "vibrant-aurora",
+    name: "Aurora",
+    bgHue: 200,
+    bgSat: 52,
+    bgLight: 9,
+    primaryHue: 150,
+    primarySat: 85,
+    primaryLight: 55,
+    accentHue: 280,
+  }),
+  makeVibrant({
+    id: "vibrant-magma",
+    name: "Magma",
+    bgHue: 350,
+    bgSat: 48,
+    bgLight: 9,
+    primaryHue: 18,
+    primarySat: 95,
+    primaryLight: 58,
+    accentHue: 45,
+  }),
+  makeVibrant({
+    id: "vibrant-tropical",
+    name: "Tropical",
+    bgHue: 185,
+    bgSat: 52,
+    bgLight: 10,
+    primaryHue: 165,
+    primarySat: 85,
+    primaryLight: 55,
+    accentHue: 35,
+  }),
+  makeVibrant({
+    id: "vibrant-ultraviolet",
+    name: "Ultraviolet",
+    bgHue: 250,
+    bgSat: 56,
+    bgLight: 9,
+    primaryHue: 290,
+    primarySat: 95,
+    primaryLight: 70,
+    accentHue: 200,
+  }),
+  makeVibrant({
+    id: "vibrant-neon-lime",
+    name: "Neon Lime",
+    bgHue: 150,
+    bgSat: 30,
+    bgLight: 8,
+    primaryHue: 90,
+    primarySat: 88,
+    primaryLight: 58,
+    accentHue: 175,
+  }),
+  makeVibrant({
+    id: "vibrant-hot-coral",
+    name: "Hot Coral",
+    bgHue: 338,
+    bgSat: 42,
+    bgLight: 11,
+    primaryHue: 8,
+    primarySat: 92,
+    primaryLight: 64,
+    accentHue: 280,
+  }),
+  makeVibrant({
+    id: "vibrant-ocean-neon",
+    name: "Ocean Neon",
+    bgHue: 212,
+    bgSat: 58,
+    bgLight: 9,
+    primaryHue: 194,
+    primarySat: 95,
+    primaryLight: 58,
+    accentHue: 160,
+  }),
+  makeVibrant({
+    id: "vibrant-solar-flare",
+    name: "Solar Flare",
+    bgHue: 28,
+    bgSat: 44,
+    bgLight: 10,
+    primaryHue: 42,
+    primarySat: 95,
+    primaryLight: 58,
+    accentHue: 8,
+  }),
+  makeVibrant({
+    id: "vibrant-emerald-neon",
+    name: "Emerald Neon",
+    bgHue: 162,
+    bgSat: 46,
+    bgLight: 9,
+    primaryHue: 156,
+    primarySat: 90,
+    primaryLight: 52,
+    accentHue: 188,
+  }),
+  makeVibrant({
+    id: "vibrant-flamingo",
+    name: "Flamingo",
+    bgHue: 322,
+    bgSat: 42,
+    bgLight: 11,
+    primaryHue: 332,
+    primarySat: 92,
+    primaryLight: 68,
+    accentHue: 30,
+  }),
+  makeVibrant({
+    id: "vibrant-galaxy",
+    name: "Galaxy Pop",
+    bgHue: 248,
+    bgSat: 58,
+    bgLight: 8,
+    primaryHue: 258,
+    primarySat: 95,
+    primaryLight: 72,
+    accentHue: 330,
+  }),
+  makeVibrant({
+    id: "vibrant-acid",
+    name: "Acid Punch",
+    bgHue: 280,
+    bgSat: 50,
+    bgLight: 9,
+    primaryHue: 75,
+    primarySat: 90,
+    primaryLight: 60,
+    accentHue: 300,
+  }),
+]
 
 const purpleThemes: Theme[] = [
   makeDark({
@@ -1319,6 +1567,7 @@ const amberThemes: Theme[] = [
 ]
 
 export const themes: Theme[] = [
+  ...vibrantThemes,
   ...purpleThemes,
   ...blueThemes,
   ...blackThemes,
@@ -1329,6 +1578,7 @@ export const themes: Theme[] = [
 ]
 
 export const themesByCategory: Record<ThemeCategory, Theme[]> = {
+  vibrant: vibrantThemes,
   purple: purpleThemes,
   blue: blueThemes,
   black: blackThemes,
@@ -1339,6 +1589,7 @@ export const themesByCategory: Record<ThemeCategory, Theme[]> = {
 }
 
 export const categoryLabels: Record<ThemeCategory, string> = {
+  vibrant: "Vibrant",
   purple: "Purple",
   blue: "Blue",
   black: "Black & Gray",

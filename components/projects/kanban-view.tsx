@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type CSSProperties } from "react"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
 import { useQueryClient } from "@tanstack/react-query"
 import { useProjectAllTasks, useUpdateTask, type ProjectTask } from "@/hooks/use-projects"
@@ -123,6 +123,7 @@ export function KanbanView({ projectId, currentUserId, isAdmin, teamFilter }: Pr
                           <div
                             ref={drag.innerRef}
                             {...drag.draggableProps}
+                            style={drag.draggableProps.style as CSSProperties}
                             className={cn(
                               "bg-background cursor-pointer rounded-lg border p-3 shadow-sm select-none",
                               snap.isDragging && "ring-primary/50 rotate-1 shadow-lg ring-2",

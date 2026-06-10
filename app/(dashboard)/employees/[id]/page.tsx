@@ -87,7 +87,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <p className="text-muted-foreground">Employee not found.</p>
         <Button variant="outline" asChild>
-          <Link href="/employees">
+          <Link href="/employees/employee-directory">
             <ChevronLeft className="mr-1 h-4 w-4" />
             Back to Employees
           </Link>
@@ -114,7 +114,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
     <div className="space-y-6">
       {/* Back link */}
       <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/employees" className="flex items-center gap-1.5">
+        <Link href="/employees/employee-directory" className="flex items-center gap-1.5">
           <ChevronLeft className="h-4 w-4" />
           Back to Employees
         </Link>

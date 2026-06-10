@@ -16,7 +16,7 @@
 // Pure functions - safe to import in both server and client components.
 // =============================================================================
 
-export const PROBATION_MONTHS_OPTIONS = [3, 6] as const
+export const PROBATION_MONTHS_OPTIONS = [1, 2, 3, 4, 5, 6] as const
 export type ProbationMonths = (typeof PROBATION_MONTHS_OPTIONS)[number]
 export const DEFAULT_PROBATION_MONTHS: ProbationMonths = 6
 

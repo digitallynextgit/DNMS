@@ -25,7 +25,16 @@ import {
   type ThemeCategory,
 } from "@/lib/themes"
 
-const CATEGORIES: ThemeCategory[] = ["purple", "blue", "black", "teal", "green", "red", "amber"]
+const CATEGORIES: ThemeCategory[] = [
+  "vibrant",
+  "purple",
+  "blue",
+  "black",
+  "teal",
+  "green",
+  "red",
+  "amber",
+]
 
 // Memoized so selecting a theme only re-renders the two cards whose `selected`
 // flips, not all 111. `onSelect` takes the id so a single stable callback can be

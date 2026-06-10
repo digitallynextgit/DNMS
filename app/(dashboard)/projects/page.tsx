@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type CSSProperties } from "react"
 import Link from "next/link"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
@@ -222,6 +222,7 @@ export default function ProjectsPage() {
                               <div
                                 ref={drag.innerRef}
                                 {...drag.draggableProps}
+                                style={drag.draggableProps.style as CSSProperties}
                                 className={cn(
                                   "bg-background rounded-lg border p-3 shadow-sm select-none",
                                   snap.isDragging && "ring-primary/50 rotate-1 shadow-lg ring-2",

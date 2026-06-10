@@ -95,7 +95,7 @@ export default function EmployeeImportPage() {
               <Download className="h-4 w-4" /> Template
             </Button>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/employees" className="flex items-center gap-1.5">
+              <Link href="/employees/employee-directory" className="flex items-center gap-1.5">
                 <ChevronLeft className="h-4 w-4" /> Back
               </Link>
             </Button>

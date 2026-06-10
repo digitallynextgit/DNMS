@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -21,10 +21,14 @@ import {
   FileText,
   Trash2,
   X,
+  Calendar as CalendarIcon,
+  List,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -36,7 +40,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { usePermissions } from "@/hooks/use-permissions"
-import { getProbationStatus } from "@/lib/probation"
+import { getProbationStatus, PROBATION_MONTHS_OPTIONS } from "@/lib/probation"
 import { cn, formatDate } from "@/lib/utils"
 import {
   EMPLOYMENT_TYPE_LABELS,
@@ -48,43 +52,42 @@ import {
   useCreateEmployee,
   useUpdateEmployee,
   useEmployee,
+  useEmployeeCodes,
   useDepartments,
   useDesignations,
 } from "@/hooks/use-employees"
+import { EmployeeCombobox } from "@/components/employees/employee-combobox"
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
 const formSchema = z.object({
-  // Step 1 - Personal
+  // Step 1 - Personal (all required)
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Valid work email is required"),
-  personalEmail: z.string().email("Enter a valid email").optional().or(z.literal("")),
-  phone: z.string().optional(),
-  personalPhone: z.string().optional(),
-  dateOfBirth: z.string().optional(),
-  gender: z.enum(["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY", ""]).optional(),
-  nationality: z.string().optional(),
+  email: z.string().min(1, "Work email is required").email("Valid work email is required"),
+  personalEmail: z.string().min(1, "Personal email is required").email("Enter a valid email"),
+  phone: z.string().min(1, "Work phone is required"),
+  personalPhone: z.string().min(1, "Personal phone is required"),
+  dateOfBirth: z.string().min(1, "Date of birth is required"),
+  // Kept as a constrained string (the Select only offers the four valid values)
+  // so the required check is a simple non-empty rule that plays well with RHF.
+  gender: z.string().min(1, "Gender is required"),
+  nationality: z.string().min(1, "Nationality is required"),
   bloodGroup: z.string().optional(),
 
-  // Step 2 - Employment
-  departmentId: z.string().optional(),
-  designationId: z.string().optional(),
+  // Step 2 - Employment (required core fields)
+  departmentId: z.string().min(1, "Department is required"),
+  designationId: z.string().min(1, "Designation is required"),
   managerId: z.string().optional(),
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]),
-  dateOfJoining: z.string().optional(),
+  dateOfJoining: z.string().min(1, "Date of joining is required"),
   probationEndDate: z.string().optional(),
   onProbation: z.boolean().optional(),
-  probationMonths: z.enum(["3", "6"]).optional(),
-  workLocation: z.string().optional(),
+  probationMonths: z.enum(["1", "2", "3", "4", "5", "6"]).optional(),
+  workLocation: z.string().min(1, "Work location is required"),
   deviceId: z.string().optional(),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .optional()
-    .or(z.literal("")),
-  // Optional existing HR-system code. Blank ⇒ server auto-generates.
-  employeeNo: z.string().max(32, "Max 32 characters").optional().or(z.literal("")),
+  // Required employee code (HR-system code, e.g. 132). Must be unique.
+  employeeNo: z.string().min(1, "Employee code is required").max(32, "Max 32 characters"),
   // Format check only - required-on-create is enforced in goNext() so edit mode
   // can leave the field blank to mean "leave unchanged".
   gmailAppPassword: z
@@ -114,6 +117,118 @@ const formSchema = z.object({
 })
 
 type FormData = z.infer<typeof formSchema>
+
+// ─── Nationality options (Indian first / default) ─────────────────────────────
+
+const NATIONALITIES = [
+  "Indian",
+  "American",
+  "Australian",
+  "Bangladeshi",
+  "British",
+  "Canadian",
+  "Chinese",
+  "French",
+  "German",
+  "Irish",
+  "Japanese",
+  "Malaysian",
+  "Nepalese",
+  "New Zealander",
+  "Pakistani",
+  "Russian",
+  "Singaporean",
+  "South African",
+  "Spanish",
+  "Sri Lankan",
+  "Other",
+] as const
+
+// ─── Work location options ─────────────────────────────────────────────────────
+
+const WORK_LOCATIONS = ["Remote", "Office", "Hybrid"] as const
+
+// Convert between the form's "yyyy-MM-dd" string and a Date for the calendar,
+// staying in local time so the day never shifts across timezones.
+function parseDateString(s?: string): Date | undefined {
+  if (!s) return undefined
+  const [y, m, d] = s.split("-").map(Number)
+  if (!y || !m || !d) return undefined
+  return new Date(y, m - 1, d)
+}
+
+function toDateString(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
+// Smallest positive integer not already used as a (purely numeric) employee code,
+// e.g. codes 1,2,3 → "4"; codes 1,3 → "2".
+function nextEmployeeCode(codes: string[]): string {
+  const used = new Set<number>()
+  for (const c of codes) {
+    const trimmed = c.trim()
+    const n = parseInt(trimmed, 10)
+    if (!Number.isNaN(n) && String(n) === trimmed) used.add(n)
+  }
+  let n = 1
+  while (used.has(n)) n++
+  return String(n)
+}
+
+// ─── Reusable date picker (shadcn calendar in a popover) ───────────────────────
+
+function DateField({
+  value,
+  onChange,
+  placeholder = "Pick a date",
+  startMonth,
+  endMonth,
+  disabled,
+}: {
+  value?: string
+  onChange: (v: string) => void
+  placeholder?: string
+  startMonth?: Date
+  endMonth?: Date
+  disabled?: (date: Date) => boolean
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            "border-input h-10 w-full justify-start rounded px-3 text-left font-normal",
+            !value && "text-muted-foreground",
+          )}
+        >
+          <CalendarIcon className="mr-2 h-4 w-4" />
+          {value ? formatDate(value) : placeholder}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          captionLayout="dropdown"
+          startMonth={startMonth}
+          endMonth={endMonth}
+          defaultMonth={parseDateString(value)}
+          selected={parseDateString(value)}
+          onSelect={(date) => {
+            onChange(date ? toDateString(date) : "")
+            if (date) setOpen(false)
+          }}
+          disabled={disabled}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 // ─── Step config ──────────────────────────────────────────────────────────────
 
@@ -222,8 +337,8 @@ function FormField({
   children: React.ReactNode
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-sm font-medium">
+    <div className="space-y-2.5">
+      <Label className="mb-2 block text-sm font-medium">
         {label}
         {required && <span className="text-destructive ml-0.5">*</span>}
       </Label>
@@ -260,6 +375,8 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   )
   const { data: deptsData } = useDepartments()
   const { data: desigData } = useDesignations()
+  const { data: codesData } = useEmployeeCodes()
+  const employeeCodes = codesData?.data ?? []
 
   // Existing documents (edit mode only).
   const { data: existingDocsData, refetch: refetchDocs } = useQuery({
@@ -347,6 +464,10 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     }
   }
 
+  // Gmail App Password is optional: HR chooses to add one now or skip it. In edit
+  // mode we default to "add" so the (leave-blank-to-keep) field stays visible.
+  const [gmailMode, setGmailMode] = useState<"add" | "skip">(mode === "edit" ? "add" : "skip")
+
   const {
     register,
     handleSubmit,
@@ -359,6 +480,8 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      gender: "",
+      nationality: "Indian",
       employmentType: "FULL_TIME",
       onProbation: true,
       probationMonths: "6",
@@ -368,6 +491,18 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
   const sameAsCurrent = watch("sameAsCurrent")
   const watchedValues = watch()
+
+  // On create, pre-fill the next free employee code once the existing codes load.
+  // Runs once and never clobbers a value the user has already typed.
+  const autoFilledCodeRef = useRef(false)
+  useEffect(() => {
+    if (mode !== "create" || autoFilledCodeRef.current || !codesData) return
+    autoFilledCodeRef.current = true
+    if (!watchedValues.employeeNo) {
+      setValue("employeeNo", nextEmployeeCode(employeeCodes.map((e) => e.employeeNo)))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codesData, mode, setValue])
 
   // Probation fields are editable only by Super Admin / Admin / HR Manager.
   const { isSuperAdmin, roles } = usePermissions()
@@ -416,7 +551,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         dateOfJoining: emp.dateOfJoining ? emp.dateOfJoining.split("T")[0] : "",
         probationEndDate: emp.probationEndDate ? emp.probationEndDate.split("T")[0] : "",
         onProbation: emp.onProbation ?? true,
-        probationMonths: String(emp.probationMonths ?? 6) as "3" | "6",
+        probationMonths: String(emp.probationMonths ?? 6) as FormData["probationMonths"],
         workLocation: emp.workLocation ?? "",
         deviceId: emp.deviceId ?? "",
         currentLine1: ca.line1 ?? "",
@@ -439,10 +574,28 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   }, [employeeData, mode, reset])
 
   const stepFields: Record<number, (keyof FormData)[]> = {
-    1: ["firstName", "lastName", "email"],
-    // Format validation runs via Zod. "Required on create" is enforced manually
-    // in goNext() below so edit mode can leave the field blank to mean "unchanged".
-    2: ["gmailAppPassword"],
+    1: [
+      "firstName",
+      "lastName",
+      "email",
+      "personalEmail",
+      "phone",
+      "personalPhone",
+      "dateOfBirth",
+      "gender",
+      "nationality",
+    ],
+    // Core employment fields are required; gmail format is checked here, and its
+    // "required on create" rule is enforced in goNext() (only when "Add" is chosen).
+    2: [
+      "employeeNo",
+      "departmentId",
+      "designationId",
+      "employmentType",
+      "dateOfJoining",
+      "workLocation",
+      "gmailAppPassword",
+    ],
     3: [], // Documents step - no schema fields to validate (files only)
     4: [],
     5: [],
@@ -452,9 +605,9 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     const fieldsToValidate = stepFields[currentStep]
     const valid = fieldsToValidate.length > 0 ? await trigger(fieldsToValidate) : true
 
-    // On create, the Gmail App Password is required. Zod allows empty (because edit
-    // mode treats blank as "leave unchanged"), so enforce required-on-create here.
-    if (currentStep === 2 && mode === "create") {
+    // When the user chose to add an App Password on create, it's required here.
+    // (Skip mode leaves it blank; edit mode treats blank as "leave unchanged".)
+    if (currentStep === 2 && mode === "create" && gmailMode === "add") {
       const raw = (watchedValues.gmailAppPassword ?? "").replace(/\s+/g, "")
       if (raw === "") {
         setError("gmailAppPassword", {
@@ -495,7 +648,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       probationMonths: data.probationMonths ? Number(data.probationMonths) : undefined,
       workLocation: data.workLocation || undefined,
       deviceId: data.deviceId || undefined,
-      password: data.password || undefined,
       currentAddress:
         data.currentLine1 || data.currentCity
           ? {
@@ -585,26 +737,34 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               <Input {...register("email")} type="email" placeholder="john.doe@company.com" />
             </FormField>
 
-            <FormField label="Personal Email" error={errors.personalEmail?.message}>
+            <FormField label="Personal Email" required error={errors.personalEmail?.message}>
               <Input {...register("personalEmail")} type="email" placeholder="john@gmail.com" />
             </FormField>
 
-            <FormField label="Work Phone" error={errors.phone?.message}>
+            <FormField label="Work Phone" required error={errors.phone?.message}>
               <Input {...register("phone")} placeholder="+91 98765 43210" />
             </FormField>
 
-            <FormField label="Personal Phone" error={errors.personalPhone?.message}>
+            <FormField label="Personal Phone" required error={errors.personalPhone?.message}>
               <Input {...register("personalPhone")} placeholder="+91 98765 43210" />
             </FormField>
 
-            <FormField label="Date of Birth" error={errors.dateOfBirth?.message}>
-              <Input {...register("dateOfBirth")} type="date" />
+            <FormField label="Date of Birth" required error={errors.dateOfBirth?.message}>
+              <DateField
+                value={watchedValues.dateOfBirth}
+                onChange={(v) => setValue("dateOfBirth", v, { shouldValidate: true })}
+                startMonth={new Date(1950, 0)}
+                endMonth={new Date()}
+                disabled={(date) => date > new Date()}
+              />
             </FormField>
 
-            <FormField label="Gender" error={errors.gender?.message}>
+            <FormField label="Gender" required error={errors.gender?.message}>
               <Select
                 value={watchedValues.gender || ""}
-                onValueChange={(v) => setValue("gender", v as FormData["gender"])}
+                onValueChange={(v) =>
+                  setValue("gender", v as FormData["gender"], { shouldValidate: true })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select gender" />
@@ -618,8 +778,22 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               </Select>
             </FormField>
 
-            <FormField label="Nationality" error={errors.nationality?.message}>
-              <Input {...register("nationality")} placeholder="Indian" />
+            <FormField label="Nationality" required error={errors.nationality?.message}>
+              <Select
+                value={watchedValues.nationality || ""}
+                onValueChange={(v) => setValue("nationality", v, { shouldValidate: true })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select nationality" />
+                </SelectTrigger>
+                <SelectContent>
+                  {NATIONALITIES.map((n) => (
+                    <SelectItem key={n} value={n}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </FormField>
 
             <FormField label="Blood Group" error={errors.bloodGroup?.message}>
@@ -650,85 +824,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             <CardTitle className="text-base">Employment Details</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <FormField label="Employee Code" error={errors.employeeNo?.message}>
-              <Input
-                {...register("employeeNo")}
-                placeholder={mode === "create" ? "Leave blank to auto-generate" : "e.g. 132"}
-                autoComplete="off"
-              />
-              <p className="text-muted-foreground mt-1 text-xs">
-                {mode === "create"
-                  ? "Existing HR-system code (e.g. 132). Blank ⇒ auto-generated as EMP-YYYY-####."
-                  : "Changing this updates the unique employee identifier."}
-              </p>
-            </FormField>
-
-            <FormField label="Department" error={errors.departmentId?.message}>
-              <Select
-                value={watchedValues.departmentId || ""}
-                onValueChange={(v) => setValue("departmentId", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-
-            <FormField label="Designation" error={errors.designationId?.message}>
-              <Select
-                value={watchedValues.designationId || ""}
-                onValueChange={(v) => setValue("designationId", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select designation" />
-                </SelectTrigger>
-                <SelectContent>
-                  {designations.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-
-            <FormField label="Employment Type" error={errors.employmentType?.message}>
-              <Select
-                value={watchedValues.employmentType}
-                onValueChange={(v) => setValue("employmentType", v as FormData["employmentType"])}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(EMPLOYMENT_TYPE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-
-            <FormField label="Manager Employee ID" error={errors.managerId?.message}>
-              <Input
-                {...register("managerId")}
-                placeholder="Manager's Employee ID (UUID)"
-                autoComplete="off"
-              />
-            </FormField>
-
-            <FormField label="Date of Joining" error={errors.dateOfJoining?.message}>
-              <Input {...register("dateOfJoining")} type="date" />
-            </FormField>
-
+            {/* Probation (admin only) — kept at the top of the step. */}
             {isProbationAdmin && (
               <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
                 <div className="flex items-center justify-between gap-4">
@@ -749,20 +845,25 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     <FormField label="Probation Period">
                       <Select
                         value={watchedValues.probationMonths ?? "6"}
-                        onValueChange={(v) => setValue("probationMonths", v as "3" | "6")}
+                        onValueChange={(v) =>
+                          setValue("probationMonths", v as FormData["probationMonths"])
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="3">3 months</SelectItem>
-                          <SelectItem value="6">6 months</SelectItem>
+                          {PROBATION_MONTHS_OPTIONS.map((m) => (
+                            <SelectItem key={m} value={String(m)}>
+                              {m} {m === 1 ? "month" : "months"}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </FormField>
 
                     <FormField label="Probation Ends">
-                      <div className="border-input bg-background text-muted-foreground flex h-9 items-center rounded-md border px-3 text-sm">
+                      <div className="border-input bg-background text-muted-foreground flex h-10 items-center rounded border px-3 text-sm">
                         {probationHint}
                       </div>
                     </FormField>
@@ -771,12 +872,147 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               </div>
             )}
 
-            <FormField label="Work Location" error={errors.workLocation?.message}>
-              <Input
-                {...register("workLocation")}
-                placeholder="e.g. Mumbai HQ, Remote"
-                autoComplete="off"
+            <FormField label="Employee Code" required error={errors.employeeNo?.message}>
+              <div className="flex gap-2">
+                <Input
+                  {...register("employeeNo")}
+                  placeholder="e.g. 132"
+                  autoComplete="off"
+                  className="flex-1"
+                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" className="h-10 shrink-0 gap-1.5 px-3">
+                      <List className="h-4 w-4" />
+                      View codes
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-72 p-0">
+                    <div className="text-muted-foreground border-b px-3 py-2 text-xs font-medium">
+                      Existing employee codes ({employeeCodes.length})
+                    </div>
+                    <div className="max-h-64 overflow-y-auto p-1">
+                      {employeeCodes.length === 0 ? (
+                        <p className="text-muted-foreground px-2 py-3 text-center text-sm">
+                          No employees yet.
+                        </p>
+                      ) : (
+                        employeeCodes.map((e) => (
+                          <div
+                            key={e.id}
+                            className="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm"
+                          >
+                            <span className="truncate">
+                              {e.firstName} {e.lastName}
+                            </span>
+                            <span className="text-muted-foreground shrink-0 tabular-nums">
+                              {e.employeeNo}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Auto-filled to the next free code. Must be unique.
+              </p>
+            </FormField>
+
+            <FormField label="Department" required error={errors.departmentId?.message}>
+              <Select
+                value={watchedValues.departmentId || ""}
+                onValueChange={(v) => setValue("departmentId", v, { shouldValidate: true })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Designation" required error={errors.designationId?.message}>
+              <Select
+                value={watchedValues.designationId || ""}
+                onValueChange={(v) => setValue("designationId", v, { shouldValidate: true })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select designation" />
+                </SelectTrigger>
+                <SelectContent>
+                  {designations.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Employment Type" required error={errors.employmentType?.message}>
+              <Select
+                value={watchedValues.employmentType}
+                onValueChange={(v) => setValue("employmentType", v as FormData["employmentType"])}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(EMPLOYMENT_TYPE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Manager" error={errors.managerId?.message}>
+              <EmployeeCombobox
+                value={watchedValues.managerId}
+                onChange={(id) => setValue("managerId", id ?? "")}
+                excludeId={mode === "edit" ? employeeId : undefined}
+                initialLabel={
+                  employeeData?.data?.manager
+                    ? `${employeeData.data.manager.firstName} ${employeeData.data.manager.lastName}`
+                    : undefined
+                }
+                placeholder="Search and select a manager"
               />
+            </FormField>
+
+            <FormField label="Date of Joining" required error={errors.dateOfJoining?.message}>
+              <DateField
+                value={watchedValues.dateOfJoining}
+                onChange={(v) => setValue("dateOfJoining", v, { shouldValidate: true })}
+                startMonth={new Date(2000, 0)}
+                endMonth={new Date(new Date().getFullYear() + 1, 11)}
+              />
+            </FormField>
+
+            <FormField label="Work Location" required error={errors.workLocation?.message}>
+              <Select
+                value={watchedValues.workLocation || ""}
+                onValueChange={(v) => setValue("workLocation", v, { shouldValidate: true })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select work location" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WORK_LOCATIONS.map((loc) => (
+                    <SelectItem key={loc} value={loc}>
+                      {loc}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </FormField>
 
             <FormField label="Biometric Device ID" error={errors.deviceId?.message}>
@@ -787,49 +1023,56 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               />
             </FormField>
 
-            {mode === "create" && (
-              <FormField label="Initial Password" error={errors.password?.message}>
-                <Input
-                  {...register("password")}
-                  type="password"
-                  placeholder="Min 8 characters (optional)"
-                  autoComplete="new-password"
+            {/* Gmail App Password - encrypted at rest, used to send emails as this
+                employee. HR toggles whether to add one now or skip it. */}
+            <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Gmail App Password</Label>
+                  <p className="text-muted-foreground text-xs">
+                    Add a Gmail App Password to send emails as this employee, or leave it off to
+                    skip.
+                  </p>
+                </div>
+                <Switch
+                  checked={gmailMode === "add"}
+                  onCheckedChange={(v) => {
+                    setGmailMode(v ? "add" : "skip")
+                    if (!v) setValue("gmailAppPassword", "")
+                  }}
                 />
-              </FormField>
-            )}
+              </div>
 
-            {/* Gmail App Password - encrypted at rest, used to send emails as this employee. */}
-            <div className="sm:col-span-2">
-              <FormField
-                label={
-                  mode === "create"
-                    ? "Gmail App Password"
-                    : employeeData?.data?.hasGmailAppPassword
-                      ? "Gmail App Password (currently set - leave blank to keep)"
-                      : "Gmail App Password (not set)"
-                }
-                required={mode === "create"}
-                error={errors.gmailAppPassword?.message}
-              >
-                <Input
-                  {...register("gmailAppPassword")}
-                  type="password"
-                  placeholder="abcd efgh ijkl mnop"
-                  autoComplete="off"
-                />
-                <p className="text-muted-foreground mt-1 text-xs">
-                  16-character App Password from{" "}
-                  <a
-                    href="https://myaccount.google.com/apppasswords"
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="underline"
-                  >
-                    myaccount.google.com → Security → App Passwords
-                  </a>
-                  . Stored encrypted (AES-256-GCM); never shown again after save.
-                </p>
-              </FormField>
+              {gmailMode === "add" && (
+                <FormField
+                  label={
+                    mode === "edit" && employeeData?.data?.hasGmailAppPassword
+                      ? "App Password (currently set - leave blank to keep)"
+                      : "App Password"
+                  }
+                  required={mode === "create"}
+                  error={errors.gmailAppPassword?.message}
+                >
+                  <Input
+                    {...register("gmailAppPassword")}
+                    type="password"
+                    placeholder="abcd efgh ijkl mnop"
+                    autoComplete="off"
+                  />
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    16-character App Password from{" "}
+                    <a
+                      href="https://myaccount.google.com/apppasswords"
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="underline"
+                    >
+                      myaccount.google.com → Security → App Passwords
+                    </a>
+                    . Stored encrypted (AES-256-GCM); never shown again after save.
+                  </p>
+                </FormField>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -11,7 +11,31 @@ import { generateEmployeeNo } from "@/lib/utils"
 import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
 import { canAccessEmployee } from "@/lib/permissions"
+import { encrypt } from "@/lib/encryption"
 import bcrypt from "bcryptjs"
+import { randomInt } from "crypto"
+
+// Generate a readable, reasonably strong initial password to email to a new
+// hire. Avoids ambiguous characters (0/O, 1/l/I).
+function generateInitialPassword(length = 12): string {
+  const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$%"
+  let out = ""
+  for (let i = 0; i < length; i++) out += charset[randomInt(charset.length)]
+  return out
+}
+
+// Credentials email sent to a new employee with their first-login password.
+function credentialsEmail(firstName: string, email: string, password: string) {
+  const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/login`
+  const html = `
+    <p>Hi ${firstName},</p>
+    <p>Your Digitally Next Management System account has been created. Use the credentials below to sign in:</p>
+    <p><strong>Email:</strong> ${email}<br/><strong>Temporary password:</strong> ${password}</p>
+    <p>Please sign in at <a href="${loginUrl}">${loginUrl}</a> and change your password from your profile.</p>
+    <p>— Digitally Next HR</p>`
+  const text = `Hi ${firstName},\n\nYour DNMS account has been created.\nEmail: ${email}\nTemporary password: ${password}\n\nSign in at ${loginUrl} and change your password.\n\n— Digitally Next HR`
+  return { html, text }
+}
 import type { OrgNode } from "@/types"
 import { requireSession, requirePermission, getAuditMeta } from "./_guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "./_result"
@@ -104,6 +128,25 @@ export async function getEmployee(id: string): Promise<ActionResult<unknown>> {
   })
 }
 
+// Lightweight list of every employee with their code, used by the create form to
+// show which codes are taken and to pre-fill the next free one.
+export async function getEmployeeCodes(): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    await requirePermission(PERMISSIONS.EMPLOYEE_WRITE)
+    const employees = await db.employee.findMany({
+      orderBy: { employeeNo: "asc" },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        employeeNo: true,
+        profilePhoto: true,
+      },
+    })
+    return ok(serialize({ data: employees }))
+  })
+}
+
 export async function createEmployee(input: unknown): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.EMPLOYEE_WRITE)
@@ -112,11 +155,24 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
     const data = parsed.data
 
     try {
+      // Honor a provided employee code (the form now requires it); fall back to
+      // auto-generation only when blank. Provided codes must be unique.
+      const providedNo = data.employeeNo?.trim()
+      if (providedNo) {
+        const existing = await db.employee.findUnique({
+          where: { employeeNo: providedNo },
+          select: { id: true },
+        })
+        if (existing) return fail("An employee with this code already exists")
+      }
       const totalCount = await db.employee.count()
-      const employeeNo = generateEmployeeNo(totalCount + 1)
+      const employeeNo = providedNo || generateEmployeeNo(totalCount + 1)
 
-      let passwordHash: string | undefined
-      if (data.password) passwordHash = await bcrypt.hash(data.password, 12)
+      // Auto-generate an initial password when none was supplied so we can email
+      // the new hire their first-login credentials.
+      const plainPassword = data.password || generateInitialPassword()
+      const passwordHash = await bcrypt.hash(plainPassword, 12)
+      const gmailAppPassword = data.gmailAppPassword ? encrypt(data.gmailAppPassword) : null
 
       const currentAddress = data.currentAddress
         ? JSON.parse(JSON.stringify(data.currentAddress))
@@ -153,6 +209,7 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
           permanentAddress,
           emergencyContact,
           passwordHash,
+          gmailAppPassword,
         },
         include: {
           department: { select: { id: true, name: true } },
@@ -209,6 +266,19 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         })
       }
 
+      // Email the first-login credentials to the work + personal address (both
+      // when available, otherwise whichever exists).
+      const recipients = [employee.email, employee.personalEmail].filter(Boolean).join(", ")
+      if (recipients) {
+        const { html, text } = credentialsEmail(employee.firstName, employee.email, plainPassword)
+        await addEmailJob({
+          to: recipients,
+          subject: "Your DNMS account credentials",
+          html,
+          text,
+        })
+      }
+
       return ok(serialize({ data: employee }))
     } catch (e) {
       if ((e as { code?: string })?.code === "P2002")
@@ -249,6 +319,9 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
     if (data.probationEndDate !== undefined)
       updateData.probationEndDate = data.probationEndDate ? new Date(data.probationEndDate) : null
     if (data.workLocation !== undefined) updateData.workLocation = data.workLocation || null
+    // Only overwrite the App Password when a new one is supplied; blank means
+    // "leave the existing value unchanged".
+    if (data.gmailAppPassword) updateData.gmailAppPassword = encrypt(data.gmailAppPassword)
     if (data.currentAddress !== undefined)
       updateData.currentAddress = data.currentAddress
         ? JSON.parse(JSON.stringify(data.currentAddress))

@@ -242,6 +242,114 @@
   letter-spacing: 0.05em;
 }
 
+/* ── Vibrant theme treatments ──────────────────────────────────────────────
+   Activated by [data-vibrant] on <html> (set by CustomThemeApplier when a
+   vibrant palette is chosen). Adds a multi-colour ambient background, a subtle
+   grid pattern, an animated glow, and gradient primary controls — so vibrant
+   palettes feel designed, not merely recoloured. --vibrant-c1/c2 are the
+   theme's neon primary + vivid accent (hex). */
+.vibrant-aura {
+  display: none;
+}
+
+[data-vibrant] .vibrant-aura {
+  display: block;
+  background-image:
+    radial-gradient(
+      45rem 45rem at 10% -8%,
+      color-mix(in srgb, var(--vibrant-c1) 30%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      42rem 42rem at 100% 108%,
+      color-mix(in srgb, var(--vibrant-c2) 26%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      28rem 28rem at 88% 4%,
+      color-mix(in srgb, var(--vibrant-c1) 16%, transparent),
+      transparent 60%
+    );
+}
+
+/* Subtle grid pattern, faded toward the edges. */
+[data-vibrant] .vibrant-aura::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--vibrant-c1) 9%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--vibrant-c1) 9%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, black 8%, transparent 78%);
+  mask-image: radial-gradient(ellipse at 50% 0%, black 8%, transparent 78%);
+}
+
+/* Slowly drifting glow blob. */
+[data-vibrant] .vibrant-aura::after {
+  content: "";
+  position: absolute;
+  top: -8rem;
+  right: 6%;
+  width: 32rem;
+  height: 32rem;
+  border-radius: 9999px;
+  background: var(--vibrant-c2);
+  opacity: 0.2;
+  filter: blur(96px);
+  animation: vibrant-float 22s ease-in-out infinite;
+}
+
+@keyframes vibrant-float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(-5rem, 3rem) scale(1.12);
+  }
+  66% {
+    transform: translate(4rem, -2rem) scale(0.94);
+  }
+}
+
+/* Gradient primary controls (buttons, step markers, etc.). */
+[data-vibrant] .bg-primary {
+  background-image: linear-gradient(135deg, var(--vibrant-c1), var(--vibrant-c2));
+}
+
+/* Soft coloured glow + lift on primary buttons/links. */
+[data-vibrant] button.bg-primary,
+[data-vibrant] a.bg-primary {
+  box-shadow: 0 6px 20px -6px color-mix(in srgb, var(--vibrant-c1) 55%, transparent);
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+[data-vibrant] button.bg-primary:hover,
+[data-vibrant] a.bg-primary:hover {
+  box-shadow: 0 8px 26px -6px color-mix(in srgb, var(--vibrant-c2) 65%, transparent);
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-vibrant] .vibrant-aura::after {
+    animation: none;
+  }
+  [data-vibrant] button.bg-primary,
+  [data-vibrant] a.bg-primary {
+    transition: none;
+  }
+}
+
 /* Print / Save-as-PDF: show only the #print-area, drop app chrome, keep colors. */
 @media print {
   body * {

@@ -7,6 +7,7 @@ import { getDesignations } from "@/lib/actions/designations"
 import {
   getEmployees,
   getEmployee,
+  getEmployeeCodes,
   createEmployee as createEmployeeAction,
   updateEmployee as updateEmployeeAction,
   deactivateEmployee,
@@ -14,6 +15,14 @@ import {
   activateEmployee as activateEmployeeAction,
   getOrgChart,
 } from "@/lib/actions/employees"
+
+export interface EmployeeCodeItem {
+  id: string
+  firstName: string
+  lastName: string
+  employeeNo: string
+  profilePhoto: string | null
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -187,6 +196,18 @@ export function useEmployee(id: string | null | undefined) {
     queryFn: () => fetchEmployee(id!),
     enabled: !!id,
     staleTime: 30_000,
+  })
+}
+
+export function useEmployeeCodes() {
+  return useQuery({
+    queryKey: ["employee-codes"],
+    queryFn: async () => {
+      const r = await getEmployeeCodes()
+      if (!r.ok) throw new Error(r.error)
+      return r.data as { data: EmployeeCodeItem[] }
+    },
+    staleTime: 60_000,
   })
 }
 

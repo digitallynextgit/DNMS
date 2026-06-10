@@ -57,7 +57,7 @@ export const createEmployeeSchema = z.object({
   probationMonths: z.coerce
     .number()
     .int()
-    .refine((v) => v === 3 || v === 6, "Probation must be 3 or 6 months")
+    .refine((v) => v >= 1 && v <= 6, "Probation must be between 1 and 6 months")
     .optional(),
   workLocation: z.string().optional(),
 
@@ -66,15 +66,24 @@ export const createEmployeeSchema = z.object({
   permanentAddress: addressSchema,
   emergencyContact: emergencyContactSchema,
 
-  // Optional initial password
+  // Optional initial password. When omitted on create, the server generates one
+  // and emails it to the employee.
   password: z.string().min(8).optional(),
 
-  // Required Gmail App Password (16-char string Google generates).
-  // We strip spaces before validation since Google formats it as "abcd efgh ijkl mnop".
+  // Optional Gmail App Password (16-char string Google generates). HR chooses
+  // whether to add one now ("Add" → required 16 chars) or skip it (blank).
+  // Spaces are stripped since Google formats it as "abcd efgh ijkl mnop".
   gmailAppPassword: z
     .string()
     .transform((s) => s.replace(/\s+/g, ""))
-    .pipe(z.string().min(16, "Gmail App Password must be 16 characters").max(16)),
+    .pipe(
+      z
+        .string()
+        .max(16, "Gmail App Password must be 16 characters")
+        .refine((s) => s === "" || s.length === 16, "Gmail App Password must be 16 characters"),
+    )
+    .optional()
+    .or(z.literal("")),
 })
 
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>
