@@ -128,8 +128,8 @@ export default function ProjectDetailPage() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-24 rounded-lg" />
-        <Skeleton className="h-96 rounded-lg" />
+        <Skeleton className="h-24 rounded" />
+        <Skeleton className="h-96 rounded" />
       </div>
     )
   }

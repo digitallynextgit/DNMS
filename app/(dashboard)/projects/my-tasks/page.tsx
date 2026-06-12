@@ -162,7 +162,7 @@ export default function MyTasksPage() {
 
       {/* Groups or table */}
       {isLoading ? (
-        <Skeleton className="h-64 rounded-lg" />
+        <Skeleton className="h-64 rounded" />
       ) : grouped.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">

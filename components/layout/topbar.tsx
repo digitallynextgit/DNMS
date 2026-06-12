@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { getInitials } from "@/lib/utils"
 import { useSidebarStore } from "@/stores/sidebar-store"
 import { useThemeStore } from "@/stores/theme-store"
+import { useEmployee } from "@/hooks/use-employees"
 import { ThemePicker } from "./theme-picker"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
@@ -30,7 +31,13 @@ async function fetchUnreadCount() {
 }
 
 export function Topbar({ session }: { session: Session }) {
-  const { firstName, lastName, email, profilePhoto } = session.user
+  const { id, firstName, lastName, email, profilePhoto: sessionPhoto } = session.user
+  // Live photo: shares the same ["employee", id] cache as the profile page, so a
+  // photo upload/removal (which invalidates ["employee"]) refreshes the avatar
+  // here too — without waiting for the session JWT to be reissued at next login.
+  // Fall back to the session value until the live query resolves to avoid a flash.
+  const { data: liveEmployee } = useEmployee(id)
+  const profilePhoto = liveEmployee ? (liveEmployee.data?.profilePhoto ?? null) : sessionPhoto
   const { isCollapsed, toggle } = useSidebarStore()
   const clearPalette = useThemeStore((s) => s.clearPalette)
   const { setTheme } = useTheme()

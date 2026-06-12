@@ -459,41 +459,8 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
 
 // Self-service resignation: the signed-in employee marks themselves RESIGNED.
 // No special permission needed (it only ever affects the caller's own record).
-export async function resignSelf(input: {
-  resignationDate?: string
-  lastWorkingDate?: string
-}): Promise<ActionResult<{ message: string }>> {
-  return runAction(async () => {
-    const session = await requireSession()
-    const me = await db.employee.findUnique({
-      where: { id: session.user.id },
-      select: { id: true, status: true },
-    })
-    if (!me) return fail("Employee not found")
-    if (me.status === "RESIGNED" || me.status === "TERMINATED")
-      return fail("You have already resigned")
-
-    await db.employee.update({
-      where: { id: me.id },
-      data: {
-        status: "RESIGNED",
-        resignationDate: input.resignationDate ? new Date(input.resignationDate) : new Date(),
-        lastWorkingDate: input.lastWorkingDate ? new Date(input.lastWorkingDate) : null,
-      },
-    })
-
-    const meta = await getAuditMeta()
-    await createAuditLog(session, {
-      action: "RESIGN",
-      module: "employee",
-      entityType: "Employee",
-      entityId: me.id,
-      changes: { status: "RESIGNED", ...input },
-      ...meta,
-    })
-    return ok({ message: "Resignation submitted" })
-  })
-}
+// Resignation is now a manager/HR-approved workflow. See applyResignation /
+// reviewResignation in lib/actions/resignations.ts.
 
 export async function deactivateEmployee(id: string): Promise<ActionResult<{ message: string }>> {
   return runAction(async () => {

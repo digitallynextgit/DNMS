@@ -1,13 +1,11 @@
 "use client"
 
-import Link from "next/link"
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
   Mail,
   Phone,
-  Pencil,
   Building2,
   Briefcase,
   Users,
@@ -19,6 +17,7 @@ import {
   Shield,
   Send,
   CheckCircle2,
+  Upload,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -29,10 +28,13 @@ import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PageHeader } from "@/components/shared/page-header"
+import { ProfileSelfActions } from "@/components/employees/profile-self-actions"
 import { DocumentList } from "@/components/documents/document-list"
+import { DocumentUploadDialog } from "@/components/documents/document-upload-dialog"
 import { useSession } from "next-auth/react"
 import { useEmployee } from "@/hooks/use-employees"
 import { cn, getInitials, getAvatarColor, formatDate } from "@/lib/utils"
+import { getProbationStatus } from "@/lib/probation"
 import {
   EMPLOYEE_STATUS_COLORS,
   EMPLOYEE_STATUS_LABELS,
@@ -102,6 +104,8 @@ export default function ProfilePage() {
   const [gmailPw, setGmailPw] = useState("")
   const [showGmailPw, setShowGmailPw] = useState(false)
 
+  const [docUploadOpen, setDocUploadOpen] = useState(false)
+
   const pwMut = useMutation({
     mutationFn: () =>
       changePassword({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword }),
@@ -147,23 +151,25 @@ export default function ProfilePage() {
   const avatarBg = getAvatarColor(fullName)
   const statusColor = EMPLOYEE_STATUS_COLORS[emp.status] ?? "bg-gray-100 text-gray-700"
   const statusLabel = EMPLOYEE_STATUS_LABELS[emp.status] ?? emp.status
+  // Probation end is derived (dateOfJoining + probationMonths); the raw DB column
+  // is unused, so compute it the same way the admin/HR employee page does.
+  const probation = getProbationStatus(emp)
 
   const ca = (emp.currentAddress ?? {}) as Record<string, string>
   const pa = (emp.permanentAddress ?? {}) as Record<string, string>
   const ec = (emp.emergencyContact ?? {}) as Record<string, string>
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Profile"
         description="View and manage your personal profile"
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/employees/${emp.id}/edit`} className="flex items-center gap-1.5">
-              <Pencil className="h-3.5 w-3.5" />
-              Edit Profile
-            </Link>
-          </Button>
+          <ProfileSelfActions
+            employeeId={emp.id}
+            hasPhoto={!!emp.profilePhoto}
+            status={emp.status}
+          />
         }
       />
 
@@ -172,7 +178,11 @@ export default function ProfilePage() {
         <CardContent className="pt-6 pb-6">
           <div className="flex flex-col items-start gap-6 sm:flex-row">
             <Avatar className="h-24 w-24 shrink-0">
-              {emp.profilePhoto && <AvatarImage src={emp.profilePhoto} alt={fullName} />}
+              {/* Always mount AvatarImage (src empty when no photo) so Radix resets
+                  its loading status and the initials fallback reappears after the
+                  photo is removed. A bare {cond && <Image/>} leaves the root stuck
+                  at "loaded" and the fallback never shows again. */}
+              <AvatarImage src={emp.profilePhoto ?? undefined} alt={fullName} />
               <AvatarFallback className={cn("text-2xl font-bold text-white", avatarBg)}>
                 {initials}
               </AvatarFallback>
@@ -208,6 +218,17 @@ export default function ProfilePage() {
                 >
                   {statusLabel}
                 </span>
+                {probation.onProbation && (
+                  <Badge
+                    variant="outline"
+                    className="border-amber-300 bg-amber-50 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400"
+                  >
+                    On Probation
+                    {probation.endDate
+                      ? ` · until ${formatDate(probation.endDate.toISOString())}`
+                      : ""}
+                  </Badge>
+                )}
               </div>
 
               <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-4 text-sm">
@@ -287,7 +308,12 @@ export default function ProfilePage() {
                 />
                 <InfoRow label="Work Location" value={emp.workLocation} />
                 <InfoRow label="Date of Joining" value={formatDate(emp.dateOfJoining)} />
-                <InfoRow label="Probation End" value={formatDate(emp.probationEndDate)} />
+                <InfoRow
+                  label="Probation End"
+                  value={
+                    probation.endDate ? formatDate(probation.endDate.toISOString()) : undefined
+                  }
+                />
                 <InfoRow
                   label="Manager"
                   value={
@@ -346,15 +372,32 @@ export default function ProfilePage() {
         <TabsContent value="documents">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <FileText className="h-4 w-4" />
-                My Documents
-              </CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <FileText className="h-4 w-4" />
+                  My Documents
+                </CardTitle>
+                <Button size="sm" onClick={() => setDocUploadOpen(true)}>
+                  <Upload className="mr-1.5 h-3.5 w-3.5" />
+                  Upload Document
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <DocumentList employeeId={emp.id} canUpload={false} canDelete={false} />
+              <DocumentList
+                employeeId={emp.id}
+                canUpload
+                canDelete={false}
+                onUploadClick={() => setDocUploadOpen(true)}
+              />
             </CardContent>
           </Card>
+
+          <DocumentUploadDialog
+            open={docUploadOpen}
+            onOpenChange={setDocUploadOpen}
+            employeeId={emp.id}
+          />
         </TabsContent>
 
         {/* Roles tab */}
@@ -384,7 +427,7 @@ export default function ProfilePage() {
 
         {/* Security tab */}
         <TabsContent value="security" className="space-y-6">
-          <Card className="max-w-md">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Shield className="h-4 w-4" />
@@ -431,23 +474,25 @@ export default function ProfilePage() {
                   <p className="text-destructive text-xs">Passwords do not match</p>
                 )}
               </div>
-              <Button
-                onClick={() => pwMut.mutate()}
-                disabled={
-                  pwMut.isPending ||
-                  !pwForm.currentPassword ||
-                  !pwForm.newPassword ||
-                  pwForm.newPassword !== pwForm.confirmPassword
-                }
-              >
-                {pwMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Change Password
-              </Button>
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => pwMut.mutate()}
+                  disabled={
+                    pwMut.isPending ||
+                    !pwForm.currentPassword ||
+                    !pwForm.newPassword ||
+                    pwForm.newPassword !== pwForm.confirmPassword
+                  }
+                >
+                  {pwMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Change Password
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
           {/* Gmail App Password - used to send emails from this employee's address. */}
-          <Card className="max-w-md">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Send className="h-4 w-4" />
@@ -461,7 +506,7 @@ export default function ProfilePage() {
             <CardContent className="space-y-4">
               {/* Currently-set indicator */}
               {(emp as { hasGmailAppPassword?: boolean }).hasGmailAppPassword && (
-                <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
+                <div className="flex items-center gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   <span>App Password is set. Enter a new one below to replace it.</span>
                 </div>
@@ -508,15 +553,17 @@ export default function ProfilePage() {
                 </p>
               </div>
 
-              <Button
-                onClick={() => gmailMut.mutate()}
-                disabled={gmailMut.isPending || !gmailPwValid}
-              >
-                {gmailMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {(emp as { hasGmailAppPassword?: boolean }).hasGmailAppPassword
-                  ? "Update App Password"
-                  : "Save App Password"}
-              </Button>
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => gmailMut.mutate()}
+                  disabled={gmailMut.isPending || !gmailPwValid}
+                >
+                  {gmailMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {(emp as { hasGmailAppPassword?: boolean }).hasGmailAppPassword
+                    ? "Update App Password"
+                    : "Save App Password"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

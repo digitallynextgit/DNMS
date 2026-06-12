@@ -101,7 +101,10 @@ export async function uploadDocument(formData: FormData): Promise<ActionResult<u
   })
 }
 
-export async function getDocumentUrl(id: string): Promise<ActionResult<unknown>> {
+export async function getDocumentUrl(
+  id: string,
+  opts?: { download?: boolean },
+): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
 
@@ -116,7 +119,11 @@ export async function getDocumentUrl(id: string): Promise<ActionResult<unknown>>
       return fail("Forbidden")
     }
 
-    const url = await getSignedUrl(document.objectKey, 900)
+    const url = await getSignedUrl(
+      document.objectKey,
+      900,
+      opts?.download ? { downloadFileName: document.fileName } : undefined,
+    )
     return ok(serialize({ data: { url, document } }))
   })
 }

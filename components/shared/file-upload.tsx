@@ -14,6 +14,45 @@ interface FileUploadProps {
   className?: string
 }
 
+// Map raw MIME types / extensions to short, human-readable labels so the
+// dropzone shows "PDF, DOC, DOCX, JPG, PNG, WEBP" instead of the verbose
+// comma-separated MIME string (e.g. application/vnd.openxmlformats-...).
+const MIME_LABELS: Record<string, string> = {
+  "application/pdf": "PDF",
+  "application/msword": "DOC",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
+  "application/vnd.ms-excel": "XLS",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
+  "application/vnd.ms-powerpoint": "PPT",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PPTX",
+  "text/plain": "TXT",
+  "text/csv": "CSV",
+  "image/jpeg": "JPG",
+  "image/jpg": "JPG",
+  "image/png": "PNG",
+  "image/webp": "WEBP",
+  "image/gif": "GIF",
+  "image/svg+xml": "SVG",
+}
+
+function formatAcceptedTypes(accept: string): string {
+  const labels = accept
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => {
+      if (t === "image/*") return "Images"
+      if (t === "video/*") return "Video"
+      if (t === "audio/*") return "Audio"
+      if (MIME_LABELS[t]) return MIME_LABELS[t]
+      if (t.startsWith(".")) return t.slice(1).toUpperCase()
+      const subtype = t.includes("/") ? t.split("/")[1] : t
+      return subtype.toUpperCase()
+    })
+  // Dedupe (e.g. image/jpeg + image/jpg both map to JPG) while keeping order.
+  return Array.from(new Set(labels)).join(", ")
+}
+
 export function FileUpload({
   accept,
   maxSize = 20 * 1024 * 1024, // 20MB default
@@ -41,7 +80,7 @@ export function FileUpload({
           (type.endsWith("/*") && fileMimeType.startsWith(type.slice(0, -1))),
       )
       if (!isAccepted) {
-        return `File type not allowed. Accepted: ${accept}`
+        return `File type not allowed. Accepted: ${formatAcceptedTypes(accept)}`
       }
     }
     return null
@@ -162,7 +201,7 @@ export function FileUpload({
                 <span className="text-primary underline underline-offset-2">browse</span>
               </p>
               <p className="text-muted-foreground text-xs">
-                {accept ? `Accepted: ${accept}` : "All file types accepted"} - Max{" "}
+                {accept ? formatAcceptedTypes(accept) : "All file types"} · Max{" "}
                 {formatFileSize(maxSize)}
               </p>
             </div>

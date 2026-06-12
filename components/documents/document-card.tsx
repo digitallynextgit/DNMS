@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type ElementType } from "react"
-import { FileText, Download, Trash2, FileImage, File, AlertCircle } from "lucide-react"
+import { FileText, Download, Eye, Trash2, FileImage, File, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -82,18 +82,48 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
   const categoryLabel = DOCUMENT_CATEGORY_LABELS[document.category] ?? document.category
 
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [viewLoading, setViewLoading] = useState(false)
   const [downloadLoading, setDownloadLoading] = useState(false)
 
+  // Resolve a fresh short-lived presigned URL. `download: true` forces the file
+  // to download (content-disposition: attachment); otherwise it opens inline.
+  const resolveUrl = async (download: boolean): Promise<string | undefined> => {
+    const r = employeeId
+      ? await getEmployeeDocumentUrl(employeeId, document.id, { download })
+      : await getDocumentUrl(document.id, { download })
+    if (!r.ok) throw new Error("Failed to get file link")
+    return (r.data as { data?: { url?: string } }).data?.url
+  }
+
+  // View: open the document/image inline in a new tab.
+  const handleView = async () => {
+    setViewLoading(true)
+    try {
+      const url = await resolveUrl(false)
+      if (url) window.open(url, "_blank", "noopener,noreferrer")
+    } catch {
+      // Silent - toast handled higher up if needed
+    } finally {
+      setViewLoading(false)
+    }
+  }
+
+  // Download: pull the actual file to disk. The presigned URL carries an
+  // attachment disposition, so navigating an anchor to it downloads rather than
+  // navigating away. `window.document` is used because the `document` prop here
+  // shadows the global document object.
   const handleDownload = async () => {
     setDownloadLoading(true)
     try {
-      const r = employeeId
-        ? await getEmployeeDocumentUrl(employeeId, document.id)
-        : await getDocumentUrl(document.id)
-      if (!r.ok) throw new Error("Failed to get download link")
-      const url: string | undefined = (r.data as { data?: { url?: string } }).data?.url
+      const url = await resolveUrl(true)
       if (url) {
-        window.open(url, "_blank", "noopener,noreferrer")
+        const a = window.document.createElement("a")
+        a.href = url
+        a.download = document.fileName
+        a.rel = "noopener"
+        window.document.body.appendChild(a)
+        a.click()
+        a.remove()
       }
     } catch {
       // Silent - toast handled higher up if needed
@@ -163,6 +193,18 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
 
         {/* Actions */}
         <div className="flex shrink-0 items-center gap-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            onClick={handleView}
+            disabled={viewLoading}
+            title="View"
+            aria-label={`View ${document.title}`}
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+
           <Button
             size="icon"
             variant="ghost"

@@ -121,7 +121,7 @@ export default function FloatingHolidaysPage() {
       {isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-lg" />
+            <Skeleton key={i} className="h-20 rounded" />
           ))}
         </div>
       ) : !fd || fd.optionalHolidays.length === 0 ? (
@@ -143,7 +143,7 @@ export default function FloatingHolidaysPage() {
                 onClick={() => !disabled && toggle(h)}
                 disabled={disabled}
                 className={cn(
-                  "flex items-start justify-between gap-3 rounded-lg border p-4 text-left transition-colors",
+                  "flex items-start justify-between gap-3 rounded border p-4 text-left transition-colors",
                   isSel ? "border-primary bg-primary/5" : "bg-card hover:bg-muted/40",
                   disabled && !isSel && "cursor-not-allowed opacity-50",
                 )}

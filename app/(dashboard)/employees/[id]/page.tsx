@@ -292,7 +292,12 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
                 <InfoRow label="Status" value={statusLabel} />
                 <InfoRow label="Work Location" value={emp.workLocation} />
                 <InfoRow label="Date of Joining" value={formatDate(emp.dateOfJoining)} />
-                <InfoRow label="Probation End" value={formatDate(emp.probationEndDate)} />
+                <InfoRow
+                  label="Probation End"
+                  value={
+                    probation.endDate ? formatDate(probation.endDate.toISOString()) : undefined
+                  }
+                />
                 <InfoRow
                   label="Manager"
                   value={

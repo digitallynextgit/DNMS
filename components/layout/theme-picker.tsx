@@ -56,7 +56,7 @@ const ThemeCard = memo(function ThemeCard({
         // content-visibility lets the browser skip layout/paint for off-screen
         // cards; contain-intrinsic-size reserves their space so the scrollbar
         // stays correct. This is what keeps 107 cards cheap to mount.
-        "group relative flex flex-col gap-2 rounded-md border p-3 text-left transition-shadow [contain-intrinsic-size:auto_8.5rem] [content-visibility:auto] hover:shadow-md focus-visible:ring-2 focus-visible:outline-none",
+        "group relative flex flex-col gap-2 rounded border p-3 text-left transition-shadow [contain-intrinsic-size:auto_8.5rem] [content-visibility:auto] hover:shadow-md focus-visible:ring-2 focus-visible:outline-none",
         selected
           ? "border-primary ring-primary/30 ring-2"
           : "border-border hover:border-foreground/30",
@@ -161,7 +161,7 @@ export function ThemePicker() {
                 className="h-8 pl-8 text-sm"
               />
             </div>
-            <div className="bg-muted flex items-center gap-0.5 rounded-md p-0.5">
+            <div className="bg-muted flex items-center gap-0.5 rounded p-0.5">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button

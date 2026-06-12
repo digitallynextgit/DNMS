@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { Camera, ChevronDown, Loader2, Trash2, Upload, UserMinus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import {
   Dialog,
@@ -22,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { usePermissions } from "@/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
-import { resignSelf } from "@/lib/actions/employees"
+import { applyResignation } from "@/lib/actions/resignations"
 
 export function EmployeeAdminActions({
   employeeId,
@@ -42,7 +43,7 @@ export function EmployeeAdminActions({
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const [resignOpen, setResignOpen] = useState(false)
-  const [resignationDate, setResignationDate] = useState("")
+  const [reason, setReason] = useState("")
   const [lastWorkingDate, setLastWorkingDate] = useState("")
 
   const refresh = () => {
@@ -81,9 +82,9 @@ export function EmployeeAdminActions({
 
   const resignMut = useMutation({
     mutationFn: async () => {
-      const r = await resignSelf({
-        resignationDate: resignationDate || undefined,
-        lastWorkingDate: lastWorkingDate || undefined,
+      const r = await applyResignation({
+        reason: reason || undefined,
+        requestedLastWorkingDate: lastWorkingDate || undefined,
       })
       if (!r.ok) throw new Error(r.error)
       return r.data
@@ -91,7 +92,9 @@ export function EmployeeAdminActions({
     onSuccess: () => {
       refresh()
       setResignOpen(false)
-      toast.success("Resignation submitted")
+      setReason("")
+      setLastWorkingDate("")
+      toast.success("Resignation submitted for approval")
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -155,27 +158,28 @@ export function EmployeeAdminActions({
           onClick={() => setResignOpen(true)}
         >
           <UserMinus className="mr-1.5 h-3.5 w-3.5" />
-          Resign
+          Apply Resignation
         </Button>
       )}
 
       <Dialog open={resignOpen} onOpenChange={setResignOpen}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="sm:max-w-105">
           <DialogHeader>
-            <DialogTitle>Submit Resignation</DialogTitle>
+            <DialogTitle>Apply for Resignation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-1">
             <div className="space-y-1.5">
-              <Label htmlFor="res-date">Resignation Date</Label>
-              <Input
-                id="res-date"
-                type="date"
-                value={resignationDate}
-                onChange={(e) => setResignationDate(e.target.value)}
+              <Label htmlFor="res-reason">Reason</Label>
+              <Textarea
+                id="res-reason"
+                rows={3}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Briefly share why you're resigning (optional)"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="lwd">Last Working Day</Label>
+              <Label htmlFor="lwd">Requested Last Working Day</Label>
               <Input
                 id="lwd"
                 type="date"
@@ -184,8 +188,9 @@ export function EmployeeAdminActions({
               />
             </div>
             <p className="text-muted-foreground text-xs">
-              This marks your status as RESIGNED and notifies HR. You can leave the dates blank if
-              they're not finalized yet.
+              This sends a resignation request to your manager for approval. Once approved, your
+              account is deactivated and you'll be signed out. You can withdraw it from your profile
+              while it's still pending.
             </p>
           </div>
           <DialogFooter>
@@ -198,7 +203,7 @@ export function EmployeeAdminActions({
               onClick={() => resignMut.mutate()}
             >
               {resignMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirm
+              Submit Request
             </Button>
           </DialogFooter>
         </DialogContent>

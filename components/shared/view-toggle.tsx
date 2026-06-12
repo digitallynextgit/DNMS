@@ -16,7 +16,7 @@ interface Props {
 export function ViewToggle({ value, onChange, showKanban = false, className }: Props) {
   return (
     <div
-      className={cn("bg-card inline-flex items-center rounded-md border p-0.5", className)}
+      className={cn("bg-card inline-flex items-center rounded border p-0.5", className)}
       role="tablist"
       aria-label="View mode"
     >

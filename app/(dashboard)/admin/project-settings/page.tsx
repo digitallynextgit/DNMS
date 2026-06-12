@@ -166,9 +166,9 @@ export default function ProjectSettingsPage() {
 
         {isLoading ? (
           <div className="space-y-2">
-            <Skeleton className="h-16 rounded-xl" />
-            <Skeleton className="h-16 rounded-xl" />
-            <Skeleton className="h-16 rounded-xl" />
+            <Skeleton className="h-16 rounded" />
+            <Skeleton className="h-16 rounded" />
+            <Skeleton className="h-16 rounded" />
           </div>
         ) : phases.length === 0 ? (
           <Card className="border-dashed">
@@ -242,7 +242,7 @@ export default function ProjectSettingsPage() {
 
                 {/* ── Sub-phases ── */}
                 {p.children.length > 0 && (
-                  <div className="border-border/60 mx-4 mb-3 overflow-hidden rounded-lg border">
+                  <div className="border-border/60 mx-4 mb-3 overflow-hidden rounded border">
                     {p.children.map((child, ci) => (
                       <div
                         key={child.id}
@@ -409,7 +409,7 @@ function PhaseFormDialog({
               <div className="space-y-1.5">
                 <Label>Status</Label>
                 <select
-                  className="bg-background h-9 w-full rounded-md border px-2 text-sm"
+                  className="bg-background h-9 w-full rounded border px-2 text-sm"
                   value={isActive ? "1" : "0"}
                   onChange={(e) => setIsActive(e.target.value === "1")}
                 >
@@ -566,9 +566,9 @@ function DepartmentsSection() {
 
       {isLoading ? (
         <div className="space-y-2">
-          <Skeleton className="h-14 rounded-xl" />
-          <Skeleton className="h-14 rounded-xl" />
-          <Skeleton className="h-14 rounded-xl" />
+          <Skeleton className="h-14 rounded" />
+          <Skeleton className="h-14 rounded" />
+          <Skeleton className="h-14 rounded" />
         </div>
       ) : visible.length === 0 ? (
         <Card className="border-dashed">
@@ -737,7 +737,7 @@ function DepartmentFormDialog({
             <div className="space-y-1.5">
               <Label>Status</Label>
               <select
-                className="bg-background h-9 w-full rounded-md border px-2 text-sm"
+                className="bg-background h-9 w-full rounded border px-2 text-sm"
                 value={isActive ? "1" : "0"}
                 onChange={(e) => setIsActive(e.target.value === "1")}
               >

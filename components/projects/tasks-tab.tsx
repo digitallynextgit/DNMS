@@ -70,7 +70,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
   const [showPendingOnly, setShowPendingOnly] = useState(false)
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list")
 
-  if (teamsLoading) return <Skeleton className="h-64 rounded-lg" />
+  if (teamsLoading) return <Skeleton className="h-64 rounded" />
   if (teams.length === 0) {
     return (
       <Card className="border-dashed">
@@ -129,7 +129,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
         )}
 
         {/* View toggle */}
-        <div className="ml-auto flex items-center overflow-hidden rounded-md border">
+        <div className="ml-auto flex items-center overflow-hidden rounded border">
           <Button
             variant={viewMode === "list" ? "secondary" : "ghost"}
             size="sm"

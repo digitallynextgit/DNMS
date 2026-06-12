@@ -91,6 +91,7 @@ export async function uploadEmployeeDocument(
 export async function getEmployeeDocumentUrl(
   employeeId: string,
   docId: string,
+  opts?: { download?: boolean },
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
@@ -100,8 +101,13 @@ export async function getEmployeeDocumentUrl(
     const document = await db.employeeDocument.findFirst({ where: { id: docId, employeeId } })
     if (!document) return fail("Document not found")
 
-    // Files are private in B2; hand back a short-lived presigned URL.
-    const url = await getSignedUrl(document.objectKey)
+    // Files are private in B2; hand back a short-lived presigned URL. When
+    // download is requested, force a download instead of an inline view.
+    const url = await getSignedUrl(
+      document.objectKey,
+      3600,
+      opts?.download ? { downloadFileName: document.fileName } : undefined,
+    )
     return ok(serialize({ data: { ...document, url } }))
   })
 }

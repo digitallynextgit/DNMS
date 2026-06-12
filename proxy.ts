@@ -50,6 +50,104 @@ function isPublic(pathname: string): boolean {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Route-level RBAC.
+//
+// The sidebar hides menu items a user lacks permission for, but that is purely
+// cosmetic - a signed-in employee could still navigate directly to an HR/admin
+// URL and the page shell would render. These ordered rules are the server-side
+// enforcement: the FIRST regex that matches `pathname` decides what is required
+// to load that page.
+//
+//   null        -> open to any authenticated user (self-service / company-wide)
+//   "scope"     -> that scope is required
+//   ["a","b"]   -> ANY one of the scopes is enough
+//
+// super_admin always passes; admin holds every scope so it passes naturally.
+//
+// IMPORTANT: the regular `employee` role holds several read scopes
+// (attendance:read, payroll:read, performance:read, document:read, project:read),
+// so HR management pages are deliberately gated on MANAGE-level scopes
+// (write / approve / review) - matching how the sidebar gates these menus - not
+// on :read, otherwise every employee would pass the check.
+//
+// API routes are NOT guarded here: each enforces its own permission via the
+// withAuth() wrapper in lib/permissions.ts. This map only protects page routes.
+// ---------------------------------------------------------------------------
+type RoutePerm = string | string[] | null
+
+const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
+  // --- Employee self-service & company-wide: always allowed --------------
+  [/^\/attendance\/me(\/|$)/, null],
+  [/^\/payroll\/me(\/|$)/, null],
+  [/^\/performance\/me(\/|$)/, null],
+  [/^\/leave\/apply(\/|$)/, null],
+  [/^\/wfh\/apply(\/|$)/, null],
+  [/^\/employees\/org-chart(\/|$)/, null],
+  [/^\/leave$/, null],
+  [/^\/wfh$/, null],
+
+  // --- Employees (HR) ----------------------------------------------------
+  [/^\/employees\/new(\/|$)/, "employee:write"],
+  [/^\/employees\/import(\/|$)/, "employee:write"],
+  [/^\/employees\/[^/]+\/edit(\/|$)/, "employee:write"],
+  [/^\/employees(\/|$)/, "employee:read"],
+
+  // --- Attendance (HR) ---------------------------------------------------
+  [/^\/attendance(\/|$)/, "attendance:write"],
+
+  // --- Leave (HR) --------------------------------------------------------
+  [/^\/leave\/(team|calendar|types)(\/|$)/, "leave:approve"],
+
+  // --- Work From Home (HR) ----------------------------------------------
+  [/^\/wfh\/team(\/|$)/, "wfh:approve"],
+
+  // --- Payroll (HR) ------------------------------------------------------
+  [/^\/payroll(\/|$)/, "payroll:write"],
+
+  // --- Performance (HR) --------------------------------------------------
+  [/^\/performance(\/|$)/, "performance:review"],
+
+  // --- Recruitment (HR) --------------------------------------------------
+  [/^\/recruitment(\/|$)/, "recruitment:read"],
+
+  // --- Analytics (HR) ----------------------------------------------------
+  [/^\/analytics(\/|$)/, "analytics:read"],
+
+  // --- Projects ----------------------------------------------------------
+  [/^\/projects(\/|$)/, "project:read"],
+
+  // --- Per-employee documents (HR view of another employee's documents) --
+  [/^\/documents\/employee(\/|$)/, "employee:read"],
+
+  // --- Admin -------------------------------------------------------------
+  [/^\/admin\/roles(\/|$)/, "role:read"],
+  [/^\/admin\/permissions(\/|$)/, "role:read"],
+  [/^\/admin\/audit-log(\/|$)/, "audit:read"],
+  [/^\/admin\/email-templates(\/|$)/, "email_template:read"],
+  [/^\/admin\/project-settings(\/|$)/, "project:write"],
+  [/^\/admin(\/|$)/, ["role:read", "audit:read", "email_template:read", "project:write"]],
+]
+
+// First matching rule wins. `undefined` => no rule => open to any signed-in user.
+function requiredPermFor(pathname: string): RoutePerm | undefined {
+  for (const [re, perm] of ROUTE_RULES) {
+    if (re.test(pathname)) return perm
+  }
+  return undefined
+}
+
+function isAuthorized(
+  perm: RoutePerm | undefined,
+  roles: string[],
+  permissions: string[],
+): boolean {
+  if (perm === undefined || perm === null) return true
+  if (roles.includes("super_admin")) return true
+  const needed = Array.isArray(perm) ? perm : [perm]
+  return needed.some((p) => permissions.includes(p))
+}
+
 export default auth((req: NextRequest & { auth: unknown }) => {
   const { pathname } = req.nextUrl
 
@@ -61,7 +159,9 @@ export default auth((req: NextRequest & { auth: unknown }) => {
   // For protected paths, check the session embedded by the auth() wrapper.
   const session = (
     req as NextRequest & {
-      auth: { user?: { mustChangePassword?: boolean } } | null
+      auth: {
+        user?: { mustChangePassword?: boolean; roles?: string[]; permissions?: string[] }
+      } | null
     }
   ).auth
 
@@ -92,6 +192,17 @@ export default auth((req: NextRequest & { auth: unknown }) => {
         return NextResponse.json({ error: "Password change required" }, { status: 403 })
       }
       return NextResponse.redirect(new URL("/change-password", req.url))
+    }
+  }
+
+  // Route-level RBAC for PAGE routes. API routes enforce their own permissions
+  // via the withAuth() wrapper (lib/permissions.ts), so they are skipped here.
+  // A user who lacks the required scope is sent back to /dashboard (a page every
+  // role can access), so they never reach an HR/admin page by typing the URL.
+  if (!pathname.startsWith("/api/")) {
+    const perm = requiredPermFor(pathname)
+    if (!isAuthorized(perm, session.user.roles ?? [], session.user.permissions ?? [])) {
+      return NextResponse.redirect(new URL("/dashboard", req.url))
     }
   }
 

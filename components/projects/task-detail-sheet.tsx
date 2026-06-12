@@ -184,7 +184,7 @@ function MilestoneToggle({ task }: { task: ProjectTask }) {
   return (
     <button
       className={cn(
-        "group flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-all",
+        "group flex w-full items-center gap-2.5 rounded border px-3 py-2 text-sm transition-all",
         active
           ? "border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-950/30"
           : "border-border border-dashed hover:border-purple-300 hover:bg-purple-50/50 dark:hover:bg-purple-950/10",
@@ -194,7 +194,7 @@ function MilestoneToggle({ task }: { task: ProjectTask }) {
     >
       <div
         className={cn(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded",
           active
             ? "bg-purple-600 text-white"
             : "bg-muted text-muted-foreground group-hover:bg-purple-100 group-hover:text-purple-700",
@@ -283,8 +283,8 @@ function ChecklistSection({ taskId }: { taskId: string }) {
       {/* Items */}
       {isLoading ? (
         <div className="space-y-2">
-          <Skeleton className="h-8 rounded-lg" />
-          <Skeleton className="h-8 rounded-lg" />
+          <Skeleton className="h-8 rounded" />
+          <Skeleton className="h-8 rounded" />
         </div>
       ) : (
         <div className="space-y-1">
@@ -294,7 +294,7 @@ function ChecklistSection({ taskId }: { taskId: string }) {
           {items.map((item) => (
             <div
               key={item.id}
-              className="group hover:bg-muted/50 flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors"
+              className="group hover:bg-muted/50 flex items-center gap-2.5 rounded px-2 py-1.5 transition-colors"
             >
               <button
                 className="shrink-0"
@@ -331,7 +331,7 @@ function ChecklistSection({ taskId }: { taskId: string }) {
       <div className="mt-1 flex items-center gap-2">
         <input
           ref={inputRef}
-          className="bg-background placeholder:text-muted-foreground/60 focus:ring-ring/30 flex-1 rounded-lg border px-3 py-2 text-sm transition focus:ring-2 focus:outline-none"
+          className="bg-background placeholder:text-muted-foreground/60 focus:ring-ring/30 flex-1 rounded border px-3 py-2 text-sm transition focus:ring-2 focus:outline-none"
           placeholder="Add an item…"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -384,8 +384,8 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
       {/* Comment list */}
       {isLoading ? (
         <div className="space-y-3">
-          <Skeleton className="h-14 rounded-xl" />
-          <Skeleton className="h-14 rounded-xl" />
+          <Skeleton className="h-14 rounded" />
+          <Skeleton className="h-14 rounded" />
         </div>
       ) : comments.length === 0 ? (
         <div className="flex flex-col items-center gap-1.5 py-6 text-center">
@@ -408,7 +408,7 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <div className="bg-muted/60 rounded-xl rounded-tl-sm px-3 py-2.5">
+                  <div className="bg-muted/60 rounded rounded-tl-sm px-3 py-2.5">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <span className="text-[11px] font-semibold">
                         {c.author.firstName} {c.author.lastName}
@@ -446,7 +446,7 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
       <div className="space-y-1.5 pt-1">
         <div className="relative">
           <Textarea
-            className="border-muted-foreground/20 bg-muted/30 min-h-20 resize-none rounded-xl pr-12 text-sm focus-visible:ring-1"
+            className="border-muted-foreground/20 bg-muted/30 min-h-20 resize-none rounded pr-12 text-sm focus-visible:ring-1"
             placeholder="Add a comment…"
             value={text}
             onChange={(e) => setText(e.target.value)}

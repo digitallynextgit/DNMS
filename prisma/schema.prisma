@@ -479,6 +479,10 @@ model Employee {
   // Floating holiday selections
   floatingHolidays FloatingHolidaySelection[]
 
+  // Resignation (self-service, manager/HR approved)
+  resignations         Resignation[] @relation("ResignationEmployee")
+  resignationsReviewed Resignation[] @relation("ResignationReviewer")
+
   // V2 Project Management
   managedTeams           ProjectTeam[]       @relation("TeamManager")
   projectTeamMemberships ProjectTeamMember[] @relation("ProjectTeamMembership")
@@ -737,6 +741,33 @@ model WfhRequest {
   @@index([status])
   @@index([date])
   @@map("wfh_requests")
+}
+
+// =============================================================================
+// RESIGNATION (self-service, manager/HR approved)
+// An employee submits a resignation; it stays PENDING until their direct
+// manager (or HR) approves. On approval the employee is set to RESIGNED and
+// deactivated (isActive=false), which blocks any further login.
+// =============================================================================
+
+model Resignation {
+  id                       String      @id @default(uuid()) @map("id")
+  employeeId               String      @map("employee_id")
+  reason                   String?     @map("reason")
+  requestedLastWorkingDate DateTime?   @map("requested_last_working_date") @db.Date
+  status                   LeaveStatus @default(PENDING) @map("status")
+  reviewerId               String?     @map("reviewer_id")
+  reviewNote               String?     @map("review_note")
+  reviewedAt               DateTime?   @map("reviewed_at")
+  createdAt                DateTime    @default(now()) @map("created_at")
+  updatedAt                DateTime    @updatedAt @map("updated_at")
+
+  employee Employee  @relation("ResignationEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer Employee? @relation("ResignationReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("resignations")
 }
 
 // =============================================================================

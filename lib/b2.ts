@@ -70,9 +70,29 @@ export async function deleteFile(objectKey: string): Promise<void> {
   await getClient().send(new DeleteObjectCommand({ Bucket: bucket(), Key: objectKey }))
 }
 
-/** Short-lived presigned GET URL (B2/S3 cap is 7 days; default 1 hour). */
-export async function getSignedUrl(objectKey: string, expirySeconds = 3600): Promise<string> {
-  return presign(getClient(), new GetObjectCommand({ Bucket: bucket(), Key: objectKey }), {
+/**
+ * Short-lived presigned GET URL (B2/S3 cap is 7 days; default 1 hour).
+ *
+ * Pass `downloadFileName` to force the browser to download the file (sets
+ * `response-content-disposition: attachment`) instead of rendering it inline.
+ * Without it, images/PDFs open inline in a browser tab (the "View" behaviour).
+ */
+export async function getSignedUrl(
+  objectKey: string,
+  expirySeconds = 3600,
+  opts?: { downloadFileName?: string },
+): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: bucket(),
+    Key: objectKey,
+    ...(opts?.downloadFileName
+      ? {
+          // Strip quotes / CR-LF to keep the header well-formed and injection-safe.
+          ResponseContentDisposition: `attachment; filename="${opts.downloadFileName.replace(/["\r\n]/g, "")}"`,
+        }
+      : {}),
+  })
+  return presign(getClient(), command, {
     expiresIn: Math.min(expirySeconds, 7 * 24 * 60 * 60),
   })
 }

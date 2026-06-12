@@ -25,6 +25,7 @@ import {
   Laptop,
   Network,
   ListChecks,
+  UserMinus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -94,6 +95,12 @@ const HRMS_ITEMS: NavItem[] = [
       { label: "Departments", href: "/employees/departments" },
       { label: "Designations", href: "/employees/designations" },
     ],
+  },
+  {
+    label: "Resignations",
+    href: "/resignations",
+    icon: UserMinus,
+    permission: PERMISSIONS.EMPLOYEE_READ,
   },
   {
     label: "Attendance",

@@ -945,7 +945,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
           <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             {/* Probation (admin only) - kept at the top of the step. */}
             {isProbationAdmin && (
-              <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
+              <div className="border-border bg-muted/30 space-y-3 rounded border p-4 sm:col-span-2">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <Label className="text-sm font-medium">On Probation</Label>
@@ -1150,7 +1150,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             {/* Login password (create only). Auto-filled with a generated value; HR
                 can edit it or regenerate. It is emailed to the employee either way. */}
             {mode === "create" && (
-              <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
+              <div className="border-border bg-muted/30 space-y-3 rounded border p-4 sm:col-span-2">
                 <FormField label="Login Password" required error={errors.password?.message}>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
@@ -1214,7 +1214,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             {/* Gmail App Password - encrypted at rest, used to send emails as this
                 employee. HR toggles whether to add one now or skip it. */}
-            <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
+            <div className="border-border bg-muted/30 space-y-3 rounded border p-4 sm:col-span-2">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <Label className="text-sm font-medium">Gmail App Password</Label>

@@ -155,20 +155,20 @@ export default function ProjectsPage() {
             {KANBAN_COLUMNS.map((c) => (
               <div key={c.id} className="space-y-2">
                 <Skeleton className="h-5 w-24 rounded" />
-                <Skeleton className="h-36 rounded-xl" />
-                <Skeleton className="h-36 rounded-xl" />
+                <Skeleton className="h-36 rounded" />
+                <Skeleton className="h-36 rounded" />
               </div>
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-52 rounded-lg" />
+              <Skeleton key={i} className="h-52 rounded" />
             ))}
           </div>
         )
       ) : projects.length === 0 ? (
-        <div className="bg-card flex flex-col items-center justify-center rounded-lg border py-20 text-center">
+        <div className="bg-card flex flex-col items-center justify-center rounded border py-20 text-center">
           <FolderKanban className="text-muted-foreground/40 mb-3 h-10 w-10" />
           <p className="text-muted-foreground text-sm">No projects yet.</p>
           {canWrite && (
@@ -206,7 +206,7 @@ export default function ProjectsPage() {
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                          "min-h-32 flex-1 space-y-2 rounded-xl p-2 transition-colors",
+                          "min-h-32 flex-1 space-y-2 rounded p-2 transition-colors",
                           col.color,
                           snapshot.isDraggingOver && "ring-primary/40 ring-2",
                         )}
@@ -224,7 +224,7 @@ export default function ProjectsPage() {
                                 {...drag.draggableProps}
                                 style={drag.draggableProps.style as CSSProperties}
                                 className={cn(
-                                  "bg-background rounded-lg border p-3 shadow-sm select-none",
+                                  "bg-background rounded border p-3 shadow-sm select-none",
                                   snap.isDragging && "ring-primary/50 rotate-1 shadow-lg ring-2",
                                 )}
                               >
@@ -369,7 +369,7 @@ export default function ProjectsPage() {
                 </div>
 
                 {viewMode === "table" ? (
-                  <div className="bg-card overflow-x-auto rounded-lg border">
+                  <div className="bg-card overflow-x-auto rounded border">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/40 border-border border-b">
                         <tr className="text-muted-foreground text-left text-xs tracking-wider uppercase">
@@ -468,7 +468,7 @@ export default function ProjectsPage() {
                     {group.map((project) => (
                       <div
                         key={project.id}
-                        className="bg-card hover:border-foreground/20 flex flex-col gap-3 rounded-lg border p-4 transition-colors"
+                        className="bg-card hover:border-foreground/20 flex flex-col gap-3 rounded border p-4 transition-colors"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">

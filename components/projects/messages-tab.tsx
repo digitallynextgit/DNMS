@@ -41,7 +41,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-28 rounded-lg" />
+          <Skeleton key={i} className="h-28 rounded" />
         ))}
       </div>
     )

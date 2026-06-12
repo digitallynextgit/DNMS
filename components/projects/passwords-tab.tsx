@@ -53,7 +53,7 @@ export function PasswordsTab({ projectId, currentUserId, canManage }: Props) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 rounded-lg" />
+          <Skeleton key={i} className="h-20 rounded" />
         ))}
       </div>
     )
@@ -172,7 +172,7 @@ function PasswordRow({
     <Card>
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <div className="bg-primary/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+          <div className="bg-primary/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded">
             <KeyRound className="text-primary h-4 w-4" />
           </div>
 

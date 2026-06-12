@@ -64,7 +64,7 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
     return (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-32 rounded-lg" />
+          <Skeleton key={i} className="h-32 rounded" />
         ))}
       </div>
     )
@@ -521,7 +521,7 @@ function AddMemberDialog({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <div className="max-h-72 divide-y overflow-y-auto rounded-md border">
+          <div className="max-h-72 divide-y overflow-y-auto rounded border">
             {employees.length === 0 ? (
               <p className="text-muted-foreground p-4 text-center text-sm">No matching employees</p>
             ) : (

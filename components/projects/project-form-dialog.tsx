@@ -230,7 +230,7 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
               </div>
             )}
             {(search || !selectedManager) && (
-              <div className="max-h-44 divide-y overflow-y-auto rounded-md border">
+              <div className="max-h-44 divide-y overflow-y-auto rounded border">
                 {employees.length === 0 ? (
                   <p className="text-muted-foreground p-3 text-center text-xs">
                     No matching employees

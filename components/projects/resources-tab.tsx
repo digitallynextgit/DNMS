@@ -147,7 +147,7 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
       </div>
 
       {isLoading ? (
-        <Skeleton className="h-64 rounded-lg" />
+        <Skeleton className="h-64 rounded" />
       ) : resources.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">

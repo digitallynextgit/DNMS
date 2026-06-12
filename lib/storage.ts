@@ -32,10 +32,21 @@ export async function uploadFile(
   if (error) throw new Error(`Storage upload failed: ${error.message}`)
 }
 
-export async function getSignedUrl(objectKey: string, expirySeconds = 900): Promise<string> {
+export async function getSignedUrl(
+  objectKey: string,
+  expirySeconds = 900,
+  opts?: { downloadFileName?: string },
+): Promise<string> {
+  // `download` makes Supabase return the file as an attachment (forces a real
+  // download); when set to a string it also names the downloaded file. Omitting
+  // it lets images/PDFs open inline in the browser (the "View" behaviour).
   const { data, error } = await supabase.storage
     .from(BUCKET)
-    .createSignedUrl(objectKey, expirySeconds)
+    .createSignedUrl(
+      objectKey,
+      expirySeconds,
+      opts?.downloadFileName ? { download: opts.downloadFileName } : undefined,
+    )
   if (error || !data?.signedUrl) throw new Error(`Failed to get signed URL: ${error?.message}`)
   return data.signedUrl
 }
