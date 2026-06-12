@@ -1,7 +1,9 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { useDebounce } from "@/hooks/use-debounce"
 import { getDepartments } from "@/lib/actions/departments"
 import { getDesignations } from "@/lib/actions/designations"
 import {
@@ -13,6 +15,7 @@ import {
   deactivateEmployee,
   deleteEmployeePermanent,
   activateEmployee as activateEmployeeAction,
+  checkEmailAvailability,
   getOrgChart,
 } from "@/lib/actions/employees"
 
@@ -309,4 +312,50 @@ export function useDesignations() {
     queryFn: fetchDesignations,
     staleTime: 300_000,
   })
+}
+
+export type EmailAvailability = "idle" | "invalid" | "checking" | "available" | "taken"
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * Debounced, real-time check that an email isn't already used (as a work OR
+ * personal email) by another employee. `excludeId` skips the employee being
+ * edited so their own current address reads as available.
+ */
+export function useEmailAvailability(
+  rawValue: string | undefined,
+  excludeId?: string,
+): EmailAvailability {
+  const value = (rawValue ?? "").trim()
+  const debounced = useDebounce(value, 500)
+  const [status, setStatus] = useState<EmailAvailability>("idle")
+
+  useEffect(() => {
+    if (!debounced) {
+      setStatus("idle")
+      return
+    }
+    if (!EMAIL_RE.test(debounced)) {
+      setStatus("invalid")
+      return
+    }
+    let active = true
+    setStatus("checking")
+    checkEmailAvailability(debounced, excludeId)
+      .then((r) => {
+        if (!active) return
+        if (!r.ok) {
+          setStatus("idle")
+          return
+        }
+        setStatus(r.data.available ? "available" : "taken")
+      })
+      .catch(() => active && setStatus("idle"))
+    return () => {
+      active = false
+    }
+  }, [debounced, excludeId])
+
+  return status
 }

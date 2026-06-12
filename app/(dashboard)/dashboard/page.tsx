@@ -31,7 +31,7 @@ export default function DashboardPage() {
     day: "numeric",
   })
 
-  // HR / admin roles can read the employee directory — they get the org-wide
+  // HR / admin roles can read the employee directory - they get the org-wide
   // HR dashboard. Regular employees (self-service only) get a personal view.
   const isManager = can(PERMISSIONS.EMPLOYEE_READ)
   const firstName = session?.user.firstName

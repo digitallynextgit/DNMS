@@ -78,6 +78,7 @@ function EmployeeDocumentListInner({
         <DocumentCard
           key={doc.id}
           document={doc}
+          employeeId={employeeId}
           canDelete={canDelete}
           onDelete={(id) => deleteMutation.mutate(id)}
         />

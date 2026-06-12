@@ -45,7 +45,7 @@ interface NavItem {
   children?: NavChild[]
 }
 
-// ── Employee: personal self-service. No permission gate — every signed-in
+// ── Employee: personal self-service. No permission gate - every signed-in
 //    user sees the same set, each a flat link to their own view. ────────────
 const EMPLOYEE_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -192,7 +192,7 @@ function canAccess(item: { permission?: string }, permissions: string[], roles: 
 }
 
 // A nav item is visible if the user can access it AND (for groups) at least one
-// child is accessible — otherwise the row would render nothing.
+// child is accessible - otherwise the row would render nothing.
 function isItemVisible(item: NavItem, permissions: string[], roles: string[]): boolean {
   if (!canAccess(item, permissions, roles)) return false
   if (item.children) return item.children.some((c) => canAccess(c, permissions, roles))
@@ -409,7 +409,7 @@ export function Sidebar({ session }: { session: Session }) {
         isCollapsed ? "w-14" : "w-56",
       )}
     >
-      {/* Logo — theme-aware wordmark. Light mode shows the black-text logo,
+      {/* Logo - theme-aware wordmark. Light mode shows the black-text logo,
           dark / custom themes show the white-text one. On the collapsed rail the
           row is clipped so only the left X mark shows. */}
       <div

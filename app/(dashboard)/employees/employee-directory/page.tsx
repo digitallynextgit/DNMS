@@ -32,7 +32,7 @@ import {
 } from "@/hooks/use-employees"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useDebounce } from "@/hooks/use-debounce"
-import { cn, getInitials, getAvatarColor, formatDate } from "@/lib/utils"
+import { cn, getInitials, getAvatarColor, formatDate, employeeSlug } from "@/lib/utils"
 import { isOnProbation } from "@/lib/probation"
 import { EMPLOYEE_STATUS_LABELS, PERMISSIONS } from "@/lib/constants"
 
@@ -416,7 +416,10 @@ export default function EmployeesPage() {
                     <td className="text-muted-foreground px-2 py-3 text-xs tabular-nums">{sno}</td>
                     {/* Employee column */}
                     <td className="px-4 py-3">
-                      <Link href={`/employees/${emp.id}`} className="group flex items-center gap-3">
+                      <Link
+                        href={`/employees/${employeeSlug(emp.employeeNo, emp.firstName, emp.lastName)}`}
+                        className="group flex items-center gap-3"
+                      >
                         <Avatar className="h-8 w-8 shrink-0">
                           {emp.profilePhoto ? (
                             <AvatarImage src={emp.profilePhoto} alt={fullName} />

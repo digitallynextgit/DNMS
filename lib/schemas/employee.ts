@@ -70,6 +70,9 @@ export const createEmployeeSchema = z.object({
   // and emails it to the employee.
   password: z.string().min(8).optional(),
 
+  // When true, the new hire must change their password on first login.
+  mustChangePassword: z.boolean().optional(),
+
   // Optional Gmail App Password (16-char string Google generates). HR chooses
   // whether to add one now ("Add" → required 16 chars) or skip it (blank).
   // Spaces are stripped since Google formats it as "abcd efgh ijkl mnop".

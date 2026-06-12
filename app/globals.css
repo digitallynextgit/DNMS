@@ -245,7 +245,7 @@
 /* ── Vibrant theme treatments ──────────────────────────────────────────────
    Activated by [data-vibrant] on <html> (set by CustomThemeApplier when a
    vibrant palette is chosen). Adds a multi-colour ambient background, a subtle
-   grid pattern, an animated glow, and gradient primary controls — so vibrant
+   grid pattern, an animated glow, and gradient primary controls - so vibrant
    palettes feel designed, not merely recoloured. --vibrant-c1/c2 are the
    theme's neon primary + vivid accent (hex). */
 .vibrant-aura {
@@ -270,27 +270,6 @@
       color-mix(in srgb, var(--vibrant-c1) 16%, transparent),
       transparent 60%
     );
-}
-
-/* Subtle grid pattern, faded toward the edges. */
-[data-vibrant] .vibrant-aura::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(
-      to right,
-      color-mix(in srgb, var(--vibrant-c1) 9%, transparent) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      to bottom,
-      color-mix(in srgb, var(--vibrant-c1) 9%, transparent) 1px,
-      transparent 1px
-    );
-  background-size: 44px 44px;
-  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, black 8%, transparent 78%);
-  mask-image: radial-gradient(ellipse at 50% 0%, black 8%, transparent 78%);
 }
 
 /* Slowly drifting glow blob. */

@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { cn, getInitials, getAvatarColor } from "@/lib/utils"
+import { cn, getInitials, getAvatarColor, employeeSlug } from "@/lib/utils"
 import type { OrgNode } from "@/types"
 
 export interface OrgChartTreeProps {
@@ -19,7 +19,10 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
   const avatarBg = getAvatarColor(fullName)
 
   return (
-    <Link href={`/employees/${node.id}`} className="group flex flex-col items-center gap-1.5">
+    <Link
+      href={`/employees/${employeeSlug(node.employeeNo, node.firstName, node.lastName)}`}
+      className="group flex flex-col items-center gap-1.5"
+    >
       <div className="bg-card border-border group-hover:border-primary/40 w-36 rounded border px-3 py-2.5 text-center shadow-sm transition-all group-hover:shadow-md">
         <div className="mb-1.5 flex justify-center">
           <Avatar className="h-8 w-8">

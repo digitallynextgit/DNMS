@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { formatDate, formatFileSize, cn, truncate } from "@/lib/utils"
 import { DOCUMENT_CATEGORY_LABELS } from "@/lib/constants"
 import { getDocumentUrl } from "@/lib/actions/documents"
+import { getEmployeeDocumentUrl } from "@/lib/actions/employee-documents"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,11 @@ interface DocumentCardProps {
   document: DocumentCardDocument
   onDelete?: (id: string) => void
   canDelete?: boolean
+  /**
+   * When set, this is a personal (employee locker) document: download links are
+   * resolved from the EmployeeDocument table / B2 instead of the company store.
+   */
+  employeeId?: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,7 +77,7 @@ function isExpired(expiresAt: Date | string): boolean {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function DocumentCard({ document, onDelete, canDelete }: DocumentCardProps) {
+export function DocumentCard({ document, onDelete, canDelete, employeeId }: DocumentCardProps) {
   const { Icon, colorClass } = getFileIcon(document.mimeType)
   const categoryLabel = DOCUMENT_CATEGORY_LABELS[document.category] ?? document.category
 
@@ -81,7 +87,9 @@ export function DocumentCard({ document, onDelete, canDelete }: DocumentCardProp
   const handleDownload = async () => {
     setDownloadLoading(true)
     try {
-      const r = await getDocumentUrl(document.id)
+      const r = employeeId
+        ? await getEmployeeDocumentUrl(employeeId, document.id)
+        : await getDocumentUrl(document.id)
       if (!r.ok) throw new Error("Failed to get download link")
       const url: string | undefined = (r.data as { data?: { url?: string } }).data?.url
       if (url) {

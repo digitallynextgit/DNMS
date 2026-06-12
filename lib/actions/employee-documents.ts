@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db"
 import { hasPermission } from "@/lib/permissions"
-import { uploadFile, getObjectKey, getSignedUrl, deleteFile } from "@/lib/storage"
+import { isB2Configured, uploadFile, getObjectKey, getSignedUrl, deleteFile } from "@/lib/b2"
 import { PERMISSIONS, ALLOWED_FILE_TYPES, MAX_FILE_SIZE } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
 import type { DocumentCategory } from "@prisma/client"
@@ -32,6 +32,9 @@ export async function uploadEmployeeDocument(
     const canWrite = hasPermission(session, PERMISSIONS.DOCUMENT_WRITE)
     if (!canWrite && session.user.id !== employeeId) return fail("Forbidden")
 
+    if (!isB2Configured())
+      return fail("Backblaze B2 storage is not configured. Set the B2_* env vars.")
+
     const employee = await db.employee.findUnique({
       where: { id: employeeId },
       select: { id: true },
@@ -54,7 +57,7 @@ export async function uploadEmployeeDocument(
     const docId = crypto.randomUUID()
     const objectKey = getObjectKey(`employee-documents/${employeeId}`, file.name, docId)
     const buffer = Buffer.from(await file.arrayBuffer())
-    await uploadFile(objectKey, buffer, file.type, file.size)
+    await uploadFile(objectKey, buffer, file.type)
 
     const document = await db.employeeDocument.create({
       data: {
@@ -97,6 +100,7 @@ export async function getEmployeeDocumentUrl(
     const document = await db.employeeDocument.findFirst({ where: { id: docId, employeeId } })
     if (!document) return fail("Document not found")
 
+    // Files are private in B2; hand back a short-lived presigned URL.
     const url = await getSignedUrl(document.objectKey)
     return ok(serialize({ data: { ...document, url } }))
   })
@@ -113,9 +117,12 @@ export async function deleteEmployeeDocument(
     const document = await db.employeeDocument.findFirst({ where: { id: docId, employeeId } })
     if (!document) return fail("Document not found")
 
-    await deleteFile(document.objectKey).catch((err) =>
-      console.error("[employee-document] storage delete failed:", err),
-    )
+    // Best-effort storage delete; never block the DB cleanup if it fails.
+    if (isB2Configured()) {
+      await deleteFile(document.objectKey).catch((err) =>
+        console.error("[employee-document] B2 delete failed:", err),
+      )
+    }
     await db.employeeDocument.delete({ where: { id: docId } })
 
     const meta = await getAuditMeta()

@@ -11,6 +11,7 @@ declare module "next-auth" {
       profilePhoto: string | null
       roles: string[]
       permissions: string[]
+      mustChangePassword: boolean
     } & DefaultSession["user"]
   }
 }
@@ -24,5 +25,6 @@ declare module "next-auth/jwt" {
     profilePhoto: string | null
     roles: string[]
     permissions: string[]
+    mustChangePassword: boolean
   }
 }

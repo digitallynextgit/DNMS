@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getInitials } from "@/lib/utils"
+import { getInitials, employeeSlug } from "@/lib/utils"
 import { EMPLOYEE_STATUS_LABELS } from "@/lib/constants"
 import { isOnProbation } from "@/lib/probation"
 
@@ -84,7 +84,7 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
               <DropdownMenuContent align="end">
                 <DropdownMenuItem asChild>
                   <Link
-                    href={`/employees/${employee.id}`}
+                    href={`/employees/${employeeSlug(employee.employeeNo, employee.firstName, employee.lastName)}`}
                     className="flex cursor-pointer items-center gap-2 text-sm"
                   >
                     <Eye className="h-3.5 w-3.5" />
@@ -141,7 +141,11 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
             )}
           </div>
           <Button variant="outline" size="sm" className="h-7 px-2 text-xs" asChild>
-            <Link href={`/employees/${employee.id}`}>View</Link>
+            <Link
+              href={`/employees/${employeeSlug(employee.employeeNo, employee.firstName, employee.lastName)}`}
+            >
+              View
+            </Link>
           </Button>
         </div>
       </CardContent>

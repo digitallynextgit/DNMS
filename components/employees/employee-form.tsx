@@ -7,11 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import {
-  getEmployeeDocuments,
-  uploadEmployeeDocument,
-  deleteEmployeeDocument,
-} from "@/lib/actions/employee-documents"
+import { getEmployeeDocuments, deleteEmployeeDocument } from "@/lib/actions/employee-documents"
 import {
   Check,
   ChevronLeft,
@@ -23,6 +19,10 @@ import {
   X,
   Calendar as CalendarIcon,
   List,
+  Eye,
+  EyeOff,
+  KeyRound,
+  RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,7 +41,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { usePermissions } from "@/hooks/use-permissions"
 import { getProbationStatus, PROBATION_MONTHS_OPTIONS } from "@/lib/probation"
-import { cn, formatDate } from "@/lib/utils"
+import { cn, formatDate, employeeSlug } from "@/lib/utils"
 import {
   EMPLOYMENT_TYPE_LABELS,
   DOCUMENT_CATEGORY_LABELS,
@@ -55,6 +55,8 @@ import {
   useEmployeeCodes,
   useDepartments,
   useDesignations,
+  useEmailAvailability,
+  type EmailAvailability,
 } from "@/hooks/use-employees"
 import { EmployeeCombobox } from "@/components/employees/employee-combobox"
 
@@ -88,6 +90,16 @@ const formSchema = z.object({
   deviceId: z.string().optional(),
   // Required employee code (HR-system code, e.g. 132). Must be unique.
   employeeNo: z.string().min(1, "Employee code is required").max(32, "Max 32 characters"),
+  // Login password (create only). Auto-filled with a generated value; editable.
+  // Required-on-create is enforced in goNext().
+  password: z
+    .string()
+    .optional()
+    .refine((s) => s == null || s === "" || s.length >= 8, {
+      message: "Password must be at least 8 characters",
+    }),
+  // Force the new hire to set their own password on first login.
+  mustChangePassword: z.boolean().optional(),
   // Format check only - required-on-create is enforced in goNext() so edit mode
   // can leave the field blank to mean "leave unchanged".
   gmailAppPassword: z
@@ -162,6 +174,25 @@ function toDateString(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, "0")
   const d = String(date.getDate()).padStart(2, "0")
   return `${y}-${m}-${d}`
+}
+
+// Generate a readable, reasonably strong password for a new hire. Avoids
+// ambiguous characters (0/O, 1/l/I) and guarantees a mix of classes.
+function generatePassword(length = 12): string {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+  const lower = "abcdefghijkmnpqrstuvwxyz"
+  const digits = "23456789"
+  const symbols = "@#$%&*?"
+  const all = upper + lower + digits + symbols
+  const rand = (set: string) => set[Math.floor(Math.random() * set.length)]
+  const out = [rand(upper), rand(lower), rand(digits), rand(symbols)]
+  for (let i = out.length; i < length; i++) out.push(rand(all))
+  // Shuffle so the guaranteed classes aren't always in the first 4 positions.
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out.join("")
 }
 
 // Smallest positive integer not already used as a (purely numeric) employee code,
@@ -348,6 +379,32 @@ function FormField({
   )
 }
 
+// Live "is this email free?" hint shown under the email inputs.
+function EmailStatusHint({ status }: { status: EmailAvailability }) {
+  if (status === "checking")
+    return (
+      <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Checking availability…
+      </p>
+    )
+  if (status === "taken")
+    return (
+      <p className="text-destructive flex items-center gap-1.5 text-xs">
+        <X className="h-3 w-3" />
+        This email is already used by another employee
+      </p>
+    )
+  if (status === "available")
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-500">
+        <Check className="h-3 w-3" />
+        Email is available
+      </p>
+    )
+  return null
+}
+
 // ─── Review section ───────────────────────────────────────────────────────────
 
 function ReviewRow({ label, value }: { label: string; value?: string | null }) {
@@ -436,8 +493,16 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       fd.append("category", doc.category)
       if (doc.expiresAt) fd.append("expiresAt", doc.expiresAt)
       try {
-        const r = await uploadEmployeeDocument(targetEmployeeId, fd)
-        if (!r.ok) throw new Error(r.error)
+        // Route Handler (not the Server Action) so files >1MB aren't rejected by
+        // the default Server-Action body limit.
+        const res = await fetch(`/api/employees/${targetEmployeeId}/documents`, {
+          method: "POST",
+          body: fd,
+        })
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}))
+          throw new Error(json.error ?? "Upload failed")
+        }
         okCount++
       } catch (err) {
         console.error("[employee-form] upload failed", doc.file.name, err)
@@ -468,6 +533,9 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   // mode we default to "add" so the (leave-blank-to-keep) field stays visible.
   const [gmailMode, setGmailMode] = useState<"add" | "skip">(mode === "edit" ? "add" : "skip")
 
+  // Login password (create only): always shown, pre-filled with a generated value.
+  const [showPassword, setShowPassword] = useState(false)
+
   const {
     register,
     handleSubmit,
@@ -486,11 +554,20 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       onProbation: true,
       probationMonths: "6",
       sameAsCurrent: false,
+      // Create mode: prefill a strong password and require change on first login.
+      password: mode === "create" ? generatePassword() : "",
+      mustChangePassword: mode === "create",
     },
   })
 
   const sameAsCurrent = watch("sameAsCurrent")
   const watchedValues = watch()
+
+  // Real-time, debounced duplicate-email checks (skip the edited employee's own
+  // record). Both fields are checked against work AND personal emails.
+  const excludeForCheck = mode === "edit" ? employeeId : undefined
+  const emailStatus = useEmailAvailability(watchedValues.email, excludeForCheck)
+  const personalEmailStatus = useEmailAvailability(watchedValues.personalEmail, excludeForCheck)
 
   // On create, pre-fill the next free employee code once the existing codes load.
   // Runs once and never clobbers a value the user has already typed.
@@ -559,6 +636,9 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         currentCity: ca.city ?? "",
         currentState: ca.state ?? "",
         currentZip: ca.zip ?? "",
+        // Required boolean in the schema — must be present or handleSubmit() fails
+        // validation silently (the checkbox lives on a later step, so no visible error).
+        sameAsCurrent: false,
         permanentLine1: pa.line1 ?? "",
         permanentLine2: pa.line2 ?? "",
         permanentCity: pa.city ?? "",
@@ -595,6 +675,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       "dateOfJoining",
       "workLocation",
       "gmailAppPassword",
+      "password",
     ],
     3: [], // Documents step - no schema fields to validate (files only)
     4: [],
@@ -604,6 +685,12 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   async function goNext() {
     const fieldsToValidate = stepFields[currentStep]
     const valid = fieldsToValidate.length > 0 ? await trigger(fieldsToValidate) : true
+
+    // Don't leave step 1 while a duplicate email is flagged. The red EmailStatusHint
+    // under the field already explains why; the server re-checks on submit too.
+    if (currentStep === 1 && (emailStatus === "taken" || personalEmailStatus === "taken")) {
+      return
+    }
 
     // When the user chose to add an App Password on create, it's required here.
     // (Skip mode leaves it blank; edit mode treats blank as "leave unchanged".)
@@ -618,6 +705,18 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       }
     }
 
+    // Login password is always required on create (auto-filled, but HR may edit it).
+    if (currentStep === 2 && mode === "create") {
+      const pw = watchedValues.password ?? ""
+      if (pw.length < 8) {
+        setError("password", {
+          type: "required",
+          message: "Password must be at least 8 characters",
+        })
+        return
+      }
+    }
+
     if (valid) setCurrentStep((s) => Math.min(s + 1, STEPS.length))
   }
 
@@ -626,6 +725,13 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   }
 
   async function onSubmit(data: FormData) {
+    // Only the final step may actually create/save. Guards against any stray
+    // submit before review (e.g. Enter pressed in a field) - treat it as "Next".
+    if (currentStep < STEPS.length) {
+      await goNext()
+      return
+    }
+
     const payload = {
       employeeNo: data.employeeNo?.trim() || undefined,
       firstName: data.firstName,
@@ -684,20 +790,26 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         : undefined,
       // Send only when the user typed something. Empty on edit = "leave unchanged".
       gmailAppPassword: data.gmailAppPassword?.replace(/\s+/g, "") || undefined,
+      // Login password (create only). The form always supplies one (auto-filled),
+      // so the server uses it instead of generating its own.
+      password: mode === "create" ? data.password || undefined : undefined,
+      mustChangePassword: mode === "create" ? (data.mustChangePassword ?? true) : undefined,
     }
 
     if (mode === "create") {
       const result = await createEmployee.mutateAsync(payload as Record<string, unknown>)
-      const newId = result?.data?.id
-      if (newId) {
+      const created = result?.data
+      if (created?.id) {
         // Upload any staged documents before redirecting.
-        if (pendingDocs.length > 0) await uploadPendingDocs(newId)
-        router.push(`/employees/${newId}`)
+        if (pendingDocs.length > 0) await uploadPendingDocs(created.id)
+        router.push(
+          `/employees/${employeeSlug(created.employeeNo, created.firstName, created.lastName)}`,
+        )
       }
     } else if (mode === "edit" && employeeId) {
       await updateEmployee.mutateAsync({ id: employeeId, body: payload as Record<string, unknown> })
       if (pendingDocs.length > 0) await uploadPendingDocs(employeeId)
-      router.push(`/employees/${employeeId}`)
+      router.push(`/employees/${employeeSlug(data.employeeNo, data.firstName, data.lastName)}`)
     }
   }
 
@@ -735,10 +847,12 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             <FormField label="Work Email" required error={errors.email?.message}>
               <Input {...register("email")} type="email" placeholder="john.doe@company.com" />
+              {!errors.email && <EmailStatusHint status={emailStatus} />}
             </FormField>
 
             <FormField label="Personal Email" required error={errors.personalEmail?.message}>
               <Input {...register("personalEmail")} type="email" placeholder="john@gmail.com" />
+              {!errors.personalEmail && <EmailStatusHint status={personalEmailStatus} />}
             </FormField>
 
             <FormField label="Work Phone" required error={errors.phone?.message}>
@@ -761,6 +875,9 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             <FormField label="Gender" required error={errors.gender?.message}>
               <Select
+                // key forces a remount when the value resolves after reset() —
+                // Radix Select won't reflect a controlled value that changes post-mount.
+                key={`gender-${watchedValues.gender || "none"}`}
                 value={watchedValues.gender || ""}
                 onValueChange={(v) =>
                   setValue("gender", v as FormData["gender"], { shouldValidate: true })
@@ -780,6 +897,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             <FormField label="Nationality" required error={errors.nationality?.message}>
               <Select
+                key={`nat-${watchedValues.nationality || "none"}`}
                 value={watchedValues.nationality || ""}
                 onValueChange={(v) => setValue("nationality", v, { shouldValidate: true })}
               >
@@ -798,6 +916,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             <FormField label="Blood Group" error={errors.bloodGroup?.message}>
               <Select
+                key={`blood-${watchedValues.bloodGroup || "none"}`}
                 value={watchedValues.bloodGroup || ""}
                 onValueChange={(v) => setValue("bloodGroup", v)}
               >
@@ -824,7 +943,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             <CardTitle className="text-base">Employment Details</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            {/* Probation (admin only) — kept at the top of the step. */}
+            {/* Probation (admin only) - kept at the top of the step. */}
             {isProbationAdmin && (
               <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
                 <div className="flex items-center justify-between gap-4">
@@ -844,6 +963,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <FormField label="Probation Period">
                       <Select
+                        key={`prob-${watchedValues.probationMonths ?? "6"}`}
                         value={watchedValues.probationMonths ?? "6"}
                         onValueChange={(v) =>
                           setValue("probationMonths", v as FormData["probationMonths"])
@@ -922,6 +1042,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             <FormField label="Department" required error={errors.departmentId?.message}>
               <Select
+                key={`dept-${watchedValues.departmentId || "none"}`}
                 value={watchedValues.departmentId || ""}
                 onValueChange={(v) => setValue("departmentId", v, { shouldValidate: true })}
               >
@@ -940,6 +1061,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             <FormField label="Designation" required error={errors.designationId?.message}>
               <Select
+                key={`desig-${watchedValues.designationId || "none"}`}
                 value={watchedValues.designationId || ""}
                 onValueChange={(v) => setValue("designationId", v, { shouldValidate: true })}
               >
@@ -958,6 +1080,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             <FormField label="Employment Type" required error={errors.employmentType?.message}>
               <Select
+                key={`emp-${watchedValues.employmentType || "none"}`}
                 value={watchedValues.employmentType}
                 onValueChange={(v) => setValue("employmentType", v as FormData["employmentType"])}
               >
@@ -999,6 +1122,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             <FormField label="Work Location" required error={errors.workLocation?.message}>
               <Select
+                key={`loc-${watchedValues.workLocation || "none"}`}
                 value={watchedValues.workLocation || ""}
                 onValueChange={(v) => setValue("workLocation", v, { shouldValidate: true })}
               >
@@ -1022,6 +1146,71 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                 autoComplete="off"
               />
             </FormField>
+
+            {/* Login password (create only). Auto-filled with a generated value; HR
+                can edit it or regenerate. It is emailed to the employee either way. */}
+            {mode === "create" && (
+              <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
+                <FormField label="Login Password" required error={errors.password?.message}>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        {...register("password")}
+                        type={showPassword ? "text" : "password"}
+                        placeholder="At least 8 characters"
+                        autoComplete="off"
+                        className="pr-10 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((s) => !s)}
+                        className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        tabIndex={-1}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 shrink-0 gap-1.5 px-3"
+                      onClick={() => {
+                        setShowPassword(true)
+                        setValue("password", generatePassword(), { shouldValidate: true })
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Generate
+                    </Button>
+                  </div>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    Auto-generated and emailed to the employee. Edit it or click Generate for a new
+                    one.
+                  </p>
+                </FormField>
+
+                <div className="flex items-center justify-between gap-4 border-t pt-3">
+                  <div>
+                    <Label className="flex items-center gap-1.5 text-sm font-medium">
+                      <KeyRound className="h-3.5 w-3.5" />
+                      Require password change on first login
+                    </Label>
+                    <p className="text-muted-foreground text-xs">
+                      The employee must set their own password before they can use the app.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={watchedValues.mustChangePassword ?? true}
+                    onCheckedChange={(v) => setValue("mustChangePassword", v)}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Gmail App Password - encrypted at rest, used to send emails as this
                 employee. HR toggles whether to add one now or skip it. */}
@@ -1415,6 +1604,19 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     : "Confirmed (not on probation)"
                 }
               />
+              {mode === "create" && (
+                <>
+                  <ReviewRow label="Login Password" value="Set · emailed to employee" />
+                  <ReviewRow
+                    label="First Login"
+                    value={
+                      (watchedValues.mustChangePassword ?? true)
+                        ? "Must change password"
+                        : "No change required"
+                    }
+                  />
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -1508,12 +1710,23 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
         <div className="flex items-center gap-3">
           {currentStep < STEPS.length ? (
-            <Button type="button" onClick={goNext} className="gap-1.5">
+            // Distinct `key` from the submit button below: without it React reuses
+            // the same <button> DOM node and merely flips its `type` from "button"
+            // to "submit" when goNext() advances to the last step. The flip happens
+            // *during* the click event, so the browser's default action then sees
+            // type="submit" and submits the form - auto-saving without a second
+            // click. Separate keys force a fresh node, so the click can't submit.
+            <Button key="nav-next" type="button" onClick={goNext} className="gap-1.5">
               Next
               <ChevronRight className="h-4 w-4" />
             </Button>
           ) : (
-            <Button type="submit" disabled={isSubmitting} className="min-w-[140px]">
+            <Button
+              key="nav-submit"
+              type="submit"
+              disabled={isSubmitting}
+              className="min-w-[140px]"
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

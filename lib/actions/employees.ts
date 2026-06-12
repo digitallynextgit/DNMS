@@ -24,19 +24,8 @@ function generateInitialPassword(length = 12): string {
   return out
 }
 
-// Credentials email sent to a new employee with their first-login password.
-function credentialsEmail(firstName: string, email: string, password: string) {
-  const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/login`
-  const html = `
-    <p>Hi ${firstName},</p>
-    <p>Your Digitally Next Management System account has been created. Use the credentials below to sign in:</p>
-    <p><strong>Email:</strong> ${email}<br/><strong>Temporary password:</strong> ${password}</p>
-    <p>Please sign in at <a href="${loginUrl}">${loginUrl}</a> and change your password from your profile.</p>
-    <p>— Digitally Next HR</p>`
-  const text = `Hi ${firstName},\n\nYour DNMS account has been created.\nEmail: ${email}\nTemporary password: ${password}\n\nSign in at ${loginUrl} and change your password.\n\n— Digitally Next HR`
-  return { html, text }
-}
 import type { OrgNode } from "@/types"
+import { renderWelcomeCredentialsEmail } from "@/lib/emails/welcome-credentials"
 import { requireSession, requirePermission, getAuditMeta } from "./_guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "./_result"
 
@@ -48,6 +37,43 @@ type EmployeeFilters = {
   employmentType?: string
   page?: number
   limit?: number
+}
+
+// Enforce that every email is globally unique across employees: a work or
+// personal email may not match ANY other employee's work OR personal email
+// (case-insensitive), and one employee's own two emails must differ. Returns a
+// user-facing error string, or null when the emails are free to use.
+async function checkEmailUniqueness(
+  email: string,
+  personalEmail: string | null | undefined,
+  excludeId?: string,
+): Promise<string | null> {
+  const work = email.trim().toLowerCase()
+  const personal = personalEmail?.trim().toLowerCase() || null
+
+  // A single employee may reuse the same address for both work and personal email
+  // (e.g. interns / contractors with only one inbox). We only block an email that
+  // belongs to a DIFFERENT employee, so collapse identical values to one candidate.
+  const candidates = personal && personal !== work ? [work, personal] : [work]
+  const or = candidates.flatMap((value) => [
+    { email: { equals: value, mode: "insensitive" as const } },
+    { personalEmail: { equals: value, mode: "insensitive" as const } },
+  ])
+
+  const clash = await db.employee.findFirst({
+    where: {
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+      OR: or,
+    },
+    select: { email: true, personalEmail: true },
+  })
+  if (!clash) return null
+
+  const clashWork = clash.email.toLowerCase()
+  const clashPersonal = clash.personalEmail?.toLowerCase() || null
+  if (clashWork === work || clashPersonal === work)
+    return "This work email is already used by another employee"
+  return "This personal email is already used by another employee"
 }
 
 export async function getEmployees(filters: EmployeeFilters = {}): Promise<ActionResult<unknown>> {
@@ -104,9 +130,28 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
   })
 }
 
-export async function getEmployee(id: string): Promise<ActionResult<unknown>> {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// Resolve a route param that is either a raw UUID or a "<code>-<name>" slug
+// (e.g. "8-diwakar-jha") to the employee's id. The code may itself contain
+// dashes (EMP-2026-0001), so we try every leading dash-prefix of the slug.
+async function resolveEmployeeId(idOrSlug: string): Promise<string | null> {
+  if (UUID_RE.test(idOrSlug)) return idOrSlug
+  const segs = idOrSlug.split("-")
+  const prefixes: string[] = []
+  for (let i = 1; i <= segs.length; i++) prefixes.push(segs.slice(0, i).join("-"))
+  const match = await db.employee.findFirst({
+    where: { employeeNo: { in: prefixes } },
+    select: { id: true },
+  })
+  return match?.id ?? null
+}
+
+export async function getEmployee(idOrSlug: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
+    const id = await resolveEmployeeId(idOrSlug)
+    if (!id) return fail("Employee not found")
     if (!canAccessEmployee(session, id)) return fail("Forbidden")
 
     const employee = await db.employee.findUnique({
@@ -147,6 +192,33 @@ export async function getEmployeeCodes(): Promise<ActionResult<unknown>> {
   })
 }
 
+// Live availability check for a single email value, used by the create/edit form
+// to flag duplicates as the user types. A value is unavailable if it matches any
+// other employee's work OR personal email (case-insensitive). `excludeId` skips
+// the employee being edited so their own current emails read as available.
+export async function checkEmailAvailability(
+  email: string,
+  excludeId?: string,
+): Promise<ActionResult<{ available: boolean }>> {
+  return runAction(async () => {
+    await requirePermission(PERMISSIONS.EMPLOYEE_WRITE)
+    const value = email.trim().toLowerCase()
+    if (!value) return ok({ available: true })
+
+    const clash = await db.employee.findFirst({
+      where: {
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+        OR: [
+          { email: { equals: value, mode: "insensitive" } },
+          { personalEmail: { equals: value, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true },
+    })
+    return ok({ available: !clash })
+  })
+}
+
 export async function createEmployee(input: unknown): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.EMPLOYEE_WRITE)
@@ -165,6 +237,10 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         })
         if (existing) return fail("An employee with this code already exists")
       }
+
+      const emailError = await checkEmailUniqueness(data.email, data.personalEmail)
+      if (emailError) return fail(emailError)
+
       const totalCount = await db.employee.count()
       const employeeNo = providedNo || generateEmployeeNo(totalCount + 1)
 
@@ -204,11 +280,17 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
           employmentType: data.employmentType,
           dateOfJoining: data.dateOfJoining ? new Date(data.dateOfJoining) : null,
           probationEndDate: data.probationEndDate ? new Date(data.probationEndDate) : null,
+          // Probation + biometric fields are collected by the create form; persist
+          // them (DB defaults to onProbation=true / probationMonths=6 when omitted).
+          ...(data.onProbation !== undefined ? { onProbation: data.onProbation } : {}),
+          ...(data.probationMonths !== undefined ? { probationMonths: data.probationMonths } : {}),
+          deviceId: data.deviceId || null,
           workLocation: data.workLocation || null,
           currentAddress,
           permanentAddress,
           emergencyContact,
           passwordHash,
+          mustChangePassword: data.mustChangePassword ?? false,
           gmailAppPassword,
         },
         include: {
@@ -249,34 +331,23 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         ...meta,
       })
 
-      const welcomeTemplate = await db.emailTemplate.findFirst({
-        where: { slug: "welcome-email", isActive: true },
-      })
-      if (welcomeTemplate) {
-        const html = welcomeTemplate.bodyHtml
-          .replace(/\{\{firstName\}\}/g, employee.firstName)
-          .replace(/\{\{lastName\}\}/g, employee.lastName)
-          .replace(/\{\{email\}\}/g, employee.email)
-          .replace(/\{\{employeeNo\}\}/g, employee.employeeNo)
-        await addEmailJob({
-          to: employee.email,
-          subject: welcomeTemplate.subject,
-          html,
-          text: welcomeTemplate.bodyText || undefined,
-        })
-      }
-
-      // Email the first-login credentials to the work + personal address (both
-      // when available, otherwise whichever exists).
+      // One branded welcome + credentials email to the work + personal address
+      // (both when available), via the notifications relay.
       const recipients = [employee.email, employee.personalEmail].filter(Boolean).join(", ")
       if (recipients) {
-        const { html, text } = credentialsEmail(employee.firstName, employee.email, plainPassword)
-        await addEmailJob({
-          to: recipients,
-          subject: "Your DNMS account credentials",
-          html,
-          text,
+        const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/login`
+        const { subject, html, text } = renderWelcomeCredentialsEmail({
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          email: employee.email,
+          employeeNo: employee.employeeNo,
+          department: employee.department?.name ?? null,
+          designation: employee.designation?.title ?? null,
+          password: plainPassword,
+          mustChange: employee.mustChangePassword,
+          loginUrl,
         })
+        await addEmailJob({ to: recipients, subject, html, text, profile: "notifications" })
       }
 
       return ok(serialize({ data: employee }))
@@ -297,6 +368,16 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
 
     const before = await db.employee.findUnique({ where: { id } })
     if (!before) return fail("Employee not found")
+
+    // Re-check uniqueness whenever either email is being changed. Fall back to the
+    // stored value for the field that isn't part of this update.
+    if (data.email !== undefined || data.personalEmail !== undefined) {
+      const nextEmail = data.email !== undefined ? data.email : before.email
+      const nextPersonal =
+        data.personalEmail !== undefined ? data.personalEmail || null : before.personalEmail
+      const emailError = await checkEmailUniqueness(nextEmail, nextPersonal, id)
+      if (emailError) return fail(emailError)
+    }
 
     const updateData: Record<string, unknown> = {}
     if (data.firstName !== undefined) updateData.firstName = data.firstName
@@ -319,6 +400,9 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
     if (data.probationEndDate !== undefined)
       updateData.probationEndDate = data.probationEndDate ? new Date(data.probationEndDate) : null
     if (data.workLocation !== undefined) updateData.workLocation = data.workLocation || null
+    if (data.deviceId !== undefined) updateData.deviceId = data.deviceId || null
+    if (data.onProbation !== undefined) updateData.onProbation = data.onProbation
+    if (data.probationMonths !== undefined) updateData.probationMonths = data.probationMonths
     // Only overwrite the App Password when a new one is supplied; blank means
     // "leave the existing value unchanged".
     if (data.gmailAppPassword) updateData.gmailAppPassword = encrypt(data.gmailAppPassword)
@@ -370,6 +454,44 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
         return fail("Email already in use by another employee")
       throw e
     }
+  })
+}
+
+// Self-service resignation: the signed-in employee marks themselves RESIGNED.
+// No special permission needed (it only ever affects the caller's own record).
+export async function resignSelf(input: {
+  resignationDate?: string
+  lastWorkingDate?: string
+}): Promise<ActionResult<{ message: string }>> {
+  return runAction(async () => {
+    const session = await requireSession()
+    const me = await db.employee.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, status: true },
+    })
+    if (!me) return fail("Employee not found")
+    if (me.status === "RESIGNED" || me.status === "TERMINATED")
+      return fail("You have already resigned")
+
+    await db.employee.update({
+      where: { id: me.id },
+      data: {
+        status: "RESIGNED",
+        resignationDate: input.resignationDate ? new Date(input.resignationDate) : new Date(),
+        lastWorkingDate: input.lastWorkingDate ? new Date(input.lastWorkingDate) : null,
+      },
+    })
+
+    const meta = await getAuditMeta()
+    await createAuditLog(session, {
+      action: "RESIGN",
+      module: "employee",
+      entityType: "Employee",
+      entityId: me.id,
+      changes: { status: "RESIGNED", ...input },
+      ...meta,
+    })
+    return ok({ message: "Resignation submitted" })
   })
 }
 

@@ -8,6 +8,7 @@ export function usePermissions() {
 
   const permissions = session?.user.permissions ?? []
   const roles = session?.user.roles ?? []
+  const userId = session?.user.id ?? null
   const isSuperAdmin = roles.includes(SYSTEM_ROLES.SUPER_ADMIN)
 
   function can(scope: string): boolean {
@@ -25,5 +26,5 @@ export function usePermissions() {
     return scopes.every((s) => permissions.includes(s))
   }
 
-  return { can, canAny, canAll, isSuperAdmin, permissions, roles }
+  return { can, canAny, canAll, isSuperAdmin, permissions, roles, userId }
 }

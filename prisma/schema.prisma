@@ -352,7 +352,7 @@ model Employee {
   firstName     String  @map("first_name")
   lastName      String  @map("last_name")
   email         String  @unique @map("email")
-  personalEmail String? @map("personal_email")
+  personalEmail String? @unique @map("personal_email")
   phone         String? @map("phone")
   personalPhone String? @map("personal_phone")
 
@@ -361,7 +361,11 @@ model Employee {
   gender       Gender?   @map("gender")
   nationality  String?   @map("nationality")
   bloodGroup   String?   @map("blood_group")
-  profilePhoto String?   @map("profile_photo")
+  // profilePhoto holds the displayable URL (a stable /api serve route for B2 photos,
+  // or a legacy Supabase URL). profilePhotoKey is the B2 object key, kept so the old
+  // file can be deleted when the photo changes or is removed.
+  profilePhoto    String? @map("profile_photo")
+  profilePhotoKey String? @map("profile_photo_key")
 
   // Addresses & emergency contact (JSON)
   currentAddress   Json? @map("current_address")
@@ -390,6 +394,9 @@ model Employee {
   passwordHash  String?   @map("password_hash")
   isActive      Boolean   @default(true) @map("is_active")
   emailVerified DateTime? @map("email_verified")
+  // When true, the employee is forced to the /change-password page on every
+  // request until they set a new password (e.g. after an HR-issued password).
+  mustChangePassword Boolean @default(false) @map("must_change_password")
 
   // Outbound email: encrypted Gmail App Password (AES-256-GCM, format: iv:tag:ct).
   // Used by sendEmailAs() to send mail from this employee's @digitallynext.com address.

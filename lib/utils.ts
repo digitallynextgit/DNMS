@@ -39,6 +39,18 @@ export function generateEmployeeNo(sequence: number, year = new Date().getFullYe
   return `EMP-${year}-${String(sequence).padStart(4, "0")}`
 }
 
+// Human-readable profile URL slug: "<employeeCode>-<first>-<last>", e.g.
+// "8-diwakar-jha". The employee code stays verbatim (it's the unique lookup key);
+// the name is slugified for readability. getEmployee() resolves this back to an id.
+export function employeeSlug(employeeNo: string, firstName: string, lastName: string): string {
+  const name = `${firstName} ${lastName}`
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  return name ? `${employeeNo}-${name}` : employeeNo
+}
+
 export function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
 }

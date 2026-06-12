@@ -150,8 +150,15 @@ export const POST = withAuth(
           }
           seenEmails.add(r.email.toLowerCase())
 
-          const clashEmail = await db.employee.findUnique({
-            where: { email: r.email },
+          // Reject if this email is already in use as anyone's work OR personal
+          // email (emails are globally unique across both columns).
+          const clashEmail = await db.employee.findFirst({
+            where: {
+              OR: [
+                { email: { equals: r.email, mode: "insensitive" } },
+                { personalEmail: { equals: r.email, mode: "insensitive" } },
+              ],
+            },
             select: { id: true },
           })
           if (clashEmail) {

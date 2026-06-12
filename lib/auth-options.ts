@@ -126,7 +126,7 @@ export const authOptions: NextAuthConfig = {
     // DB and embed it into the token. On subsequent requests, the token
     // already carries the data, so we just return it as-is.
     // -----------------------------------------------------------------------
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user?.id) {
         // First call: hydrate the token from the database.
         const data = await getUserWithPermissions(user.id)
@@ -138,7 +138,16 @@ export const authOptions: NextAuthConfig = {
           token.profilePhoto = data.employee.profilePhoto ?? null
           token.roles = data.roles
           token.permissions = data.permissions
+          token.mustChangePassword = data.employee.mustChangePassword
         }
+      } else if (trigger === "update" && token.id) {
+        // session.update() after a forced password change: re-read the flag so the
+        // proxy stops redirecting to /change-password.
+        const fresh = await db.employee.findUnique({
+          where: { id: token.id as string },
+          select: { mustChangePassword: true },
+        })
+        if (fresh) token.mustChangePassword = fresh.mustChangePassword
       }
       return token
     },
@@ -156,6 +165,7 @@ export const authOptions: NextAuthConfig = {
         session.user.profilePhoto = (token.profilePhoto as string | null) ?? null
         session.user.roles = (token.roles as string[]) ?? []
         session.user.permissions = (token.permissions as string[]) ?? []
+        session.user.mustChangePassword = (token.mustChangePassword as boolean) ?? false
       }
       return session
     },

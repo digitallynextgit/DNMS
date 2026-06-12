@@ -59,7 +59,11 @@ export default auth((req: NextRequest & { auth: unknown }) => {
   }
 
   // For protected paths, check the session embedded by the auth() wrapper.
-  const session = (req as NextRequest & { auth: { user?: unknown } | null }).auth
+  const session = (
+    req as NextRequest & {
+      auth: { user?: { mustChangePassword?: boolean } } | null
+    }
+  ).auth
 
   if (!session?.user) {
     // API routes: return 401 JSON instead of a redirect.
@@ -76,6 +80,19 @@ export default auth((req: NextRequest & { auth: unknown }) => {
     // safe, server-derived relative path, so it needs no extra encoding.
     loginUrl.search = `callbackUrl=${req.nextUrl.pathname}`
     return NextResponse.redirect(loginUrl)
+  }
+
+  // Force-password-change gate: a flagged user is funneled to /change-password
+  // until they set a new password (which clears the flag). /api/auth/* stays open
+  // so they can submit the change and refresh their session / sign out.
+  if (session.user.mustChangePassword) {
+    const allowed = pathname === "/change-password" || pathname.startsWith("/api/auth")
+    if (!allowed) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Password change required" }, { status: 403 })
+      }
+      return NextResponse.redirect(new URL("/change-password", req.url))
+    }
   }
 
   return NextResponse.next()

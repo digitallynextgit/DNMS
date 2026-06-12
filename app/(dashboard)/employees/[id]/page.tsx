@@ -77,7 +77,7 @@ function ProfileSkeleton() {
 export default function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { data, isLoading, error } = useEmployee(id)
-  const { can } = usePermissions()
+  const { can, userId } = usePermissions()
   const [uploadOpen, setUploadOpen] = useState(false)
 
   if (isLoading) return <ProfileSkeleton />
@@ -126,7 +126,11 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
           <div className="flex flex-col items-start gap-6 sm:flex-row">
             {/* Avatar */}
             <Avatar className="h-24 w-24 shrink-0">
-              {emp.profilePhoto && <AvatarImage src={emp.profilePhoto} alt={fullName} />}
+              {/* Always mount AvatarImage (src empty when no photo) so Radix resets
+                  its loading status and shows the fallback the moment a photo is
+                  removed — conditionally unmounting it leaves a stale "loaded"
+                  status and a blank avatar until reload. */}
+              <AvatarImage src={emp.profilePhoto ?? undefined} alt={fullName} />
               <AvatarFallback className={cn("text-2xl font-bold text-white", avatarBg)}>
                 {initials}
               </AvatarFallback>
@@ -153,18 +157,26 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
                   </div>
                 </div>
 
-                {can(PERMISSIONS.EMPLOYEE_WRITE) && (
+                {(can(PERMISSIONS.EMPLOYEE_WRITE) || userId === emp.id) && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <EmployeeAdminActions employeeId={emp.id} status={emp.status} />
-                    <Button variant="outline" size="sm" asChild>
-                      <Link
-                        href={`/employees/${emp.id}/edit`}
-                        className="flex items-center gap-1.5"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        Edit
-                      </Link>
-                    </Button>
+                    {/* Photo (admin) + Resign (self only) live here; the component
+                        decides which to show based on permission / ownership. */}
+                    <EmployeeAdminActions
+                      employeeId={emp.id}
+                      status={emp.status}
+                      hasPhoto={!!emp.profilePhoto}
+                    />
+                    {can(PERMISSIONS.EMPLOYEE_WRITE) && (
+                      <Button variant="outline" size="sm" asChild>
+                        <Link
+                          href={`/employees/${emp.id}/edit`}
+                          className="flex items-center gap-1.5"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

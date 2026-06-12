@@ -12,6 +12,7 @@ import { db } from "@/lib/db"
 import { sendEmail } from "@/lib/mailer"
 import { renderPasswordResetOtpEmail } from "@/lib/emails/password-reset-otp"
 import { forgotPasswordSchema, verifyOtpSchema, resetPasswordSchema } from "@/lib/schemas/auth"
+import { requireSession } from "./_guard"
 import { ok, fail, runAction, type ActionResult } from "./_result"
 
 const OTP_TTL_MS = 10 * 60 * 1000 // 10 minutes
@@ -131,10 +132,33 @@ export async function resetPasswordWithToken(
 
     const hashed = await bcrypt.hash(parsed.data.password, 12)
     await db.$transaction([
-      db.employee.update({ where: { id: reset.employeeId }, data: { passwordHash: hashed } }),
+      db.employee.update({
+        where: { id: reset.employeeId },
+        // Clearing the OTP-reset path also satisfies any "must change" requirement.
+        data: { passwordHash: hashed, mustChangePassword: false },
+      }),
       db.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
     ])
 
     return ok({ reset: true as const })
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Forced first-login change: the signed-in user sets their own password, which
+// clears the mustChangePassword flag so the proxy stops funneling them here.
+// ---------------------------------------------------------------------------
+export async function setOwnPassword(newPassword: string): Promise<ActionResult<{ ok: true }>> {
+  return runAction(async () => {
+    const session = await requireSession()
+    if (typeof newPassword !== "string" || newPassword.length < 8) {
+      return fail("Password must be at least 8 characters")
+    }
+    const hashed = await bcrypt.hash(newPassword, 12)
+    await db.employee.update({
+      where: { id: session.user.id },
+      data: { passwordHash: hashed, mustChangePassword: false },
+    })
+    return ok({ ok: true as const })
   })
 }
