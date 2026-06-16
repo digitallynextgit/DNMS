@@ -49,6 +49,11 @@ export const authOptions: NextAuthConfig = {
   // Employee - so the PrismaAdapter, which calls `db.user`, cannot be used.
   session: { strategy: "jwt" },
 
+  // Self-hosted behind a reverse proxy / accessed by IP or custom domain (not
+  // Vercel), so we must explicitly trust the incoming host. Without this,
+  // Auth.js v5 rejects every request with `UntrustedHost`.
+  trustHost: true,
+
   secret: process.env.AUTH_SECRET,
 
   pages: { signIn: "/login" },

@@ -20,6 +20,10 @@ interface EmployeeComboboxProps {
    *  mode, where we already know the manager's name). */
   initialLabel?: string
   placeholder?: string
+  /** Set when rendered inside a Dialog. Makes the popover own the top focus
+   *  layer so the dialog's focus trap doesn't close it the instant you click
+   *  the search box or a result. */
+  modal?: boolean
 }
 
 export function EmployeeCombobox({
@@ -28,6 +32,7 @@ export function EmployeeCombobox({
   excludeId,
   initialLabel,
   placeholder = "Search and select an employee",
+  modal = false,
 }: EmployeeComboboxProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
@@ -57,7 +62,7 @@ export function EmployeeCombobox({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={modal}>
       <PopoverTrigger asChild>
         <Button
           type="button"

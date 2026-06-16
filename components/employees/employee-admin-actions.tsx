@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Camera, ChevronDown, Loader2, Trash2, Upload, UserMinus } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { DateField } from "@/components/shared/date-field"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import {
@@ -179,13 +179,8 @@ export function EmployeeAdminActions({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="lwd">Requested Last Working Day</Label>
-              <Input
-                id="lwd"
-                type="date"
-                value={lastWorkingDate}
-                onChange={(e) => setLastWorkingDate(e.target.value)}
-              />
+              <Label>Requested Last Working Day</Label>
+              <DateField value={lastWorkingDate} onChange={setLastWorkingDate} />
             </div>
             <p className="text-muted-foreground text-xs">
               This sends a resignation request to your manager for approval. Once approved, your

@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Allow cross-origin requests to the dev server (`next dev`) from these
+  // hosts. Only affects development; production (`next start`) ignores this.
+  allowedDevOrigins: ["187.127.159.101", "digitallynext.tech"],
   // Keep exceljs as a Node external so Turbopack doesn't try to bundle its
   // Node-only dependencies (used by the attendance import parser).
   serverExternalPackages: ["exceljs"],

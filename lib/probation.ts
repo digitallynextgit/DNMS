@@ -16,7 +16,8 @@
 // Pure functions - safe to import in both server and client components.
 // =============================================================================
 
-export const PROBATION_MONTHS_OPTIONS = [1, 2, 3, 4, 5, 6] as const
+// 0 = confirmed immediately (no probation window: end date == joining date).
+export const PROBATION_MONTHS_OPTIONS = [0, 1, 2, 3, 4, 5, 6] as const
 export type ProbationMonths = (typeof PROBATION_MONTHS_OPTIONS)[number]
 export const DEFAULT_PROBATION_MONTHS: ProbationMonths = 6
 

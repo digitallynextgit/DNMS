@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   Mail,
   Phone,
-  Pencil,
   Building2,
   Briefcase,
   Users,
@@ -27,6 +26,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { EmployeeAdminActions } from "@/components/employees/employee-admin-actions"
 import { ManageRolesDialog } from "@/components/employees/manage-roles-dialog"
+import {
+  EditPersonalInfo,
+  EditEmploymentDetails,
+  EditAddress,
+  EditEmergencyContact,
+} from "@/components/employees/section-edit-dialogs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 import { useEmployee } from "@/hooks/use-employees"
@@ -54,12 +59,21 @@ function InfoRow({ label, value }: InfoRowProps) {
   )
 }
 
-function SectionHeader({ children }: { children: React.ReactNode }) {
+function SectionHeader({
+  children,
+  action,
+}: {
+  children: React.ReactNode
+  action?: React.ReactNode
+}) {
   return (
     <div>
-      <h3 className="text-foreground/80 mb-3 text-sm font-semibold tracking-wider uppercase">
-        {children}
-      </h3>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-foreground/80 text-sm font-semibold tracking-wider uppercase">
+          {children}
+        </h3>
+        {action}
+      </div>
       <Separator className="mb-4" />
     </div>
   )
@@ -105,6 +119,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
   const probation = getProbationStatus(emp)
   const canUploadDocs = can(PERMISSIONS.DOCUMENT_WRITE)
   const canDeleteDocs = can(PERMISSIONS.DOCUMENT_DELETE)
+  const canEdit = can(PERMISSIONS.EMPLOYEE_WRITE)
 
   const ca = (emp.currentAddress ?? {}) as Record<string, string>
   const pa = (emp.permanentAddress ?? {}) as Record<string, string>
@@ -166,17 +181,6 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
                       status={emp.status}
                       hasPhoto={!!emp.profilePhoto}
                     />
-                    {can(PERMISSIONS.EMPLOYEE_WRITE) && (
-                      <Button variant="outline" size="sm" asChild>
-                        <Link
-                          href={`/employees/${emp.id}/edit`}
-                          className="flex items-center gap-1.5"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Edit
-                        </Link>
-                      </Button>
-                    )}
                   </div>
                 )}
               </div>
@@ -261,7 +265,9 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
           {/* Personal Information */}
           <Card>
             <CardContent className="pt-6">
-              <SectionHeader>Personal Information</SectionHeader>
+              <SectionHeader action={canEdit && <EditPersonalInfo emp={emp} />}>
+                Personal Information
+              </SectionHeader>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <InfoRow label="First Name" value={emp.firstName} />
                 <InfoRow label="Last Name" value={emp.lastName} />
@@ -280,7 +286,9 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
           {/* Employment Details */}
           <Card>
             <CardContent className="pt-6">
-              <SectionHeader>Employment Details</SectionHeader>
+              <SectionHeader action={canEdit && <EditEmploymentDetails emp={emp} />}>
+                Employment Details
+              </SectionHeader>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <InfoRow label="Employee No" value={emp.employeeNo} />
                 <InfoRow label="Department" value={emp.department?.name} />
@@ -310,49 +318,53 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
           </Card>
 
           {/* Address */}
-          {(ca.line1 || pa.line1) && (
-            <Card>
-              <CardContent className="pt-6">
-                <SectionHeader>Address</SectionHeader>
+          <Card>
+            <CardContent className="pt-6">
+              <SectionHeader action={canEdit && <EditAddress emp={emp} />}>Address</SectionHeader>
+              {ca.line1 || pa.line1 ? (
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                  {ca.line1 && (
-                    <div className="space-y-0.5">
-                      <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                        Current Address
-                      </p>
-                      <p className="text-sm font-medium">
-                        {[ca.line1, ca.line2, ca.city, ca.state, ca.zip].filter(Boolean).join(", ")}
-                      </p>
-                    </div>
-                  )}
-                  {pa.line1 && (
-                    <div className="space-y-0.5">
-                      <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                        Permanent Address
-                      </p>
-                      <p className="text-sm font-medium">
-                        {[pa.line1, pa.line2, pa.city, pa.state, pa.zip].filter(Boolean).join(", ")}
-                      </p>
-                    </div>
-                  )}
+                  <div className="space-y-0.5">
+                    <p className="text-muted-foreground text-xs tracking-wide uppercase">
+                      Current Address
+                    </p>
+                    <p className="text-sm font-medium">
+                      {[ca.line1, ca.line2, ca.city, ca.state, ca.zip].filter(Boolean).join(", ") ||
+                        "-"}
+                    </p>
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-muted-foreground text-xs tracking-wide uppercase">
+                      Permanent Address
+                    </p>
+                    <p className="text-sm font-medium">
+                      {[pa.line1, pa.line2, pa.city, pa.state, pa.zip].filter(Boolean).join(", ") ||
+                        "-"}
+                    </p>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <p className="text-muted-foreground text-sm">No address on file.</p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Emergency Contact */}
-          {ec.name && (
-            <Card>
-              <CardContent className="pt-6">
-                <SectionHeader>Emergency Contact</SectionHeader>
+          <Card>
+            <CardContent className="pt-6">
+              <SectionHeader action={canEdit && <EditEmergencyContact emp={emp} />}>
+                Emergency Contact
+              </SectionHeader>
+              {ec.name ? (
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                   <InfoRow label="Name" value={ec.name} />
                   <InfoRow label="Relation" value={ec.relation} />
                   <InfoRow label="Phone" value={ec.phone} />
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <p className="text-muted-foreground text-sm">No emergency contact on file.</p>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ── Documents Tab ─────────────────────────────────────────────────── */}

@@ -85,7 +85,7 @@ const formSchema = z.object({
   dateOfJoining: z.string().min(1, "Date of joining is required"),
   probationEndDate: z.string().optional(),
   onProbation: z.boolean().optional(),
-  probationMonths: z.enum(["1", "2", "3", "4", "5", "6"]).optional(),
+  probationMonths: z.enum(["0", "1", "2", "3", "4", "5", "6"]).optional(),
   workLocation: z.string().min(1, "Work location is required"),
   deviceId: z.string().optional(),
   // Required employee code (HR-system code, e.g. 132). Must be unique.
@@ -542,6 +542,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     watch,
     setValue,
     setError,
+    clearErrors,
     formState: { errors },
     reset,
     trigger,
@@ -715,6 +716,36 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         })
         return
       }
+    }
+
+    // Address is required on create. The permanent address is only required when
+    // it differs from the current one. (Edit mode leaves these optional - the
+    // per-section edit modals handle editing later.)
+    if (currentStep === 4 && mode === "create") {
+      const requiredAddr: [keyof FormData, string][] = [
+        ["currentLine1", "Address line 1 is required"],
+        ["currentCity", "City is required"],
+        ["currentState", "State is required"],
+        ["currentZip", "ZIP / postal code is required"],
+      ]
+      if (!watchedValues.sameAsCurrent) {
+        requiredAddr.push(
+          ["permanentLine1", "Address line 1 is required"],
+          ["permanentCity", "City is required"],
+          ["permanentState", "State is required"],
+          ["permanentZip", "ZIP / postal code is required"],
+        )
+      }
+      let addrHasError = false
+      for (const [field, message] of requiredAddr) {
+        if (!String(watchedValues[field] ?? "").trim()) {
+          setError(field, { type: "required", message })
+          addrHasError = true
+        } else {
+          clearErrors(field)
+        }
+      }
+      if (addrHasError) return
     }
 
     if (valid) setCurrentStep((s) => Math.min(s + 1, STEPS.length))
@@ -961,7 +992,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
                 {(watchedValues.onProbation ?? true) && (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <FormField label="Probation Period">
+                    <FormField label="Probation Period" required>
                       <Select
                         key={`prob-${watchedValues.probationMonths ?? "6"}`}
                         value={watchedValues.probationMonths ?? "6"}
@@ -1458,7 +1489,11 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <FormField label="Address Line 1">
+                <FormField
+                  label="Address Line 1"
+                  required={mode === "create"}
+                  error={errors.currentLine1?.message}
+                >
                   <Input {...register("currentLine1")} placeholder="Street address, building" />
                 </FormField>
               </div>
@@ -1467,13 +1502,25 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                   <Input {...register("currentLine2")} placeholder="Apartment, suite, unit" />
                 </FormField>
               </div>
-              <FormField label="City">
+              <FormField
+                label="City"
+                required={mode === "create"}
+                error={errors.currentCity?.message}
+              >
                 <Input {...register("currentCity")} placeholder="Mumbai" />
               </FormField>
-              <FormField label="State">
+              <FormField
+                label="State"
+                required={mode === "create"}
+                error={errors.currentState?.message}
+              >
                 <Input {...register("currentState")} placeholder="Maharashtra" />
               </FormField>
-              <FormField label="ZIP / Postal Code">
+              <FormField
+                label="ZIP / Postal Code"
+                required={mode === "create"}
+                error={errors.currentZip?.message}
+              >
                 <Input {...register("currentZip")} placeholder="400001" />
               </FormField>
             </CardContent>
@@ -1495,7 +1542,11 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             {!sameAsCurrent && (
               <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <FormField label="Address Line 1">
+                  <FormField
+                    label="Address Line 1"
+                    required={mode === "create"}
+                    error={errors.permanentLine1?.message}
+                  >
                     <Input {...register("permanentLine1")} placeholder="Street address, building" />
                   </FormField>
                 </div>
@@ -1504,13 +1555,25 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     <Input {...register("permanentLine2")} placeholder="Apartment, suite, unit" />
                   </FormField>
                 </div>
-                <FormField label="City">
+                <FormField
+                  label="City"
+                  required={mode === "create"}
+                  error={errors.permanentCity?.message}
+                >
                   <Input {...register("permanentCity")} placeholder="Pune" />
                 </FormField>
-                <FormField label="State">
+                <FormField
+                  label="State"
+                  required={mode === "create"}
+                  error={errors.permanentState?.message}
+                >
                   <Input {...register("permanentState")} placeholder="Maharashtra" />
                 </FormField>
-                <FormField label="ZIP / Postal Code">
+                <FormField
+                  label="ZIP / Postal Code"
+                  required={mode === "create"}
+                  error={errors.permanentZip?.message}
+                >
                   <Input {...register("permanentZip")} placeholder="411001" />
                 </FormField>
               </CardContent>

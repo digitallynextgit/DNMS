@@ -86,7 +86,10 @@ export async function applyResignation(input: {
       module: "employee",
       entityType: "Resignation",
       entityId: resignation.id,
-      changes: { reason: input.reason ?? null, requestedLastWorkingDate: input.requestedLastWorkingDate ?? null },
+      changes: {
+        reason: input.reason ?? null,
+        requestedLastWorkingDate: input.requestedLastWorkingDate ?? null,
+      },
       ...meta,
     })
 
@@ -105,7 +108,9 @@ export async function cancelResignation(id: string): Promise<ActionResult<unknow
     if (resignation.employeeId !== session.user.id)
       return fail("You can only withdraw your own resignation")
     if (resignation.status !== "PENDING")
-      return fail(`Cannot withdraw a resignation that is already ${resignation.status.toLowerCase()}`)
+      return fail(
+        `Cannot withdraw a resignation that is already ${resignation.status.toLowerCase()}`,
+      )
 
     const updated = await db.resignation.update({
       where: { id },
@@ -165,8 +170,7 @@ export async function reviewResignation(
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
-    if (action !== "APPROVE" && action !== "REJECT")
-      return fail("Action must be APPROVE or REJECT")
+    if (action !== "APPROVE" && action !== "REJECT") return fail("Action must be APPROVE or REJECT")
 
     const resignation = await db.resignation.findUnique({
       where: { id },

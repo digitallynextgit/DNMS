@@ -57,7 +57,7 @@ export const createEmployeeSchema = z.object({
   probationMonths: z.coerce
     .number()
     .int()
-    .refine((v) => v >= 1 && v <= 6, "Probation must be between 1 and 6 months")
+    .refine((v) => v >= 0 && v <= 6, "Probation must be between 0 and 6 months")
     .optional(),
   workLocation: z.string().optional(),
 

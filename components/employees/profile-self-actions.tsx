@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Camera, ChevronDown, Loader2, Trash2, Upload, UserMinus } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { DateField } from "@/components/shared/date-field"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -22,7 +22,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useMyResignation, useApplyResignation, useCancelResignation } from "@/hooks/use-resignations"
+import {
+  useMyResignation,
+  useApplyResignation,
+  useCancelResignation,
+} from "@/hooks/use-resignations"
 
 /**
  * Self-service actions shown on the employee's own /profile page:
@@ -155,15 +159,13 @@ export function ProfileSelfActions({
         </Badge>
       ) : isPending ? (
         <>
-          <Badge variant="outline" className="border-amber-400/50 text-amber-600 dark:text-amber-400">
+          <Badge
+            variant="outline"
+            className="border-amber-400/50 text-amber-600 dark:text-amber-400"
+          >
             Resignation Pending
           </Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={cancelMut.isPending}
-            onClick={withdraw}
-          >
+          <Button variant="outline" size="sm" disabled={cancelMut.isPending} onClick={withdraw}>
             {cancelMut.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
             Withdraw
           </Button>
@@ -197,13 +199,8 @@ export function ProfileSelfActions({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="res-lwd">Requested Last Working Day</Label>
-              <Input
-                id="res-lwd"
-                type="date"
-                value={lastWorkingDate}
-                onChange={(e) => setLastWorkingDate(e.target.value)}
-              />
+              <Label>Requested Last Working Day</Label>
+              <DateField value={lastWorkingDate} onChange={setLastWorkingDate} />
             </div>
             <p className="text-muted-foreground text-xs">
               This sends a resignation request to your manager for approval. Once approved, your
