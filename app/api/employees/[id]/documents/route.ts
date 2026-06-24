@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withSession } from "@/lib/permissions"
-import { getEmployeeDocuments, uploadEmployeeDocument } from "@/lib/actions/employee-documents"
+import { withSession } from "@/server/api-handler"
+import {
+  getEmployeeDocuments,
+  uploadEmployeeDocument,
+} from "@/features/documents/server/employee-documents.actions"
 import type { Session } from "next-auth"
 
 /**

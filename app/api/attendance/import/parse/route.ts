@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withAuth } from "@/lib/permissions"
+import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import ExcelJS from "exceljs"
 import type { Session } from "next-auth"

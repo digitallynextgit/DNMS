@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
+import { db } from "@/server/db"
 import {
   type CareersApiResponse,
   type CareersDepartment,
@@ -9,7 +9,7 @@ import {
   DEFAULT_CAREERS_TONE,
   DEFAULT_INTERNSHIP_JOBS_LABEL,
   slugifyCareer,
-} from "@/lib/careers-types"
+} from "@/features/recruitment/careers-types"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"

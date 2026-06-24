@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
+import { db } from "@/server/db"
 import { sendEmail } from "@/lib/mailer"
 
 // This route is called daily by a cron job (e.g., Vercel Cron, node-cron in worker.ts, or external scheduler).

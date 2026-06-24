@@ -1,5 +1,5 @@
 import type { Session } from "next-auth"
-import { db } from "@/lib/db"
+import { db } from "@/server/db"
 import { SYSTEM_ROLES } from "@/lib/constants"
 
 interface AuditLogInput {

@@ -1,9 +1,9 @@
-import { auth } from "@/lib/auth-options"
+import { auth } from "@/server/auth"
 import { redirect } from "next/navigation"
-import { db } from "@/lib/db"
+import { db } from "@/server/db"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Topbar } from "@/components/layout/topbar"
-import { AccountDeactivated } from "@/components/auth/account-deactivated"
+import { AccountDeactivated } from "@/features/auth"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()

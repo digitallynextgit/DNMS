@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { usePermissions } from "@/hooks/use-permissions"
+import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { cn, getInitials, formatDate } from "@/lib/utils"
 
@@ -66,7 +66,7 @@ async function createRequest(body: {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Failed to submit" }))
-    throw new Error(err.error || "Failed to submit")
+    throw new Error(err.error?.message || "Failed to submit")
   }
   return res.json()
 }
@@ -79,7 +79,7 @@ async function patchRequest(id: string, action: string, reviewNote?: string) {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Failed to update" }))
-    throw new Error(err.error || "Failed to update")
+    throw new Error(err.error?.message || "Failed to update")
   }
   return res.json()
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withSession } from "@/lib/permissions"
-import { db } from "@/lib/db"
+import { withSession } from "@/server/api-handler"
+import { db } from "@/server/db"
 import type { Session } from "next-auth"
 
 // GET - paginated notifications for the current user

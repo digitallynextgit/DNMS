@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { cn, formatDate } from "@/lib/utils"
 import { ATTENDANCE_STATUS_LABELS, ATTENDANCE_STATUS_COLORS } from "@/lib/constants"
-import { useMyAttendance } from "@/hooks/use-attendance"
+import { useMyAttendance } from "@/features/attendance"
 
 function formatTime(dt: string | null): string {
   if (!dt) return "-"

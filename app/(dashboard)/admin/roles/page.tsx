@@ -34,7 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { RoleForm } from "@/components/admin/role-form"
+import { RoleForm } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 
 // ---------------------------------------------------------------------------
@@ -121,7 +121,7 @@ export default function RolesPage() {
       })
       if (!res.ok) {
         const json = await res.json()
-        throw new Error(json.error ?? "Delete failed")
+        throw new Error(json.error?.message ?? "Delete failed")
       }
       toast.success(`Role "${deleteTarget.displayName}" deleted`)
       setDeleteTarget(null)

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { withSession } from "@/lib/permissions"
+import { db } from "@/server/db"
+import { withSession } from "@/server/api-handler"
 import { createAuditLog } from "@/lib/audit"
-import { slugifyCareer } from "@/lib/careers-types"
+import { slugifyCareer } from "@/features/recruitment/careers-types"
 import type { Session } from "next-auth"
 
 function asStringArray(value: unknown): string[] {

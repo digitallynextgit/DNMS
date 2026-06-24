@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
+import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
 import {
   DEFAULT_EVALUATION_CRITERIA,
   DEFAULT_SECTION_A_LABEL,
   DEFAULT_SECTION_B_LABEL,
-} from "@/lib/evaluation"
+} from "@/features/performance/evaluation"
 import { HIDDEN_ROLES } from "@/lib/constants"
 
 // Auto-create the current period's performance evaluations for every active

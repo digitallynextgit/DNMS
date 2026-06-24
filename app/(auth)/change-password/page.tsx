@@ -1,7 +1,7 @@
-import { auth } from "@/lib/auth-options"
+import { auth } from "@/server/auth"
 import { redirect } from "next/navigation"
-import { AuthShell } from "@/components/auth/auth-shell"
-import { ChangePasswordForm } from "@/components/auth/change-password-form"
+import { AuthShell } from "@/features/auth"
+import { ChangePasswordForm } from "@/features/auth"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {

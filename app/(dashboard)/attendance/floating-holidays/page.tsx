@@ -41,7 +41,7 @@ async function selectHoliday(holidayId: string): Promise<unknown> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Failed to select holiday" }))
-    throw new Error(err.error || "Failed to select holiday")
+    throw new Error(err.error?.message || "Failed to select holiday")
   }
   return res.json()
 }
@@ -52,7 +52,7 @@ async function deselectHoliday(holidayId: string): Promise<unknown> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Failed to remove holiday" }))
-    throw new Error(err.error || "Failed to remove holiday")
+    throw new Error(err.error?.message || "Failed to remove holiday")
   }
   return res.json()
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
+import { db } from "@/server/db"
 
 // EL accrual: 1.16 days earned per month per eligible employee
 // Eligibility: confirmed + 6 months of service (probationEndDate + 6 months)

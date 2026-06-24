@@ -1,0 +1,17 @@
+// Public API for the "projects" feature (CLAUDE.md §1, rule #2).
+// Cross-feature & app imports use THIS barrel; internals stay private.
+// NOTE: server-only modules (server/*.service-style, emails, IO clients) are
+// intentionally NOT re-exported here — API routes import those directly.
+export * from "./components/activity-tab"
+export * from "./components/kanban-view"
+export * from "./components/messages-tab"
+export * from "./components/passwords-tab"
+export * from "./components/project-form-dialog"
+export * from "./components/resources-tab"
+export * from "./components/task-detail-sheet"
+export * from "./components/tasks-tab"
+export * from "./components/teams-tab"
+export * from "./hooks/use-projects"
+
+// Disambiguate export* clash (formatHours duplicated in two components)
+export { formatHours } from "./components/kanban-view"

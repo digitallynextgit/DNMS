@@ -17,7 +17,7 @@
  *   /favicon.ico          – browser favicon
  *   /public/*             – static public assets served from /public
  */
-import { auth } from "@/lib/auth-options"
+import { auth } from "@/server/auth"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 

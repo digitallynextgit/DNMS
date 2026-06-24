@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { useWfhRequests, useApproveWfh, useRejectWfh } from "@/hooks/use-wfh"
+import { useWfhRequests, useApproveWfh, useRejectWfh } from "@/features/wfh"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { cn, getInitials } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"

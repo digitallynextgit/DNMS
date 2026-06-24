@@ -6,11 +6,11 @@ import { Upload } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
-import { DocumentList } from "@/components/documents/document-list"
-import { DocumentUploadDialog } from "@/components/documents/document-upload-dialog"
-import { usePermissions } from "@/hooks/use-permissions"
+import { DocumentList } from "@/features/documents"
+import { DocumentUploadDialog } from "@/features/documents"
+import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
-import { getEmployee } from "@/lib/actions/employees"
+import { getEmployee } from "@/features/employees"
 
 function useEmployeeName(employeeId: string) {
   const [name, setName] = React.useState<string>("")

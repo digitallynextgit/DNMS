@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { withAuth } from "@/lib/permissions"
+import { db } from "@/server/db"
+import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
-import { testDeviceConnection } from "@/lib/hikvision"
+import { testDeviceConnection } from "@/features/attendance/server/hikvision"
 import type { Session } from "next-auth"
 
 export const POST = withAuth(

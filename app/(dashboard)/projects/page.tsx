@@ -17,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { usePermissions } from "@/hooks/use-permissions"
+import { usePermissions } from "@/features/admin"
 import {
   PERMISSIONS,
   PROJECT_STATUS_LABELS,
@@ -26,7 +26,7 @@ import {
   TASK_PRIORITY_LABELS,
 } from "@/lib/constants"
 import { formatDate, cn, getInitials } from "@/lib/utils"
-import { ProjectFormDialog } from "@/components/projects/project-form-dialog"
+import { ProjectFormDialog } from "@/features/projects"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 
 interface Project {

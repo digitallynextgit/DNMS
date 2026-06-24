@@ -11,14 +11,14 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { useEvaluation, useSubmitEvaluation } from "@/hooks/use-evaluations"
+import { useEvaluation, useSubmitEvaluation } from "@/features/performance"
 import {
   scoreEvaluation,
   isRatingComplete,
   RATING_LABELS,
   type EvalCriterion,
-} from "@/lib/evaluation"
-import { performanceAction } from "@/lib/performance"
+} from "@/features/performance"
+import { performanceAction } from "@/features/performance"
 
 const TONE: Record<string, string> = {
   red: "border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300",

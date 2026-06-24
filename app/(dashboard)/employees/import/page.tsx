@@ -31,7 +31,7 @@ async function send(file: File, preview: boolean) {
   const res = await fetch("/api/employees/import", { method: "POST", body: fd })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Failed" }))
-    throw new Error(err.error || "Failed")
+    throw new Error(err.error?.message || "Failed")
   }
   return res.json() as Promise<{
     total: number

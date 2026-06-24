@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { withSession, hasPermission } from "@/lib/permissions"
+import { db } from "@/server/db"
+import { withSession } from "@/server/api-handler"
+import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
 import { createNotification } from "@/lib/notifications"
@@ -8,7 +9,7 @@ import {
   DEFAULT_EVALUATION_CRITERIA,
   DEFAULT_SECTION_A_LABEL,
   DEFAULT_SECTION_B_LABEL,
-} from "@/lib/evaluation"
+} from "@/features/performance/evaluation"
 import type { Session } from "next-auth"
 
 const employeeSelect = {

@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { usePermissions } from "@/hooks/use-permissions"
+import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, REVIEW_STATUS_LABELS, REVIEW_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 

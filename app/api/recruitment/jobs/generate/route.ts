@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withSession } from "@/lib/permissions"
+import { withSession } from "@/server/api-handler"
 import type { Session } from "next-auth"
 
 export const runtime = "nodejs"

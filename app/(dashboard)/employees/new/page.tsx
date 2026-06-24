@@ -3,8 +3,9 @@ import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
-import { EmployeeForm } from "@/components/employees/employee-form"
-import { getSession, hasPermission } from "@/lib/permissions"
+import { EmployeeForm } from "@/features/employees"
+import { getSession } from "@/server/api-handler"
+import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 
 export default async function NewEmployeePage() {

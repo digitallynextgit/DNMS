@@ -17,8 +17,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { useHolidays, useCreateHoliday, useDeleteHoliday } from "@/hooks/use-attendance"
-import { usePermissions } from "@/hooks/use-permissions"
+import { useHolidays, useCreateHoliday, useDeleteHoliday } from "@/features/attendance"
+import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { formatDate, cn } from "@/lib/utils"
 

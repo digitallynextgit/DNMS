@@ -17,13 +17,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { PageHeader } from "@/components/shared/page-header"
-import { SalaryStructureForm } from "@/components/payroll/salary-structure-form"
+import { SalaryStructureForm } from "@/features/payroll"
 import {
   useSalaryStructures,
   useDeleteSalaryStructure,
   type SalaryStructure,
-} from "@/hooks/use-payroll"
-import { usePermissions } from "@/hooks/use-permissions"
+} from "@/features/payroll"
+import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 
 function fmt(amount: number): string {

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { PageHeader } from "@/components/shared/page-header"
-import { LeaveTypeForm } from "@/components/leave/leave-type-form"
+import { LeaveTypeForm } from "@/features/leave"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -23,9 +23,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useLeaveTypes, useDeleteLeaveType, useUpdateLeaveType } from "@/hooks/use-leave"
-import type { LeaveType } from "@/hooks/use-leave"
-import { usePermissions } from "@/hooks/use-permissions"
+import { useLeaveTypes, useDeleteLeaveType, useUpdateLeaveType } from "@/features/leave"
+import type { LeaveType } from "@/features/leave"
+import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { Plus, MoreHorizontal, Pencil, ToggleLeft, ToggleRight, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"

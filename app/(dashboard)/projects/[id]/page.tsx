@@ -22,8 +22,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useProject, useProjectTeams } from "@/hooks/use-projects"
-import { usePermissions } from "@/hooks/use-permissions"
+import { useProject, useProjectTeams } from "@/features/projects"
+import { usePermissions } from "@/features/admin"
 import {
   PERMISSIONS,
   PROJECT_STATUS_LABELS,
@@ -46,13 +46,13 @@ import {
   MessageSquare,
   KeyRound,
 } from "lucide-react"
-import { TeamsTab } from "@/components/projects/teams-tab"
-import { TasksTab } from "@/components/projects/tasks-tab"
-import { ResourcesTab } from "@/components/projects/resources-tab"
-import { ActivityTab } from "@/components/projects/activity-tab"
-import { MessagesTab } from "@/components/projects/messages-tab"
-import { PasswordsTab } from "@/components/projects/passwords-tab"
-import { ProjectFormDialog } from "@/components/projects/project-form-dialog"
+import { TeamsTab } from "@/features/projects"
+import { TasksTab } from "@/features/projects"
+import { ResourcesTab } from "@/features/projects"
+import { ActivityTab } from "@/features/projects"
+import { MessagesTab } from "@/features/projects"
+import { PasswordsTab } from "@/features/projects"
+import { ProjectFormDialog } from "@/features/projects"
 
 interface SubPhase {
   id: string
@@ -114,7 +114,7 @@ export default function ProjectDetailPage() {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Failed to update phase" }))
-        throw new Error(err.error || "Failed to update phase")
+        throw new Error(err.error?.message || "Failed to update phase")
       }
       return res.json()
     },

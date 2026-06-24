@@ -4,10 +4,10 @@ import { useSession } from "next-auth/react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
-import { usePermissions } from "@/hooks/use-permissions"
+import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
-import { AdminDashboard } from "@/components/dashboard/admin-dashboard"
-import { EmployeeDashboard } from "@/components/dashboard/employee-dashboard"
+import { AdminDashboard } from "@/features/dashboard"
+import { EmployeeDashboard } from "@/features/dashboard"
 
 function DashboardSkeleton() {
   return (

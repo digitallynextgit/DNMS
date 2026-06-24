@@ -1,7 +1,7 @@
 "use client"
 
 import { PageHeader } from "@/components/shared/page-header"
-import { ApplyLeaveForm } from "@/components/leave/apply-leave-form"
+import { ApplyLeaveForm } from "@/features/leave"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"

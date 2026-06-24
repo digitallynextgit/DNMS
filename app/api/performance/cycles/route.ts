@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { withAuth, withSession } from "@/lib/permissions"
+import { db } from "@/server/db"
+import { withAuth, withSession } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotifications } from "@/lib/notifications"
 import type { Session } from "next-auth"

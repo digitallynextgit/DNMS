@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
+import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
 
 // Notifies people about documents expiring within the next 30 days.

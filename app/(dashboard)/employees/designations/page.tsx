@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
-import { usePermissions } from "@/hooks/use-permissions"
+import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import {
@@ -25,7 +25,7 @@ import {
   createDesignation,
   updateDesignation,
   deleteDesignation,
-} from "@/lib/actions/designations"
+} from "@/features/employees"
 
 interface Designation {
   id: string

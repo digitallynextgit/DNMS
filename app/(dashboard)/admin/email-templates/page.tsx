@@ -20,8 +20,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { EmailTemplateForm } from "@/components/admin/email-template-form"
-import { usePermissions } from "@/hooks/use-permissions"
+import { EmailTemplateForm } from "@/features/admin"
+import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { formatDate, truncate } from "@/lib/utils"
 

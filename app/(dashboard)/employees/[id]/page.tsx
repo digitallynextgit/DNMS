@@ -15,28 +15,28 @@ import {
   Wallet,
   Upload,
 } from "lucide-react"
-import { EmployeeLeaveTab } from "@/components/employees/employee-leave-tab"
-import { EmployeeSalaryTab } from "@/components/employees/employee-salary-tab"
-import { DocumentList } from "@/components/documents/document-list"
-import { DocumentUploadDialog } from "@/components/documents/document-upload-dialog"
+import { EmployeeLeaveTab } from "@/features/employees"
+import { EmployeeSalaryTab } from "@/features/employees"
+import { DocumentList } from "@/features/documents"
+import { DocumentUploadDialog } from "@/features/documents"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { EmployeeAdminActions } from "@/components/employees/employee-admin-actions"
-import { ManageRolesDialog } from "@/components/employees/manage-roles-dialog"
+import { EmployeeAdminActions } from "@/features/employees"
+import { ManageRolesDialog } from "@/features/employees"
 import {
   EditPersonalInfo,
   EditEmploymentDetails,
   EditAddress,
   EditEmergencyContact,
-} from "@/components/employees/section-edit-dialogs"
+} from "@/features/employees"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
-import { useEmployee } from "@/hooks/use-employees"
-import { usePermissions } from "@/hooks/use-permissions"
-import { getProbationStatus } from "@/lib/probation"
+import { useEmployee } from "@/features/employees"
+import { usePermissions } from "@/features/admin"
+import { getProbationStatus } from "@/features/employees"
 import { cn, getInitials, getAvatarColor, formatDate } from "@/lib/utils"
 import {
   EMPLOYEE_STATUS_COLORS,

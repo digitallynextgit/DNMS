@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withAuth } from "@/lib/permissions"
-import { db } from "@/lib/db"
-import { emailTemplateSchema } from "@/lib/schemas/email-template"
+import { withAuth } from "@/server/api-handler"
+import { db } from "@/server/db"
+import { emailTemplateSchema } from "@/features/admin/schemas/email-template.schema"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 

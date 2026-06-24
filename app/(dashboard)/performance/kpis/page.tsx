@@ -52,7 +52,7 @@ export default function KpisPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, description, weight: Number(weight) }),
       })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed")
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error?.message || "Failed")
       return res.json()
     },
     onSuccess: () => {

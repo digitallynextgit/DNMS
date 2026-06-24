@@ -1,4 +1,4 @@
-import { db } from "@/lib/db"
+import { db } from "@/server/db"
 
 // One-off: remove the throwaway employees created while verifying the add-employee
 // flow. Scoped tightly to the test email pattern so nothing real is touched.

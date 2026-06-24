@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { withSession } from "@/lib/permissions"
+import { db } from "@/server/db"
+import { withSession } from "@/server/api-handler"
 import type { Session } from "next-auth"
 
 // Each employee may pick this many of the optional (floating) holidays per year.

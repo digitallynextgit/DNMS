@@ -4,8 +4,8 @@ import { useRouter, useParams } from "next/navigation"
 import { ArrowLeft, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
-import { RoleBadge } from "@/components/docs/role-badge"
-import { GuideContent } from "@/components/docs/guide-content"
+import { RoleBadge } from "@/features/docs"
+import { GuideContent } from "@/features/docs"
 
 // ---------------------------------------------------------------------------
 // Guide metadata

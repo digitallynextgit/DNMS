@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { useEvalTemplates, useSaveEvalTemplate } from "@/hooks/use-evaluations"
-import { validateCriteria, type EvalCriterion, type EvalSection } from "@/lib/evaluation"
+import { useEvalTemplates, useSaveEvalTemplate } from "@/features/performance"
+import { validateCriteria, type EvalCriterion, type EvalSection } from "@/features/performance"
 
 export default function EvaluationTemplatePage() {
   const { data, isLoading } = useEvalTemplates()

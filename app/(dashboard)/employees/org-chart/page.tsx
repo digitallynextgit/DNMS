@@ -2,8 +2,8 @@
 
 import { Loader2 } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
-import { OrgChartTree } from "@/components/employees/org-chart-tree"
-import { useOrgChart } from "@/hooks/use-employees"
+import { OrgChartTree } from "@/features/employees"
+import { useOrgChart } from "@/features/employees"
 
 export default function OrgChartPage() {
   const { data, isLoading, error } = useOrgChart()

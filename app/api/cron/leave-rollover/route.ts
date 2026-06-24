@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
+import { db } from "@/server/db"
 
 // Year-end leave rollover. Run on Jan 1 (or with ?year=YYYY for the target year).
 //   - Only types with carryForward=true carry their remaining balance, capped at

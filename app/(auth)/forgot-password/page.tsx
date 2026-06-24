@@ -10,8 +10,8 @@ import { Loader2, Mail, ArrowLeft, KeyRound, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { AuthShell } from "@/components/auth/auth-shell"
-import { requestPasswordOtp, verifyPasswordOtp, resetPasswordWithToken } from "@/lib/actions/auth"
+import { AuthShell } from "@/features/auth"
+import { requestPasswordOtp, verifyPasswordOtp, resetPasswordWithToken } from "@/features/auth"
 
 type Step = "email" | "otp" | "password"
 

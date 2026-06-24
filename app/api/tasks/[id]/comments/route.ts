@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { withSession } from "@/lib/permissions"
-import { logActivity } from "@/lib/activity"
+import { db } from "@/server/db"
+import { withSession } from "@/server/api-handler"
+import { logActivity } from "@/features/projects/server/activity"
 import type { Session } from "next-auth"
 
 const AUTHOR_SELECT = {

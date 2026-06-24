@@ -25,16 +25,16 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { PageHeader } from "@/components/shared/page-header"
-import { GeneratePayrollDialog } from "@/components/payroll/generate-payroll-dialog"
-import { PayrollFilters } from "@/components/payroll/payroll-filters"
+import { GeneratePayrollDialog } from "@/features/payroll"
+import { PayrollFilters } from "@/features/payroll"
 import {
   usePayrollRecords,
   usePayrollSummary,
   useUpdatePayrollStatus,
   useDeletePayrollRecord,
   type PayrollRecord,
-} from "@/hooks/use-payroll"
-import { usePermissions } from "@/hooks/use-permissions"
+} from "@/features/payroll"
+import { usePermissions } from "@/features/admin"
 import { useDebounce } from "@/hooks/use-debounce"
 import { cn } from "@/lib/utils"
 import { MONTHS, PAYROLL_STATUS_COLORS, PAYROLL_STATUS_LABELS, PERMISSIONS } from "@/lib/constants"

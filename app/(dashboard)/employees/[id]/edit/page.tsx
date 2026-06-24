@@ -5,8 +5,8 @@ import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
-import { EmployeeForm } from "@/components/employees/employee-form"
-import { useEmployee } from "@/hooks/use-employees"
+import { EmployeeForm } from "@/features/employees"
+import { useEmployee } from "@/features/employees"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export default function EditEmployeePage({ params }: { params: Promise<{ id: string }> }) {

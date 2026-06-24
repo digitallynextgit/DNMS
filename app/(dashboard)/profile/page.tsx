@@ -28,13 +28,13 @@ import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PageHeader } from "@/components/shared/page-header"
-import { ProfileSelfActions } from "@/components/employees/profile-self-actions"
-import { DocumentList } from "@/components/documents/document-list"
-import { DocumentUploadDialog } from "@/components/documents/document-upload-dialog"
+import { ProfileSelfActions } from "@/features/employees"
+import { DocumentList } from "@/features/documents"
+import { DocumentUploadDialog } from "@/features/documents"
 import { useSession } from "next-auth/react"
-import { useEmployee } from "@/hooks/use-employees"
+import { useEmployee } from "@/features/employees"
 import { cn, getInitials, getAvatarColor, formatDate } from "@/lib/utils"
-import { getProbationStatus } from "@/lib/probation"
+import { getProbationStatus } from "@/features/employees"
 import {
   EMPLOYEE_STATUS_COLORS,
   EMPLOYEE_STATUS_LABELS,
@@ -48,7 +48,7 @@ async function changePassword(body: { currentPassword: string; newPassword: stri
     body: JSON.stringify(body),
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error ?? "Failed")
+  if (!res.ok) throw new Error(data.error?.message ?? "Failed")
   return data
 }
 
@@ -59,7 +59,7 @@ async function saveGmailAppPassword(body: { gmailAppPassword: string }) {
     body: JSON.stringify(body),
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error ?? "Failed")
+  if (!res.ok) throw new Error(data.error?.message ?? "Failed")
   return data
 }
 

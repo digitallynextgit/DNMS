@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useWfhEligibility, useApplyWfh } from "@/hooks/use-wfh"
+import { useWfhEligibility, useApplyWfh } from "@/features/wfh"
 import { ArrowLeft, AlertTriangle, Info, Home } from "lucide-react"
 import { cn } from "@/lib/utils"
 

@@ -76,7 +76,7 @@ export default function AttendanceImportPage() {
       const res = await fetch("/api/attendance/import/parse", { method: "POST", body: fd })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Failed to read file" }))
-        throw new Error(err.error || "Failed to read file")
+        throw new Error(err.error?.message || "Failed to read file")
       }
       return res.json() as Promise<{ rows: CsvRow[] }>
     },

@@ -21,19 +21,19 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
-import { EmployeeCard } from "@/components/employees/employee-card"
-import { EmployeeFilters } from "@/components/employees/employee-filters"
-import { bulkTerminateEmployees } from "@/lib/actions/employees"
+import { EmployeeCard } from "@/features/employees"
+import { EmployeeFilters } from "@/features/employees"
+import { bulkTerminateEmployees } from "@/features/employees"
 import {
   useEmployees,
   useDeleteEmployee,
   useActivateEmployee,
   useHardDeleteEmployee,
-} from "@/hooks/use-employees"
-import { usePermissions } from "@/hooks/use-permissions"
+} from "@/features/employees"
+import { usePermissions } from "@/features/admin"
 import { useDebounce } from "@/hooks/use-debounce"
 import { cn, getInitials, getAvatarColor, formatDate, employeeSlug } from "@/lib/utils"
-import { isOnProbation } from "@/lib/probation"
+import { isOnProbation } from "@/features/employees"
 import { EMPLOYEE_STATUS_LABELS, PERMISSIONS } from "@/lib/constants"
 
 type ViewMode = "card" | "table"

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { withAuth, withSession } from "@/lib/permissions"
+import { db } from "@/server/db"
+import { withAuth, withSession } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
-import { computeAttendanceStatus } from "@/lib/attendance"
+import { computeAttendanceStatus } from "@/features/attendance/attendance"
 import type { Session } from "next-auth"
 
 export const GET = withSession(

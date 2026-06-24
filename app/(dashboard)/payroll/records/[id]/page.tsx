@@ -12,8 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
-import { usePayrollRecord } from "@/hooks/use-payroll"
-import { usePermissions } from "@/hooks/use-permissions"
+import { usePayrollRecord } from "@/features/payroll"
+import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, PAYROLL_STATUS_LABELS, PAYROLL_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 
@@ -42,7 +42,8 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Update failed")
+      if (!res.ok)
+        throw new Error((await res.json().catch(() => ({}))).error?.message || "Update failed")
       return res.json()
     },
     onSuccess: () => {

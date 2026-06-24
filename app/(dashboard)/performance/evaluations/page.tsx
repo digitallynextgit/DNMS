@@ -27,15 +27,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { usePermissions } from "@/hooks/use-permissions"
-import { useEmployees } from "@/hooks/use-employees"
+import { usePermissions } from "@/features/admin"
+import { useEmployees } from "@/features/employees"
 import { PERMISSIONS } from "@/lib/constants"
 import {
   useEvaluations,
   useCreateEvaluation,
   useDeleteEvaluation,
   type Evaluation,
-} from "@/hooks/use-evaluations"
+} from "@/features/performance"
 
 const STATUS: Record<string, string> = {
   PENDING:

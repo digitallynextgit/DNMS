@@ -5,9 +5,9 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
-import { LeaveBalanceCard } from "@/components/leave/leave-balance-card"
-import { LeaveRequestTable } from "@/components/leave/leave-request-table"
-import { useLeaveBalances, useMyLeaveRequests } from "@/hooks/use-leave"
+import { LeaveBalanceCard } from "@/features/leave"
+import { LeaveRequestTable } from "@/features/leave"
+import { useLeaveBalances, useMyLeaveRequests } from "@/features/leave"
 import { Plus } from "lucide-react"
 
 export default function LeaveDashboardPage() {

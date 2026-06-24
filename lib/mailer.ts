@@ -1,6 +1,6 @@
 import nodemailer, { type Transporter } from "nodemailer"
 import type { EmailTemplate } from "@prisma/client"
-import { db } from "@/lib/db"
+import { db } from "@/server/db"
 import { tryDecrypt } from "@/lib/crypto"
 
 // ---------------------------------------------------------------------------

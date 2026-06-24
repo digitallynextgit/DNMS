@@ -30,7 +30,7 @@ import {
   useResignationsToReview,
   useReviewResignation,
   type ReviewableResignation,
-} from "@/hooks/use-resignations"
+} from "@/features/resignations"
 import { cn, getInitials, getAvatarColor, formatDate } from "@/lib/utils"
 
 export default function ResignationsPage() {

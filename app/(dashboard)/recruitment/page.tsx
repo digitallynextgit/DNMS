@@ -25,10 +25,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { usePermissions } from "@/hooks/use-permissions"
+import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, JOB_STATUS_LABELS, JOB_STATUS_COLORS } from "@/lib/constants"
 import { cn, formatDate } from "@/lib/utils"
-import { getDepartments, updateDepartment } from "@/lib/actions/departments"
+import { getDepartments, updateDepartment } from "@/features/employees"
 
 interface Department {
   id: string
@@ -194,7 +194,7 @@ export default function RecruitmentPage() {
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
-        throw new Error(j.error ?? "AI request failed")
+        throw new Error(j.error?.message ?? "AI request failed")
       }
       const { data } = (await res.json()) as {
         data: {
