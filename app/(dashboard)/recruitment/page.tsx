@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Plus, Loader2, Briefcase, Users, ExternalLink, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
@@ -112,6 +113,7 @@ export default function RecruitmentPage() {
   const qc = useQueryClient()
 
   const [statusFilter, setStatusFilter] = useState<string>("")
+  const [page, setPage] = useState(1)
   const { data: jobsData, isLoading } = useQuery({
     queryKey: ["jobs", statusFilter],
     queryFn: () => fetchJobs(statusFilter || undefined),
@@ -119,6 +121,25 @@ export default function RecruitmentPage() {
   const { data: deptsData } = useQuery({ queryKey: ["departments"], queryFn: fetchDepts })
   const jobs = jobsData?.data ?? []
   const depts = deptsData?.data ?? []
+
+  // Client-side pagination of the postings grid. Stats below stay computed from
+  // the full `jobs` list so the counts remain accurate across all pages.
+  const PAGE_SIZE = 10
+  const totalPages = Math.max(1, Math.ceil(jobs.length / PAGE_SIZE))
+  const pagedJobs = useMemo(
+    () => jobs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [jobs, page],
+  )
+
+  // Reset to page 1 whenever the status filter changes.
+  useEffect(() => {
+    setPage(1)
+  }, [statusFilter])
+
+  // Clamp the page if the underlying list shrinks (e.g. after a delete).
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -340,7 +361,7 @@ export default function RecruitmentPage() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {jobs.map((job) => (
+          {pagedJobs.map((job) => (
             <Card key={job.id} className="transition-shadow hover:shadow-md">
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
@@ -411,6 +432,17 @@ export default function RecruitmentPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Pagination */}
+      {!isLoading && jobs.length > 0 && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={jobs.length}
+          onPageChange={setPage}
+          itemLabel="job posting"
+        />
       )}
 
       {/* Create Job Dialog */}

@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Pagination } from "@/components/shared/pagination"
 import { MODULES } from "@/lib/constants"
 
 // ---------------------------------------------------------------------------
@@ -71,7 +72,7 @@ export default function AuditLogPage() {
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
-    limit: 20,
+    limit: 10,
     total: 0,
     totalPages: 0,
   })
@@ -92,7 +93,7 @@ export default function AuditLogPage() {
     try {
       const params = new URLSearchParams()
       params.set("page", String(page))
-      params.set("limit", "20")
+      params.set("limit", "10")
       if (moduleFilter) params.set("module", moduleFilter)
       if (actionFilter) params.set("action", actionFilter)
       if (dateFrom) params.set("dateFrom", dateFrom)
@@ -320,31 +321,13 @@ export default function AuditLogPage() {
       </div>
 
       {/* Pagination */}
-      {pagination.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1 || loading}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Previous
-          </Button>
-
-          <span className="text-muted-foreground text-sm">
-            Page {pagination.page} of {pagination.totalPages}
-          </span>
-
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= pagination.totalPages || loading}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
-        </div>
-      )}
+      <Pagination
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        total={pagination.total}
+        onPageChange={setPage}
+        itemLabel="record"
+      />
     </div>
   )
 }

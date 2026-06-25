@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import {
   Dialog,
@@ -31,6 +32,19 @@ export default function HolidaysPage() {
   const [year, setYear] = useState(CURRENT_YEAR)
   const { data, isLoading } = useHolidays(year)
   const holidays = data?.data ?? []
+
+  // Client-side pagination of the per-year holiday list.
+  const PAGE_SIZE = 10
+  const [page, setPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(holidays.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pagedHolidays = holidays.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
+  // Reset to the first page whenever the year filter changes.
+  function changeYear(next: number) {
+    setYear(next)
+    setPage(1)
+  }
 
   const createHoliday = useCreateHoliday()
   const deleteHoliday = useDeleteHoliday()
@@ -81,11 +95,11 @@ export default function HolidaysPage() {
 
       {/* Year selector */}
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => setYear((y) => y - 1)}>
+        <Button variant="outline" size="sm" onClick={() => changeYear(year - 1)}>
           &larr; {year - 1}
         </Button>
         <span className="bg-muted rounded px-3 py-1 text-sm font-medium">{year}</span>
-        <Button variant="outline" size="sm" onClick={() => setYear((y) => y + 1)}>
+        <Button variant="outline" size="sm" onClick={() => changeYear(year + 1)}>
           {year + 1} &rarr;
         </Button>
       </div>
@@ -126,7 +140,7 @@ export default function HolidaysPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {holidays.map((holiday) => (
+              {pagedHolidays.map((holiday) => (
                 <tr key={holiday.id} className="hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 font-medium">{holiday.name}</td>
                   <td className="text-muted-foreground px-4 py-3 whitespace-nowrap">
@@ -166,6 +180,14 @@ export default function HolidaysPage() {
           </table>
         </div>
       )}
+
+      <Pagination
+        page={currentPage}
+        totalPages={totalPages}
+        total={holidays.length}
+        onPageChange={setPage}
+        itemLabel="holiday"
+      />
 
       {/* Add Holiday Dialog */}
       <Dialog

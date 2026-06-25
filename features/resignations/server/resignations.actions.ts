@@ -124,37 +124,55 @@ export async function cancelResignation(id: string): Promise<ActionResult<unknow
 // getResignationsToReview – resignations the current user may act on:
 //   • HR / admin (employee:write) see every pending resignation
 //   • a manager sees pending resignations from their direct reports
+// Paginated (skip/take/count); defaults to page 1, limit 10.
 // ---------------------------------------------------------------------------
-export async function getResignationsToReview(): Promise<ActionResult<unknown>> {
+export async function getResignationsToReview(
+  filters: { page?: number; limit?: number } = {},
+): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
     const canReviewAll = hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)
+
+    const page = Math.max(1, Number(filters.page ?? 1))
+    const limit = Math.min(100, Math.max(1, Number(filters.limit ?? 10)))
+    const skip = (page - 1) * limit
 
     const where = canReviewAll
       ? { status: "PENDING" as const }
       : { status: "PENDING" as const, employee: { managerId: session.user.id } }
 
-    const resignations = await db.resignation.findMany({
-      where,
-      include: {
-        employee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            employeeNo: true,
-            email: true,
-            profilePhoto: true,
-            department: { select: { name: true } },
-            designation: { select: { title: true } },
-            manager: { select: { id: true, firstName: true, lastName: true } },
+    const [resignations, total] = await Promise.all([
+      db.resignation.findMany({
+        where,
+        include: {
+          employee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeNo: true,
+              email: true,
+              profilePhoto: true,
+              department: { select: { name: true } },
+              designation: { select: { title: true } },
+              manager: { select: { id: true, firstName: true, lastName: true } },
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    })
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      db.resignation.count({ where }),
+    ])
 
-    return ok(serialize({ data: resignations, canReviewAll }))
+    return ok(
+      serialize({
+        data: resignations,
+        canReviewAll,
+        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      }),
+    )
   })
 }
 

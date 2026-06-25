@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Plus, Loader2, Pencil, Power, Trash2 } from "lucide-react"
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -81,6 +82,8 @@ export default function DepartmentsPage() {
   const [name, setName] = useState("")
   const [code, setCode] = useState("")
   const [description, setDescription] = useState("")
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
 
   const { data, isLoading } = useQuery({
     queryKey: ["departments-admin"],
@@ -146,6 +149,35 @@ export default function DepartmentsPage() {
 
   const departments = data?.data ?? []
 
+  // ── Client-side search + slot-of-10 pagination ────────────────────────────
+  // getDepartments is reused as a lookup (filters/forms), so the list is
+  // fetched in full and paginated here on the client.
+  const PAGE_SIZE = 10
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return departments
+    return departments.filter(
+      (d) =>
+        d.name.toLowerCase().includes(q) ||
+        d.code.toLowerCase().includes(q) ||
+        (d.description?.toLowerCase().includes(q) ?? false),
+    )
+  }, [departments, search])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+
+  // Reset to page 1 when the search changes.
+  useEffect(() => {
+    setPage(1)
+  }, [search])
+
+  // Clamp the current page if it exceeds the available pages (e.g. after a delete).
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
+  const rows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -161,6 +193,14 @@ export default function DepartmentsPage() {
         }
       />
 
+      <div className="max-w-sm">
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search departments..."
+        />
+      </div>
+
       <div className="bg-card rounded border">
         {isLoading ? (
           <div className="space-y-2 p-4">
@@ -170,6 +210,10 @@ export default function DepartmentsPage() {
           </div>
         ) : departments.length === 0 ? (
           <div className="text-muted-foreground py-12 text-center text-sm">No departments yet.</div>
+        ) : rows.length === 0 ? (
+          <div className="text-muted-foreground py-12 text-center text-sm">
+            No departments match your search.
+          </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -189,7 +233,7 @@ export default function DepartmentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {departments.map((d) => (
+              {rows.map((d) => (
                 <tr
                   key={d.id}
                   className={cn("hover:bg-muted/20 transition-colors", !d.isActive && "opacity-60")}
@@ -251,6 +295,14 @@ export default function DepartmentsPage() {
           </table>
         )}
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={filtered.length}
+        onPageChange={setPage}
+        itemLabel="department"
+      />
 
       <Dialog open={dialogOpen} onOpenChange={(o) => (o ? setDialogOpen(true) : closeDialog())}>
         <DialogContent>

@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { Plus, Check, X, Inbox, Loader2 } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -47,8 +48,20 @@ interface Regularization {
 
 const time = (iso: string | null) => (iso ? iso.slice(11, 16) : "-")
 
-async function fetchRequests(): Promise<{ data: Regularization[] }> {
-  const res = await fetch("/api/attendance/regularizations")
+const PAGE_SIZE = 10
+
+interface PaginationMeta {
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+async function fetchRequests(
+  page: number,
+): Promise<{ data: Regularization[]; pagination: PaginationMeta }> {
+  const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) })
+  const res = await fetch(`/api/attendance/regularizations?${params.toString()}`)
   if (!res.ok) throw new Error("Failed to load requests")
   return res.json()
 }
@@ -91,8 +104,14 @@ export default function RegularizationsPage() {
   const myId = session?.user?.id
   const queryClient = useQueryClient()
 
-  const { data, isLoading } = useQuery({ queryKey: ["regularizations"], queryFn: fetchRequests })
+  const [page, setPage] = useState(1)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["regularizations", page],
+    queryFn: () => fetchRequests(page),
+  })
   const requests = data?.data ?? []
+  const pagination = data?.pagination
 
   const [addOpen, setAddOpen] = useState(false)
   const [date, setDate] = useState("")
@@ -108,6 +127,7 @@ export default function RegularizationsPage() {
   const createMut = useMutation({
     mutationFn: createRequest,
     onSuccess: () => {
+      setPage(1)
       invalidate()
       toast.success("Regularization request submitted")
       setAddOpen(false)
@@ -255,6 +275,16 @@ export default function RegularizationsPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {pagination && (
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          onPageChange={setPage}
+          itemLabel="request"
+        />
       )}
 
       {/* Raise request dialog */}

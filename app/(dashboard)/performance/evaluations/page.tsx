@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Plus, Trash2, Inbox } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -193,9 +194,11 @@ function NewEvaluationDialog() {
 export default function EvaluationsPage() {
   const { can } = usePermissions()
   const canReview = can(PERMISSIONS.PERFORMANCE_REVIEW)
-  const { data, isLoading } = useEvaluations()
+  const [page, setPage] = useState(1)
+  const { data, isLoading } = useEvaluations({ page, limit: 10 })
   const del = useDeleteEvaluation()
   const evaluations = data?.data ?? []
+  const pagination = data?.pagination
 
   return (
     <div className="space-y-6">
@@ -288,6 +291,16 @@ export default function EvaluationsPage() {
             </table>
           </CardContent>
         </Card>
+      )}
+
+      {pagination && (
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          onPageChange={setPage}
+          itemLabel="evaluation"
+        />
       )}
     </div>
   )

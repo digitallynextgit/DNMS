@@ -1,7 +1,9 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -12,11 +14,13 @@ import { cn } from "@/lib/utils"
 import { Plus, Home, AlertTriangle, Ban, Inbox } from "lucide-react"
 
 export default function MyWfhPage() {
+  const [page, setPage] = useState(1)
   const { data: eligibility, isLoading: eligLoading } = useWfhEligibility()
-  const { data: requestsData, isLoading: reqLoading } = useMyWfhRequests({ page: 1, limit: 30 })
+  const { data: requestsData, isLoading: reqLoading } = useMyWfhRequests({ page, limit: 10 })
   const cancel = useCancelWfh()
 
   const requests = requestsData?.data ?? []
+  const pagination = requestsData?.pagination
 
   return (
     <div className="space-y-6">
@@ -170,6 +174,16 @@ export default function MyWfhPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {pagination && (
+          <Pagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            total={pagination.total}
+            onPageChange={setPage}
+            itemLabel="request"
+          />
         )}
       </div>
     </div>

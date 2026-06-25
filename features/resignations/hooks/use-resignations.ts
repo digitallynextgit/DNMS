@@ -41,6 +41,19 @@ export interface ReviewableResignation {
   }
 }
 
+export interface PaginationMeta {
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+interface ResignationsToReviewResult {
+  data: ReviewableResignation[]
+  canReviewAll: boolean
+  pagination: PaginationMeta
+}
+
 // ─── Queries ────────────────────────────────────────────────────────────────
 
 export function useMyResignation() {
@@ -54,13 +67,13 @@ export function useMyResignation() {
   })
 }
 
-export function useResignationsToReview() {
+export function useResignationsToReview(filters: { page?: number; limit?: number } = {}) {
   return useQuery({
-    queryKey: ["resignations-review"],
+    queryKey: ["resignations-review", filters],
     queryFn: async () => {
-      const r = await getResignationsToReview()
+      const r = await getResignationsToReview(filters)
       if (!r.ok) throw new Error(r.error)
-      return r.data as { data: ReviewableResignation[]; canReviewAll: boolean }
+      return r.data as ResignationsToReviewResult
     },
   })
 }

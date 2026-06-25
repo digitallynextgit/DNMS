@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { EmployeeCard } from "@/features/employees"
 import { EmployeeFilters } from "@/features/employees"
 import { bulkTerminateEmployees } from "@/features/employees"
@@ -123,7 +124,7 @@ export default function EmployeesPage() {
     departmentId: departmentId || undefined,
     status: status || undefined,
     page,
-    limit: 20,
+    limit: 10,
   })
 
   const employees = data?.data ?? []
@@ -395,7 +396,7 @@ export default function EmployeesPage() {
                 const initials = getInitials(emp.firstName, emp.lastName)
                 const avatarBg = getAvatarColor(fullName)
                 const isActive = emp.isActive
-                const sno = ((pagination?.page ?? 1) - 1) * (pagination?.limit ?? 20) + idx + 1
+                const sno = ((pagination?.page ?? 1) - 1) * (pagination?.limit ?? 10) + idx + 1
                 const isSelected = selectedIds.has(emp.id)
 
                 return (
@@ -540,30 +541,14 @@ export default function EmployeesPage() {
       )}
 
       {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-muted-foreground text-sm">
-            Page {pagination.page} of {pagination.totalPages} &middot; {pagination.total} total
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page >= pagination.totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {pagination && (
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          onPageChange={setPage}
+          itemLabel="employee"
+        />
       )}
 
       {/* Hard-delete confirmation dialog */}

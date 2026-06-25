@@ -17,20 +17,36 @@ export const GET = withSession(
       const statusParam = sp.get("status") ?? undefined
       const canApprove = hasPermission(session, PERMISSIONS.ATTENDANCE_WRITE)
 
+      const page = Math.max(1, Number(sp.get("page") ?? "1"))
+      const limit = Math.min(100, Math.max(1, Number(sp.get("limit") ?? "10")))
+      const skip = (page - 1) * limit
+
       const where: Record<string, unknown> = {}
       // Non-approvers only ever see their own requests.
       if (!canApprove) where.employeeId = session.user.id
       else if (sp.get("employeeId")) where.employeeId = sp.get("employeeId")
       if (statusParam) where.status = statusParam
 
-      const requests = await db.attendanceRegularization.findMany({
-        where,
-        include: { employee: employeeSelect, reviewer: employeeSelect },
-        orderBy: { createdAt: "desc" },
-        take: 200,
-      })
+      const [requests, total] = await Promise.all([
+        db.attendanceRegularization.findMany({
+          where,
+          include: { employee: employeeSelect, reviewer: employeeSelect },
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: limit,
+        }),
+        db.attendanceRegularization.count({ where }),
+      ])
 
-      return NextResponse.json({ data: requests })
+      return NextResponse.json({
+        data: requests,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      })
     } catch (error) {
       console.error("[REGULARIZATIONS_GET]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })

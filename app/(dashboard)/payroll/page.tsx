@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Users, TrendingUp, DollarSign, Play, Trash2, Eye, ChevronDown } from "lucide-react"
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { GeneratePayrollDialog } from "@/features/payroll"
 import { PayrollFilters } from "@/features/payroll"
 import {
@@ -61,6 +62,7 @@ export default function PayrollPage() {
   const [year, setYear] = useState(String(now.getFullYear()))
   const [status, setStatus] = useState("")
   const [employeeSearch, setEmployeeSearch] = useState("")
+  const [page, setPage] = useState(1)
   const [generateOpen, setGenerateOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -68,10 +70,18 @@ export default function PayrollPage() {
 
   const debouncedSearch = useDebounce(employeeSearch, 350)
 
+  // Server-side pagination: reset to the first page whenever a filter changes.
+  useEffect(() => {
+    setPage(1)
+  }, [month, year, status, debouncedSearch])
+
   const recordFilters = {
     month: month ? Number(month) : undefined,
     year: year ? Number(year) : undefined,
     status: status || undefined,
+    search: debouncedSearch || undefined,
+    page,
+    limit: 10,
   }
 
   const { data: recordsData, isLoading: recordsLoading } = usePayrollRecords(recordFilters)
@@ -83,18 +93,8 @@ export default function PayrollPage() {
   const updateStatus = useUpdatePayrollStatus()
   const deleteRecord = useDeletePayrollRecord()
 
-  const allRecords = recordsData?.data ?? []
-
-  // Client-side filter by employee name search
-  const records = useMemo(() => {
-    if (!debouncedSearch) return allRecords
-    const q = debouncedSearch.toLowerCase()
-    return allRecords.filter((r) => {
-      const name = `${r.employee.firstName} ${r.employee.lastName}`.toLowerCase()
-      const no = r.employee.employeeNo.toLowerCase()
-      return name.includes(q) || no.includes(q)
-    })
-  }, [allRecords, debouncedSearch])
+  const records = recordsData?.data ?? []
+  const pagination = recordsData?.pagination
 
   const summary = summaryData?.data
 
@@ -103,6 +103,7 @@ export default function PayrollPage() {
     setYear("")
     setStatus("")
     setEmployeeSearch("")
+    setPage(1)
     setSelectedIds(new Set())
   }
 
@@ -412,6 +413,17 @@ export default function PayrollPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Pagination */}
+      {!recordsLoading && pagination && (
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          onPageChange={setPage}
+          itemLabel="record"
+        />
       )}
 
       {/* Generate dialog */}

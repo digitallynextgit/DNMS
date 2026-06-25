@@ -19,6 +19,7 @@ import { useLeaveRequests, useLeaveTypes } from "@/features/leave"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { useDebounce } from "@/hooks/use-debounce"
+import { Pagination } from "@/components/shared/pagination"
 import { X } from "lucide-react"
 
 export default function TeamLeavePage() {
@@ -43,7 +44,7 @@ export default function TeamLeavePage() {
     from: from || undefined,
     to: to || undefined,
     page,
-    limit: 20,
+    limit: 10,
   }
 
   const { data, isLoading } = useLeaveRequests(filters)
@@ -183,30 +184,14 @@ export default function TeamLeavePage() {
       )}
 
       {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-muted-foreground text-sm">
-            Page {pagination.page} of {pagination.totalPages} &middot; {pagination.total} total
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page >= pagination.totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {pagination && (
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          onPageChange={setPage}
+          itemLabel="request"
+        />
       )}
     </div>
   )

@@ -1,10 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { LeaveBalanceCard } from "@/features/leave"
 import { LeaveRequestTable } from "@/features/leave"
 import { useLeaveBalances, useMyLeaveRequests } from "@/features/leave"
@@ -13,18 +15,20 @@ import { Plus } from "lucide-react"
 export default function LeaveDashboardPage() {
   const { data: session } = useSession()
   const currentYear = new Date().getFullYear()
+  const [page, setPage] = useState(1)
 
   const { data: balancesData, isLoading: balancesLoading } = useLeaveBalances(
     undefined,
     currentYear,
   )
   const { data: requestsData, isLoading: requestsLoading } = useMyLeaveRequests({
-    page: 1,
+    page,
     limit: 10,
   })
 
   const balances = balancesData?.data ?? []
   const requests = requestsData?.data ?? []
+  const pagination = requestsData?.pagination
 
   return (
     <div className="space-y-8">
@@ -82,12 +86,23 @@ export default function LeaveDashboardPage() {
             ))}
           </div>
         ) : (
-          <LeaveRequestTable
-            requests={requests}
-            showEmployee={false}
-            canApprove={false}
-            currentUserId={session?.user.id}
-          />
+          <>
+            <LeaveRequestTable
+              requests={requests}
+              showEmployee={false}
+              canApprove={false}
+              currentUserId={session?.user.id}
+            />
+            {pagination && (
+              <Pagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                total={pagination.total}
+                onPageChange={setPage}
+                itemLabel="request"
+              />
+            )}
+          </>
         )}
       </section>
     </div>

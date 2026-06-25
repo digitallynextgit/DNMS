@@ -44,6 +44,13 @@ export interface Evaluation {
 
 export type ViewerRole = "HR" | "MANAGER" | "CONTROLLER" | "EMPLOYEE"
 
+export interface PaginationMeta {
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
 export interface EvalTemplate {
   id: string
   name: string
@@ -63,13 +70,17 @@ async function jsonOrThrow(res: Response, fallback: string) {
 
 // ─── Evaluations ──────────────────────────────────────────────────────────────
 
-export function useEvaluations(status?: string) {
+export function useEvaluations(params?: { status?: string; page?: number; limit?: number }) {
+  const status = params?.status
+  const page = params?.page ?? 1
+  const limit = params?.limit ?? 10
   return useQuery({
-    queryKey: ["evaluations", status ?? "all"],
-    queryFn: async (): Promise<{ data: Evaluation[] }> => {
-      const qs = status ? `?status=${status}` : ""
+    queryKey: ["evaluations", status ?? "all", page, limit],
+    queryFn: async (): Promise<{ data: Evaluation[]; pagination: PaginationMeta }> => {
+      const qs = new URLSearchParams({ page: String(page), limit: String(limit) })
+      if (status) qs.set("status", status)
       return jsonOrThrow(
-        await fetch(`/api/performance/evaluations${qs}`),
+        await fetch(`/api/performance/evaluations?${qs.toString()}`),
         "Failed to load evaluations",
       )
     },

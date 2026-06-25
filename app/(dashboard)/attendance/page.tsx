@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react"
 import { Plus, Users, UserX, Clock, Timer, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { StatCard } from "@/components/shared/stat-card"
 import { AttendanceFilters } from "@/features/attendance"
 import { AttendanceTable } from "@/features/attendance"
@@ -50,7 +51,7 @@ export default function AttendancePage() {
     dateTo: dateTo || undefined,
     status: status || undefined,
     page,
-    limit: 20,
+    limit: 10,
   })
 
   const logs = data?.data ?? []
@@ -189,31 +190,14 @@ export default function AttendancePage() {
       <AttendanceTable logs={logs} isLoading={isLoading} canEdit={canWrite} onEdit={handleEdit} />
 
       {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-muted-foreground text-sm">
-            Page {pagination.page} of {pagination.totalPages} &middot; {pagination.total} total
-            records
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page >= pagination.totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {pagination && (
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          onPageChange={setPage}
+          itemLabel="record"
+        />
       )}
 
       {/* Add / Edit dialog */}

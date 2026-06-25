@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Plus, Pencil, Trash2 } from "lucide-react"
@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { SalaryStructureForm } from "@/features/payroll"
 import {
   useSalaryStructures,
@@ -54,11 +55,27 @@ export default function SalaryStructuresPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editData, setEditData] = useState<SalaryStructure | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
   const { data, isLoading } = useSalaryStructures()
   const deleteMutation = useDeleteSalaryStructure()
 
   const structures = data?.data ?? []
+
+  // Client-side pagination (the underlying list is also used as a lookup
+  // elsewhere, so the API stays unpaginated and we slice the full list here).
+  const PAGE_SIZE = 10
+  const total = structures.length
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const pagedStructures = useMemo(
+    () => structures.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [structures, page],
+  )
+
+  // Keep the current page in range as the list shrinks (e.g. after a delete).
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   function handleAdd() {
     setEditData(null)
@@ -130,7 +147,7 @@ export default function SalaryStructuresPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {structures.map((structure: SalaryStructure) => {
+              {pagedStructures.map((structure: SalaryStructure) => {
                 const gross =
                   structure.basicSalary +
                   structure.hra +
@@ -199,6 +216,17 @@ export default function SalaryStructuresPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Pagination */}
+      {!isLoading && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          onPageChange={setPage}
+          itemLabel="structure"
+        />
       )}
 
       {/* Form dialog */}

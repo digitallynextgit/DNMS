@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { CalendarDays, Check } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn, formatDate } from "@/lib/utils"
@@ -60,6 +61,13 @@ async function deselectHoliday(holidayId: string): Promise<unknown> {
 export default function FloatingHolidaysPage() {
   const queryClient = useQueryClient()
   const [year, setYear] = useState(CURRENT_YEAR)
+  const [page, setPage] = useState(1)
+
+  // Reset to the first page whenever the year filter changes.
+  function changeYear(next: number) {
+    setYear(next)
+    setPage(1)
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["floating-holidays", year],
@@ -86,6 +94,16 @@ export default function FloatingHolidaysPage() {
   const usedCount = fd?.selectedHolidayIds.length ?? 0
   const atLimit = usedCount >= limit
 
+  // Client-side pagination of the per-year optional-holiday list.
+  const PAGE_SIZE = 10
+  const optionalHolidays = fd?.optionalHolidays ?? []
+  const totalPages = Math.max(1, Math.ceil(optionalHolidays.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pagedHolidays = optionalHolidays.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  )
+
   function toggle(h: Holiday) {
     if (selected.has(h.id)) deselectMut.mutate(h.id)
     else selectMut.mutate(h.id)
@@ -100,11 +118,11 @@ export default function FloatingHolidaysPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setYear((y) => y - 1)}>
+          <Button variant="outline" size="sm" onClick={() => changeYear(year - 1)}>
             &larr; {year - 1}
           </Button>
           <span className="bg-muted rounded px-3 py-1 text-sm font-medium">{year}</span>
-          <Button variant="outline" size="sm" onClick={() => setYear((y) => y + 1)}>
+          <Button variant="outline" size="sm" onClick={() => changeYear(year + 1)}>
             {year + 1} &rarr;
           </Button>
         </div>
@@ -133,7 +151,7 @@ export default function FloatingHolidaysPage() {
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {fd.optionalHolidays.map((h) => {
+          {pagedHolidays.map((h) => {
             const isSel = selected.has(h.id)
             const disabled = pending || (!isSel && atLimit)
             return (
@@ -172,6 +190,14 @@ export default function FloatingHolidaysPage() {
           })}
         </div>
       )}
+
+      <Pagination
+        page={currentPage}
+        totalPages={totalPages}
+        total={optionalHolidays.length}
+        onPageChange={setPage}
+        itemLabel="holiday"
+      />
 
       {atLimit && (
         <p className="text-muted-foreground text-xs">

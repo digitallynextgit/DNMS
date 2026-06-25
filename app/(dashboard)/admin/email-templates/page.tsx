@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Pagination } from "@/components/shared/pagination"
 import { EmailTemplateForm } from "@/features/admin"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
@@ -43,6 +44,8 @@ interface EmailTemplate {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 10
+
 export default function EmailTemplatesPage() {
   const { can } = usePermissions()
   const canWrite = can(PERMISSIONS.EMAIL_TEMPLATE_WRITE)
@@ -50,6 +53,7 @@ export default function EmailTemplatesPage() {
 
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [editingTemplate, setEditingTemplate] = React.useState<EmailTemplate | null>(null)
+  const [page, setPage] = React.useState(1)
 
   const { data, isLoading } = useQuery<EmailTemplate[]>({
     queryKey: ["email-templates"],
@@ -95,6 +99,15 @@ export default function EmailTemplatesPage() {
   }
 
   const templates = data ?? []
+
+  // Client-side pagination over the full reused /api/notifications/templates list.
+  const totalPages = Math.max(1, Math.ceil(templates.length / PAGE_SIZE))
+  const pagedTemplates = templates.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  // Keep the current page in range when the list size changes (e.g. after a delete).
+  React.useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   return (
     <div className="flex flex-col gap-6">
@@ -160,7 +173,7 @@ export default function EmailTemplatesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {templates.map((template) => (
+              {pagedTemplates.map((template) => (
                 <TableRow key={template.id}>
                   <TableCell className="font-medium">{template.name}</TableCell>
                   <TableCell>
@@ -211,6 +224,16 @@ export default function EmailTemplatesPage() {
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {!isLoading && templates.length > 0 && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={templates.length}
+          onPageChange={setPage}
+          itemLabel="template"
+        />
       )}
 
       <Sheet open={sheetOpen} onOpenChange={handleSheetClose}>

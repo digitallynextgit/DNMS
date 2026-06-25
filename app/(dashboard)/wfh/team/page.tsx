@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,19 +25,26 @@ import { Check, X, AlertTriangle, Inbox } from "lucide-react"
 
 export default function TeamWfhPage() {
   const [tab, setTab] = useState<"PENDING" | "ALL">("PENDING")
+  const [page, setPage] = useState(1)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState("")
 
   const { data, isLoading } = useWfhRequests({
     status: tab === "PENDING" ? "PENDING" : undefined,
-    page: 1,
-    limit: 50,
+    page,
+    limit: 10,
   })
 
   const approve = useApproveWfh()
   const reject = useRejectWfh()
 
   const requests = data?.data ?? []
+  const pagination = data?.pagination
+
+  function handleTabChange(v: string) {
+    setTab(v as "PENDING" | "ALL")
+    setPage(1)
+  }
 
   function handleReject() {
     if (!rejectingId || !rejectReason.trim()) return
@@ -58,7 +66,7 @@ export default function TeamWfhPage() {
         description="Approve or reject Work From Home requests from your team."
       />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "PENDING" | "ALL")}>
+      <Tabs value={tab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="PENDING">Pending</TabsTrigger>
           <TabsTrigger value="ALL">All</TabsTrigger>
@@ -182,6 +190,16 @@ export default function TeamWfhPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {pagination && (
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          onPageChange={setPage}
+          itemLabel="request"
+        />
       )}
 
       {/* Reject dialog */}

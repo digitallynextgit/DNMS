@@ -36,12 +36,25 @@ export interface DocumentUrlData {
   document: DocumentRecord
 }
 
+export interface PaginationMeta {
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+export interface CompanyDocumentsResult {
+  data: DocumentRecord[]
+  pagination: PaginationMeta
+}
+
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
 export const documentKeys = {
   all: ["documents"] as const,
   employee: (employeeId: string) => ["documents", "employee", employeeId] as const,
-  company: (category?: string) => ["documents", "company", category ?? "all"] as const,
+  company: (category?: string, page?: number) =>
+    ["documents", "company", category ?? "all", page ?? 1] as const,
   url: (id: string) => ["documents", "url", id] as const,
 }
 
@@ -63,15 +76,16 @@ export function useEmployeeDocuments(employeeId: string) {
 }
 
 /**
- * Fetch company-wide documents, optionally filtered by category.
+ * Fetch company-wide documents, optionally filtered by category. Paginated
+ * (server-side); defaults to page 1, limit 10.
  */
-export function useCompanyDocuments(category?: string) {
-  return useQuery<DocumentRecord[]>({
-    queryKey: documentKeys.company(category),
+export function useCompanyDocuments(category?: string, page = 1, limit = 10) {
+  return useQuery<CompanyDocumentsResult>({
+    queryKey: documentKeys.company(category, page),
     queryFn: async () => {
-      const r = await getCompanyDocuments(category)
+      const r = await getCompanyDocuments(category, { page, limit })
       if (!r.ok) throw new Error(r.error)
-      return (r.data as { data: DocumentRecord[] }).data
+      return r.data as CompanyDocumentsResult
     },
   })
 }

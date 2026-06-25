@@ -18,6 +18,9 @@ import {
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
+
+const PAGE_SIZE = 10
 
 interface Kpi {
   id: string
@@ -37,6 +40,13 @@ export default function KpisPage() {
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({ queryKey: ["kpis"], queryFn: fetchKpis })
   const kpis = data?.data ?? []
+
+  // Client-side pagination over the full KPI list (slot 10); the API/shape is
+  // unchanged because this list is also consumed elsewhere.
+  const [page, setPage] = useState(1)
+  const total = kpis.length
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const pageKpis = kpis.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
@@ -111,7 +121,7 @@ export default function KpisPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {kpis.map((k) => (
+              {pageKpis.map((k) => (
                 <tr key={k.id} className="hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3">
                     <p className="font-medium">{k.name}</p>
@@ -143,6 +153,16 @@ export default function KpisPage() {
           </table>
         )}
       </div>
+
+      {!isLoading && total > 0 && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          onPageChange={setPage}
+          itemLabel="KPI"
+        />
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

@@ -91,7 +91,6 @@ const HRMS_ITEMS: NavItem[] = [
     permission: PERMISSIONS.EMPLOYEE_READ,
     children: [
       { label: "Employee Directory", href: "/employees/employee-directory" },
-      { label: "Bulk Import", href: "/employees/import", permission: PERMISSIONS.EMPLOYEE_WRITE },
       { label: "Departments", href: "/employees/departments" },
       { label: "Designations", href: "/employees/designations" },
     ],

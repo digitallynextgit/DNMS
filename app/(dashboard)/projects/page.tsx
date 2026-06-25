@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type CSSProperties } from "react"
+import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import Link from "next/link"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { Plus, FolderKanban, Calendar, Users, MoreHorizontal, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -53,6 +54,8 @@ const KANBAN_COLUMNS: { id: string; color: string }[] = [
   { id: "COMPLETED", color: "bg-emerald-50 dark:bg-emerald-950/30" },
 ]
 
+const PAGE_SIZE = 10
+
 async function fetchProjects(): Promise<{ data: Project[] }> {
   const res = await fetch("/api/projects?limit=100")
   if (!res.ok) throw new Error("Failed to fetch projects")
@@ -90,6 +93,31 @@ export default function ProjectsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
   const [viewMode, setViewMode] = useViewMode("projects:list")
+  const [page, setPage] = useState(1)
+
+  // Client-side pagination applies only to the flat list (card/table) views.
+  // The kanban board groups by status and is intentionally left unpaginated.
+  const isPaginated = viewMode !== "kanban"
+  const total = projects.length
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  // Reset to page 1 when switching views or when the project list changes size.
+  useEffect(() => {
+    setPage(1)
+  }, [viewMode])
+
+  // Clamp the page if the list shrinks below the current page.
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
+  // Current page of projects (flat slice), then regrouped by status for the
+  // card/table section rendering.
+  const pageProjects = useMemo(() => {
+    if (!isPaginated) return projects
+    const start = (page - 1) * PAGE_SIZE
+    return projects.slice(start, start + PAGE_SIZE)
+  }, [projects, page, isPaginated])
 
   const archiveMut = useMutation({
     mutationFn: archiveProject,
@@ -100,11 +128,20 @@ export default function ProjectsPage() {
     onError: () => toast.error("Failed to archive project"),
   })
 
+  // Full grouping — used by the kanban board (unpaginated).
   const statusGroups: Record<string, Project[]> = {
     PLANNING: projects.filter((p) => p.status === "PLANNING"),
     ACTIVE: projects.filter((p) => p.status === "ACTIVE"),
     ON_HOLD: projects.filter((p) => p.status === "ON_HOLD"),
     COMPLETED: projects.filter((p) => p.status === "COMPLETED"),
+  }
+
+  // Paginated grouping — used by the card / table list views (current page only).
+  const pageStatusGroups: Record<string, Project[]> = {
+    PLANNING: pageProjects.filter((p) => p.status === "PLANNING"),
+    ACTIVE: pageProjects.filter((p) => p.status === "ACTIVE"),
+    ON_HOLD: pageProjects.filter((p) => p.status === "ON_HOLD"),
+    COMPLETED: pageProjects.filter((p) => p.status === "COMPLETED"),
   }
 
   function onDragEnd(result: DropResult) {
@@ -351,7 +388,7 @@ export default function ProjectsPage() {
       ) : (
         /* ── Card / Table views ── */
         <div className="space-y-6">
-          {Object.entries(statusGroups).map(([status, group]) =>
+          {Object.entries(pageStatusGroups).map(([status, group]) =>
             group.length === 0 ? null : (
               <div key={status}>
                 <div className="mb-3 flex items-center gap-2">
@@ -585,6 +622,17 @@ export default function ProjectsPage() {
             ),
           )}
         </div>
+      )}
+
+      {/* Pagination — card / table list views only (kanban stays unpaginated). */}
+      {!isLoading && isPaginated && total > 0 && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          onPageChange={setPage}
+          itemLabel="project"
+        />
       )}
 
       <ProjectFormDialog open={createOpen} onClose={() => setCreateOpen(false)} mode="create" />

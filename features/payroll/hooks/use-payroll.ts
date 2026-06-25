@@ -89,6 +89,16 @@ export interface PayrollFilters {
   year?: number
   status?: string
   employeeId?: string
+  search?: string
+  page?: number
+  limit?: number
+}
+
+export interface Pagination {
+  total: number
+  page: number
+  limit: number
+  totalPages: number
 }
 
 // ─── Fetch helpers ─────────────────────────────────────────────────────────────
@@ -154,12 +164,17 @@ async function deleteSalaryStructure(id: string): Promise<{ message: string }> {
   return res.json()
 }
 
-async function fetchPayrollRecords(filters: PayrollFilters): Promise<{ data: PayrollRecord[] }> {
+async function fetchPayrollRecords(
+  filters: PayrollFilters,
+): Promise<{ data: PayrollRecord[]; pagination?: Pagination }> {
   const params = new URLSearchParams()
   if (filters.month) params.set("month", String(filters.month))
   if (filters.year) params.set("year", String(filters.year))
   if (filters.status) params.set("status", filters.status)
   if (filters.employeeId) params.set("employeeId", filters.employeeId)
+  if (filters.search) params.set("search", filters.search)
+  if (filters.page) params.set("page", String(filters.page))
+  if (filters.limit) params.set("limit", String(filters.limit))
 
   const res = await fetch(`/api/payroll/records?${params.toString()}`)
   if (!res.ok) {

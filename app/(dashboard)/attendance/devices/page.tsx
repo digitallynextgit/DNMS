@@ -5,6 +5,7 @@ import { Plus, RefreshCw, Pencil, Trash2, Wifi, WifiOff, Loader2, Zap } from "lu
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DeviceFormDialog } from "@/features/attendance"
 import { useDevices, useDeleteDevice, useSyncDevice, useTestDevice } from "@/features/attendance"
@@ -24,6 +25,13 @@ export default function DevicesPage() {
   const deleteDevice = useDeleteDevice()
   const syncDevice = useSyncDevice()
   const testDevice = useTestDevice()
+
+  // Client-side pagination (devices is a small, full-list config resource).
+  const PAGE_SIZE = 10
+  const [page, setPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(devices.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pagedDevices = devices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editDevice, setEditDevice] = useState<HikvisionDevice | null>(null)
@@ -164,7 +172,7 @@ export default function DevicesPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {devices.map((device) => {
+              {pagedDevices.map((device) => {
                 const isSyncing = syncingId === device.id
 
                 return (
@@ -258,6 +266,14 @@ export default function DevicesPage() {
           </table>
         </div>
       )}
+
+      <Pagination
+        page={currentPage}
+        totalPages={totalPages}
+        total={devices.length}
+        onPageChange={setPage}
+        itemLabel="device"
+      />
 
       {/* Add / Edit dialog */}
       <DeviceFormDialog

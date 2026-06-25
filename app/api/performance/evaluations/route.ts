@@ -25,6 +25,11 @@ export const GET = withSession(
       const { searchParams } = new URL(req.url)
       const status = searchParams.get("status") || undefined
 
+      // Pagination: 1-indexed page, fixed slot size of 10 (clamped).
+      const page = Math.max(1, parseInt(searchParams.get("page") ?? "1") || 1)
+      const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "10") || 10))
+      const skip = (page - 1) * limit
+
       const where: Record<string, unknown> = {}
       if (status) where.status = status
       if (!canReview) {
@@ -35,13 +40,25 @@ export const GET = withSession(
         ]
       }
 
-      const evaluations = await db.evaluation.findMany({
-        where,
-        include: { employee: employeeSelect, manager: employeeSelect, controller: employeeSelect },
-        orderBy: { createdAt: "desc" },
-      })
+      const [evaluations, total] = await Promise.all([
+        db.evaluation.findMany({
+          where,
+          include: {
+            employee: employeeSelect,
+            manager: employeeSelect,
+            controller: employeeSelect,
+          },
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: limit,
+        }),
+        db.evaluation.count({ where }),
+      ])
 
-      return NextResponse.json({ data: evaluations })
+      return NextResponse.json({
+        data: evaluations,
+        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      })
     } catch (error) {
       console.error("[evaluations] GET error:", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })

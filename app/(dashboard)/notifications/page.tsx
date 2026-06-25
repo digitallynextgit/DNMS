@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Pagination } from "@/components/shared/pagination"
 import { cn, formatRelativeTime, truncate } from "@/lib/utils"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ function NotificationSkeleton() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const LIMIT = 20
+const LIMIT = 10
 
 export default function NotificationsPage() {
   const router = useRouter()
@@ -187,30 +188,14 @@ export default function NotificationsPage() {
       </div>
 
       {/* Pagination */}
-      {meta && meta.totalPages > 1 && (
-        <div className="flex items-center justify-between border-t pt-4">
-          <p className="text-muted-foreground text-sm">
-            Page {meta.page} of {meta.totalPages} &mdash; {meta.total} total
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
-              disabled={page === meta.totalPages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {meta && (
+        <Pagination
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          onPageChange={setPage}
+          itemLabel="notification"
+        />
       )}
     </div>
   )

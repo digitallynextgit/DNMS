@@ -26,6 +26,12 @@ export default function CompanyDocumentsPage() {
 
   const [uploadOpen, setUploadOpen] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>("")
+  const [page, setPage] = useState(1)
+
+  function handleCategoryChange(val: string) {
+    setSelectedCategory(val)
+    setPage(1)
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,11 +48,7 @@ export default function CompanyDocumentsPage() {
         }
       />
 
-      <Tabs
-        value={selectedCategory}
-        onValueChange={(val) => setSelectedCategory(val)}
-        className="w-full"
-      >
+      <Tabs value={selectedCategory} onValueChange={handleCategoryChange} className="w-full">
         <TabsList className="mb-2">
           {CATEGORY_TABS.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value}>
@@ -61,6 +63,8 @@ export default function CompanyDocumentsPage() {
         canDelete={canDelete}
         selectedCategory={selectedCategory || undefined}
         onUploadClick={() => setUploadOpen(true)}
+        page={page}
+        onPageChange={setPage}
       />
 
       <DocumentUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} />

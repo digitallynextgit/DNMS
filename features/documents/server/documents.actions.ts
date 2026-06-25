@@ -10,14 +10,24 @@ import type { DocumentCategory } from "@prisma/client"
 import { requireSession, requirePermission, getAuditMeta } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 
-export async function getCompanyDocuments(category?: string): Promise<ActionResult<unknown>> {
+export async function getCompanyDocuments(
+  category?: string,
+  filters: { page?: number; limit?: number } = {},
+): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.DOCUMENT_READ)
+
+    const page = Math.max(1, Number(filters.page ?? 1))
+    const limit = Math.min(100, Math.max(1, Number(filters.limit ?? 10)))
+    const skip = (page - 1) * limit
 
     const where: Record<string, unknown> = { isCompanyDoc: true }
     if (category) where.category = category
 
-    const documents = await db.document.findMany({ where, orderBy: { createdAt: "desc" } })
+    const [documents, total] = await Promise.all([
+      db.document.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: limit }),
+      db.document.count({ where }),
+    ])
 
     const uploaderIds = [...new Set(documents.map((d) => d.uploadedById))]
     const uploaders = await db.employee.findMany({
@@ -31,7 +41,12 @@ export async function getCompanyDocuments(category?: string): Promise<ActionResu
       uploaderName: uploaderMap.get(doc.uploadedById) ?? "Unknown",
     }))
 
-    return ok(serialize({ data: enriched }))
+    return ok(
+      serialize({
+        data: enriched,
+        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      }),
+    )
   })
 }
 

@@ -1,11 +1,12 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
-import { CheckSquare, AlertTriangle, Clock, Inbox } from "lucide-react"
+import { AlertTriangle, Clock, Inbox } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -55,8 +56,11 @@ async function updateTask(id: string, body: Record<string, unknown>) {
   return res.json()
 }
 
+const PAGE_SIZE = 10
+
 export default function MyTasksPage() {
   const [statusFilter, setStatusFilter] = useState("all")
+  const [page, setPage] = useState(1)
   const [viewMode, setViewMode] = useViewMode("my-tasks")
   const qc = useQueryClient()
 
@@ -71,20 +75,41 @@ export default function MyTasksPage() {
     onError: () => toast.error("Failed to update"),
   })
 
+  // Full filtered list — drives summary stats, the pending-approval callout,
+  // and the total used for pagination metadata.
   const tasks = useMemo(() => {
     return (data?.data ?? []).filter((t) => statusFilter === "all" || t.status === statusFilter)
   }, [data, statusFilter])
 
-  // Group by project → team
+  // Reset to the first page whenever the status filter changes.
+  useEffect(() => {
+    setPage(1)
+  }, [statusFilter])
+
+  const total = tasks.length
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  // Clamp the page if the filtered list shrinks below the current page.
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
+  // Only the current page of tasks is rendered (table rows / grouped cards).
+  const pageTasks = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE
+    return tasks.slice(start, start + PAGE_SIZE)
+  }, [tasks, page])
+
+  // Group the current page by project → team
   const grouped = useMemo(() => {
     const groups: Record<string, { project: MyTask["project"]; tasks: MyTask[] }> = {}
-    tasks.forEach((t) => {
+    pageTasks.forEach((t) => {
       const key = t.project.id
       if (!groups[key]) groups[key] = { project: t.project, tasks: [] }
       groups[key].tasks.push(t)
     })
     return Object.values(groups)
-  }, [tasks])
+  }, [pageTasks])
 
   const pendingApproval = tasks.filter((t) => t.approvalStatus === "PENDING_APPROVAL")
   const overdueCount = tasks.filter(
@@ -186,7 +211,7 @@ export default function MyTasksPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-border divide-y">
-                  {tasks.map((task) => {
+                  {pageTasks.map((task) => {
                     const isOverdue =
                       task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "DONE"
                     const isPending = task.approvalStatus === "PENDING_APPROVAL"
@@ -379,6 +404,17 @@ export default function MyTasksPage() {
             </CardContent>
           </Card>
         ))
+      )}
+
+      {/* Pagination */}
+      {!isLoading && total > 0 && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          onPageChange={setPage}
+          itemLabel="task"
+        />
       )}
     </div>
   )

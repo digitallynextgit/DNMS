@@ -29,6 +29,9 @@ import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { Plus, MoreHorizontal, Pencil, ToggleLeft, ToggleRight, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Pagination } from "@/components/shared/pagination"
+
+const PAGE_SIZE = 10
 
 export default function LeaveTypesPage() {
   const { can } = usePermissions()
@@ -41,10 +44,18 @@ export default function LeaveTypesPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingType, setEditingType] = useState<LeaveType | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
   // useLeaveTypes only returns active types; we need all for admin
   // We'll show based on what the API returns
   const leaveTypes = data?.data ?? []
+
+  // Client-side pagination (getLeaveTypes is reused as a dropdown/lookup elsewhere,
+  // so we fetch the full list and paginate locally).
+  const total = leaveTypes.length
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pagedTypes = leaveTypes.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   function openCreate() {
     setEditingType(null)
@@ -126,7 +137,7 @@ export default function LeaveTypesPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {leaveTypes.map((type) => (
+              {pagedTypes.map((type) => (
                 <tr key={type.id} className="hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3">
                     <p className="font-medium">{type.name}</p>
@@ -227,6 +238,16 @@ export default function LeaveTypesPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {!isLoading && total > 0 && (
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          total={total}
+          onPageChange={setPage}
+          itemLabel="leave type"
+        />
       )}
 
       <LeaveTypeForm open={formOpen} onOpenChange={setFormOpen} leaveType={editingType} />

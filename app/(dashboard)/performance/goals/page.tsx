@@ -24,8 +24,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Pagination } from "@/components/shared/pagination"
 import { GOAL_STATUS_LABELS, GOAL_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
+
+const PAGE_SIZE = 10
 
 interface Goal {
   id: string
@@ -98,12 +101,24 @@ export default function GoalsPage() {
   const qc = useQueryClient()
   const currentYear = new Date().getFullYear()
   const [year, setYear] = useState(currentYear)
+  const [page, setPage] = useState(1)
 
   const { data, isLoading } = useQuery({
     queryKey: ["goals", year],
     queryFn: () => fetchGoals(year),
   })
   const goals = data?.data ?? []
+
+  // Client-side pagination over the full per-year list (slot 10). Reset to page 1
+  // whenever the year filter changes so we never land on an out-of-range page.
+  const total = goals.length
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const pageGoals = goals.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const handleYearChange = (v: string) => {
+    setYear(parseInt(v))
+    setPage(1)
+  }
 
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Goal | null>(null)
@@ -166,11 +181,13 @@ export default function GoalsPage() {
 
   const isPending = createMut.isPending || updateMut.isPending
 
+  // Group only the goals on the current page, so each status section reflects the
+  // visible slice (the count badges match what's rendered).
   const grouped = {
-    IN_PROGRESS: goals.filter((g) => g.status === "IN_PROGRESS"),
-    NOT_STARTED: goals.filter((g) => g.status === "NOT_STARTED"),
-    COMPLETED: goals.filter((g) => g.status === "COMPLETED"),
-    CANCELLED: goals.filter((g) => g.status === "CANCELLED"),
+    IN_PROGRESS: pageGoals.filter((g) => g.status === "IN_PROGRESS"),
+    NOT_STARTED: pageGoals.filter((g) => g.status === "NOT_STARTED"),
+    COMPLETED: pageGoals.filter((g) => g.status === "COMPLETED"),
+    CANCELLED: pageGoals.filter((g) => g.status === "CANCELLED"),
   }
 
   return (
@@ -180,7 +197,7 @@ export default function GoalsPage() {
         description="Track your personal and professional objectives"
         actions={
           <div className="flex items-center gap-2">
-            <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v))}>
+            <Select value={String(year)} onValueChange={handleYearChange}>
               <SelectTrigger className="h-8 w-24 text-sm">
                 <SelectValue />
               </SelectTrigger>
@@ -283,6 +300,16 @@ export default function GoalsPage() {
             )
           })}
         </div>
+      )}
+
+      {!isLoading && goals.length > 0 && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          onPageChange={setPage}
+          itemLabel="goal"
+        />
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>

@@ -3,6 +3,7 @@
 import { FolderOpen } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
+import { Pagination } from "@/components/shared/pagination"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DocumentCard } from "@/features/documents/components/document-card"
 import {
@@ -19,6 +20,10 @@ interface DocumentListProps {
   canDelete?: boolean
   selectedCategory?: string
   onUploadClick?: () => void
+  /** Current page for the company-document list (server-side pagination). */
+  page?: number
+  /** Called when the user navigates the company-document pager. */
+  onPageChange?: (page: number) => void
 }
 
 function DocumentListSkeleton() {
@@ -92,18 +97,25 @@ function CompanyDocumentListInner({
   canDelete,
   canUpload,
   onUploadClick,
+  page = 1,
+  onPageChange,
 }: {
   category?: string
   canDelete?: boolean
   canUpload?: boolean
   onUploadClick?: () => void
+  page?: number
+  onPageChange?: (page: number) => void
 }) {
-  const { data: documents, isLoading } = useCompanyDocuments(category)
+  const { data, isLoading } = useCompanyDocuments(category, page)
   const deleteMutation = useDeleteDocument()
+
+  const documents = data?.data ?? []
+  const pagination = data?.pagination
 
   if (isLoading) return <DocumentListSkeleton />
 
-  if (!documents || documents.length === 0) {
+  if (documents.length === 0) {
     return (
       <EmptyState
         icon={FolderOpen}
@@ -128,6 +140,17 @@ function CompanyDocumentListInner({
           onDelete={(id) => deleteMutation.mutate(id)}
         />
       ))}
+
+      {pagination && onPageChange && (
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          onPageChange={onPageChange}
+          itemLabel="document"
+          className="pt-1"
+        />
+      )}
     </div>
   )
 }
@@ -138,6 +161,8 @@ export function DocumentList({
   canDelete,
   selectedCategory,
   onUploadClick,
+  page,
+  onPageChange,
 }: DocumentListProps) {
   if (employeeId) {
     return (
@@ -156,6 +181,8 @@ export function DocumentList({
       canDelete={canDelete}
       canUpload={canUpload}
       onUploadClick={onUploadClick}
+      page={page}
+      onPageChange={onPageChange}
     />
   )
 }

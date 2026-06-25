@@ -8,13 +8,14 @@
  * deletion and name-slug changes.
  */
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { Plus, Pencil, Trash2, ShieldCheck, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Pagination } from "@/components/shared/pagination"
 import {
   Table,
   TableBody,
@@ -53,6 +54,8 @@ interface RoleRow {
   }
 }
 
+const PAGE_SIZE = 10
+
 // ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
@@ -64,6 +67,19 @@ export default function RolesPage() {
 
   const [roles, setRoles] = useState<RoleRow[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Client-side pagination over the full reused /api/roles list.
+  const [page, setPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(roles.length / PAGE_SIZE))
+  const pagedRoles = useMemo(
+    () => roles.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [roles, page],
+  )
+
+  // Keep the current page in range when the list size changes (e.g. after a delete).
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   // Sheet (create/edit) state
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -178,7 +194,7 @@ export default function RolesPage() {
             </TableHeader>
 
             <TableBody>
-              {roles.map((role) => (
+              {pagedRoles.map((role) => (
                 <TableRow key={role.id}>
                   {/* Name */}
                   <TableCell>
@@ -253,6 +269,17 @@ export default function RolesPage() {
           </Table>
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={roles.length}
+          onPageChange={setPage}
+          itemLabel="role"
+        />
+      )}
 
       {/* Create / Edit Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>

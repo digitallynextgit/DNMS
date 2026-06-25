@@ -15,6 +15,15 @@ export const GET = withAuth(
       const year = searchParams.get("year") ? Number(searchParams.get("year")) : undefined
       const status = searchParams.get("status") ?? undefined
       const employeeId = searchParams.get("employeeId") ?? undefined
+      const search = searchParams.get("search")?.trim() || undefined
+
+      // Pagination is opt-in: the HR records table passes ?page; other consumers
+      // (e.g. an employee's full payslip history) omit it and get every record.
+      const pageParam = searchParams.get("page")
+      const paginate = pageParam !== null
+      const page = Math.max(1, Number(pageParam) || 1)
+      const limit = Math.max(1, Math.min(100, Number(searchParams.get("limit")) || 10))
+      const skip = (page - 1) * limit
 
       const where: Record<string, unknown> = {}
       if (month) where.month = month
@@ -26,25 +35,54 @@ export const GET = withAuth(
       } else {
         where.employeeId = session.user.id
       }
+      // Employee name / number search (server-side).
+      if (search) {
+        where.employee = {
+          OR: [
+            { firstName: { contains: search, mode: "insensitive" } },
+            { lastName: { contains: search, mode: "insensitive" } },
+            { employeeNo: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      }
 
-      const records = await db.payrollRecord.findMany({
-        where,
-        include: {
-          employee: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              employeeNo: true,
-              department: { select: { id: true, name: true } },
-              designation: { select: { id: true, title: true } },
-            },
+      const include = {
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeNo: true,
+            department: { select: { id: true, name: true } },
+            designation: { select: { id: true, title: true } },
           },
         },
-        orderBy: [{ year: "desc" }, { month: "desc" }, { createdAt: "desc" }],
-      })
+      } as const
+      const orderBy = [
+        { year: "desc" as const },
+        { month: "desc" as const },
+        { createdAt: "desc" as const },
+      ]
 
-      return NextResponse.json({ data: records })
+      const [records, total] = await Promise.all([
+        db.payrollRecord.findMany({
+          where,
+          include,
+          orderBy,
+          ...(paginate ? { skip, take: limit } : {}),
+        }),
+        db.payrollRecord.count({ where }),
+      ])
+
+      return NextResponse.json({
+        data: records,
+        pagination: {
+          total,
+          page: paginate ? page : 1,
+          limit: paginate ? limit : total,
+          totalPages: paginate ? Math.max(1, Math.ceil(total / limit)) : 1,
+        },
+      })
     } catch (error) {
       console.error("[PAYROLL_RECORDS_GET]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })

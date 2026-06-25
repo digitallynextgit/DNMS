@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { PageHeader } from "@/components/shared/page-header"
+import { Pagination } from "@/components/shared/pagination"
 import {
   useResignationsToReview,
   useReviewResignation,
@@ -34,7 +35,8 @@ import {
 import { cn, getInitials, getAvatarColor, formatDate } from "@/lib/utils"
 
 export default function ResignationsPage() {
-  const { data, isLoading } = useResignationsToReview()
+  const [page, setPage] = useState(1)
+  const { data, isLoading } = useResignationsToReview({ page, limit: 10 })
   const reviewMut = useReviewResignation()
 
   const [approveTarget, setApproveTarget] = useState<ReviewableResignation | null>(null)
@@ -43,6 +45,7 @@ export default function ResignationsPage() {
 
   const resignations = data?.data ?? []
   const canReviewAll = data?.canReviewAll ?? false
+  const pagination = data?.pagination
 
   function confirmApprove() {
     if (!approveTarget) return
@@ -161,6 +164,16 @@ export default function ResignationsPage() {
             )
           })}
         </div>
+      )}
+
+      {pagination && (
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          onPageChange={setPage}
+          itemLabel="request"
+        />
       )}
 
       {/* Approve confirmation */}
