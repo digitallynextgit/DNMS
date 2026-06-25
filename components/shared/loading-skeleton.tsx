@@ -93,7 +93,7 @@ export function PageSkeleton() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between py-4">
-        <div className="space-y-1.5">
+        <div className="space-y-2.5">
           <Skeleton className="bg-muted h-5 w-40 animate-pulse" />
           <Skeleton className="bg-muted h-4 w-64 animate-pulse" />
         </div>

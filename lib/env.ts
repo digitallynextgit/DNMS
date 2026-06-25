@@ -3,7 +3,7 @@
 // =============================================================================
 // Parsed lazily so importing this module never crashes a process that doesn't
 // need a given var. Call `getEnv()` where you want fail-fast validation, or read
-// `env` for the eager singleton. Schema mirrors .env.example — required vars are
+// `env` for the eager singleton. Schema mirrors .env.example - required vars are
 // the minimum to boot; integrations are optional and validated when present.
 // =============================================================================
 

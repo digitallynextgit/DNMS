@@ -67,6 +67,49 @@ export function wrapEmail({ title, bodyHtml }: { title: string; bodyHtml: string
 }
 
 /**
+ * Build the email HR receives when an employee submits a resignation request.
+ * Sent from the employee's own mailbox (so the manager can be CC'd and reply).
+ */
+export function renderResignationRequestEmail(input: {
+  employeeName: string
+  employeeNo: string
+  reason?: string | null
+  lastWorkingDate?: string | null
+  managerName?: string | null
+  reviewUrl?: string
+}): { subject: string; html: string; text: string } {
+  const { employeeName, employeeNo, reason, lastWorkingDate, managerName, reviewUrl } = input
+  const subject = `Resignation request - ${employeeName}`
+
+  const body = `
+    <h1 style="margin:0 0 14px; font-size:20px; font-weight:600; color:#111827;">Resignation request</h1>
+    <p style="margin:0 0 20px; font-size:15px; line-height:1.6; color:#4b5563;">
+      <strong>${employeeName}</strong> (${employeeNo}) has submitted a resignation request for review.
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa; border:1px solid #eeeeee; border-radius:10px; padding:4px 18px;">
+      ${detailRow("Employee", `${employeeName} (${employeeNo})`)}
+      ${detailRow("Reporting manager", managerName)}
+      ${detailRow("Requested last working day", lastWorkingDate)}
+      ${detailRow("Reason", reason || "-")}
+    </table>
+    ${
+      reviewUrl
+        ? `<p style="margin:22px 0 0; font-size:14px; color:#4b5563;"><a href="${reviewUrl}" style="color:#2563eb;">Review this resignation in ${BRAND_NAME}</a></p>`
+        : ""
+    }`
+
+  const text = `${employeeName} (${employeeNo}) has submitted a resignation request.
+
+Reporting manager: ${managerName ?? "-"}
+Requested last working day: ${lastWorkingDate ?? "-"}
+Reason: ${reason || "-"}${reviewUrl ? `\n\nReview: ${reviewUrl}` : ""}
+
+- ${BRAND_NAME}`
+
+  return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
+}
+
+/**
  * Build an approve/reject decision email (leave, WFH, resignation, etc.).
  * `kind` is the request label ("Leave request", "WFH request"…).
  */

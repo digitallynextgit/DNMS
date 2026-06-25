@@ -442,7 +442,7 @@ export default function RecruitmentPage() {
             <DialogTitle>New Job Posting</DialogTitle>
           </DialogHeader>
           <div className="-mx-6 max-h-[70vh] space-y-3 overflow-y-auto px-6">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Job Title</Label>
               <Input
                 value={form.title}
@@ -451,7 +451,7 @@ export default function RecruitmentPage() {
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Department</Label>
                 <Select
                   value={form.departmentId}
@@ -469,7 +469,7 @@ export default function RecruitmentPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Type</Label>
                 <Select
                   value={form.type}
@@ -507,7 +507,7 @@ export default function RecruitmentPage() {
                   </Button>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <Label className="text-xs">Tone</Label>
                     <Select
                       value={deptTone || "default"}
@@ -525,7 +525,7 @@ export default function RecruitmentPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <Label className="text-xs">Jobs label</Label>
                     <Input
                       className="h-8 text-sm"
@@ -538,7 +538,7 @@ export default function RecruitmentPage() {
               </div>
             )}
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Location</Label>
               <Input
                 value={form.location}
@@ -547,7 +547,7 @@ export default function RecruitmentPage() {
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Min Salary (optional)</Label>
                 <Input
                   type="number"
@@ -556,7 +556,7 @@ export default function RecruitmentPage() {
                   placeholder="500000"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Max Salary (optional)</Label>
                 <Input
                   type="number"
@@ -567,7 +567,7 @@ export default function RecruitmentPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Closing Date</Label>
                 <Input
                   type="date"
@@ -575,7 +575,7 @@ export default function RecruitmentPage() {
                   onChange={(e) => setForm((f) => ({ ...f, closingDate: e.target.value }))}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Status</Label>
                 <Select
                   value={form.status}
@@ -591,7 +591,7 @@ export default function RecruitmentPage() {
                 </Select>
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Description (optional)</Label>
               <textarea
                 className="bg-background focus:ring-ring min-h-20 w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
@@ -646,7 +646,7 @@ export default function RecruitmentPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label>Meta (optional)</Label>
                   <Input
                     value={form.meta}
@@ -654,7 +654,7 @@ export default function RecruitmentPage() {
                     placeholder="e.g. Mumbai · 3–5 yrs"
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label>Summary (optional)</Label>
                   <Input
                     value={form.summary}
@@ -664,7 +664,7 @@ export default function RecruitmentPage() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Intro</Label>
                 <textarea
                   className="bg-background focus:ring-ring min-h-20 w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
@@ -674,7 +674,7 @@ export default function RecruitmentPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Job Essence (optional)</Label>
                 <textarea
                   className="bg-background focus:ring-ring min-h-17.5 w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
@@ -684,7 +684,7 @@ export default function RecruitmentPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Key Requirements (one per line)</Label>
                 <textarea
                   className="bg-background focus:ring-ring min-h-22.5 w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
@@ -696,7 +696,7 @@ export default function RecruitmentPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Current Openings (one per line, optional)</Label>
                 <textarea
                   className="bg-background focus:ring-ring min-h-17.5 w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"

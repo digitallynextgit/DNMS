@@ -76,7 +76,7 @@ export default function MyTasksPage() {
     onError: () => toast.error("Failed to update"),
   })
 
-  // Full filtered list — drives summary stats, the pending-approval callout,
+  // Full filtered list - drives summary stats, the pending-approval callout,
   // and the total used for pagination metadata.
   const tasks = useMemo(() => {
     return (data?.data ?? []).filter((t) => statusFilter === "all" || t.status === statusFilter)
@@ -281,7 +281,7 @@ export default function MyTasksPage() {
                           </Link>
                         </td>
                         <td className="text-muted-foreground px-4 py-2.5 text-xs">
-                          {task.team?.name ?? "—"}
+                          {task.team?.name ?? "-"}
                         </td>
                         <td className="px-4 py-2.5">
                           <StatusBadge
@@ -292,7 +292,7 @@ export default function MyTasksPage() {
                           />
                         </td>
                         <td className="text-muted-foreground px-4 py-2.5 text-xs whitespace-nowrap">
-                          {task.dueDate ? formatDate(task.dueDate) : "—"}
+                          {task.dueDate ? formatDate(task.dueDate) : "-"}
                         </td>
                       </tr>
                     )

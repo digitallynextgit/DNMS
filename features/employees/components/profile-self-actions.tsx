@@ -188,7 +188,7 @@ export function ProfileSelfActions({
             <DialogTitle>Apply for Resignation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-1">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="res-reason">Reason</Label>
               <Textarea
                 id="res-reason"
@@ -198,7 +198,7 @@ export function ProfileSelfActions({
                 placeholder="Briefly share why you're resigning (optional)"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Requested Last Working Day</Label>
               <DateField value={lastWorkingDate} onChange={setLastWorkingDate} />
             </div>

@@ -270,7 +270,7 @@ export default function MyReviewsPage() {
                         onChange={(v) => setForm((f) => ({ ...f, selfRating: v }))}
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <Label>Overall Comments</Label>
                       <textarea
                         className="bg-background focus:ring-ring min-h-[80px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
@@ -279,7 +279,7 @@ export default function MyReviewsPage() {
                         placeholder="How did you perform this period?"
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <Label>Key Achievements</Label>
                       <textarea
                         className="bg-background focus:ring-ring min-h-[80px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
@@ -288,7 +288,7 @@ export default function MyReviewsPage() {
                         placeholder="What did you accomplish this period?"
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <Label>Areas for Improvement</Label>
                       <textarea
                         className="bg-background focus:ring-ring min-h-[80px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"

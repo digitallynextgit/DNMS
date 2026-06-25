@@ -8,7 +8,7 @@ import { Loader2 } from "lucide-react"
  * Rendered by the dashboard layout when the signed-in employee's account is no
  * longer active (e.g. an approved resignation deactivated them mid-session).
  * Because sessions are stateless JWTs, the existing cookie stays valid until it
- * expires — so we force a client-side sign-out here, which clears the cookie and
+ * expires - so we force a client-side sign-out here, which clears the cookie and
  * sends them to the login page where authorize() will refuse a fresh login.
  */
 export function AccountDeactivated() {

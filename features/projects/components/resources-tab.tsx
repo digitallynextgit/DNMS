@@ -339,7 +339,7 @@ function UploadDialog({
           <DialogTitle>Upload File</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>File (max 100 MB)</Label>
             <input
               ref={fileInput}
@@ -357,7 +357,7 @@ function UploadDialog({
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Scope</Label>
               <Select value={teamId} onValueChange={setTeamId}>
                 <SelectTrigger>
@@ -373,7 +373,7 @@ function UploadDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Category</Label>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger>
@@ -389,7 +389,7 @@ function UploadDialog({
               </Select>
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Description (optional)</Label>
             <Textarea
               value={description}

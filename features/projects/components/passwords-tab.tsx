@@ -361,7 +361,7 @@ function PasswordFormDialog({
           <DialogTitle>{mode === "create" ? "Add Credential" : "Edit Credential"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Label *</Label>
             <Input
               value={label}
@@ -371,7 +371,7 @@ function PasswordFormDialog({
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Username / Email</Label>
               <Input
                 value={username}
@@ -379,7 +379,7 @@ function PasswordFormDialog({
                 placeholder="admin@example.com"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>{mode === "edit" ? "New Password (leave blank to keep)" : "Password *"}</Label>
               <div className="relative">
                 <Input
@@ -399,7 +399,7 @@ function PasswordFormDialog({
               </div>
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>URL</Label>
             <Input
               value={url}
@@ -407,7 +407,7 @@ function PasswordFormDialog({
               placeholder="https://example.com"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Notes</Label>
             <Textarea
               value={notes}

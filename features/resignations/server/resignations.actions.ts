@@ -5,13 +5,16 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotification, notifyApprovers } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
-import { sendEmail } from "@/lib/mailer"
+import { sendEmail, sendEmailAs } from "@/lib/mailer"
 import { requireSession, getAuditMeta } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
-import { startOfDayUTC } from "@/lib/dates"
-import { renderDecisionEmail } from "@/lib/email-layout"
+import { startOfDayUTC, toDateOnly } from "@/lib/dates"
+import { renderDecisionEmail, renderResignationRequestEmail } from "@/lib/email-layout"
+
+// Roles whose holders act as HR for approvals/notifications.
+const HR_ROLE_NAMES = ["hr_manager", "admin"]
 
 // An employee may only have one resignation in flight at a time.
 const OPEN_STATUSES = ["PENDING"] as const
@@ -47,7 +50,18 @@ export async function applyResignation(input: {
 
     const me = await db.employee.findUnique({
       where: { id: session.user.id },
-      select: { id: true, firstName: true, lastName: true, status: true, isActive: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        employeeNo: true,
+        status: true,
+        isActive: true,
+        // Present only when the employee has configured a Gmail App Password -
+        // i.e. their personal Google SMTP. We gate the HR email on this.
+        gmailAppPassword: true,
+        manager: { select: { firstName: true, lastName: true, email: true } },
+      },
     })
     if (!me) return fail("Employee not found")
     if (!me.isActive) return fail("Your account is not active")
@@ -82,6 +96,61 @@ export async function applyResignation(input: {
       message: `${me.firstName} ${me.lastName} has submitted a resignation that needs your approval.`,
       link: "/resignations",
     })
+
+    // Email HR (with the reporting manager in CC) FROM the employee's own Gmail,
+    // carrying the reason - but only when the employee has configured a Google
+    // App Password (their personal SMTP). Best-effort; never blocks the apply.
+    try {
+      if (me.gmailAppPassword) {
+        const managerEmail = me.manager?.email || undefined
+
+        // Send to the shared HR inbox (HR_EMAIL). Only if it isn't configured do
+        // we fall back to the work emails of HR-role employees, then the manager.
+        let to: string[] = []
+        const hrMailbox = process.env.HR_EMAIL?.trim()
+        if (hrMailbox) {
+          to = [hrMailbox]
+        } else {
+          const hr = await db.employee.findMany({
+            where: {
+              isActive: true,
+              id: { not: me.id },
+              employeeRoles: { some: { role: { name: { in: HR_ROLE_NAMES } } } },
+            },
+            select: { email: true },
+          })
+          to = [...new Set(hr.map((h) => h.email).filter(Boolean))]
+        }
+        if (to.length === 0 && managerEmail) to = [managerEmail]
+
+        // CC the reporting manager (unless they're already the sole recipient).
+        const cc = managerEmail && !to.includes(managerEmail) ? managerEmail : undefined
+
+        if (to.length > 0) {
+          const mail = renderResignationRequestEmail({
+            employeeName: `${me.firstName} ${me.lastName}`.trim(),
+            employeeNo: me.employeeNo,
+            reason: input.reason?.trim() || null,
+            lastWorkingDate: lastWorkingDate ? toDateOnly(lastWorkingDate) : null,
+            managerName: me.manager
+              ? `${me.manager.firstName} ${me.manager.lastName}`.trim()
+              : null,
+            reviewUrl: process.env.NEXTAUTH_URL
+              ? `${process.env.NEXTAUTH_URL.replace(/\/$/, "")}/resignations`
+              : undefined,
+          })
+          await sendEmailAs(me.id, {
+            to,
+            cc,
+            subject: mail.subject,
+            html: mail.html,
+            text: mail.text,
+          })
+        }
+      }
+    } catch (err) {
+      console.error("[applyResignation] HR notification email failed:", err)
+    }
 
     const meta = await getAuditMeta()
     await createAuditLog(session, {

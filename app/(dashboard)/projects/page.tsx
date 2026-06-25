@@ -133,7 +133,7 @@ export default function ProjectsPage() {
     onError: () => toast.error("Failed to archive project"),
   })
 
-  // Full grouping — used by the kanban board (unpaginated).
+  // Full grouping - used by the kanban board (unpaginated).
   const statusGroups: Record<string, Project[]> = {
     PLANNING: projects.filter((p) => p.status === "PLANNING"),
     ACTIVE: projects.filter((p) => p.status === "ACTIVE"),
@@ -141,7 +141,7 @@ export default function ProjectsPage() {
     COMPLETED: projects.filter((p) => p.status === "COMPLETED"),
   }
 
-  // Paginated grouping — used by the card / table list views (current page only).
+  // Paginated grouping - used by the card / table list views (current page only).
   const pageStatusGroups: Record<string, Project[]> = {
     PLANNING: pageProjects.filter((p) => p.status === "PLANNING"),
     ACTIVE: pageProjects.filter((p) => p.status === "ACTIVE"),
@@ -442,7 +442,7 @@ export default function ProjectsPage() {
                                 {project.budget != null ? (
                                   `₹${project.budget.toLocaleString("en-IN")}`
                                 ) : (
-                                  <span className="text-muted-foreground">—</span>
+                                  <span className="text-muted-foreground">-</span>
                                 )}
                               </td>
                             )}
@@ -596,7 +596,7 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Pagination — card / table list views only (kanban stays unpaginated). */}
+      {/* Pagination - card / table list views only (kanban stays unpaginated). */}
       {!isLoading && isPaginated && total > 0 && (
         <Pagination
           page={page}

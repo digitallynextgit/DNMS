@@ -13,7 +13,7 @@ function canEdit(session: Session, id: string): boolean {
   return session.user.id === id || hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)
 }
 
-// Best-effort B2 delete — never let storage cleanup failures break the request.
+// Best-effort B2 delete - never let storage cleanup failures break the request.
 async function deleteQuietly(key: string | null | undefined) {
   if (!key) return
   await deleteFile(key).catch((e) => console.error("[photo] B2 delete failed:", key, e))

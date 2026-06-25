@@ -571,7 +571,7 @@ function CreateTaskDialog({
               becoming active.
             </div>
           )}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Title</Label>
             <Input
               value={title}
@@ -579,7 +579,7 @@ function CreateTaskDialog({
               placeholder="What needs to be done?"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Description (optional)</Label>
             <Textarea
               value={description}
@@ -588,7 +588,7 @@ function CreateTaskDialog({
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Priority</Label>
               <Select value={priority} onValueChange={setPriority}>
                 <SelectTrigger>
@@ -602,12 +602,12 @@ function CreateTaskDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Due Date</Label>
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Time Required</Label>
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -640,7 +640,7 @@ function CreateTaskDialog({
               </div>
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Assignee</Label>
             {isManager ? (
               <Select value={assigneeId} onValueChange={setAssigneeId}>

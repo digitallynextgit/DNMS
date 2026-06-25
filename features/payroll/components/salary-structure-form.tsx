@@ -148,7 +148,7 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
       <div className="space-y-6">
         {/* Employee */}
         {!isEdit ? (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="employeeId">Employee *</Label>
             <EmployeeCombobox
               value={selectedEmployeeId || undefined}
@@ -167,7 +167,7 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
         )}
 
         {/* Gross */}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="gross">Monthly Gross Salary (in-hand) *</Label>
           <Input
             id="gross"

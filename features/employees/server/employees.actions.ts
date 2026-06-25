@@ -171,7 +171,10 @@ export async function getEmployee(idOrSlug: string): Promise<ActionResult<unknow
       },
     })
     if (!employee) return fail("Employee not found")
-    return ok(serialize({ data: employee }))
+    // Never expose the encrypted App Password ciphertext to the client - return
+    // only a boolean flag so the UI can show the "set / change / delete" state.
+    const { gmailAppPassword, ...rest } = employee
+    return ok(serialize({ data: { ...rest, hasGmailAppPassword: !!gmailAppPassword } }))
   })
 }
 

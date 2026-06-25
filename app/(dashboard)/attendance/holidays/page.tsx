@@ -194,7 +194,7 @@ export default function HolidaysPage() {
           </DialogHeader>
 
           <form onSubmit={handleAddSubmit} className="space-y-4 py-2">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="holiday-name">Holiday Name</Label>
               <Input
                 id="holiday-name"
@@ -205,7 +205,7 @@ export default function HolidaysPage() {
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="holiday-date">Date</Label>
               <Input
                 id="holiday-date"
@@ -216,7 +216,7 @@ export default function HolidaysPage() {
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="holiday-desc">Description (optional)</Label>
               <Textarea
                 id="holiday-desc"
@@ -233,7 +233,7 @@ export default function HolidaysPage() {
                 checked={isOptional}
                 onCheckedChange={(v) => setIsOptional(!!v)}
               />
-              <Label htmlFor="is-optional" className="cursor-pointer font-normal">
+              <Label htmlFor="is-optional" className="mb-0 cursor-pointer font-normal">
                 Optional holiday (employee can choose to take it)
               </Label>
             </div>

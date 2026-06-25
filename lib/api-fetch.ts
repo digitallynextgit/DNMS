@@ -5,7 +5,7 @@ import type { ActionResult } from "@/server/action-result"
  *
  * On a non-2xx response it throws an `Error` carrying the server's message
  * (so React Query's `onError` / toast handling keeps working). On success it
- * returns the parsed JSON body UNCHANGED — callers read `.data` / `.pagination`
+ * returns the parsed JSON body UNCHANGED - callers read `.data` / `.pagination`
  * / `.meta` themselves, exactly as they did with `await res.json()`. An empty
  * body resolves to `null`.
  */

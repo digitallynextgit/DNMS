@@ -57,7 +57,7 @@ export function GeneratePayrollDialog({ open, onOpenChange }: GeneratePayrollDia
               </p>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label htmlFor="gen-month">Month</Label>
                   <Select value={month} onValueChange={setMonth}>
                     <SelectTrigger id="gen-month">
@@ -73,7 +73,7 @@ export function GeneratePayrollDialog({ open, onOpenChange }: GeneratePayrollDia
                   </Select>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label htmlFor="gen-year">Year</Label>
                   <Input
                     id="gen-year"

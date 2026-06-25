@@ -26,7 +26,7 @@ export default function ApplyWfhPage() {
 
   const today = new Date().toISOString().split("T")[0]
 
-  // For tier 1 or 2 the request is implicitly an emergency (there is no checkbox —
+  // For tier 1 or 2 the request is implicitly an emergency (there is no checkbox -
   // the submit handler forces isEmergency: true), so it only needs a detailed
   // reason. Don't gate canSubmit on the isEmergency state or it can never enable.
   const mustBeEmergency = eligibility?.canApplyEmergencyOnly ?? false
@@ -124,7 +124,7 @@ export default function ApplyWfhPage() {
               onCheckedChange={(v) => setIsEmergency(v === true)}
             />
             <div>
-              <Label htmlFor="emergency" className="cursor-pointer font-normal">
+              <Label htmlFor="emergency" className="mb-0 cursor-pointer font-normal">
                 Mark as emergency
               </Label>
               <p className="text-muted-foreground text-xs">

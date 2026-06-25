@@ -89,7 +89,7 @@ function NewEvaluationDialog() {
           <DialogTitle>New Performance Evaluation</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Employee *</Label>
             <Select value={employeeId} onValueChange={setEmployeeId}>
               <SelectTrigger>
@@ -104,7 +104,7 @@ function NewEvaluationDialog() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Reviewing Manager</Label>
             <Select value={managerId} onValueChange={setManagerId}>
               <SelectTrigger>
@@ -124,7 +124,7 @@ function NewEvaluationDialog() {
               Leave blank to use the employee&apos;s assigned manager.
             </p>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Project Controller (optional)</Label>
             <Select value={controllerId} onValueChange={setControllerId}>
               <SelectTrigger>
@@ -145,7 +145,7 @@ function NewEvaluationDialog() {
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Period label *</Label>
               <Input
                 placeholder="e.g. May end '26"
@@ -153,7 +153,7 @@ function NewEvaluationDialog() {
                 onChange={(e) => setPeriodLabel(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Due date</Label>
               <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
@@ -236,7 +236,7 @@ export default function EvaluationsPage() {
                     </td>
                     <td className="px-4 py-2.5">{ev.periodLabel}</td>
                     <td className="text-muted-foreground px-4 py-2.5">
-                      {ev.manager ? `${ev.manager.firstName} ${ev.manager.lastName}` : "—"}
+                      {ev.manager ? `${ev.manager.firstName} ${ev.manager.lastName}` : "-"}
                     </td>
                     <td className="px-4 py-2.5">
                       <StatusBadge
@@ -246,7 +246,7 @@ export default function EvaluationsPage() {
                       />
                     </td>
                     <td className="px-4 py-2.5 text-right font-semibold tabular-nums">
-                      {ev.finalScore != null ? `${ev.finalScore}/100` : "—"}
+                      {ev.finalScore != null ? `${ev.finalScore}/100` : "-"}
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1">

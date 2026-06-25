@@ -86,7 +86,7 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
       contentClassName="sm:max-w-[480px]"
     >
       {/* Name */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="device-name">Device Name</Label>
         <Input
           id="device-name"
@@ -98,7 +98,7 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
       </div>
 
       {/* Device Serial */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="device-serial">Device Serial</Label>
         <Input
           id="device-serial"
@@ -121,7 +121,7 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
             required
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="port">Port</Label>
           <Input
             id="port"
@@ -136,7 +136,7 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
       </div>
 
       {/* Username */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="username">Username</Label>
         <Input
           id="username"
@@ -148,7 +148,7 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
       </div>
 
       {/* Password */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="device-password">Password</Label>
         <div className="relative">
           <Input
@@ -172,7 +172,7 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
       </div>
 
       {/* Location */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="location">Location (optional)</Label>
         <Input
           id="location"

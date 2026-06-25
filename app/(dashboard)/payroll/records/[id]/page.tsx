@@ -175,7 +175,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
             <CardTitle className="text-sm">Adjustments (draft only)</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="ot">Overtime (₹)</Label>
               <Input
                 id="ot"
@@ -186,7 +186,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
                 onChange={(e) => setOvertime(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="od">Other deductions (₹)</Label>
               <Input
                 id="od"

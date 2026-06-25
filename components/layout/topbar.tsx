@@ -33,7 +33,7 @@ export function Topbar({ session }: { session: Session }) {
   const { id, firstName, lastName, email, profilePhoto: sessionPhoto } = session.user
   // Live photo: shares the same ["employee", id] cache as the profile page, so a
   // photo upload/removal (which invalidates ["employee"]) refreshes the avatar
-  // here too — without waiting for the session JWT to be reissued at next login.
+  // here too - without waiting for the session JWT to be reissued at next login.
   // Fall back to the session value until the live query resolves to avoid a flash.
   const { data: liveEmployee } = useEmployee(id)
   const profilePhoto = liveEmployee ? (liveEmployee.data?.profilePhoto ?? null) : sessionPhoto

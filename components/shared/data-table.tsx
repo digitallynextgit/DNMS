@@ -26,7 +26,7 @@ interface DataTableProps<T> {
 /**
  * Read-only table with the app's house styling (the `bg-card` bordered panel,
  * `bg-muted/40` header, `divide-y` body, hover rows). Replaces hand-rolled
- * `<table>` shells for plain list tables — columns differ only in their
+ * `<table>` shells for plain list tables - columns differ only in their
  * `cell` renderers. (Selection/summary/financial tables stay bespoke.)
  */
 export function DataTable<T>({

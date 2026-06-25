@@ -31,6 +31,7 @@ export const GET = withSession(async (_req: NextRequest, _ctx: unknown, session:
     const { gmailAppPassword, ...safe } = employee
     return NextResponse.json({ data: { ...safe, hasGmailAppPassword: !!gmailAppPassword } })
   } catch (error) {
+    console.error("[GET /api/profile]", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 })
@@ -105,6 +106,7 @@ export const PATCH = withSession(async (req: NextRequest, _ctx: unknown, session
 
     return NextResponse.json({ data: { ...updated, hasGmailAppPassword } })
   } catch (error) {
+    console.error("[PATCH /api/profile]", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 })

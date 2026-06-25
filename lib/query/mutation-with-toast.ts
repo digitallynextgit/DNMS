@@ -5,7 +5,7 @@ interface MutationWithToastOptions<TData, TVars> {
   mutationFn: (vars: TVars) => Promise<TData>
   /** Query keys to invalidate on success. */
   invalidate?: QueryKey[]
-  /** Success toast — a fixed string, or a fn of (data, vars) for dynamic text. Omit for no toast. */
+  /** Success toast - a fixed string, or a fn of (data, vars) for dynamic text. Omit for no toast. */
   success?: string | ((data: TData, vars: TVars) => string)
   /** Extra side-effects after invalidation + toast. */
   onSuccess?: (data: TData, vars: TVars) => void | Promise<unknown>

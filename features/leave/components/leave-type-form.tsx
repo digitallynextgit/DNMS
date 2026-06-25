@@ -98,7 +98,7 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
       contentClassName="max-w-md"
     >
       {/* Name */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="lt-name">Name</Label>
         <Input
           id="lt-name"
@@ -110,7 +110,7 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
       </div>
 
       {/* Code */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="lt-code">Code</Label>
         <Input
           id="lt-code"
@@ -123,7 +123,7 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
       </div>
 
       {/* Description */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="lt-desc">
           Description <span className="text-muted-foreground font-normal">(optional)</span>
         </Label>
@@ -138,7 +138,7 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
       </div>
 
       {/* Max days per year */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="lt-max-days">Max Days / Year</Label>
         <Input
           id="lt-max-days"
@@ -181,7 +181,7 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
 
         {/* Max carry days - only shown when carryForward is enabled */}
         {form.carryForward && (
-          <div className="border-muted space-y-1.5 border-l-2 pl-4">
+          <div className="border-muted space-y-2 border-l-2 pl-4">
             <Label htmlFor="lt-max-carry">Max Days to Carry Forward</Label>
             <Input
               id="lt-max-carry"

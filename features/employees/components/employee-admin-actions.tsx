@@ -35,7 +35,7 @@ export function EmployeeAdminActions({
   hasPhoto?: boolean
 }) {
   const { can, userId } = usePermissions()
-  // Photo upload is an admin (HR) action; Resign is self-service — an employee
+  // Photo upload is an admin (HR) action; Resign is self-service - an employee
   // resigns themselves, so it only appears on your own profile, never when an
   // admin views someone else.
   const canManage = can(PERMISSIONS.EMPLOYEE_WRITE)
@@ -168,7 +168,7 @@ export function EmployeeAdminActions({
             <DialogTitle>Apply for Resignation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-1">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="res-reason">Reason</Label>
               <Textarea
                 id="res-reason"
@@ -178,7 +178,7 @@ export function EmployeeAdminActions({
                 placeholder="Briefly share why you're resigning (optional)"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Requested Last Working Day</Label>
               <DateField value={lastWorkingDate} onChange={setLastWorkingDate} />
             </div>

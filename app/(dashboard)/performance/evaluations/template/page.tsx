@@ -140,7 +140,7 @@ export default function EvaluationTemplatePage() {
         description="Define the KPIs / parameters and weights used in every evaluation. Weights must total 100%."
       />
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label>Template name</Label>
         <Input value={name} onChange={(e) => setName(e.target.value)} className="max-w-md" />
       </div>

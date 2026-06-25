@@ -156,7 +156,7 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
       contentClassName="max-h-[90vh] overflow-y-auto sm:max-w-lg"
     >
       <div className="space-y-4">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="project-name">Project Name *</Label>
           <Input
             id="project-name"
@@ -178,7 +178,7 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
           )}
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="project-desc">Description</Label>
           <Textarea
             id="project-desc"
@@ -190,7 +190,7 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
         </div>
 
         {/* Account Manager */}
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Account Manager *</Label>
           <p className="text-muted-foreground text-xs">
             The lead manager under whom all teams will be created for this project.
@@ -205,7 +205,7 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Status</Label>
             <Select
               value={form.status}
@@ -223,7 +223,7 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Priority</Label>
             <Select
               value={form.priority}
@@ -243,7 +243,7 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="onboarding-date">Onboarding Date</Label>
           <Input
             id="onboarding-date"
@@ -258,7 +258,7 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
 
         {/* Budget - admin only */}
         {canSeeBudget && (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="project-budget">
               Budget{" "}
               <span className="text-muted-foreground font-normal">

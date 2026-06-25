@@ -301,7 +301,7 @@ export default function PerformancePage() {
             <DialogTitle>New Review Cycle</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Cycle Name</Label>
               <Input
                 value={cycleForm.name}
@@ -310,7 +310,7 @@ export default function PerformancePage() {
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Year</Label>
                 <Input
                   type="number"
@@ -318,7 +318,7 @@ export default function PerformancePage() {
                   onChange={(e) => setCycleForm((f) => ({ ...f, year: e.target.value }))}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Quarter (optional)</Label>
                 <Select
                   value={cycleForm.quarter}
@@ -337,7 +337,7 @@ export default function PerformancePage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Start Date</Label>
                 <Input
                   type="date"
@@ -345,7 +345,7 @@ export default function PerformancePage() {
                   onChange={(e) => setCycleForm((f) => ({ ...f, startDate: e.target.value }))}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>End Date</Label>
                 <Input
                   type="date"
@@ -391,7 +391,7 @@ export default function PerformancePage() {
                   <RatingStars value={selectedReview.selfRating} />
                 </div>
               )}
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Manager Rating (1–5)</Label>
                 <Input
                   type="number"
@@ -403,7 +403,7 @@ export default function PerformancePage() {
                   placeholder="4.0"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Comments</Label>
                 <textarea
                   className="bg-background focus:ring-ring min-h-[80px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"

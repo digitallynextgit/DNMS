@@ -296,7 +296,7 @@ export default function DesignationsPage() {
             <DialogTitle>{editing ? "Edit Designation" : "Add Designation"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="desig-title">Title</Label>
               <Input
                 id="desig-title"
@@ -305,7 +305,7 @@ export default function DesignationsPage() {
                 placeholder="Software Engineer"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="desig-level">Level (1–13)</Label>
               <Input
                 id="desig-level"

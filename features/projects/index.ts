@@ -1,7 +1,7 @@
 // Public API for the "projects" feature (CLAUDE.md §1, rule #2).
 // Cross-feature & app imports use THIS barrel; internals stay private.
 // NOTE: server-only modules (server/*.service-style, emails, IO clients) are
-// intentionally NOT re-exported here — API routes import those directly.
+// intentionally NOT re-exported here - API routes import those directly.
 export * from "./components/activity-tab"
 export * from "./components/kanban-view"
 export * from "./components/messages-tab"

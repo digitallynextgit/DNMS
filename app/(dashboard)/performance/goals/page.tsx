@@ -312,7 +312,7 @@ export default function GoalsPage() {
             <DialogTitle>{editing ? "Edit Goal" : "New Goal"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Title</Label>
               <Input
                 value={form.title}
@@ -320,7 +320,7 @@ export default function GoalsPage() {
                 placeholder="e.g. Complete AWS certification"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Description (optional)</Label>
               <textarea
                 className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
@@ -330,7 +330,7 @@ export default function GoalsPage() {
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Status</Label>
                 <Select
                   value={form.status}
@@ -348,7 +348,7 @@ export default function GoalsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Progress (%)</Label>
                 <Input
                   type="number"
@@ -359,7 +359,7 @@ export default function GoalsPage() {
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Target Date (optional)</Label>
               <Input
                 type="date"

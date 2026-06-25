@@ -96,7 +96,7 @@ function Field({
   children: React.ReactNode
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Label>
         {label}
         {required && <span className="text-destructive ml-0.5">*</span>}
@@ -363,7 +363,7 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
               </SelectContent>
             </Select>
           </Field>
-          <div className="space-y-1.5 sm:col-span-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label>Manager</Label>
             <EmployeeCombobox
               value={form.managerId || undefined}
@@ -451,7 +451,7 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
               checked={form.onProbation}
               onCheckedChange={(c) => setForm((f) => ({ ...f, onProbation: !!c }))}
             />
-            <Label htmlFor="onProbation" className="cursor-pointer">
+            <Label htmlFor="onProbation" className="mb-0 cursor-pointer">
               On probation (uncheck to confirm early)
             </Label>
           </div>

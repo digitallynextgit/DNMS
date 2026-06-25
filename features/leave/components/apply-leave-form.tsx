@@ -301,7 +301,7 @@ export function ApplyLeaveForm() {
             checked={isHalfDay}
             onCheckedChange={(v) => setIsHalfDay(v === true)}
           />
-          <Label htmlFor="half-day" className="cursor-pointer font-normal">
+          <Label htmlFor="half-day" className="mb-0 cursor-pointer font-normal">
             Half day
           </Label>
         </div>

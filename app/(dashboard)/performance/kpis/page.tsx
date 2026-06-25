@@ -171,7 +171,7 @@ export default function KpisPage() {
             <DialogTitle>Add KPI</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="kpi-name">Name</Label>
               <Input
                 id="kpi-name"
@@ -180,7 +180,7 @@ export default function KpisPage() {
                 placeholder="e.g. Quality of Work"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="kpi-desc">Description</Label>
               <Textarea
                 id="kpi-desc"
@@ -190,7 +190,7 @@ export default function KpisPage() {
                 placeholder="Optional"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="kpi-weight">Weight</Label>
               <Input
                 id="kpi-weight"

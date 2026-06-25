@@ -235,7 +235,7 @@ function ComposeDialog({
           <DialogTitle>New Message</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Subject *</Label>
             <Input
               value={title}
@@ -244,7 +244,7 @@ function ComposeDialog({
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Message *</Label>
             <Textarea
               value={content}
@@ -301,11 +301,11 @@ function EditMessageDialog({
           <DialogTitle>Edit Message</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Subject</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Message</Label>
             <Textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} />
           </div>

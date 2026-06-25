@@ -368,7 +368,7 @@ function FormField({
   children: React.ReactNode
 }) {
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2">
       <Label className="mb-2 block text-sm font-medium">
         {label}
         {required && <span className="text-destructive ml-0.5">*</span>}
@@ -637,7 +637,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         currentCity: ca.city ?? "",
         currentState: ca.state ?? "",
         currentZip: ca.zip ?? "",
-        // Required boolean in the schema — must be present or handleSubmit() fails
+        // Required boolean in the schema - must be present or handleSubmit() fails
         // validation silently (the checkbox lives on a later step, so no visible error).
         sameAsCurrent: false,
         permanentLine1: pa.line1 ?? "",
@@ -906,7 +906,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             <FormField label="Gender" required error={errors.gender?.message}>
               <Select
-                // key forces a remount when the value resolves after reset() —
+                // key forces a remount when the value resolves after reset() -
                 // Radix Select won't reflect a controlled value that changes post-mount.
                 key={`gender-${watchedValues.gender || "none"}`}
                 value={watchedValues.gender || ""}
@@ -1227,7 +1227,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
                 <div className="flex items-center justify-between gap-4 border-t pt-3">
                   <div>
-                    <Label className="flex items-center gap-1.5 text-sm font-medium">
+                    <Label className="mb-0 flex items-center gap-1.5 text-sm font-medium">
                       <KeyRound className="h-3.5 w-3.5" />
                       Require password change on first login
                     </Label>

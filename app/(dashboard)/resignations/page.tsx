@@ -36,7 +36,7 @@ export default function ResignationsPage() {
       { id: approveTarget.id, action: "APPROVE" },
       {
         onSuccess: () => {
-          toast.success("Resignation approved — account deactivated")
+          toast.success("Resignation approved - account deactivated")
           setApproveTarget(null)
         },
         onError: (e: Error) => toast.error(e.message),

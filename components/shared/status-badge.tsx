@@ -17,7 +17,7 @@ interface StatusBadgeProps {
 
 /**
  * One pill renderer for every status/badge in the app. Pass a color map (and
- * usually a label map) from `lib/constants.ts` — e.g.
+ * usually a label map) from `lib/constants.ts` - e.g.
  *   <StatusBadge status={req.status} colorMap={LEAVE_STATUS_COLORS} labelMap={LEAVE_STATUS_LABELS} />
  * Replaces the ~55 hand-copied `<span className="… rounded-full …">` pills.
  */

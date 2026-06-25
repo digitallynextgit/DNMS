@@ -391,7 +391,7 @@ function PhaseFormDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Name *</Label>
             <Input
               value={name}
@@ -402,7 +402,7 @@ function PhaseFormDialog({
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Description</Label>
             <Textarea
               value={description}
@@ -412,7 +412,7 @@ function PhaseFormDialog({
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Display Order</Label>
               <Input
                 type="number"
@@ -421,7 +421,7 @@ function PhaseFormDialog({
               />
             </div>
             {mode === "edit" && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Status</Label>
                 <select
                   className="bg-background h-9 w-full rounded border px-2 text-sm"
@@ -749,7 +749,7 @@ function DepartmentFormDialog({
           <DialogTitle>{mode === "create" ? "Add Department" : "Edit Department"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Name *</Label>
             <Input
               value={name}
@@ -758,7 +758,7 @@ function DepartmentFormDialog({
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Code *</Label>
             <Input
               value={code}
@@ -770,7 +770,7 @@ function DepartmentFormDialog({
               Short uppercase tag (auto-uppercased). Must be unique.
             </p>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Description</Label>
             <Textarea
               value={description}
@@ -780,7 +780,7 @@ function DepartmentFormDialog({
             />
           </div>
           {mode === "edit" && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Status</Label>
               <select
                 className="bg-background h-9 w-full rounded border px-2 text-sm"

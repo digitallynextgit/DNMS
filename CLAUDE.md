@@ -24,7 +24,7 @@ Everything lives under `src/`. `app/` is for routing ONLY. All real logic lives 
 
 ```
 src/
-├── app/                          # ROUTING ONLY — keep thin
+├── app/                          # ROUTING ONLY - keep thin
 │   ├── (marketing)/              # route group: public pages
 │   ├── (dashboard)/              # route group: authed app
 │   │   └── projects/
@@ -51,7 +51,7 @@ src/
 │       ├── schemas/              # zod schemas
 │       ├── types.ts
 │       ├── constants.ts
-│       └── index.ts              # PUBLIC API — only this is imported elsewhere
+│       └── index.ts              # PUBLIC API - only this is imported elsewhere
 │
 ├── components/                   # SHARED UI (used by 2+ features)
 │   ├── ui/                       # shadcn/ui primitives
@@ -196,12 +196,12 @@ import { listProjects } from "@/features/projects"
 export const GET = withErrorHandler(async () => ok(await listProjects()))
 ```
 
-### Frontend error files (App Router) — create these in `src/app/`
+### Frontend error files (App Router) - create these in `src/app/`
 
-- `error.tsx` — route-segment boundary (`"use client"`, has `reset()`).
-- `global-error.tsx` — root boundary, renders its own `<html><body>`.
-- `not-found.tsx` — 404.
-- `loading.tsx` — Suspense fallback.
+- `error.tsx` - route-segment boundary (`"use client"`, has `reset()`).
+- `global-error.tsx` - root boundary, renders its own `<html><body>`.
+- `not-found.tsx` - 404.
+- `loading.tsx` - Suspense fallback.
 
 Also add `error.tsx` + `loading.tsx` inside major route folders (e.g. `app/(dashboard)/projects/`)
 so one section failing doesn't blank the whole app.
@@ -236,7 +236,7 @@ export default function Error({
 
 ## 4. Shared infra files
 
-### `src/lib/env.ts` — validate env at boot (fail fast)
+### `src/lib/env.ts` - validate env at boot (fail fast)
 
 ```ts
 import { z } from "zod"
@@ -249,7 +249,7 @@ const schema = z.object({
 export const env = schema.parse(process.env)
 ```
 
-### `src/server/db.ts` — Prisma singleton
+### `src/server/db.ts` - Prisma singleton
 
 ```ts
 import { PrismaClient } from "@prisma/client"
@@ -343,7 +343,7 @@ next-env.d.ts
 # testing
 /coverage
 
-# env files — NEVER commit
+# env files - NEVER commit
 .env
 .env*.local
 .env.development
@@ -487,7 +487,7 @@ pnpm exec lint-staged
 }
 ```
 
-### Conventional commits — commitlint
+### Conventional commits - commitlint
 
 Install: `pnpm add -D @commitlint/cli @commitlint/config-conventional`
 
@@ -545,7 +545,7 @@ Commit format: `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`.
 5. Add route(s) under `src/app/` that import from `@/features/<name>` and render.
 6. Add API route(s) under `src/app/api/<name>/route.ts` wrapped in `withErrorHandler`.
 7. Add `loading.tsx` + `error.tsx` to the route folder.
-8. Never import another feature's internals — only its `index.ts`.
+8. Never import another feature's internals - only its `index.ts`.
 
 ---
 
@@ -555,6 +555,6 @@ Commit format: `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`.
 - ❌ Importing `@/features/x/server/...` from outside feature `x`.
 - ❌ Committing `.env` (only `.env.example`).
 - ❌ Server-only code without `import "server-only";`.
-- ❌ Inconsistent API responses — always `ok()` / `fail()`.
-- ❌ Catch-and-swallow errors — let `withErrorHandler` handle them.
-- ❌ Putting one-off helpers in `src/lib` — keep them in the feature until reused.
+- ❌ Inconsistent API responses - always `ok()` / `fail()`.
+- ❌ Catch-and-swallow errors - let `withErrorHandler` handle them.
+- ❌ Putting one-off helpers in `src/lib` - keep them in the feature until reused.

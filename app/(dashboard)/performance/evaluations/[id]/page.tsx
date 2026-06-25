@@ -200,7 +200,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
                   <td className="px-4 py-2.5">{renderSide("MANAGER", c)}</td>
                   {hasController && <td className="px-4 py-2.5">{renderSide("CONTROLLER", c)}</td>}
                   <td className="px-2 py-2.5 text-right font-medium tabular-nums">
-                    {managerScore.perCriterion[c.id] ?? "—"}
+                    {managerScore.perCriterion[c.id] ?? "-"}
                   </td>
                 </tr>
               ))}
@@ -249,7 +249,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
                 <p className="text-2xl font-bold">
                   {ev.managerSubmittedAt || (canEdit && editableSide === "MANAGER")
                     ? `${managerScore.total}`
-                    : "—"}
+                    : "-"}
                   <span className="text-muted-foreground text-base font-normal"> / 100</span>
                 </p>
               </div>

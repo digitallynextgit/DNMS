@@ -140,7 +140,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
             <Avatar className="h-24 w-24 shrink-0">
               {/* Always mount AvatarImage (src empty when no photo) so Radix resets
                   its loading status and shows the fallback the moment a photo is
-                  removed — conditionally unmounting it leaves a stale "loaded"
+                  removed - conditionally unmounting it leaves a stale "loaded"
                   status and a blank avatar until reload. */}
               <AvatarImage src={emp.profilePhoto ?? undefined} alt={fullName} />
               <AvatarFallback className={cn("text-2xl font-bold text-white", avatarBg)}>

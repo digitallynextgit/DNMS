@@ -18,6 +18,8 @@ import {
   Send,
   CheckCircle2,
   Upload,
+  Pencil,
+  Trash2,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,6 +29,7 @@ import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PageHeader } from "@/components/shared/page-header"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { ProfileSelfActions } from "@/features/employees"
@@ -105,6 +108,10 @@ export default function ProfilePage() {
 
   const [gmailPw, setGmailPw] = useState("")
   const [showGmailPw, setShowGmailPw] = useState(false)
+  // When a password is already set we show a "Change / Delete" panel; editing
+  // reveals the input. `gmailConfirm` drives the are-you-sure dialogs.
+  const [editingGmail, setEditingGmail] = useState(false)
+  const [gmailConfirm, setGmailConfirm] = useState<"change" | "delete" | null>(null)
 
   const [docUploadOpen, setDocUploadOpen] = useState(false)
 
@@ -123,9 +130,26 @@ export default function ProfilePage() {
     onSuccess: () => {
       toast.success("Gmail App Password saved")
       setGmailPw("")
+      setEditingGmail(false)
       refetch()
     },
     onError: (err: Error) => toast.error(err.message),
+  })
+
+  const gmailDeleteMut = useMutation({
+    // Sending an empty value clears the stored password (route sets it to null).
+    mutationFn: () => saveGmailAppPassword({ gmailAppPassword: "" }),
+    onSuccess: () => {
+      toast.success("Gmail App Password removed")
+      setGmailPw("")
+      setEditingGmail(false)
+      setGmailConfirm(null)
+      refetch()
+    },
+    onError: (err: Error) => {
+      toast.error(err.message)
+      setGmailConfirm(null)
+    },
   })
 
   const gmailPwStripped = gmailPw.replace(/\s+/g, "")
@@ -148,6 +172,7 @@ export default function ProfilePage() {
   }
 
   const emp = data.data
+  const hasGmail = Boolean((emp as { hasGmailAppPassword?: boolean }).hasGmailAppPassword)
   const fullName = `${emp.firstName} ${emp.lastName}`
   // Probation end is derived (dateOfJoining + probationMonths); the raw DB column
   // is unused, so compute it the same way the admin/HR employee page does.
@@ -426,8 +451,8 @@ export default function ProfilePage() {
                 Change Password
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
                 <Label>Current Password</Label>
                 <div className="relative">
                   <Input
@@ -445,7 +470,7 @@ export default function ProfilePage() {
                   </button>
                 </div>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>New Password</Label>
                 <Input
                   type={showPw ? "text" : "password"}
@@ -454,7 +479,7 @@ export default function ProfilePage() {
                   placeholder="Min. 8 characters"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Confirm New Password</Label>
                 <Input
                   type={showPw ? "text" : "password"}
@@ -495,67 +520,118 @@ export default function ProfilePage() {
                 address. Stored encrypted (AES-256-GCM) - never shown back to you after save.
               </p>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Currently-set indicator */}
-              {(emp as { hasGmailAppPassword?: boolean }).hasGmailAppPassword && (
-                <div className="flex items-center gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <span>App Password is set. Enter a new one below to replace it.</span>
+            <CardContent className="space-y-6">
+              {hasGmail && !editingGmail ? (
+                /* Password already set → status + Change / Delete actions. */
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span>App Password is set.</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setGmailConfirm("change")}>
+                      <Pencil className="mr-2 h-3.5 w-3.5" />
+                      Change
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setGmailConfirm("delete")}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-3.5 w-3.5" />
+                      Delete
+                    </Button>
+                  </div>
                 </div>
+              ) : (
+                /* No password yet, or editing → show the input form. */
+                <>
+                  <div className="space-y-2">
+                    <Label>{hasGmail ? "New App Password" : "App Password"}</Label>
+                    <div className="relative">
+                      <Input
+                        type={showGmailPw ? "text" : "password"}
+                        value={gmailPw}
+                        onChange={(e) => setGmailPw(e.target.value)}
+                        placeholder="abcd efgh ijkl mnop"
+                        autoComplete="off"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowGmailPw((s) => !s)}
+                        className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
+                      >
+                        {showGmailPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {gmailPw && !gmailPwValid && (
+                      <p className="text-destructive text-xs">
+                        Must be 16 characters (currently {gmailPwStripped.length})
+                      </p>
+                    )}
+                    <p className="text-muted-foreground text-xs">
+                      Generate at{" "}
+                      <a
+                        href="https://myaccount.google.com/apppasswords"
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="underline"
+                      >
+                        myaccount.google.com → Security → App Passwords
+                      </a>
+                      . Requires 2FA on your Google account.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    {hasGmail && editingGmail && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditingGmail(false)
+                          setGmailPw("")
+                          setShowGmailPw(false)
+                        }}
+                        disabled={gmailMut.isPending}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => gmailMut.mutate()}
+                      disabled={gmailMut.isPending || !gmailPwValid}
+                    >
+                      {gmailMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {hasGmail ? "Update App Password" : "Save App Password"}
+                    </Button>
+                  </div>
+                </>
               )}
 
-              <div className="space-y-1.5">
-                <Label>
-                  {(emp as { hasGmailAppPassword?: boolean }).hasGmailAppPassword
-                    ? "New App Password"
-                    : "App Password"}
-                </Label>
-                <div className="relative">
-                  <Input
-                    type={showGmailPw ? "text" : "password"}
-                    value={gmailPw}
-                    onChange={(e) => setGmailPw(e.target.value)}
-                    placeholder="abcd efgh ijkl mnop"
-                    autoComplete="off"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowGmailPw((s) => !s)}
-                    className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
-                  >
-                    {showGmailPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {gmailPw && !gmailPwValid && (
-                  <p className="text-destructive text-xs">
-                    Must be 16 characters (currently {gmailPwStripped.length})
-                  </p>
-                )}
-                <p className="text-muted-foreground text-xs">
-                  Generate at{" "}
-                  <a
-                    href="https://myaccount.google.com/apppasswords"
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="underline"
-                  >
-                    myaccount.google.com → Security → App Passwords
-                  </a>
-                  . Requires 2FA on your Google account.
-                </p>
-              </div>
+              <ConfirmDialog
+                open={gmailConfirm === "change"}
+                onOpenChange={(o) => !o && setGmailConfirm(null)}
+                title="Change Gmail App Password?"
+                description="You'll enter a new App Password. The current one will be replaced once you save."
+                confirmLabel="Continue"
+                onConfirm={() => {
+                  setEditingGmail(true)
+                  setGmailPw("")
+                  setGmailConfirm(null)
+                }}
+              />
 
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => gmailMut.mutate()}
-                  disabled={gmailMut.isPending || !gmailPwValid}
-                >
-                  {gmailMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {(emp as { hasGmailAppPassword?: boolean }).hasGmailAppPassword
-                    ? "Update App Password"
-                    : "Save App Password"}
-                </Button>
-              </div>
+              <ConfirmDialog
+                open={gmailConfirm === "delete"}
+                onOpenChange={(o) => !o && setGmailConfirm(null)}
+                title="Remove Gmail App Password?"
+                description="HRMS will no longer be able to send emails from your address. You can add a new one anytime."
+                confirmLabel="Delete"
+                variant="destructive"
+                isLoading={gmailDeleteMut.isPending}
+                onConfirm={() => gmailDeleteMut.mutate()}
+              />
             </CardContent>
           </Card>
         </TabsContent>

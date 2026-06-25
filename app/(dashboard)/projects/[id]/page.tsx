@@ -255,7 +255,7 @@ export default function ProjectDetailPage() {
                   className="text-muted-foreground text-sm"
                   onClick={() => changePhase.mutate("")}
                 >
-                  - None —
+                  - None -
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {phases.map((p) =>
@@ -315,7 +315,7 @@ export default function ProjectDetailPage() {
                 {canManage && (
                   <Stat
                     label="Budget"
-                    value={project.budget ? `₹${project.budget.toLocaleString("en-IN")}` : "—"}
+                    value={project.budget ? `₹${project.budget.toLocaleString("en-IN")}` : "-"}
                     isText
                   />
                 )}
@@ -350,10 +350,10 @@ export default function ProjectDetailPage() {
                 <Field label="Code" value={project.code} mono />
                 <Field
                   label="Onboarding Date"
-                  value={project.startDate ? formatDate(project.startDate) : "—"}
+                  value={project.startDate ? formatDate(project.startDate) : "-"}
                   icon={Calendar}
                 />
-                <Field label="Phase" value={project.currentPhase?.name ?? "—"} icon={GitBranch} />
+                <Field label="Phase" value={project.currentPhase?.name ?? "-"} icon={GitBranch} />
               </div>
             </CardContent>
           </Card>

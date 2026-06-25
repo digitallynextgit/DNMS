@@ -50,6 +50,7 @@ function getProfile(profile: string): { transporter: Transporter; from: string }
 
 interface SendEmailOptions {
   to: string | string[]
+  cc?: string | string[]
   subject: string
   html: string
   text?: string
@@ -61,11 +62,20 @@ interface SendEmailOptions {
   from?: string
 }
 
+// Normalize an address (or list) into the comma-joined string nodemailer wants,
+// or undefined when there are no addresses.
+function addressList(value?: string | string[]): string | undefined {
+  if (!value) return undefined
+  const joined = Array.isArray(value) ? value.filter(Boolean).join(", ") : value
+  return joined || undefined
+}
+
 export async function sendEmail(options: SendEmailOptions): Promise<void> {
   const { transporter, from } = getProfile(options.profile ?? "default")
   await transporter.sendMail({
     from: options.from ?? from,
-    to: Array.isArray(options.to) ? options.to.join(", ") : options.to,
+    to: addressList(options.to),
+    cc: addressList(options.cc),
     subject: options.subject,
     html: options.html,
     text: options.text,
@@ -118,7 +128,8 @@ export async function sendEmailAs(employeeId: string, options: SendEmailOptions)
   try {
     await perUser.sendMail({
       from: `"${fromName}" <${emp.email}>`,
-      to: Array.isArray(options.to) ? options.to.join(", ") : options.to,
+      to: addressList(options.to),
+      cc: addressList(options.cc),
       subject: options.subject,
       html: options.html,
       text: options.text,

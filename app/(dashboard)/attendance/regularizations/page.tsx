@@ -286,7 +286,7 @@ export default function RegularizationsPage() {
             <DialogTitle>Raise Regularization Request</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-1">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="reg-date">Date</Label>
               <Input
                 id="reg-date"
@@ -296,7 +296,7 @@ export default function RegularizationsPage() {
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="reg-in">Check In</Label>
                 <Input
                   id="reg-in"
@@ -305,7 +305,7 @@ export default function RegularizationsPage() {
                   onChange={(e) => setCheckIn(e.target.value)}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="reg-out">Check Out</Label>
                 <Input
                   id="reg-out"
@@ -315,7 +315,7 @@ export default function RegularizationsPage() {
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="reg-reason">Reason</Label>
               <Textarea
                 id="reg-reason"

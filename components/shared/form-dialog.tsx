@@ -19,9 +19,9 @@ interface FormDialogProps {
   onOpenChange: (open: boolean) => void
   title: string
   description?: string
-  /** Whether the form is in edit (vs. create) mode — drives the default submit label. */
+  /** Whether the form is in edit (vs. create) mode - drives the default submit label. */
   isEdit?: boolean
-  /** Mutation pending state — disables the footer + shows a spinner. */
+  /** Mutation pending state - disables the footer + shows a spinner. */
   isPending?: boolean
   /** Extra condition to disable submit (e.g. invalid form). */
   submitDisabled?: boolean

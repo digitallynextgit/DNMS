@@ -447,14 +447,14 @@ export default function JobPipelinePage() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>First Name</Label>
                 <Input
                   value={form.firstName}
                   onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Last Name</Label>
                 <Input
                   value={form.lastName}
@@ -462,7 +462,7 @@ export default function JobPipelinePage() {
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Email</Label>
               <Input
                 type="email"
@@ -471,14 +471,14 @@ export default function JobPipelinePage() {
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Phone (optional)</Label>
                 <Input
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Source (optional)</Label>
                 <Input
                   value={form.source}
@@ -487,7 +487,7 @@ export default function JobPipelinePage() {
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Resume URL (optional)</Label>
               <Input
                 value={form.resumeUrl}
@@ -495,7 +495,7 @@ export default function JobPipelinePage() {
                 placeholder="https://drive.google.com/..."
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Notes (optional)</Label>
               <textarea
                 className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
@@ -530,7 +530,7 @@ export default function JobPipelinePage() {
             </DialogHeader>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label>Type</Label>
                   <Select
                     value={iForm.type}
@@ -548,7 +548,7 @@ export default function JobPipelinePage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label>Date & Time</Label>
                   <Input
                     type="datetime-local"
@@ -557,7 +557,7 @@ export default function JobPipelinePage() {
                   />
                 </div>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Notes (optional)</Label>
                 <textarea
                   className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"

@@ -119,7 +119,7 @@ export function ManualAttendanceDialog({
     >
       {/* Employee select */}
       {!isEdit && (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="employee">Employee</Label>
           <EmployeeCombobox
             value={employeeId || undefined}
@@ -131,7 +131,7 @@ export function ManualAttendanceDialog({
       )}
 
       {/* Date */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="date">Date</Label>
         <Input
           id="date"
@@ -145,7 +145,7 @@ export function ManualAttendanceDialog({
 
       {/* Check in / check out */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="check-in">Check In</Label>
           <Input
             id="check-in"
@@ -154,7 +154,7 @@ export function ManualAttendanceDialog({
             onChange={(e) => setCheckIn(e.target.value)}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="check-out">Check Out</Label>
           <Input
             id="check-out"
@@ -173,7 +173,7 @@ export function ManualAttendanceDialog({
       )}
 
       {/* Status */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="status">Status</Label>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger id="status">
@@ -190,7 +190,7 @@ export function ManualAttendanceDialog({
       </div>
 
       {/* Notes */}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="notes">Notes</Label>
         <Textarea
           id="notes"

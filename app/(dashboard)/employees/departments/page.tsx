@@ -323,7 +323,7 @@ export default function DepartmentsPage() {
             <DialogTitle>{editing ? "Edit Department" : "Add Department"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="dept-name">Name</Label>
               <Input
                 id="dept-name"
@@ -332,7 +332,7 @@ export default function DepartmentsPage() {
                 placeholder="Engineering"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="dept-code">Code</Label>
               <Input
                 id="dept-code"
@@ -341,7 +341,7 @@ export default function DepartmentsPage() {
                 placeholder="ENG"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="dept-desc">Description</Label>
               <Textarea
                 id="dept-desc"

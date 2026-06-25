@@ -137,7 +137,7 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
+                          <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </td>
                       <td className="text-muted-foreground px-4 py-2.5 text-center">
@@ -462,7 +462,7 @@ function CreateTeamDialog({
           <DialogTitle>Add Team</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="team-name">Team Name</Label>
             <Input
               id="team-name"
@@ -471,7 +471,7 @@ function CreateTeamDialog({
               placeholder="e.g. Web Development"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="team-desc">Description (optional)</Label>
             <Textarea
               id="team-desc"
@@ -566,7 +566,7 @@ function AddMemberDialog({
                       {e.firstName} {e.lastName}
                     </p>
                     <p className="text-muted-foreground text-xs">
-                      {e.employeeNo} · {e.designation?.title ?? "—"}
+                      {e.employeeNo} · {e.designation?.title ?? "-"}
                     </p>
                   </div>
                 </button>
