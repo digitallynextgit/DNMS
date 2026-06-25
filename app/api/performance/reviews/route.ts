@@ -3,6 +3,7 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
 export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
@@ -31,11 +32,7 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
         cycle: true,
         reviewee: {
           select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            employeeNo: true,
-            profilePhoto: true,
+            ...EMPLOYEE_SUMMARY_SELECT,
             department: { select: { name: true } },
             designation: { select: { title: true } },
           },

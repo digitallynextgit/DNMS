@@ -8,11 +8,12 @@ import { Plus, Check, X, Inbox, Loader2 } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Dialog,
@@ -21,9 +22,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { RejectReasonDialog } from "@/components/shared/reject-reason-dialog"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
-import { cn, getInitials, formatDate } from "@/lib/utils"
+import { getInitials, formatDate } from "@/lib/utils"
 
 interface EmpSnippet {
   id: string
@@ -120,7 +122,6 @@ export default function RegularizationsPage() {
   const [reason, setReason] = useState("")
 
   const [rejectId, setRejectId] = useState<string | null>(null)
-  const [rejectNote, setRejectNote] = useState("")
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["regularizations"] })
 
@@ -152,7 +153,6 @@ export default function RegularizationsPage() {
             : "Request cancelled",
       )
       setRejectId(null)
-      setRejectNote("")
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -171,16 +171,9 @@ export default function RegularizationsPage() {
       />
 
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 rounded" />
-          ))}
-        </div>
+        <ListSkeleton rows={3} height="h-14" />
       ) : requests.length === 0 ? (
-        <div className="bg-card flex flex-col items-center justify-center rounded border py-16 text-center">
-          <Inbox className="text-muted-foreground/40 mb-2 h-8 w-8" />
-          <p className="text-muted-foreground text-sm">No regularization requests yet.</p>
-        </div>
+        <EmptyState variant="card" icon={Inbox} title="No regularization requests yet." />
       ) : (
         <div className="bg-card overflow-x-auto rounded border">
           <table className="w-full text-sm">
@@ -222,12 +215,11 @@ export default function RegularizationsPage() {
                     {r.reason}
                   </td>
                   <td className="px-4 py-2.5">
-                    <Badge
-                      variant="outline"
-                      className={cn("text-xs", LEAVE_STATUS_COLORS[r.status])}
-                    >
-                      {LEAVE_STATUS_LABELS[r.status]}
-                    </Badge>
+                    <StatusBadge
+                      status={r.status}
+                      colorMap={LEAVE_STATUS_COLORS}
+                      labelMap={LEAVE_STATUS_LABELS}
+                    />
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     {r.status === "PENDING" && (
@@ -357,38 +349,17 @@ export default function RegularizationsPage() {
       </Dialog>
 
       {/* Reject dialog */}
-      <Dialog open={!!rejectId} onOpenChange={(o) => !o && setRejectId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Request</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="reg-reject-note">Note (optional)</Label>
-            <Textarea
-              id="reg-reject-note"
-              value={rejectNote}
-              onChange={(e) => setRejectNote(e.target.value)}
-              placeholder="Reason for rejection..."
-              rows={3}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectId(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={patchMut.isPending}
-              onClick={() =>
-                rejectId &&
-                patchMut.mutate({ id: rejectId, action: "REJECT", note: rejectNote.trim() })
-              }
-            >
-              Confirm Reject
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RejectReasonDialog
+        open={!!rejectId}
+        onOpenChange={(o) => !o && setRejectId(null)}
+        title="Reject Request"
+        reasonLabel="Note (optional)"
+        reasonPlaceholder="Reason for rejection..."
+        required={false}
+        confirmLabel="Reject"
+        isLoading={patchMut.isPending}
+        onConfirm={(note) => rejectId && patchMut.mutate({ id: rejectId, action: "REJECT", note })}
+      />
     </div>
   )
 }

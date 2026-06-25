@@ -6,10 +6,11 @@ import { Plus, Trash2, Inbox } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
+import { EmptyState } from "@/components/shared/empty-state"
+import { TableSkeleton } from "@/components/shared/loading-skeleton"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -27,33 +28,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { cn } from "@/lib/utils"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { usePermissions } from "@/features/admin"
 import { useEmployees } from "@/features/employees"
-import { PERMISSIONS } from "@/lib/constants"
+import { PERMISSIONS, EVALUATION_STATUS_COLORS, EVALUATION_STATUS_LABELS } from "@/lib/constants"
 import {
   useEvaluations,
   useCreateEvaluation,
   useDeleteEvaluation,
   type Evaluation,
 } from "@/features/performance"
-
-const STATUS: Record<string, string> = {
-  PENDING:
-    "border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200",
-  SELF_DONE:
-    "border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-300",
-  MANAGER_DONE:
-    "border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-300",
-  COMPLETED:
-    "border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300",
-}
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: "Pending",
-  SELF_DONE: "Self done",
-  MANAGER_DONE: "Manager done",
-  COMPLETED: "Completed",
-}
 
 function NewEvaluationDialog() {
   const [open, setOpen] = useState(false)
@@ -197,6 +181,7 @@ export default function EvaluationsPage() {
   const [page, setPage] = useState(1)
   const { data, isLoading } = useEvaluations({ page, limit: 10 })
   const del = useDeleteEvaluation()
+  const [deleteTarget, setDeleteTarget] = useState<Evaluation | null>(null)
   const evaluations = data?.data ?? []
   const pagination = data?.pagination
 
@@ -222,18 +207,13 @@ export default function EvaluationsPage() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded" />
-          ))}
-        </div>
-      ) : evaluations.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <Inbox className="text-muted-foreground/40 mx-auto mb-2 h-8 w-8" />
-            <p className="text-muted-foreground text-sm">No evaluations yet.</p>
+        <Card>
+          <CardContent className="p-0">
+            <TableSkeleton rows={3} cols={6} />
           </CardContent>
         </Card>
+      ) : evaluations.length === 0 ? (
+        <EmptyState icon={Inbox} variant="card" title="No evaluations yet." />
       ) : (
         <Card>
           <CardContent className="overflow-x-auto p-0">
@@ -259,9 +239,11 @@ export default function EvaluationsPage() {
                       {ev.manager ? `${ev.manager.firstName} ${ev.manager.lastName}` : "—"}
                     </td>
                     <td className="px-4 py-2.5">
-                      <Badge variant="outline" className={cn("text-xs", STATUS[ev.status])}>
-                        {STATUS_LABEL[ev.status]}
-                      </Badge>
+                      <StatusBadge
+                        status={ev.status}
+                        colorMap={EVALUATION_STATUS_COLORS}
+                        labelMap={EVALUATION_STATUS_LABELS}
+                      />
                     </td>
                     <td className="px-4 py-2.5 text-right font-semibold tabular-nums">
                       {ev.finalScore != null ? `${ev.finalScore}/100` : "—"}
@@ -276,9 +258,7 @@ export default function EvaluationsPage() {
                             variant="ghost"
                             size="sm"
                             className="text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              if (confirm("Delete this evaluation?")) del.mutate(ev.id)
-                            }}
+                            onClick={() => setDeleteTarget(ev)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -302,6 +282,20 @@ export default function EvaluationsPage() {
           itemLabel="evaluation"
         />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="Delete evaluation?"
+        description="Delete this evaluation?"
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={del.isPending}
+        onConfirm={() => {
+          if (!deleteTarget) return
+          del.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })
+        }}
+      />
     </div>
   )
 }

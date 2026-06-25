@@ -22,9 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, REVIEW_STATUS_LABELS, REVIEW_STATUS_COLORS } from "@/lib/constants"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 
 interface ReviewCycle {
@@ -195,20 +197,19 @@ export default function PerformancePage() {
       )}
 
       {cyclesLoading || reviewsLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded" />
-          ))}
+        <div className="bg-card rounded border">
+          <TableSkeleton rows={5} cols={canReview ? 7 : 6} />
         </div>
       ) : reviews.length === 0 ? (
-        <div className="bg-card flex flex-col items-center justify-center rounded border py-20 text-center">
-          <Star className="text-muted-foreground/40 mb-3 h-10 w-10" />
-          <p className="text-muted-foreground text-sm">
-            {cycles.length === 0
+        <EmptyState
+          icon={Star}
+          variant="card"
+          title={
+            cycles.length === 0
               ? "No review cycles yet. Create one to get started."
-              : "No reviews in this cycle."}
-          </p>
-        </div>
+              : "No reviews in this cycle."
+          }
+        />
       ) : (
         <div className="bg-card rounded border">
           <table className="w-full text-sm">
@@ -250,14 +251,11 @@ export default function PerformancePage() {
                     {review.reviewee.department?.name ?? "-"}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                        REVIEW_STATUS_COLORS[review.status],
-                      )}
-                    >
-                      {REVIEW_STATUS_LABELS[review.status]}
-                    </span>
+                    <StatusBadge
+                      status={review.status}
+                      colorMap={REVIEW_STATUS_COLORS}
+                      labelMap={REVIEW_STATUS_LABELS}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <RatingStars value={review.selfRating} />

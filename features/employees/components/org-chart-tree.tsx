@@ -2,9 +2,10 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ChevronDown, ChevronRight } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { cn, getInitials, getAvatarColor, employeeSlug } from "@/lib/utils"
+import { ChevronDown, ChevronRight, Users } from "lucide-react"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { EmptyState } from "@/components/shared/empty-state"
+import { employeeSlug } from "@/lib/utils"
 import type { OrgNode } from "@/types"
 
 export interface OrgChartTreeProps {
@@ -15,8 +16,6 @@ export interface OrgChartTreeProps {
 
 function OrgNodeCard({ node }: { node: OrgNode }) {
   const fullName = `${node.firstName} ${node.lastName}`
-  const initials = getInitials(node.firstName, node.lastName)
-  const avatarBg = getAvatarColor(fullName)
 
   return (
     <Link
@@ -25,12 +24,12 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
     >
       <div className="bg-card border-border group-hover:border-primary/40 w-36 rounded border px-3 py-2.5 text-center shadow-sm transition-all group-hover:shadow-md">
         <div className="mb-1.5 flex justify-center">
-          <Avatar className="h-8 w-8">
-            {node.profilePhoto ? <AvatarImage src={node.profilePhoto} alt={fullName} /> : null}
-            <AvatarFallback className={cn("text-xs font-semibold text-white", avatarBg)}>
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <AvatarDisplay
+            src={node.profilePhoto}
+            firstName={node.firstName}
+            lastName={node.lastName}
+            size="sm"
+          />
         </div>
         <p className="text-foreground truncate text-xs leading-tight font-semibold">{fullName}</p>
         {node.designation?.title && (
@@ -108,11 +107,7 @@ function TreeNode({ node, depth = 0 }: { node: OrgNode; depth?: number }) {
 
 export function OrgChartTree({ nodes }: OrgChartTreeProps) {
   if (nodes.length === 0) {
-    return (
-      <div className="text-muted-foreground flex items-center justify-center py-20 text-sm">
-        No employees found in the org chart.
-      </div>
-    )
+    return <EmptyState icon={Users} title="No employees found in the org chart." />
   }
 
   return (

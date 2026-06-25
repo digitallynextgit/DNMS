@@ -19,6 +19,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 
 const PAGE_SIZE = 10
 
@@ -52,6 +55,7 @@ export default function KpisPage() {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [weight, setWeight] = useState("1")
+  const [deleteTarget, setDeleteTarget] = useState<Kpi | null>(null)
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["kpis"] })
 
@@ -88,6 +92,41 @@ export default function KpisPage() {
     onError: (e: Error) => toast.error(e.message),
   })
 
+  const columns: DataTableColumn<Kpi>[] = [
+    {
+      header: "KPI",
+      cell: (k) => (
+        <>
+          <p className="font-medium">{k.name}</p>
+          {k.description && <p className="text-muted-foreground text-xs">{k.description}</p>}
+        </>
+      ),
+    },
+    {
+      header: "Weight",
+      cell: (k) => (
+        <Badge variant="outline" className="text-xs">
+          {k.weight}
+        </Badge>
+      ),
+    },
+    {
+      header: "Actions",
+      align: "right",
+      cell: (k) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-destructive hover:bg-destructive/10 h-7 w-7"
+          disabled={delMut.isPending}
+          onClick={() => setDeleteTarget(k)}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -100,59 +139,21 @@ export default function KpisPage() {
         }
       />
 
-      <div className="bg-card rounded border">
-        {isLoading ? (
+      {isLoading ? (
+        <div className="bg-card rounded border">
           <div className="space-y-2 p-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-12 rounded" />
             ))}
           </div>
-        ) : kpis.length === 0 ? (
-          <div className="text-muted-foreground py-12 text-center text-sm">
-            No KPIs defined yet.
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b">
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">KPI</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Weight</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {pageKpis.map((k) => (
-                <tr key={k.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3">
-                    <p className="font-medium">{k.name}</p>
-                    {k.description && (
-                      <p className="text-muted-foreground text-xs">{k.description}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="outline" className="text-xs">
-                      {k.weight}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:bg-destructive/10 h-7 w-7"
-                      disabled={delMut.isPending}
-                      onClick={() => {
-                        if (confirm(`Delete KPI "${k.name}"?`)) delMut.mutate(k.id)
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+        </div>
+      ) : kpis.length === 0 ? (
+        <div className="bg-card rounded border">
+          <EmptyState title="No KPIs defined yet." />
+        </div>
+      ) : (
+        <DataTable columns={columns} rows={pageKpis} rowKey={(k) => k.id} />
+      )}
 
       {!isLoading && total > 0 && (
         <Pagination
@@ -214,6 +215,20 @@ export default function KpisPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="Delete KPI?"
+        description={deleteTarget ? `Delete KPI "${deleteTarget.name}"?` : ""}
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={delMut.isPending}
+        onConfirm={() => {
+          if (!deleteTarget) return
+          delMut.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })
+        }}
+      />
     </div>
   )
 }

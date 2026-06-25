@@ -23,9 +23,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/shared/pagination"
+import { EmptyState } from "@/components/shared/empty-state"
+import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { GOAL_STATUS_LABELS, GOAL_STATUS_COLORS } from "@/lib/constants"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 10
@@ -217,19 +219,14 @@ export default function GoalsPage() {
       />
 
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-36 rounded" />
-          ))}
-        </div>
+        <CardGridSkeleton count={6} />
       ) : goals.length === 0 ? (
-        <div className="bg-card flex flex-col items-center justify-center rounded border py-20 text-center">
-          <Target className="text-muted-foreground/40 mb-3 h-10 w-10" />
-          <p className="text-muted-foreground text-sm">No goals for {year}. Add your first goal.</p>
-          <Button onClick={openCreate} variant="outline" size="sm" className="mt-4">
-            Add Goal
-          </Button>
-        </div>
+        <EmptyState
+          icon={Target}
+          variant="card"
+          title={`No goals for ${year}. Add your first goal.`}
+          action={{ label: "Add Goal", onClick: openCreate }}
+        />
       ) : (
         <div className="space-y-6">
           {(["IN_PROGRESS", "NOT_STARTED", "COMPLETED", "CANCELLED"] as const).map((status) => {
@@ -278,14 +275,11 @@ export default function GoalsPage() {
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <span
-                            className={cn(
-                              "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                              GOAL_STATUS_COLORS[goal.status],
-                            )}
-                          >
-                            {GOAL_STATUS_LABELS[goal.status]}
-                          </span>
+                          <StatusBadge
+                            status={goal.status}
+                            colorMap={GOAL_STATUS_COLORS}
+                            labelMap={GOAL_STATUS_LABELS}
+                          />
                           {goal.targetDate && (
                             <span className="text-muted-foreground text-xs">
                               Due {new Date(goal.targetDate).toLocaleDateString()}

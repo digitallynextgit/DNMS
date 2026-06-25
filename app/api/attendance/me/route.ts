@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import type { Session } from "next-auth"
 
 export const GET = withSession(
@@ -10,9 +11,10 @@ export const GET = withSession(
 
       const daysBack = Math.min(365, Math.max(1, Number(searchParams.get("days") ?? "30")))
       const status = searchParams.get("status") ?? undefined
-      const page = Math.max(1, Number(searchParams.get("page") ?? "1"))
-      const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit") ?? "30")))
-      const skip = (page - 1) * limit
+      const { page, limit, skip, take } = resolvePagination(
+        { page: searchParams.get("page"), limit: searchParams.get("limit") },
+        30,
+      )
 
       const dateFrom = new Date()
       dateFrom.setUTCDate(dateFrom.getUTCDate() - daysBack)
@@ -30,19 +32,14 @@ export const GET = withSession(
           where,
           orderBy: { date: "desc" },
           skip,
-          take: limit,
+          take,
         }),
         db.attendanceLog.count({ where }),
       ])
 
       return NextResponse.json({
         data: logs,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-        },
+        pagination: paginationMeta(total, page, limit),
       })
     } catch (error) {
       console.error("[ATTENDANCE_ME_GET]", error)

@@ -5,7 +5,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import {
   Dialog,
   DialogContent,
@@ -41,8 +43,9 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Users,
 } from "lucide-react"
-import { cn, getInitials } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import Link from "next/link"
 
@@ -88,11 +91,12 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
       </div>
 
       {teams.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="text-muted-foreground py-10 text-center text-sm">
-            No teams yet. {canManage && "Click 'Add Team' to start organising this project."}
-          </CardContent>
-        </Card>
+        <EmptyState
+          compact
+          icon={Users}
+          title="No teams yet"
+          description={canManage ? "Click 'Add Team' to start organising this project." : undefined}
+        />
       ) : viewMode === "table" ? (
         <Card>
           <CardContent className="p-0">
@@ -121,14 +125,12 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
                       <td className="px-4 py-2.5">
                         {team.manager ? (
                           <div className="flex items-center gap-1.5">
-                            <Avatar className="h-5 w-5">
-                              {team.manager.profilePhoto && (
-                                <AvatarImage src={team.manager.profilePhoto} />
-                              )}
-                              <AvatarFallback className="text-[9px]">
-                                {getInitials(team.manager.firstName, team.manager.lastName)}
-                              </AvatarFallback>
-                            </Avatar>
+                            <AvatarDisplay
+                              src={team.manager.profilePhoto}
+                              firstName={team.manager.firstName}
+                              lastName={team.manager.lastName}
+                              size="xs"
+                            />
                             <span className="text-xs">
                               <Crown className="mr-0.5 inline h-3 w-3 text-amber-500" />
                               {team.manager.firstName} {team.manager.lastName}
@@ -222,6 +224,7 @@ function TeamCard({
   const isManager = team.managerId === currentUserId
   const deleteTeam = useDeleteTeam(projectId)
   const [addOpen, setAddOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   return (
     <Card>
@@ -251,12 +254,7 @@ function TeamCard({
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem
                     className="text-destructive"
-                    onClick={() => {
-                      if (
-                        confirm(`Delete team "${team.name}"? This removes all members and tasks.`)
-                      )
-                        deleteTeam.mutate(team.id)
-                    }}
+                    onClick={() => setDeleteOpen(true)}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete Team
@@ -270,12 +268,13 @@ function TeamCard({
         <div className="flex items-center gap-2">
           {team.manager ? (
             <div className="flex items-center gap-1.5">
-              <Avatar className="h-6 w-6">
-                {team.manager.profilePhoto && <AvatarImage src={team.manager.profilePhoto} />}
-                <AvatarFallback className="text-[9px]">
-                  {getInitials(team.manager.firstName, team.manager.lastName)}
-                </AvatarFallback>
-              </Avatar>
+              <AvatarDisplay
+                src={team.manager.profilePhoto}
+                firstName={team.manager.firstName}
+                lastName={team.manager.lastName}
+                size="xs"
+                className="h-6 w-6"
+              />
               <span className="text-xs">
                 <Crown className="mr-0.5 inline h-3 w-3 text-amber-500" />
                 {team.manager.firstName} {team.manager.lastName}
@@ -310,7 +309,7 @@ function TeamCard({
               )}
             </div>
             {team.members.length === 0 ? (
-              <p className="text-muted-foreground text-xs">No members yet.</p>
+              <EmptyState compact icon={Users} title="No members yet." className="py-4" />
             ) : (
               <ul className="space-y-1">
                 {team.members.map((m) => (
@@ -336,6 +335,17 @@ function TeamCard({
           teamId={team.id}
           existingMemberIds={team.members.map((m) => m.employeeId)}
         />
+
+        <ConfirmDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          title="Delete team"
+          description={`Delete team "${team.name}"? This removes all members and tasks.`}
+          confirmLabel="Delete Team"
+          variant="destructive"
+          isLoading={deleteTeam.isPending}
+          onConfirm={() => deleteTeam.mutate(team.id, { onSuccess: () => setDeleteOpen(false) })}
+        />
       </CardContent>
     </Card>
   )
@@ -358,16 +368,18 @@ function MemberRow({
 }) {
   const removeMember = useRemoveTeamMember(projectId, teamId)
   const promote = usePromoteTeamMember(projectId, teamId)
+  const [removeOpen, setRemoveOpen] = useState(false)
 
   return (
     <li className="flex items-center justify-between py-1 text-sm">
       <div className="flex items-center gap-2">
-        <Avatar className="h-6 w-6">
-          {member.employee.profilePhoto && <AvatarImage src={member.employee.profilePhoto} />}
-          <AvatarFallback className="text-[9px]">
-            {getInitials(member.employee.firstName, member.employee.lastName)}
-          </AvatarFallback>
-        </Avatar>
+        <AvatarDisplay
+          src={member.employee.profilePhoto}
+          firstName={member.employee.firstName}
+          lastName={member.employee.lastName}
+          size="xs"
+          className="h-6 w-6"
+        />
         <span>
           {member.employee.firstName} {member.employee.lastName}
           {isManagerRow && <Crown className="ml-1 inline h-3 w-3 text-amber-500" />}
@@ -395,15 +407,23 @@ function MemberRow({
             variant="ghost"
             size="icon"
             className="text-muted-foreground hover:text-destructive h-6 w-6"
-            onClick={() => {
-              if (confirm(`Remove ${member.employee.firstName} from this team?`))
-                removeMember.mutate(member.id)
-            }}
+            onClick={() => setRemoveOpen(true)}
           >
             <X className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>
+
+      <ConfirmDialog
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        title="Remove member"
+        description={`Remove ${member.employee.firstName} from this team?`}
+        confirmLabel="Remove"
+        variant="destructive"
+        isLoading={removeMember.isPending}
+        onConfirm={() => removeMember.mutate(member.id, { onSuccess: () => setRemoveOpen(false) })}
+      />
     </li>
   )
 }
@@ -534,12 +554,13 @@ function AddMemberDialog({
                   )}
                   onClick={() => setSelected(e.id)}
                 >
-                  <Avatar className="h-7 w-7">
-                    {e.profilePhoto && <AvatarImage src={e.profilePhoto} />}
-                    <AvatarFallback className="text-[10px]">
-                      {getInitials(e.firstName, e.lastName)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <AvatarDisplay
+                    src={e.profilePhoto}
+                    firstName={e.firstName}
+                    lastName={e.lastName}
+                    size="sm"
+                    className="h-7 w-7"
+                  />
                   <div>
                     <p className="font-medium">
                       {e.firstName} {e.lastName}

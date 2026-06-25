@@ -2,6 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { unwrap } from "@/lib/api-fetch"
+import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 import {
   getLeaveTypes,
   createLeaveType as createLeaveTypeAction,
@@ -95,15 +97,11 @@ interface PaginatedResponse<T> {
 // ─── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function fetchLeaveTypes(): Promise<{ data: LeaveType[] }> {
-  const r = await getLeaveTypes()
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: LeaveType[] }
+  return unwrap(await getLeaveTypes()) as { data: LeaveType[] }
 }
 
 async function createLeaveType(body: Partial<LeaveType>): Promise<{ data: LeaveType }> {
-  const r = await createLeaveTypeAction(body as Record<string, unknown>)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: LeaveType }
+  return unwrap(await createLeaveTypeAction(body as Record<string, unknown>)) as { data: LeaveType }
 }
 
 async function updateLeaveType({
@@ -113,24 +111,20 @@ async function updateLeaveType({
   id: string
   body: Partial<LeaveType>
 }): Promise<{ data: LeaveType }> {
-  const r = await updateLeaveTypeAction(id, body as Record<string, unknown>)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: LeaveType }
+  return unwrap(await updateLeaveTypeAction(id, body as Record<string, unknown>)) as {
+    data: LeaveType
+  }
 }
 
 async function deleteLeaveType(id: string): Promise<{ message: string }> {
-  const r = await deleteLeaveTypeAction(id)
-  if (!r.ok) throw new Error(r.error)
-  return r.data
+  return unwrap(await deleteLeaveTypeAction(id))
 }
 
 async function fetchLeaveBalances(
   employeeId?: string,
   year?: number,
 ): Promise<{ data: LeaveBalance[] }> {
-  const r = await getLeaveBalances(employeeId, year)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: LeaveBalance[] }
+  return unwrap(await getLeaveBalances(employeeId, year)) as { data: LeaveBalance[] }
 }
 
 async function allocateLeave(body: {
@@ -140,17 +134,13 @@ async function allocateLeave(body: {
   allocated: number
   carried?: number
 }): Promise<{ data: LeaveBalance }> {
-  const r = await allocateLeaveAction(body)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: LeaveBalance }
+  return unwrap(await allocateLeaveAction(body)) as { data: LeaveBalance }
 }
 
 async function fetchLeaveRequests(
   filters: LeaveRequestFilters,
 ): Promise<PaginatedResponse<LeaveRequest>> {
-  const r = await getLeaveRequests(filters)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as PaginatedResponse<LeaveRequest>
+  return unwrap(await getLeaveRequests(filters)) as PaginatedResponse<LeaveRequest>
 }
 
 async function fetchTeamLeaveRequests(filters: {
@@ -158,9 +148,7 @@ async function fetchTeamLeaveRequests(filters: {
   page?: number
   limit?: number
 }): Promise<PaginatedResponse<LeaveRequest>> {
-  const r = await getTeamLeaveRequests(filters)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as PaginatedResponse<LeaveRequest>
+  return unwrap(await getTeamLeaveRequests(filters)) as PaginatedResponse<LeaveRequest>
 }
 
 async function applyLeave(body: {
@@ -170,21 +158,15 @@ async function applyLeave(body: {
   reason?: string
   isHalfDay?: boolean
 }): Promise<{ data: LeaveRequest }> {
-  const r = await applyLeaveAction(body)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: LeaveRequest }
+  return unwrap(await applyLeaveAction(body)) as { data: LeaveRequest }
 }
 
 async function cancelLeave(id: string): Promise<{ data: LeaveRequest }> {
-  const r = await updateLeaveRequest(id, "CANCEL")
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: LeaveRequest }
+  return unwrap(await updateLeaveRequest(id, "CANCEL")) as { data: LeaveRequest }
 }
 
 async function approveLeave(id: string): Promise<{ data: LeaveRequest }> {
-  const r = await updateLeaveRequest(id, "APPROVE")
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: LeaveRequest }
+  return unwrap(await updateLeaveRequest(id, "APPROVE")) as { data: LeaveRequest }
 }
 
 async function rejectLeave({
@@ -194,9 +176,7 @@ async function rejectLeave({
   id: string
   rejectionReason: string
 }): Promise<{ data: LeaveRequest }> {
-  const r = await updateLeaveRequest(id, "REJECT", rejectionReason)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: LeaveRequest }
+  return unwrap(await updateLeaveRequest(id, "REJECT", rejectionReason)) as { data: LeaveRequest }
 }
 
 // ─── Query Hooks ───────────────────────────────────────────────────────────────
@@ -248,127 +228,119 @@ export function useTeamLeaveRequests(
 export function useApplyLeave() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: applyLeave,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] })
-      queryClient.invalidateQueries({ queryKey: ["leave-requests"] })
-      queryClient.invalidateQueries({ queryKey: ["leave-balances"] })
-      toast.success("Leave request submitted successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to apply for leave")
-    },
-  })
+  return useMutation(
+    mutationWithToast(queryClient, {
+      mutationFn: applyLeave,
+      invalidate: [["my-leave-requests"], ["leave-requests"], ["leave-balances"]],
+      success: "Leave request submitted successfully",
+      onError: (error) => {
+        toast.error(error.message || "Failed to apply for leave")
+      },
+    }),
+  )
 }
 
 export function useCancelLeave() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: cancelLeave,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] })
-      queryClient.invalidateQueries({ queryKey: ["leave-requests"] })
-      queryClient.invalidateQueries({ queryKey: ["leave-balances"] })
-      toast.success("Leave request cancelled")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to cancel leave request")
-    },
-  })
+  return useMutation(
+    mutationWithToast(queryClient, {
+      mutationFn: cancelLeave,
+      invalidate: [["my-leave-requests"], ["leave-requests"], ["leave-balances"]],
+      success: "Leave request cancelled",
+      onError: (error) => {
+        toast.error(error.message || "Failed to cancel leave request")
+      },
+    }),
+  )
 }
 
 export function useApproveLeave() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: approveLeave,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-requests"] })
-      queryClient.invalidateQueries({ queryKey: ["team-leave-requests"] })
-      queryClient.invalidateQueries({ queryKey: ["leave-balances"] })
-      toast.success("Leave request approved")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to approve leave request")
-    },
-  })
+  return useMutation(
+    mutationWithToast(queryClient, {
+      mutationFn: approveLeave,
+      invalidate: [["leave-requests"], ["team-leave-requests"], ["leave-balances"]],
+      success: "Leave request approved",
+      onError: (error) => {
+        toast.error(error.message || "Failed to approve leave request")
+      },
+    }),
+  )
 }
 
 export function useRejectLeave() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: rejectLeave,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-requests"] })
-      queryClient.invalidateQueries({ queryKey: ["team-leave-requests"] })
-      queryClient.invalidateQueries({ queryKey: ["leave-balances"] })
-      toast.success("Leave request rejected")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to reject leave request")
-    },
-  })
+  return useMutation(
+    mutationWithToast(queryClient, {
+      mutationFn: rejectLeave,
+      invalidate: [["leave-requests"], ["team-leave-requests"], ["leave-balances"]],
+      success: "Leave request rejected",
+      onError: (error) => {
+        toast.error(error.message || "Failed to reject leave request")
+      },
+    }),
+  )
 }
 
 export function useCreateLeaveType() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: createLeaveType,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-types"] })
-      toast.success("Leave type created successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to create leave type")
-    },
-  })
+  return useMutation(
+    mutationWithToast(queryClient, {
+      mutationFn: createLeaveType,
+      invalidate: [["leave-types"]],
+      success: "Leave type created successfully",
+      onError: (error) => {
+        toast.error(error.message || "Failed to create leave type")
+      },
+    }),
+  )
 }
 
 export function useUpdateLeaveType() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: updateLeaveType,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-types"] })
-      toast.success("Leave type updated successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to update leave type")
-    },
-  })
+  return useMutation(
+    mutationWithToast(queryClient, {
+      mutationFn: updateLeaveType,
+      invalidate: [["leave-types"]],
+      success: "Leave type updated successfully",
+      onError: (error) => {
+        toast.error(error.message || "Failed to update leave type")
+      },
+    }),
+  )
 }
 
 export function useDeleteLeaveType() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: deleteLeaveType,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-types"] })
-      toast.success("Leave type deactivated successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to deactivate leave type")
-    },
-  })
+  return useMutation(
+    mutationWithToast(queryClient, {
+      mutationFn: deleteLeaveType,
+      invalidate: [["leave-types"]],
+      success: "Leave type deactivated successfully",
+      onError: (error) => {
+        toast.error(error.message || "Failed to deactivate leave type")
+      },
+    }),
+  )
 }
 
 export function useAllocateLeave() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: allocateLeave,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-balances"] })
-      toast.success("Leave balance allocated successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to allocate leave")
-    },
-  })
+  return useMutation(
+    mutationWithToast(queryClient, {
+      mutationFn: allocateLeave,
+      invalidate: [["leave-balances"]],
+      success: "Leave balance allocated successfully",
+      onError: (error) => {
+        toast.error(error.message || "Failed to allocate leave")
+      },
+    }),
+  )
 }

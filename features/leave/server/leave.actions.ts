@@ -7,10 +7,14 @@ import { sendEmail } from "@/lib/mailer"
 import { createNotification } from "@/lib/notifications"
 import { requireSession, requirePermission } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
+import { startOfDayUTC } from "@/lib/dates"
+import { renderDecisionEmail } from "@/lib/email-layout"
 
 const REQUEST_INCLUDE = {
   employee: {
-    select: { id: true, firstName: true, lastName: true, employeeNo: true, profilePhoto: true },
+    select: EMPLOYEE_SUMMARY_SELECT,
   },
   leaveType: { select: { id: true, name: true, code: true, isPaid: true } },
   approver: { select: { id: true, firstName: true, lastName: true } },
@@ -18,18 +22,14 @@ const REQUEST_INCLUDE = {
 
 // Calendar days inclusive - sandwich rule (weekends between leave days are counted)
 function countCalendarDays(start: Date, end: Date): number {
-  const s = new Date(start)
-  s.setHours(0, 0, 0, 0)
-  const e = new Date(end)
-  e.setHours(0, 0, 0, 0)
+  const s = startOfDayUTC(start)
+  const e = startOfDayUTC(end)
   return Math.round((e.getTime() - s.getTime()) / 86400000) + 1
 }
 
 function daysFromToday(date: Date): number {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
+  const today = startOfDayUTC(new Date())
+  const d = startOfDayUTC(date)
   return Math.floor((d.getTime() - today.getTime()) / 86400000)
 }
 
@@ -250,9 +250,7 @@ export async function getLeaveRequests(
     const session = await requireSession()
     const canApprove = hasPermission(session, PERMISSIONS.LEAVE_APPROVE)
 
-    const page = Math.max(1, Number(filters.page ?? 1))
-    const limit = Math.min(100, Math.max(1, Number(filters.limit ?? 20)))
-    const skip = (page - 1) * limit
+    const { page, limit, skip, take } = resolvePagination(filters, 20)
 
     const where: Record<string, unknown> = {}
     if (canApprove) {
@@ -276,14 +274,14 @@ export async function getLeaveRequests(
         include: REQUEST_INCLUDE,
         orderBy: { createdAt: "desc" },
         skip,
-        take: limit,
+        take,
       }),
       db.leaveRequest.count({ where }),
     ])
     return ok(
       serialize({
         data: requests,
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: paginationMeta(total, page, limit),
       }),
     )
   })
@@ -294,9 +292,7 @@ export async function getTeamLeaveRequests(
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.LEAVE_APPROVE)
-    const page = Math.max(1, Number(filters.page ?? 1))
-    const limit = Math.min(100, Math.max(1, Number(filters.limit ?? 20)))
-    const skip = (page - 1) * limit
+    const { page, limit, skip, take } = resolvePagination(filters, 20)
 
     const directReports = await db.employee.findMany({
       where: { managerId: session.user.id, isActive: true },
@@ -313,11 +309,7 @@ export async function getTeamLeaveRequests(
         include: {
           employee: {
             select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              employeeNo: true,
-              profilePhoto: true,
+              ...EMPLOYEE_SUMMARY_SELECT,
               department: { select: { id: true, name: true } },
             },
           },
@@ -326,14 +318,14 @@ export async function getTeamLeaveRequests(
         },
         orderBy: { createdAt: "desc" },
         skip,
-        take: limit,
+        take,
       }),
       db.leaveRequest.count({ where }),
     ])
     return ok(
       serialize({
         data: requests,
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: paginationMeta(total, page, limit),
       }),
     )
   })
@@ -352,10 +344,8 @@ export async function applyLeave(body: {
     if (!leaveTypeId || !startDate || !endDate)
       return fail("leaveTypeId, startDate, and endDate are required")
 
-    const start = new Date(startDate)
-    start.setUTCHours(0, 0, 0, 0)
-    const end = new Date(endDate)
-    end.setUTCHours(0, 0, 0, 0)
+    const start = startOfDayUTC(startDate)
+    const end = startOfDayUTC(endDate)
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return fail("Invalid date format")
     if (end < start) return fail("End date must be on or after start date")
 
@@ -530,13 +520,7 @@ export async function applyLeave(body: {
         },
         include: {
           employee: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              employeeNo: true,
-              profilePhoto: true,
-            },
+            select: EMPLOYEE_SUMMARY_SELECT,
           },
           leaveType: { select: { id: true, name: true, code: true, isPaid: true } },
         },
@@ -670,23 +654,20 @@ export async function updateLeaveRequest(
           type: isApproved ? "success" : "error",
           link: "/leave",
         })
-        const subject = isApproved
-          ? `Your ${leaveType?.name ?? "Leave"} request has been approved`
-          : `Your ${leaveType?.name ?? "Leave"} request has been rejected`
         const endDate = new Date(request.endDate).toDateString()
+        const detailLine = `${leaveType?.name ?? "Leave"} · ${startDate} – ${endDate} (${request.totalDays} day${request.totalDays !== 1 ? "s" : ""})`
+        const email = renderDecisionEmail({
+          kind: "Leave request",
+          approved: isApproved,
+          firstName: emp.firstName,
+          detailLine,
+          reason: !isApproved && rejectionReason ? rejectionReason : null,
+        })
         await sendEmail({
           to: emp.email,
-          subject,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
-              <h2 style="color: ${isApproved ? "#16a34a" : "#dc2626"};">Leave Request ${isApproved ? "Approved" : "Rejected"}</h2>
-              <p>Hi ${emp.firstName},</p>
-              <p>Your <strong>${leaveType?.name ?? "leave"}</strong> request from <strong>${startDate}</strong> to <strong>${endDate}</strong> (${request.totalDays} day${request.totalDays !== 1 ? "s" : ""}) has been <strong>${isApproved ? "approved" : "rejected"}</strong>.</p>
-              ${!isApproved && rejectionReason ? `<p><strong>Reason:</strong> ${rejectionReason}</p>` : ""}
-              <p style="color:#666;font-size:14px;">Login to DNMS to view details.</p>
-            </div>
-          `,
-          text: `Hi ${emp.firstName}, your ${leaveType?.name ?? "leave"} request (${startDate} – ${endDate}) has been ${isApproved ? "approved" : "rejected"}.${!isApproved && rejectionReason ? ` Reason: ${rejectionReason}` : ""}`,
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
         })
       }
     } catch {

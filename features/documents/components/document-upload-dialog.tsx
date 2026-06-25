@@ -1,16 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Loader2 } from "lucide-react"
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+import { FormDialog } from "@/components/shared/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -89,82 +81,72 @@ export function DocumentUploadDialog({
   }
 
   const isSubmitting = uploadMutation.isPending
-  const canSubmit = Boolean(file) && Boolean(title.trim()) && !isSubmitting
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-130">
-        <DialogHeader>
-          <DialogTitle>Upload Document</DialogTitle>
-        </DialogHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={handleClose}
+      title="Upload Document"
+      isPending={isSubmitting}
+      submitDisabled={!(Boolean(file) && Boolean(title.trim()))}
+      submitLabel={isSubmitting ? "Uploading..." : "Upload"}
+      onSubmit={handleSubmit}
+      contentClassName="max-h-[90vh] overflow-y-auto sm:max-w-130"
+    >
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="doc-file">File</Label>
+        <FileUpload
+          accept={ACCEPTED_TYPES}
+          maxSize={MAX_FILE_SIZE}
+          onFileSelect={handleFileSelect}
+          isUploading={isSubmitting}
+        />
+      </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5 py-2">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="doc-file">File</Label>
-            <FileUpload
-              accept={ACCEPTED_TYPES}
-              maxSize={MAX_FILE_SIZE}
-              onFileSelect={handleFileSelect}
-              isUploading={isSubmitting}
-            />
-          </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="doc-title">Title</Label>
+        <Input
+          id="doc-title"
+          placeholder="Document title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          disabled={isSubmitting}
+          maxLength={200}
+          required
+        />
+      </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="doc-title">Title</Label>
-            <Input
-              id="doc-title"
-              placeholder="Document title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              disabled={isSubmitting}
-              maxLength={200}
-              required
-            />
-          </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="doc-category">Category</Label>
+        <Select value={category} onValueChange={setCategory} disabled={isSubmitting}>
+          <SelectTrigger id="doc-category">
+            <SelectValue placeholder="Select category" />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(DOCUMENT_CATEGORY_LABELS).map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="doc-category">Category</Label>
-            <Select value={category} onValueChange={setCategory} disabled={isSubmitting}>
-              <SelectTrigger id="doc-category">
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(DOCUMENT_CATEGORY_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="doc-description">
-              Description <span className="text-muted-foreground text-xs">(optional)</span>
-            </Label>
-            <Textarea
-              id="doc-description"
-              placeholder="Brief description of this document..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              disabled={isSubmitting}
-              maxLength={500}
-              rows={3}
-              className="resize-none"
-            />
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Uploading..." : "Upload"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="doc-description">
+          Description <span className="text-muted-foreground text-xs">(optional)</span>
+        </Label>
+        <Textarea
+          id="doc-description"
+          placeholder="Brief description of this document..."
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          disabled={isSubmitting}
+          maxLength={500}
+          rows={3}
+          className="resize-none"
+        />
+      </div>
+    </FormDialog>
   )
 }

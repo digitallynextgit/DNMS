@@ -3,9 +3,11 @@
 import { Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { cn, formatDate, getInitials, getAvatarColor } from "@/lib/utils"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { formatDate } from "@/lib/utils"
 import { ATTENDANCE_STATUS_LABELS, ATTENDANCE_STATUS_COLORS } from "@/lib/constants"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
 import type { AttendanceLog } from "@/features/attendance/hooks/use-attendance"
 
 interface AttendanceTableProps {
@@ -81,12 +83,11 @@ export function AttendanceTable({
 
   if (logs.length === 0) {
     return (
-      <div className="bg-card flex flex-col items-center justify-center rounded border py-20 text-center">
-        <p className="text-muted-foreground text-sm">No attendance records found.</p>
-        <p className="text-muted-foreground mt-1 text-xs">
-          Try adjusting your filters or adding a manual record.
-        </p>
-      </div>
+      <EmptyState
+        variant="card"
+        title="No attendance records found."
+        description="Try adjusting your filters or adding a manual record."
+      />
     )
   }
 
@@ -110,23 +111,18 @@ export function AttendanceTable({
           {logs.map((log) => {
             const employee = log.employee
             const fullName = employee ? `${employee.firstName} ${employee.lastName}` : "Unknown"
-            const initials = employee ? getInitials(employee.firstName, employee.lastName) : "?"
-            const avatarBg = getAvatarColor(fullName)
-            const statusColor = ATTENDANCE_STATUS_COLORS[log.status] ?? "bg-gray-100 text-gray-700"
-            const statusLabel = ATTENDANCE_STATUS_LABELS[log.status] ?? log.status
 
             return (
               <tr key={log.id} className="hover:bg-muted/20 transition-colors">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-8 w-8 shrink-0">
-                      {employee?.profilePhoto ? (
-                        <AvatarImage src={employee.profilePhoto} alt={fullName} />
-                      ) : null}
-                      <AvatarFallback className={cn("text-xs font-semibold text-white", avatarBg)}>
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
+                    <AvatarDisplay
+                      src={employee?.profilePhoto}
+                      firstName={employee?.firstName ?? "?"}
+                      lastName={employee?.lastName ?? ""}
+                      size="sm"
+                      className="shrink-0"
+                    />
                     <div className="min-w-0">
                       <p className="truncate font-medium">{fullName}</p>
                       {employee && (
@@ -146,14 +142,11 @@ export function AttendanceTable({
                     : "-"}
                 </td>
                 <td className="px-4 py-3">
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                      statusColor,
-                    )}
-                  >
-                    {statusLabel}
-                  </span>
+                  <StatusBadge
+                    status={log.status}
+                    colorMap={ATTENDANCE_STATUS_COLORS}
+                    labelMap={ATTENDANCE_STATUS_LABELS}
+                  />
                   {log.isManual && (
                     <span className="text-muted-foreground ml-1.5 text-[10px] italic">manual</span>
                   )}

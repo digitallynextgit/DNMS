@@ -7,6 +7,7 @@ import Link from "next/link"
 import { AlertTriangle, Clock, Inbox } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -283,12 +284,12 @@ export default function MyTasksPage() {
                           {task.team?.name ?? "—"}
                         </td>
                         <td className="px-4 py-2.5">
-                          <Badge
-                            variant="outline"
-                            className={cn("text-[10px]", TASK_PRIORITY_COLORS[task.priority])}
-                          >
-                            {TASK_PRIORITY_LABELS[task.priority]}
-                          </Badge>
+                          <StatusBadge
+                            status={task.priority}
+                            colorMap={TASK_PRIORITY_COLORS}
+                            labelMap={TASK_PRIORITY_LABELS}
+                            size="xs"
+                          />
                         </td>
                         <td className="text-muted-foreground px-4 py-2.5 text-xs whitespace-nowrap">
                           {task.dueDate ? formatDate(task.dueDate) : "—"}
@@ -388,12 +389,12 @@ export default function MyTasksPage() {
                         <div className="text-muted-foreground mt-1 flex items-center gap-2 text-[11px]">
                           {task.team && <span>{task.team.name}</span>}
                           {task.team && (task.dueDate || task.priority) && <span>·</span>}
-                          <Badge
-                            variant="outline"
-                            className={cn("text-[10px]", TASK_PRIORITY_COLORS[task.priority])}
-                          >
-                            {TASK_PRIORITY_LABELS[task.priority]}
-                          </Badge>
+                          <StatusBadge
+                            status={task.priority}
+                            colorMap={TASK_PRIORITY_COLORS}
+                            labelMap={TASK_PRIORITY_LABELS}
+                            size="xs"
+                          />
                           {task.dueDate && <span>Due {formatDate(task.dueDate)}</span>}
                         </div>
                       </div>

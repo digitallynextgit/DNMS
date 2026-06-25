@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 
 interface Interview {
@@ -161,10 +163,6 @@ const emptyApplicantForm = {
 }
 const emptyInterviewForm = { type: "PHONE", scheduledAt: "", notes: "" }
 
-function getInitials(first: string, last: string) {
-  return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
-}
-
 function ApplicantCard({
   applicant,
   onDragStart,
@@ -183,9 +181,13 @@ function ApplicantCard({
       className="bg-card group cursor-grab rounded border p-3 shadow-sm transition-all duration-150 select-none hover:shadow-md active:cursor-grabbing"
     >
       <div className="flex items-start gap-2.5">
-        <div className="bg-primary/10 text-primary flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold">
-          {getInitials(applicant.firstName, applicant.lastName)}
-        </div>
+        <AvatarDisplay
+          firstName={applicant.firstName}
+          lastName={applicant.lastName}
+          size="sm"
+          fallbackClassName="bg-primary/10 text-primary"
+          className="shrink-0"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-1">
             <p className="truncate text-sm leading-tight font-medium">
@@ -329,11 +331,7 @@ export default function JobPipelinePage() {
     return (
       <div className="space-y-6 p-6">
         <Skeleton className="h-10 w-64" />
-        <div className="flex gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-96 w-64 rounded" />
-          ))}
-        </div>
+        <CardGridSkeleton />
       </div>
     )
 

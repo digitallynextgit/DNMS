@@ -2,10 +2,12 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { EmptyState } from "@/components/shared/empty-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   useTaskComments,
@@ -18,7 +20,7 @@ import {
   useUpdateTask,
   type ProjectTask,
 } from "@/features/projects/hooks/use-projects"
-import { cn, formatDate, getInitials } from "@/lib/utils"
+import { cn, formatDate } from "@/lib/utils"
 import {
   TASK_STATUS_LABELS,
   TASK_STATUS_COLORS,
@@ -86,24 +88,18 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
 
           {/* Meta row */}
           <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="secondary"
-              className={cn(
-                "h-5 border px-2 text-[11px] font-medium",
-                TASK_STATUS_COLORS[task.status],
-              )}
-            >
-              {TASK_STATUS_LABELS[task.status]}
-            </Badge>
-            <Badge
-              variant="secondary"
-              className={cn(
-                "h-5 border px-2 text-[11px] font-medium",
-                TASK_PRIORITY_COLORS[task.priority],
-              )}
-            >
-              {TASK_PRIORITY_LABELS[task.priority]}
-            </Badge>
+            <StatusBadge
+              status={task.status}
+              colorMap={TASK_STATUS_COLORS}
+              labelMap={TASK_STATUS_LABELS}
+              className="h-5 border px-2 text-[11px]"
+            />
+            <StatusBadge
+              status={task.priority}
+              colorMap={TASK_PRIORITY_COLORS}
+              labelMap={TASK_PRIORITY_LABELS}
+              className="h-5 border px-2 text-[11px]"
+            />
             {task.dueDate && (
               <span
                 className={cn(
@@ -130,12 +126,14 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
           {/* Assignee */}
           {task.assignee && (
             <div className="flex items-center gap-2">
-              <Avatar className="h-6 w-6">
-                {task.assignee.profilePhoto && <AvatarImage src={task.assignee.profilePhoto} />}
-                <AvatarFallback className="bg-primary/10 text-primary text-[9px]">
-                  {getInitials(task.assignee.firstName, task.assignee.lastName)}
-                </AvatarFallback>
-              </Avatar>
+              <AvatarDisplay
+                src={task.assignee.profilePhoto}
+                firstName={task.assignee.firstName}
+                lastName={task.assignee.lastName}
+                size="xs"
+                className="h-6 w-6"
+                fallbackClassName="bg-primary/10 text-primary"
+              />
               <span className="text-muted-foreground text-xs">
                 Assigned to{" "}
                 <span className="text-foreground font-medium">
@@ -289,7 +287,7 @@ function ChecklistSection({ taskId }: { taskId: string }) {
       ) : (
         <div className="space-y-1">
           {items.length === 0 && (
-            <p className="text-muted-foreground py-3 text-center text-xs">No items yet</p>
+            <EmptyState compact icon={CheckSquare2} title="No items yet" className="py-3" />
           )}
           {items.map((item) => (
             <div
@@ -388,25 +386,26 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
           <Skeleton className="h-14 rounded" />
         </div>
       ) : comments.length === 0 ? (
-        <div className="flex flex-col items-center gap-1.5 py-6 text-center">
-          <MessageSquare className="text-muted-foreground/20 h-8 w-8" />
-          <p className="text-muted-foreground text-xs">No comments yet</p>
-          <p className="text-muted-foreground/60 text-[11px]">
-            Be the first to start the conversation
-          </p>
-        </div>
+        <EmptyState
+          compact
+          icon={MessageSquare}
+          title="No comments yet"
+          description="Be the first to start the conversation"
+        />
       ) : (
         <div className="space-y-4">
           {comments.map((c) => {
             const isOwn = c.authorId === currentUserId
             return (
               <div key={c.id} className="group flex gap-3">
-                <Avatar className="ring-background mt-0.5 h-7 w-7 shrink-0 ring-2">
-                  {c.author.profilePhoto && <AvatarImage src={c.author.profilePhoto} />}
-                  <AvatarFallback className="bg-primary/10 text-primary text-[9px]">
-                    {getInitials(c.author.firstName, c.author.lastName)}
-                  </AvatarFallback>
-                </Avatar>
+                <AvatarDisplay
+                  src={c.author.profilePhoto}
+                  firstName={c.author.firstName}
+                  lastName={c.author.lastName}
+                  size="xs"
+                  className="ring-background mt-0.5 h-7 w-7 shrink-0 ring-2"
+                  fallbackClassName="bg-primary/10 text-primary"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="bg-muted/60 rounded rounded-tl-sm px-3 py-2.5">
                     <div className="mb-1 flex items-center justify-between gap-2">

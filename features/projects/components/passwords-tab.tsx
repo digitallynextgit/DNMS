@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
@@ -23,8 +22,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { formatDate, getInitials } from "@/lib/utils"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { formatDate } from "@/lib/utils"
 import {
   Plus,
   Eye,
@@ -50,13 +52,7 @@ export function PasswordsTab({ projectId, currentUserId, canManage }: Props) {
   const [createOpen, setCreateOpen] = useState(false)
 
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 rounded" />
-        ))}
-      </div>
-    )
+    return <ListSkeleton rows={3} height="h-20" className="space-y-3" />
   }
 
   return (
@@ -83,11 +79,12 @@ export function PasswordsTab({ projectId, currentUserId, canManage }: Props) {
       </p>
 
       {entries.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="text-muted-foreground py-12 text-center text-sm">
-            No credentials saved yet. Store API keys, logins, and secrets here securely.
-          </CardContent>
-        </Card>
+        <EmptyState
+          compact
+          icon={KeyRound}
+          title="No credentials saved yet"
+          description="Store API keys, logins, and secrets here securely."
+        />
       ) : (
         <div className="space-y-2">
           {entries.map((entry) => (
@@ -128,6 +125,7 @@ function PasswordRow({
   const [revealedPw, setRevealedPw] = useState<string | null>(null)
   const [showing, setShowing] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [copied, setCopied] = useState(false)
 
   const isOwner = entry.createdBy.id === currentUserId
@@ -251,9 +249,7 @@ function PasswordRow({
                 variant="ghost"
                 size="icon"
                 className="text-muted-foreground hover:text-destructive h-7 w-7"
-                onClick={() => {
-                  if (confirm(`Delete "${entry.label}"?`)) del.mutate(entry.id)
-                }}
+                onClick={() => setConfirmOpen(true)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -262,12 +258,13 @@ function PasswordRow({
         </div>
 
         <div className="mt-3 flex items-center gap-1.5 border-t pt-2">
-          <Avatar className="h-4 w-4">
-            {entry.createdBy.profilePhoto && <AvatarImage src={entry.createdBy.profilePhoto} />}
-            <AvatarFallback className="text-[7px]">
-              {getInitials(entry.createdBy.firstName, entry.createdBy.lastName)}
-            </AvatarFallback>
-          </Avatar>
+          <AvatarDisplay
+            src={entry.createdBy.profilePhoto}
+            firstName={entry.createdBy.firstName}
+            lastName={entry.createdBy.lastName}
+            size="xs"
+            className="h-4 w-4"
+          />
           <span className="text-muted-foreground text-[10px]">
             Added by {entry.createdBy.firstName} · {formatDate(entry.createdAt)}
           </span>
@@ -280,6 +277,17 @@ function PasswordRow({
         projectId={projectId}
         mode="edit"
         entry={entry}
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Delete credential"
+        description={`Delete "${entry.label}"?`}
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={del.isPending}
+        onConfirm={() => del.mutate(entry.id, { onSuccess: () => setConfirmOpen(false) })}
       />
     </Card>
   )

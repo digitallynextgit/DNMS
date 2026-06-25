@@ -3,14 +3,15 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { format, startOfMonth, endOfMonth } from "date-fns"
-import { CalendarDays, Inbox } from "lucide-react"
+import { CalendarDays } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getInitials, formatDate, cn } from "@/lib/utils"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { EmptyState } from "@/components/shared/empty-state"
+import { formatDate, cn } from "@/lib/utils"
 
 interface Leave {
   id: string
@@ -54,12 +55,12 @@ export default function LeaveCalendarPage() {
     return (
       <div className="flex items-center justify-between gap-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2.5">
-          <Avatar className="h-8 w-8">
-            {l.employee.profilePhoto && <AvatarImage src={l.employee.profilePhoto} />}
-            <AvatarFallback className="text-[10px]">
-              {getInitials(l.employee.firstName, l.employee.lastName)}
-            </AvatarFallback>
-          </Avatar>
+          <AvatarDisplay
+            src={l.employee.profilePhoto}
+            firstName={l.employee.firstName}
+            lastName={l.employee.lastName}
+            size="sm"
+          />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">
               {l.employee.firstName} {l.employee.lastName}
@@ -130,10 +131,7 @@ export default function LeaveCalendarPage() {
             {isLoading ? (
               <Skeleton className="h-40 rounded" />
             ) : leaves.length === 0 ? (
-              <div className="flex flex-col items-center py-8 text-center">
-                <Inbox className="text-muted-foreground/40 mb-2 h-7 w-7" />
-                <p className="text-muted-foreground text-sm">No approved leave this month.</p>
-              </div>
+              <EmptyState compact title="No approved leave this month." />
             ) : (
               <div className="divide-y">
                 {leaves.map((l) => (

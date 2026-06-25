@@ -4,10 +4,12 @@ import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { notifyApprovers } from "@/lib/notifications"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
 const employeeSelect = {
-  select: { id: true, firstName: true, lastName: true, employeeNo: true, profilePhoto: true },
+  select: EMPLOYEE_SUMMARY_SELECT,
 }
 
 export const GET = withSession(
@@ -17,9 +19,10 @@ export const GET = withSession(
       const statusParam = sp.get("status") ?? undefined
       const canApprove = hasPermission(session, PERMISSIONS.ATTENDANCE_WRITE)
 
-      const page = Math.max(1, Number(sp.get("page") ?? "1"))
-      const limit = Math.min(100, Math.max(1, Number(sp.get("limit") ?? "10")))
-      const skip = (page - 1) * limit
+      const { page, limit, skip, take } = resolvePagination(
+        { page: sp.get("page"), limit: sp.get("limit") },
+        10,
+      )
 
       const where: Record<string, unknown> = {}
       // Non-approvers only ever see their own requests.
@@ -33,19 +36,14 @@ export const GET = withSession(
           include: { employee: employeeSelect, reviewer: employeeSelect },
           orderBy: { createdAt: "desc" },
           skip,
-          take: limit,
+          take,
         }),
         db.attendanceRegularization.count({ where }),
       ])
 
       return NextResponse.json({
         data: requests,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-        },
+        pagination: paginationMeta(total, page, limit),
       })
     } catch (error) {
       console.error("[REGULARIZATIONS_GET]", error)

@@ -28,6 +28,8 @@ import type { OrgNode } from "@/types"
 import { renderWelcomeCredentialsEmail } from "@/features/employees/emails/welcome-credentials"
 import { requireSession, requirePermission, getAuditMeta } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 
 type EmployeeFilters = {
   search?: string
@@ -90,8 +92,8 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
     })
     if (!parsed.success) return fail("Invalid query parameters", parsed.error.flatten().fieldErrors)
 
-    const { search, departmentId, designationId, status, page, limit } = parsed.data
-    const skip = (page - 1) * limit
+    const { search, departmentId, designationId, status } = parsed.data
+    const { page, limit, skip, take } = resolvePagination(parsed.data, 20)
 
     const where: Record<string, unknown> = {}
     if (search) {
@@ -116,7 +118,7 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
         },
         orderBy: { createdAt: "desc" },
         skip,
-        take: limit,
+        take,
       }),
       db.employee.count({ where }),
     ])
@@ -124,7 +126,7 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
     return ok(
       serialize({
         data: employees,
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: paginationMeta(total, page, limit),
       }),
     )
   })
@@ -180,13 +182,7 @@ export async function getEmployeeCodes(): Promise<ActionResult<unknown>> {
     await requirePermission(PERMISSIONS.EMPLOYEE_WRITE)
     const employees = await db.employee.findMany({
       orderBy: { employeeNo: "asc" },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        employeeNo: true,
-        profilePhoto: true,
-      },
+      select: EMPLOYEE_SUMMARY_SELECT,
     })
     return ok(serialize({ data: employees }))
   })
@@ -598,12 +594,8 @@ export async function getOrgChart(): Promise<ActionResult<{ data: OrgNode[] }>> 
     const employees = await db.employee.findMany({
       where: { isActive: true },
       select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        employeeNo: true,
+        ...EMPLOYEE_SUMMARY_SELECT,
         managerId: true,
-        profilePhoto: true,
         designation: { select: { title: true } },
         department: { select: { name: true } },
       },

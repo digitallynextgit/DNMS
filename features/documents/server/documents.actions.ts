@@ -9,6 +9,7 @@ import { createAuditLog } from "@/lib/audit"
 import type { DocumentCategory } from "@prisma/client"
 import { requireSession, requirePermission, getAuditMeta } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
 
 export async function getCompanyDocuments(
   category?: string,
@@ -17,15 +18,13 @@ export async function getCompanyDocuments(
   return runAction(async () => {
     await requirePermission(PERMISSIONS.DOCUMENT_READ)
 
-    const page = Math.max(1, Number(filters.page ?? 1))
-    const limit = Math.min(100, Math.max(1, Number(filters.limit ?? 10)))
-    const skip = (page - 1) * limit
+    const { page, limit, skip, take } = resolvePagination(filters, 10)
 
     const where: Record<string, unknown> = { isCompanyDoc: true }
     if (category) where.category = category
 
     const [documents, total] = await Promise.all([
-      db.document.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: limit }),
+      db.document.findMany({ where, orderBy: { createdAt: "desc" }, skip, take }),
       db.document.count({ where }),
     ])
 
@@ -44,7 +43,7 @@ export async function getCompanyDocuments(
     return ok(
       serialize({
         data: enriched,
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: paginationMeta(total, page, limit),
       }),
     )
   })

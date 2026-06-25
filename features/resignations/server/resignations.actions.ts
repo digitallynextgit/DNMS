@@ -8,6 +8,10 @@ import { createAuditLog } from "@/lib/audit"
 import { sendEmail } from "@/lib/mailer"
 import { requireSession, getAuditMeta } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
+import { startOfDayUTC } from "@/lib/dates"
+import { renderDecisionEmail } from "@/lib/email-layout"
 
 // An employee may only have one resignation in flight at a time.
 const OPEN_STATUSES = ["PENDING"] as const
@@ -57,9 +61,8 @@ export async function applyResignation(input: {
 
     let lastWorkingDate: Date | null = null
     if (input.requestedLastWorkingDate) {
-      const d = new Date(input.requestedLastWorkingDate)
+      const d = startOfDayUTC(input.requestedLastWorkingDate)
       if (isNaN(d.getTime())) return fail("Invalid last working date")
-      d.setUTCHours(0, 0, 0, 0)
       lastWorkingDate = d
     }
 
@@ -133,9 +136,7 @@ export async function getResignationsToReview(
     const session = await requireSession()
     const canReviewAll = hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)
 
-    const page = Math.max(1, Number(filters.page ?? 1))
-    const limit = Math.min(100, Math.max(1, Number(filters.limit ?? 10)))
-    const skip = (page - 1) * limit
+    const { page, limit, skip, take } = resolvePagination(filters, 10)
 
     const where = canReviewAll
       ? { status: "PENDING" as const }
@@ -147,12 +148,8 @@ export async function getResignationsToReview(
         include: {
           employee: {
             select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              employeeNo: true,
+              ...EMPLOYEE_SUMMARY_SELECT,
               email: true,
-              profilePhoto: true,
               department: { select: { name: true } },
               designation: { select: { title: true } },
               manager: { select: { id: true, firstName: true, lastName: true } },
@@ -161,7 +158,7 @@ export async function getResignationsToReview(
         },
         orderBy: { createdAt: "desc" },
         skip,
-        take: limit,
+        take,
       }),
       db.resignation.count({ where }),
     ])
@@ -170,7 +167,7 @@ export async function getResignationsToReview(
       serialize({
         data: resignations,
         canReviewAll,
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: paginationMeta(total, page, limit),
       }),
     )
   })
@@ -276,18 +273,17 @@ export async function reviewResignation(
     // Best-effort email; never block the approval on a mail failure.
     try {
       if (resignation.employee.email) {
+        const email = renderDecisionEmail({
+          kind: "Resignation request",
+          approved: true,
+          firstName: resignation.employee.firstName,
+          detailLine: "Your DNMS account has been deactivated effective immediately.",
+        })
         await sendEmail({
           to: resignation.employee.email,
-          subject: "Your resignation has been approved",
-          html: `
-            <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
-              <h2>Resignation Approved</h2>
-              <p>Hi ${resignation.employee.firstName},</p>
-              <p>Your resignation has been approved. Your DNMS account has been deactivated effective immediately.</p>
-              <p style="color:#666;font-size:14px;">If you believe this is a mistake, please contact HR.</p>
-            </div>
-          `,
-          text: `Hi ${resignation.employee.firstName}, your resignation has been approved and your DNMS account has been deactivated.`,
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
         })
       }
     } catch {

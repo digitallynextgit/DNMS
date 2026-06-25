@@ -7,6 +7,10 @@ import { createNotification } from "@/lib/notifications"
 import { sendEmail } from "@/lib/mailer"
 import { requireSession } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
+import { startOfDayUTC, toDateOnly } from "@/lib/dates"
+import { renderDecisionEmail } from "@/lib/email-layout"
 
 type Tier = 1 | 2 | 3
 
@@ -41,7 +45,7 @@ export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
       if (probationEnd) {
         const sixMonthsAfter = new Date(probationEnd)
         sixMonthsAfter.setMonth(sixMonthsAfter.getMonth() + 6)
-        eligibleFromDate = sixMonthsAfter.toISOString().split("T")[0]
+        eligibleFromDate = toDateOnly(sixMonthsAfter)
       }
     } else {
       const sixMonthsAfter = new Date(probationEnd)
@@ -50,7 +54,7 @@ export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
         tier = 2
         label =
           "Within 6 months of probation completion - WFH allowed only in emergencies (Manager + HR approval required)"
-        eligibleFromDate = sixMonthsAfter.toISOString().split("T")[0]
+        eligibleFromDate = toDateOnly(sixMonthsAfter)
       } else {
         tier = 3
         label = "Eligible for 1 WFH day per month"
@@ -77,8 +81,8 @@ export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
       monthlyQuota: tier === 3 ? 1 : 0,
       usedThisMonth,
       canApplyEmergencyOnly: tier !== 3,
-      joiningDate: employee?.dateOfJoining?.toISOString().split("T")[0] ?? null,
-      probationEnd: probationEnd ? new Date(probationEnd).toISOString().split("T")[0] : null,
+      joiningDate: employee?.dateOfJoining ? toDateOnly(employee.dateOfJoining) : null,
+      probationEnd: probationEnd ? toDateOnly(probationEnd) : null,
     })
   })
 }
@@ -97,9 +101,7 @@ export async function getWfhRequests(filters: WfhFilters = {}): Promise<ActionRe
     const session = await requireSession()
     const canApprove = hasPermission(session, PERMISSIONS.WFH_APPROVE)
 
-    const page = Math.max(1, Number(filters.page ?? 1))
-    const limit = Math.min(100, Math.max(1, Number(filters.limit ?? 20)))
-    const skip = (page - 1) * limit
+    const { page, limit, skip, take } = resolvePagination(filters, 20)
 
     const where: Record<string, unknown> = {}
     if (canApprove) {
@@ -120,20 +122,14 @@ export async function getWfhRequests(filters: WfhFilters = {}): Promise<ActionRe
         where,
         include: {
           employee: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              employeeNo: true,
-              profilePhoto: true,
-            },
+            select: EMPLOYEE_SUMMARY_SELECT,
           },
           managerApprover: { select: { id: true, firstName: true, lastName: true } },
           hrApprover: { select: { id: true, firstName: true, lastName: true } },
         },
         orderBy: { createdAt: "desc" },
         skip,
-        take: limit,
+        take,
       }),
       db.wfhRequest.count({ where }),
     ])
@@ -141,7 +137,7 @@ export async function getWfhRequests(filters: WfhFilters = {}): Promise<ActionRe
     return ok(
       serialize({
         data: requests,
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: paginationMeta(total, page, limit),
       }),
     )
   })
@@ -157,12 +153,10 @@ export async function applyWfh(body: {
     const { date, reason, isEmergency } = body
     if (!date) return fail("date is required")
 
-    const wfhDate = new Date(date)
-    wfhDate.setUTCHours(0, 0, 0, 0)
+    const wfhDate = startOfDayUTC(date)
     if (isNaN(wfhDate.getTime())) return fail("Invalid date format")
 
-    const today = new Date()
-    today.setUTCHours(0, 0, 0, 0)
+    const today = startOfDayUTC(new Date())
     if (wfhDate < today) return fail("Cannot apply for WFH in the past")
 
     const dow = wfhDate.getUTCDay()
@@ -230,13 +224,7 @@ export async function applyWfh(body: {
       },
       include: {
         employee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            employeeNo: true,
-            profilePhoto: true,
-          },
+          select: EMPLOYEE_SUMMARY_SELECT,
         },
       },
     })
@@ -344,21 +332,18 @@ export async function updateWfhRequest(
             type: approved ? "success" : "error",
             link: "/wfh",
           })
+          const email = renderDecisionEmail({
+            kind: "WFH request",
+            approved,
+            firstName: emp.firstName,
+            detailLine: `Work From Home · ${dateStr}`,
+            reason: !approved && rejectionReason ? rejectionReason : null,
+          })
           await sendEmail({
             to: emp.email,
-            subject: approved
-              ? "Your WFH request has been approved"
-              : "Your WFH request has been rejected",
-            html: `
-              <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
-                <h2 style="color:${approved ? "#16a34a" : "#dc2626"};">WFH Request ${approved ? "Approved" : "Rejected"}</h2>
-                <p>Hi ${emp.firstName},</p>
-                <p>Your Work From Home request for <strong>${dateStr}</strong> has been <strong>${approved ? "approved" : "rejected"}</strong>.</p>
-                ${!approved && rejectionReason ? `<p><strong>Reason:</strong> ${rejectionReason}</p>` : ""}
-                <p style="color:#666;font-size:14px;">Login to DNMS for details.</p>
-              </div>
-            `,
-            text: `Hi ${emp.firstName}, your WFH request for ${dateStr} has been ${approved ? "approved" : "rejected"}.${!approved && rejectionReason ? ` Reason: ${rejectionReason}` : ""}`,
+            subject: email.subject,
+            html: email.html,
+            text: email.text,
           })
         }
       } catch {

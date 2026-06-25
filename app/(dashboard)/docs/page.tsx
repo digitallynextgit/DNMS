@@ -2,13 +2,23 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Rocket, Users, Clock, CalendarDays, DollarSign, FileText, Shield } from "lucide-react"
+import {
+  Rocket,
+  Users,
+  Clock,
+  CalendarDays,
+  DollarSign,
+  FileText,
+  Shield,
+  SearchX,
+} from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { SearchInput } from "@/components/shared/search-input"
+import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { cn } from "@/lib/utils"
+import { RoleBadge } from "@/features/docs"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -135,22 +145,18 @@ export default function DocsPage() {
 
       {/* Cards grid */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-          <p className="text-base font-medium text-slate-700">No guides found</p>
-          <p className="text-muted-foreground text-sm">
-            Try a different search term or role filter.
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
+        <EmptyState
+          icon={SearchX}
+          title="No guides found"
+          description="Try a different search term or role filter."
+          action={{
+            label: "Clear filters",
+            onClick: () => {
               setSearch("")
               setActiveRole("all")
-            }}
-          >
-            Clear filters
-          </Button>
-        </div>
+            },
+          }}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((card) => (
@@ -191,18 +197,7 @@ function ModuleCardItem({ card, onRead }: { card: ModuleCard; onRead: () => void
         <div className="flex items-center justify-between gap-2 pt-1">
           <div className="flex flex-wrap gap-1">
             {card.tags.map((tag) => (
-              <span
-                key={tag}
-                className={cn(
-                  "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium capitalize",
-                  tag === "employee" && "bg-blue-100 text-blue-700",
-                  tag === "manager" && "bg-purple-100 text-purple-700",
-                  tag === "hr" && "bg-green-100 text-green-700",
-                  tag === "admin" && "bg-red-100 text-red-700",
-                )}
-              >
-                {tag}
-              </span>
+              <RoleBadge key={tag} role={tag as "employee" | "manager" | "hr" | "admin"} />
             ))}
           </div>
           <Button size="sm" variant="outline" onClick={onRead} className="shrink-0">

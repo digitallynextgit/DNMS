@@ -12,9 +12,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog,
   DialogContent,
@@ -23,8 +25,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { getInitials, formatDate } from "@/lib/utils"
-import { Pin, PinOff, Plus, Trash2, Pencil } from "lucide-react"
+import { formatDate } from "@/lib/utils"
+import { Pin, PinOff, Plus, Trash2, Pencil, MessageSquare } from "lucide-react"
 
 interface Props {
   projectId: string
@@ -38,13 +40,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
   const [composeOpen, setComposeOpen] = useState(false)
 
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-28 rounded" />
-        ))}
-      </div>
-    )
+    return <ListSkeleton rows={3} height="h-28" className="space-y-3" />
   }
 
   return (
@@ -60,11 +56,12 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
       </div>
 
       {messages.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="text-muted-foreground py-12 text-center text-sm">
-            No messages yet. Post an update, decision, or announcement for the team.
-          </CardContent>
-        </Card>
+        <EmptyState
+          compact
+          icon={MessageSquare}
+          title="No messages yet"
+          description="Post an update, decision, or announcement for the team."
+        />
       ) : (
         <div className="space-y-3">
           {messages.map((msg) => (
@@ -102,6 +99,7 @@ function MessageCard({
   const update = useUpdateMessage(projectId)
   const del = useDeleteMessage(projectId)
   const [editOpen, setEditOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const isOwner = message.authorId === currentUserId
 
   return (
@@ -109,12 +107,13 @@ function MessageCard({
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-start gap-3">
-            <Avatar className="mt-0.5 h-8 w-8 shrink-0">
-              {message.author.profilePhoto && <AvatarImage src={message.author.profilePhoto} />}
-              <AvatarFallback className="text-[10px]">
-                {getInitials(message.author.firstName, message.author.lastName)}
-              </AvatarFallback>
-            </Avatar>
+            <AvatarDisplay
+              src={message.author.profilePhoto}
+              firstName={message.author.firstName}
+              lastName={message.author.lastName}
+              size="sm"
+              className="mt-0.5 shrink-0"
+            />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h4 className="text-sm font-semibold">{message.title}</h4>
@@ -167,9 +166,7 @@ function MessageCard({
                   variant="ghost"
                   size="icon"
                   className="text-muted-foreground hover:text-destructive h-7 w-7"
-                  onClick={() => {
-                    if (confirm("Delete this message?")) del.mutate(message.id)
-                  }}
+                  onClick={() => setConfirmOpen(true)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -188,6 +185,17 @@ function MessageCard({
         onClose={() => setEditOpen(false)}
         message={message}
         projectId={projectId}
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Delete message"
+        description="Delete this message?"
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={del.isPending}
+        onConfirm={() => del.mutate(message.id, { onSuccess: () => setConfirmOpen(false) })}
       />
     </Card>
   )

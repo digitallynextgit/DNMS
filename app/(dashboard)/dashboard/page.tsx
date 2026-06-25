@@ -3,21 +3,11 @@
 import { useSession } from "next-auth/react"
 
 import { PageHeader } from "@/components/shared/page-header"
-import { Skeleton } from "@/components/ui/skeleton"
+import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { AdminDashboard } from "@/features/dashboard"
 import { EmployeeDashboard } from "@/features/dashboard"
-
-function DashboardSkeleton() {
-  return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <Skeleton key={i} className="h-28 rounded-[var(--radius)]" />
-      ))}
-    </div>
-  )
-}
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()
@@ -44,7 +34,13 @@ export default function DashboardPage() {
         description={dateString}
       />
 
-      {isLoading ? <DashboardSkeleton /> : isManager ? <AdminDashboard /> : <EmployeeDashboard />}
+      {isLoading ? (
+        <CardGridSkeleton count={4} />
+      ) : isManager ? (
+        <AdminDashboard />
+      ) : (
+        <EmployeeDashboard />
+      )}
     </div>
   )
 }

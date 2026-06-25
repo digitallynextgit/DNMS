@@ -13,13 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useLeaveRequests, useLeaveTypes } from "@/features/leave"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
-import { useDebounce } from "@/hooks/use-debounce"
 import { Pagination } from "@/components/shared/pagination"
+import { SearchInput } from "@/components/shared/search-input"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { X } from "lucide-react"
 
 export default function TeamLeavePage() {
@@ -27,13 +27,11 @@ export default function TeamLeavePage() {
   const { can } = usePermissions()
 
   const [tab, setTab] = useState<"PENDING" | "ALL">("PENDING")
-  const [employeeSearch, setEmployeeSearchRaw] = useState("")
+  const [employeeSearch, setEmployeeSearch] = useState("")
   const [leaveTypeId, setLeaveTypeId] = useState("all")
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")
   const [page, setPage] = useState(1)
-
-  const debouncedSearch = useDebounce(employeeSearch, 350)
 
   const { data: typesData } = useLeaveTypes()
   const leaveTypes = typesData?.data ?? []
@@ -53,14 +51,14 @@ export default function TeamLeavePage() {
   const pagination = data?.pagination
 
   function handleClearFilters() {
-    setEmployeeSearchRaw("")
+    setEmployeeSearch("")
     setLeaveTypeId("")
     setFrom("")
     setTo("")
     setPage(1)
   }
 
-  const hasFilters = debouncedSearch || (leaveTypeId !== "all" ? leaveTypeId : "") || from || to
+  const hasFilters = employeeSearch || (leaveTypeId !== "all" ? leaveTypeId : "") || from || to
 
   if (!can(PERMISSIONS.LEAVE_APPROVE)) {
     return (
@@ -73,12 +71,12 @@ export default function TeamLeavePage() {
   }
 
   // Filter client-side by employee name search (since API filters by ID)
-  const filteredRequests = debouncedSearch
+  const filteredRequests = employeeSearch
     ? requests.filter((r) => {
         const fullName = `${r.employee.firstName} ${r.employee.lastName}`.toLowerCase()
         return (
-          fullName.includes(debouncedSearch.toLowerCase()) ||
-          r.employee.employeeNo.toLowerCase().includes(debouncedSearch.toLowerCase())
+          fullName.includes(employeeSearch.toLowerCase()) ||
+          r.employee.employeeNo.toLowerCase().includes(employeeSearch.toLowerCase())
         )
       })
     : requests
@@ -107,10 +105,10 @@ export default function TeamLeavePage() {
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[180px] flex-1">
-          <Input
+          <SearchInput
             placeholder="Search employee..."
             value={employeeSearch}
-            onChange={(e) => setEmployeeSearchRaw(e.target.value)}
+            onChange={setEmployeeSearch}
           />
         </div>
 
@@ -169,11 +167,7 @@ export default function TeamLeavePage() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 rounded" />
-          ))}
-        </div>
+        <ListSkeleton rows={6} height="h-14" />
       ) : (
         <LeaveRequestTable
           requests={filteredRequests}

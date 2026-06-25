@@ -4,12 +4,14 @@ import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
-import { Card, CardContent } from "@/components/ui/card"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
@@ -75,6 +77,7 @@ export default function ProjectSettingsPage() {
 
   const [createFor, setCreateFor] = useState<null | undefined | string>(null)
   const [editing, setEditing] = useState<EditTarget | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; description: string } | null>(null)
 
   const create = useMutation({
     mutationFn: (body: {
@@ -125,6 +128,7 @@ export default function ProjectSettingsPage() {
           `${resp.displacedFromProjects} project${resp.displacedFromProjects === 1 ? "" : "s"} updated`,
         )
       toast.success(parts.join(" · "))
+      setDeleteTarget(null)
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -135,7 +139,7 @@ export default function ProjectSettingsPage() {
     if (childCount > 0)
       msg += ` This will also delete its ${childCount} sub-phase${childCount === 1 ? "" : "s"}.`
     msg += " Any projects using this phase will be updated."
-    if (confirm(msg)) del.mutate(phase.id)
+    setDeleteTarget({ id: phase.id, description: msg })
   }
 
   return (
@@ -165,17 +169,14 @@ export default function ProjectSettingsPage() {
         </p>
 
         {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-16 rounded" />
-            <Skeleton className="h-16 rounded" />
-            <Skeleton className="h-16 rounded" />
-          </div>
+          <ListSkeleton rows={3} height="h-16" />
         ) : phases.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="text-muted-foreground py-10 text-center text-sm">
-              No phases yet. Add one to get started.
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={Settings}
+            title="No phases yet. Add one to get started."
+            variant="card"
+            compact
+          />
         ) : (
           <div className="space-y-2">
             {phases.map((p, idx) => (
@@ -325,6 +326,20 @@ export default function ProjectSettingsPage() {
         />
       )}
 
+      {/* Delete phase confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+        title="Delete Phase"
+        description={deleteTarget?.description ?? ""}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => deleteTarget && del.mutate(deleteTarget.id)}
+        isLoading={del.isPending}
+      />
+
       {/* ── Departments section ────────────────────────────────────────────── */}
       <DepartmentsSection />
     </div>
@@ -473,6 +488,13 @@ function DepartmentsSection() {
   const [showInactive, setShowInactive] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<DepartmentRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{
+    title: string
+    description: string
+    variant: "default" | "destructive"
+    confirmLabel: string
+    args: { id: string; permanent?: boolean }
+  } | null>(null)
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ["departments"] })
@@ -515,6 +537,7 @@ function DepartmentsSection() {
     onSuccess: (resp: { message: string }) => {
       invalidateAll()
       toast.success(resp.message ?? "Deleted")
+      setDeleteTarget(null)
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -522,13 +545,23 @@ function DepartmentsSection() {
   function confirmDelete(d: DepartmentRow) {
     if (d._count.employees > 0 || d._count.jobPostings > 0) {
       // Has dependants - soft delete only.
-      const msg = `Deactivate "${d.name}"? It has ${d._count.employees} employee(s) and ${d._count.jobPostings} job posting(s). They will stay assigned but the department will be hidden from dropdowns.`
-      if (confirm(msg)) del.mutate({ id: d.id })
+      setDeleteTarget({
+        title: "Deactivate Department",
+        description: `Deactivate "${d.name}"? It has ${d._count.employees} employee(s) and ${d._count.jobPostings} job posting(s). They will stay assigned but the department will be hidden from dropdowns.`,
+        variant: "default",
+        confirmLabel: "Deactivate",
+        args: { id: d.id },
+      })
       return
     }
     // No dependants - offer hard delete.
-    const msg = `Delete "${d.name}" permanently? It has no employees or job postings.`
-    if (confirm(msg)) del.mutate({ id: d.id, permanent: true })
+    setDeleteTarget({
+      title: "Delete Department",
+      description: `Delete "${d.name}" permanently? It has no employees or job postings.`,
+      variant: "destructive",
+      confirmLabel: "Delete",
+      args: { id: d.id, permanent: true },
+    })
   }
 
   const visible = showInactive ? departments : departments.filter((d) => d.isActive)
@@ -565,19 +598,18 @@ function DepartmentsSection() {
       </p>
 
       {isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-14 rounded" />
-          <Skeleton className="h-14 rounded" />
-          <Skeleton className="h-14 rounded" />
-        </div>
+        <ListSkeleton rows={3} height="h-14" />
       ) : visible.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="text-muted-foreground py-10 text-center text-sm">
-            {departments.length === 0
+        <EmptyState
+          icon={Building2}
+          title={
+            departments.length === 0
               ? "No departments yet. Add one to get started."
-              : 'No active departments. Toggle "Show inactive" to see deactivated ones.'}
-          </CardContent>
-        </Card>
+              : 'No active departments. Toggle "Show inactive" to see deactivated ones.'
+          }
+          variant="card"
+          compact
+        />
       ) : (
         <div className="space-y-2">
           {visible.map((d) => (
@@ -672,6 +704,20 @@ function DepartmentsSection() {
           initial={editing}
         />
       )}
+
+      {/* Delete / deactivate confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+        title={deleteTarget?.title ?? ""}
+        description={deleteTarget?.description ?? ""}
+        confirmLabel={deleteTarget?.confirmLabel}
+        variant={deleteTarget?.variant ?? "default"}
+        onConfirm={() => deleteTarget && del.mutate(deleteTarget.args)}
+        isLoading={del.isPending}
+      />
     </div>
   )
 }

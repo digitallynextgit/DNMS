@@ -13,19 +13,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { BulkActionBar } from "@/components/shared/bulk-action-bar"
+import { useRowSelection } from "@/hooks/use-row-selection"
 import { GeneratePayrollDialog } from "@/features/payroll"
 import { PayrollFilters } from "@/features/payroll"
 import {
@@ -36,7 +32,6 @@ import {
   type PayrollRecord,
 } from "@/features/payroll"
 import { usePermissions } from "@/features/admin"
-import { useDebounce } from "@/hooks/use-debounce"
 import { cn } from "@/lib/utils"
 import { MONTHS, PAYROLL_STATUS_COLORS, PAYROLL_STATUS_LABELS, PERMISSIONS } from "@/lib/constants"
 
@@ -64,22 +59,20 @@ export default function PayrollPage() {
   const [employeeSearch, setEmployeeSearch] = useState("")
   const [page, setPage] = useState(1)
   const [generateOpen, setGenerateOpen] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [bulkStatusPending, setBulkStatusPending] = useState(false)
 
-  const debouncedSearch = useDebounce(employeeSearch, 350)
-
   // Server-side pagination: reset to the first page whenever a filter changes.
+  // SearchInput debounces `employeeSearch` internally before it reaches state.
   useEffect(() => {
     setPage(1)
-  }, [month, year, status, debouncedSearch])
+  }, [month, year, status, employeeSearch])
 
   const recordFilters = {
     month: month ? Number(month) : undefined,
     year: year ? Number(year) : undefined,
     status: status || undefined,
-    search: debouncedSearch || undefined,
+    search: employeeSearch || undefined,
     page,
     limit: 10,
   }
@@ -98,40 +91,26 @@ export default function PayrollPage() {
 
   const summary = summaryData?.data
 
+  // Per-page row selection with an indeterminate "select all on page" master.
+  const { selectedIds, count, isSelected, toggle, toggleAll, clear, allSelected, someSelected } =
+    useRowSelection<string>(records.map((r) => r.id))
+
   function handleClearFilters() {
     setMonth("")
     setYear("")
     setStatus("")
     setEmployeeSearch("")
     setPage(1)
-    setSelectedIds(new Set())
-  }
-
-  function toggleSelect(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  function toggleSelectAll() {
-    if (selectedIds.size === records.length) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(records.map((r) => r.id)))
-    }
+    clear()
   }
 
   async function handleBulkStatus(newStatus: string) {
     setBulkStatusPending(true)
     try {
-      const ids = Array.from(selectedIds)
-      for (const id of ids) {
+      for (const id of selectedIds) {
         await updateStatus.mutateAsync({ id, status: newStatus })
       }
-      setSelectedIds(new Set())
+      clear()
     } finally {
       setBulkStatusPending(false)
     }
@@ -256,9 +235,8 @@ export default function PayrollPage() {
       )}
 
       {/* Bulk actions */}
-      {selectedIds.size > 0 && can(PERMISSIONS.PAYROLL_PROCESS) && (
-        <div className="bg-muted/30 flex items-center gap-3 rounded border px-4 py-2">
-          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+      {can(PERMISSIONS.PAYROLL_PROCESS) && (
+        <BulkActionBar count={count} onClear={clear}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" disabled={bulkStatusPending} className="gap-1.5">
@@ -278,29 +256,21 @@ export default function PayrollPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
-            Clear selection
-          </Button>
-        </div>
+        </BulkActionBar>
       )}
 
       {/* Records table */}
       {recordsLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 rounded" />
-          ))}
-        </div>
+        <ListSkeleton rows={5} height="h-14" />
       ) : records.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-muted-foreground text-sm">No payroll records found.</p>
-          {can(PERMISSIONS.PAYROLL_PROCESS) && (
-            <Button className="mt-4 gap-2" onClick={() => setGenerateOpen(true)}>
-              <Play className="h-4 w-4" />
-              Generate Payroll
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          title="No payroll records found."
+          action={
+            can(PERMISSIONS.PAYROLL_PROCESS)
+              ? { label: "Generate Payroll", onClick: () => setGenerateOpen(true) }
+              : undefined
+          }
+        />
       ) : (
         <div className="bg-card rounded border">
           <table className="w-full text-sm">
@@ -309,8 +279,9 @@ export default function PayrollPage() {
                 {can(PERMISSIONS.PAYROLL_PROCESS) && (
                   <th className="w-10 px-4 py-3">
                     <Checkbox
-                      checked={selectedIds.size === records.length && records.length > 0}
-                      onCheckedChange={toggleSelectAll}
+                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                      onCheckedChange={toggleAll}
+                      aria-label="Select all on this page"
                     />
                   </th>
                 )}
@@ -329,10 +300,6 @@ export default function PayrollPage() {
             </thead>
             <tbody className="divide-y">
               {records.map((record: PayrollRecord) => {
-                const statusColor =
-                  PAYROLL_STATUS_COLORS[record.status] ?? "bg-gray-100 text-gray-700"
-                const statusLabel = PAYROLL_STATUS_LABELS[record.status] ?? record.status
-
                 return (
                   <tr
                     key={record.id}
@@ -344,12 +311,12 @@ export default function PayrollPage() {
                         className="px-4 py-3"
                         onClick={(e) => {
                           e.stopPropagation()
-                          toggleSelect(record.id)
+                          toggle(record.id)
                         }}
                       >
                         <Checkbox
-                          checked={selectedIds.has(record.id)}
-                          onCheckedChange={() => toggleSelect(record.id)}
+                          checked={isSelected(record.id)}
+                          onCheckedChange={() => toggle(record.id)}
                         />
                       </td>
                     )}
@@ -374,14 +341,11 @@ export default function PayrollPage() {
                       {fmt(record.netSalary)}
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                          statusColor,
-                        )}
-                      >
-                        {statusLabel}
-                      </span>
+                      <StatusBadge
+                        status={record.status}
+                        colorMap={PAYROLL_STATUS_COLORS}
+                        labelMap={PAYROLL_STATUS_LABELS}
+                      />
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
@@ -430,25 +394,16 @@ export default function PayrollPage() {
       <GeneratePayrollDialog open={generateOpen} onOpenChange={setGenerateOpen} />
 
       {/* Delete confirmation */}
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Payroll Record</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete this DRAFT payroll record. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        title="Delete Payroll Record"
+        description="This will permanently delete this DRAFT payroll record. This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteConfirm}
+        isLoading={deleteRecord.isPending}
+      />
     </div>
   )
 }

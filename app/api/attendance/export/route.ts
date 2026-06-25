@@ -2,12 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
+import { toCsv } from "@/lib/export-csv"
 import type { Session } from "next-auth"
-
-function csvCell(value: unknown): string {
-  const s = value == null ? "" : String(value)
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
 
 const isoDate = (d: Date) => new Date(d).toISOString().slice(0, 10)
 const isoTime = (d: Date | null) => (d ? new Date(d).toISOString().slice(11, 16) : "")
@@ -74,7 +70,7 @@ export const GET = withAuth(
         l.source ?? (l.isManual ? "Manual" : ""),
       ])
 
-      const csv = [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\n")
+      const csv = toCsv(rows, header)
       const filename = `attendance_${dateFrom ?? "all"}_to_${dateTo ?? "all"}.csv`
 
       return new NextResponse(csv, {

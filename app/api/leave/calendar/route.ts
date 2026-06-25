@@ -3,6 +3,7 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
 // GET /api/leave/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -33,13 +34,7 @@ export const GET = withSession(
         orderBy: { startDate: "asc" },
         include: {
           employee: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              employeeNo: true,
-              profilePhoto: true,
-            },
+            select: EMPLOYEE_SUMMARY_SELECT,
           },
           leaveType: { select: { name: true, code: true } },
         },

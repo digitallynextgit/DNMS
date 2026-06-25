@@ -23,22 +23,24 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PageHeader } from "@/components/shared/page-header"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { ProfileSelfActions } from "@/features/employees"
 import { DocumentList } from "@/features/documents"
 import { DocumentUploadDialog } from "@/features/documents"
 import { useSession } from "next-auth/react"
 import { useEmployee } from "@/features/employees"
-import { cn, getInitials, getAvatarColor, formatDate } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import { getProbationStatus } from "@/features/employees"
 import {
   EMPLOYEE_STATUS_COLORS,
   EMPLOYEE_STATUS_LABELS,
   EMPLOYMENT_TYPE_LABELS,
+  PROBATION_BADGE,
 } from "@/lib/constants"
 
 async function changePassword(body: { currentPassword: string; newPassword: string }) {
@@ -147,10 +149,6 @@ export default function ProfilePage() {
 
   const emp = data.data
   const fullName = `${emp.firstName} ${emp.lastName}`
-  const initials = getInitials(emp.firstName, emp.lastName)
-  const avatarBg = getAvatarColor(fullName)
-  const statusColor = EMPLOYEE_STATUS_COLORS[emp.status] ?? "bg-gray-100 text-gray-700"
-  const statusLabel = EMPLOYEE_STATUS_LABELS[emp.status] ?? emp.status
   // Probation end is derived (dateOfJoining + probationMonths); the raw DB column
   // is unused, so compute it the same way the admin/HR employee page does.
   const probation = getProbationStatus(emp)
@@ -177,16 +175,13 @@ export default function ProfilePage() {
       <Card>
         <CardContent className="pt-6 pb-6">
           <div className="flex flex-col items-start gap-6 sm:flex-row">
-            <Avatar className="h-24 w-24 shrink-0">
-              {/* Always mount AvatarImage (src empty when no photo) so Radix resets
-                  its loading status and the initials fallback reappears after the
-                  photo is removed. A bare {cond && <Image/>} leaves the root stuck
-                  at "loaded" and the fallback never shows again. */}
-              <AvatarImage src={emp.profilePhoto ?? undefined} alt={fullName} />
-              <AvatarFallback className={cn("text-2xl font-bold text-white", avatarBg)}>
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            <AvatarDisplay
+              src={emp.profilePhoto}
+              firstName={emp.firstName}
+              lastName={emp.lastName}
+              size="2xl"
+              className="shrink-0"
+            />
 
             <div className="min-w-0 flex-1">
               <h2 className="text-2xl font-bold tracking-tight">{fullName}</h2>
@@ -210,24 +205,21 @@ export default function ProfilePage() {
                 <Badge variant="outline" className="font-mono text-xs">
                   {emp.employeeNo}
                 </Badge>
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    statusColor,
-                  )}
-                >
-                  {statusLabel}
-                </span>
+                <StatusBadge
+                  status={emp.status}
+                  colorMap={EMPLOYEE_STATUS_COLORS}
+                  labelMap={EMPLOYEE_STATUS_LABELS}
+                />
                 {probation.onProbation && (
-                  <Badge
-                    variant="outline"
-                    className="border-amber-300 bg-amber-50 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400"
-                  >
-                    On Probation
-                    {probation.endDate
-                      ? ` · until ${formatDate(probation.endDate.toISOString())}`
-                      : ""}
-                  </Badge>
+                  <StatusBadge
+                    status="Probation"
+                    label={`On Probation${
+                      probation.endDate
+                        ? ` · until ${formatDate(probation.endDate.toISOString())}`
+                        : ""
+                    }`}
+                    colorMap={{ Probation: PROBATION_BADGE }}
+                  />
                 )}
               </div>
 

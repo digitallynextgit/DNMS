@@ -8,10 +8,10 @@ import { ChevronLeft, Loader2, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { usePayrollRecord } from "@/features/payroll"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, PAYROLL_STATUS_LABELS, PAYROLL_STATUS_COLORS } from "@/lib/constants"
@@ -98,9 +98,11 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
       />
 
       <div className="flex items-center gap-3">
-        <Badge variant="outline" className={cn("text-xs", PAYROLL_STATUS_COLORS[r.status])}>
-          {PAYROLL_STATUS_LABELS[r.status] ?? r.status}
-        </Badge>
+        <StatusBadge
+          status={r.status}
+          colorMap={PAYROLL_STATUS_COLORS}
+          labelMap={PAYROLL_STATUS_LABELS}
+        />
         {canProcess && next && (
           <Button
             size="sm"

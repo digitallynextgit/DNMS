@@ -8,11 +8,12 @@ import {
   useUpdateTask,
   type ProjectTask,
 } from "@/features/projects/hooks/use-projects"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TaskDetailSheet } from "./task-detail-sheet"
-import { cn, formatDate, getInitials } from "@/lib/utils"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { cn, formatDate } from "@/lib/utils"
 import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { AlertTriangle, Clock, Milestone, GripVertical } from "lucide-react"
 
@@ -156,15 +157,13 @@ export function KanbanView({ projectId, currentUserId, isAdmin, teamFilter }: Pr
                             </p>
 
                             <div className="mt-2 flex flex-wrap gap-1">
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "py-0 text-[10px]",
-                                  TASK_PRIORITY_COLORS[task.priority],
-                                )}
-                              >
-                                {TASK_PRIORITY_LABELS[task.priority]}
-                              </Badge>
+                              <StatusBadge
+                                status={task.priority}
+                                colorMap={TASK_PRIORITY_COLORS}
+                                labelMap={TASK_PRIORITY_LABELS}
+                                size="xs"
+                                className="py-0"
+                              />
                               {task.approvalStatus === "PENDING_APPROVAL" && (
                                 <Badge
                                   variant="outline"
@@ -201,14 +200,12 @@ export function KanbanView({ projectId, currentUserId, isAdmin, teamFilter }: Pr
                               )}
                               <div className="ml-auto">
                                 {task.assignee && (
-                                  <Avatar className="h-5 w-5">
-                                    {task.assignee.profilePhoto && (
-                                      <AvatarImage src={task.assignee.profilePhoto} />
-                                    )}
-                                    <AvatarFallback className="text-[8px]">
-                                      {getInitials(task.assignee.firstName, task.assignee.lastName)}
-                                    </AvatarFallback>
-                                  </Avatar>
+                                  <AvatarDisplay
+                                    src={task.assignee.profilePhoto}
+                                    firstName={task.assignee.firstName}
+                                    lastName={task.assignee.lastName}
+                                    size="xs"
+                                  />
                                 )}
                               </div>
                             </div>

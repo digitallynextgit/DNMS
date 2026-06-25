@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { EmptyState } from "@/components/shared/empty-state"
 import { EmployeeAdminActions } from "@/features/employees"
 import { ManageRolesDialog } from "@/features/employees"
 import {
@@ -34,6 +35,7 @@ import {
 } from "@/features/employees"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { useEmployee } from "@/features/employees"
 import { usePermissions } from "@/features/admin"
 import { getProbationStatus } from "@/features/employees"
@@ -43,6 +45,7 @@ import {
   EMPLOYEE_STATUS_LABELS,
   EMPLOYMENT_TYPE_LABELS,
   PERMISSIONS,
+  PROBATION_BADGE,
 } from "@/lib/constants"
 
 interface InfoRowProps {
@@ -98,15 +101,10 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
 
   if (error || !data?.data) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-20">
-        <p className="text-muted-foreground">Employee not found.</p>
-        <Button variant="outline" asChild>
-          <Link href="/employees/employee-directory">
-            <ChevronLeft className="mr-1 h-4 w-4" />
-            Back to Employees
-          </Link>
-        </Button>
-      </div>
+      <EmptyState
+        title="Employee not found."
+        action={{ label: "Back to Employees", href: "/employees/employee-directory" }}
+      />
     )
   }
 
@@ -114,7 +112,6 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
   const fullName = `${emp.firstName} ${emp.lastName}`
   const initials = getInitials(emp.firstName, emp.lastName)
   const avatarBg = getAvatarColor(fullName)
-  const statusColor = EMPLOYEE_STATUS_COLORS[emp.status] ?? "bg-gray-100 text-gray-700"
   const statusLabel = EMPLOYEE_STATUS_LABELS[emp.status] ?? emp.status
   const probation = getProbationStatus(emp)
   const canUploadDocs = can(PERMISSIONS.DOCUMENT_WRITE)
@@ -190,24 +187,21 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
                 <Badge variant="outline" className="font-mono text-xs">
                   {emp.employeeNo}
                 </Badge>
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    statusColor,
-                  )}
-                >
-                  {statusLabel}
-                </span>
+                <StatusBadge
+                  status={emp.status}
+                  colorMap={EMPLOYEE_STATUS_COLORS}
+                  labelMap={EMPLOYEE_STATUS_LABELS}
+                />
                 {probation.onProbation && (
-                  <Badge
-                    variant="outline"
-                    className="border-amber-300 bg-amber-50 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400"
-                  >
-                    On Probation
-                    {probation.endDate
-                      ? ` · until ${formatDate(probation.endDate.toISOString())}`
-                      : ""}
-                  </Badge>
+                  <StatusBadge
+                    status="Probation"
+                    label={`On Probation${
+                      probation.endDate
+                        ? ` · until ${formatDate(probation.endDate.toISOString())}`
+                        : ""
+                    }`}
+                    colorMap={{ Probation: PROBATION_BADGE }}
+                  />
                 )}
               </div>
 

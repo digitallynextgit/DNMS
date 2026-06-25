@@ -4,8 +4,9 @@ import { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import {
   Dialog,
   DialogContent,
@@ -43,7 +44,9 @@ import {
   FileVideo,
   FileArchive,
 } from "lucide-react"
-import { cn, formatDate, getInitials } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { RESOURCE_CATEGORY_COLORS } from "@/lib/constants"
 
 const CATEGORY_LABELS: Record<string, string> = {
   BRIEFS: "Briefs",
@@ -51,18 +54,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   DELIVERABLES: "Deliverables",
   REFERENCES: "References",
   OTHER: "Other",
-}
-
-const CATEGORY_COLORS: Record<string, string> = {
-  BRIEFS:
-    "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
-  ASSETS:
-    "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800",
-  DELIVERABLES:
-    "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
-  REFERENCES:
-    "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
-  OTHER: "bg-muted text-muted-foreground border-border",
 }
 
 function fileIcon(mimeType: string) {
@@ -149,12 +140,7 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
       {isLoading ? (
         <Skeleton className="h-64 rounded" />
       ) : resources.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <Inbox className="text-muted-foreground/40 mx-auto mb-2 h-8 w-8" />
-            <p className="text-muted-foreground text-sm">No files uploaded yet.</p>
-          </CardContent>
-        </Card>
+        <EmptyState compact icon={Inbox} title="No files uploaded yet." />
       ) : (
         <Card>
           <CardContent className="p-0">
@@ -210,6 +196,7 @@ function ResourceRow({
   isProjectAdmin: boolean
 }) {
   const del = useDeleteResource(projectId)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const Icon = fileIcon(resource.mimeType)
 
   async function handleDownload() {
@@ -237,9 +224,11 @@ function ResourceRow({
         </div>
       </td>
       <td className="px-4 py-2.5">
-        <Badge variant="outline" className={cn("text-xs", CATEGORY_COLORS[resource.category])}>
-          {CATEGORY_LABELS[resource.category]}
-        </Badge>
+        <StatusBadge
+          status={resource.category}
+          colorMap={RESOURCE_CATEGORY_COLORS}
+          label={CATEGORY_LABELS[resource.category]}
+        />
       </td>
       <td className="px-4 py-2.5">
         {resource.team ? (
@@ -256,14 +245,12 @@ function ResourceRow({
       </td>
       <td className="px-4 py-2.5">
         <div className="flex items-center gap-1.5">
-          <Avatar className="h-5 w-5">
-            {resource.uploadedBy.profilePhoto && (
-              <AvatarImage src={resource.uploadedBy.profilePhoto} />
-            )}
-            <AvatarFallback className="text-[8px]">
-              {getInitials(resource.uploadedBy.firstName, resource.uploadedBy.lastName)}
-            </AvatarFallback>
-          </Avatar>
+          <AvatarDisplay
+            src={resource.uploadedBy.profilePhoto}
+            firstName={resource.uploadedBy.firstName}
+            lastName={resource.uploadedBy.lastName}
+            size="xs"
+          />
           <span className="text-xs">
             {resource.uploadedBy.firstName} {resource.uploadedBy.lastName}
           </span>
@@ -281,13 +268,21 @@ function ResourceRow({
             variant="ghost"
             size="icon"
             className="text-muted-foreground hover:text-destructive h-7 w-7"
-            onClick={() => {
-              if (confirm(`Delete "${resource.fileName}"?`)) del.mutate(resource.id)
-            }}
+            onClick={() => setConfirmOpen(true)}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         )}
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Delete file"
+          description={`Delete "${resource.fileName}"?`}
+          confirmLabel="Delete"
+          variant="destructive"
+          isLoading={del.isPending}
+          onConfirm={() => del.mutate(resource.id, { onSuccess: () => setConfirmOpen(false) })}
+        />
       </td>
     </tr>
   )

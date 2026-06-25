@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { useMyWfhRequests, useWfhEligibility, useCancelWfh } from "@/features/wfh"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -94,18 +97,9 @@ export default function MyWfhPage() {
           Request History
         </h4>
         {reqLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 rounded" />
-            ))}
-          </div>
+          <ListSkeleton rows={3} height="h-14" />
         ) : requests.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-10 text-center">
-              <Inbox className="text-muted-foreground/40 mx-auto mb-2 h-8 w-8" />
-              <p className="text-muted-foreground text-sm">No WFH requests yet.</p>
-            </CardContent>
-          </Card>
+          <EmptyState icon={Inbox} title="No WFH requests yet." variant="card" />
         ) : (
           <Card>
             <CardContent className="p-0">
@@ -146,12 +140,11 @@ export default function MyWfhPage() {
                           )}
                         </td>
                         <td className="px-4 py-2.5">
-                          <Badge
-                            variant="outline"
-                            className={cn("text-xs", LEAVE_STATUS_COLORS[r.status])}
-                          >
-                            {LEAVE_STATUS_LABELS[r.status]}
-                          </Badge>
+                          <StatusBadge
+                            status={r.status}
+                            colorMap={LEAVE_STATUS_COLORS}
+                            labelMap={LEAVE_STATUS_LABELS}
+                          />
                         </td>
                         <td className="px-4 py-2.5 text-right">
                           {r.status === "PENDING" && (

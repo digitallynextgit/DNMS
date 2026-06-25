@@ -6,28 +6,20 @@ import { Pagination } from "@/components/shared/pagination"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { RejectReasonDialog } from "@/components/shared/reject-reason-dialog"
 import { useWfhRequests, useApproveWfh, useRejectWfh } from "@/features/wfh"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
-import { cn, getInitials } from "@/lib/utils"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Check, X, AlertTriangle, Inbox } from "lucide-react"
 
 export default function TeamWfhPage() {
   const [tab, setTab] = useState<"PENDING" | "ALL">("PENDING")
   const [page, setPage] = useState(1)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
-  const [rejectReason, setRejectReason] = useState("")
 
   const { data, isLoading } = useWfhRequests({
     status: tab === "PENDING" ? "PENDING" : undefined,
@@ -46,14 +38,13 @@ export default function TeamWfhPage() {
     setPage(1)
   }
 
-  function handleReject() {
-    if (!rejectingId || !rejectReason.trim()) return
+  function handleReject(reason: string) {
+    if (!rejectingId || !reason) return
     reject.mutate(
-      { id: rejectingId, rejectionReason: rejectReason.trim() },
+      { id: rejectingId, rejectionReason: reason },
       {
         onSuccess: () => {
           setRejectingId(null)
-          setRejectReason("")
         },
       },
     )
@@ -74,20 +65,13 @@ export default function TeamWfhPage() {
       </Tabs>
 
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded" />
-          ))}
-        </div>
+        <ListSkeleton rows={3} height="h-16" />
       ) : requests.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <Inbox className="text-muted-foreground/40 mx-auto mb-2 h-8 w-8" />
-            <p className="text-muted-foreground text-sm">
-              {tab === "PENDING" ? "No pending WFH requests." : "No WFH requests yet."}
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Inbox}
+          title={tab === "PENDING" ? "No pending WFH requests." : "No WFH requests yet."}
+          variant="card"
+        />
       ) : (
         <Card>
           <CardContent className="p-0">
@@ -108,14 +92,13 @@ export default function TeamWfhPage() {
                     <tr key={r.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
-                          <Avatar className="h-7 w-7">
-                            {r.employee.profilePhoto && (
-                              <AvatarImage src={r.employee.profilePhoto} />
-                            )}
-                            <AvatarFallback className="text-[10px]">
-                              {getInitials(r.employee.firstName, r.employee.lastName)}
-                            </AvatarFallback>
-                          </Avatar>
+                          <AvatarDisplay
+                            src={r.employee.profilePhoto}
+                            firstName={r.employee.firstName}
+                            lastName={r.employee.lastName}
+                            fallbackClassName="bg-muted text-[10px]"
+                            className="h-7 w-7"
+                          />
                           <div className="min-w-0">
                             <p className="truncate font-medium">
                               {r.employee.firstName} {r.employee.lastName}
@@ -150,12 +133,11 @@ export default function TeamWfhPage() {
                         )}
                       </td>
                       <td className="px-4 py-2.5">
-                        <Badge
-                          variant="outline"
-                          className={cn("text-xs", LEAVE_STATUS_COLORS[r.status])}
-                        >
-                          {LEAVE_STATUS_LABELS[r.status]}
-                        </Badge>
+                        <StatusBadge
+                          status={r.status}
+                          colorMap={LEAVE_STATUS_COLORS}
+                          labelMap={LEAVE_STATUS_LABELS}
+                        />
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         {r.status === "PENDING" && (
@@ -203,41 +185,16 @@ export default function TeamWfhPage() {
       )}
 
       {/* Reject dialog */}
-      <Dialog open={!!rejectingId} onOpenChange={(open) => !open && setRejectingId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject WFH Request</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="reject-reason">Reason for rejection</Label>
-            <Textarea
-              id="reject-reason"
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Please provide a reason..."
-              rows={3}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRejectingId(null)
-                setRejectReason("")
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReject}
-              disabled={!rejectReason.trim() || reject.isPending}
-            >
-              Confirm Reject
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RejectReasonDialog
+        open={!!rejectingId}
+        onOpenChange={(open) => !open && setRejectingId(null)}
+        title="Reject WFH Request"
+        reasonLabel="Reason for rejection"
+        reasonPlaceholder="Please provide a reason..."
+        confirmLabel="Reject"
+        isLoading={reject.isPending}
+        onConfirm={handleReject}
+      />
     </div>
   )
 }

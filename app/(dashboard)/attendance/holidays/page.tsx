@@ -5,11 +5,13 @@ import { Plus, Trash2, CalendarDays, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import {
   Dialog,
   DialogContent,
@@ -78,6 +80,57 @@ export default function HolidaysPage() {
     setDeleteId(null)
   }
 
+  type HolidayRow = (typeof holidays)[number]
+  const columns: DataTableColumn<HolidayRow>[] = [
+    {
+      header: "Name",
+      className: "font-medium",
+      cell: (holiday) => holiday.name,
+    },
+    {
+      header: "Date",
+      className: "text-muted-foreground whitespace-nowrap",
+      cell: (holiday) => formatDate(holiday.date, "EEE, dd MMM yyyy"),
+    },
+    {
+      header: "Description",
+      className: "text-muted-foreground max-w-[300px] truncate",
+      cell: (holiday) => holiday.description ?? "-",
+    },
+    {
+      header: "Type",
+      cell: (holiday) => (
+        <span
+          className={cn(
+            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+            holiday.isOptional ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700",
+          )}
+        >
+          {holiday.isOptional ? "Optional" : "Mandatory"}
+        </span>
+      ),
+    },
+    ...(canWrite
+      ? [
+          {
+            header: "Actions",
+            align: "right" as const,
+            cell: (holiday: HolidayRow) => (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:text-destructive h-8 w-8"
+                onClick={() => setDeleteId(holiday.id)}
+                title="Delete holiday"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            ),
+          },
+        ]
+      : []),
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -105,80 +158,18 @@ export default function HolidaysPage() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 rounded" />
-          ))}
-        </div>
+        <ListSkeleton rows={6} height="h-14" />
       ) : holidays.length === 0 ? (
-        <div className="bg-card flex flex-col items-center justify-center rounded border py-20 text-center">
-          <CalendarDays className="text-muted-foreground/40 mb-3 h-10 w-10" />
-          <p className="text-muted-foreground text-sm">No holidays configured for {year}.</p>
-          {canWrite && (
-            <Button className="mt-4 gap-2" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Add First Holiday
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          variant="card"
+          icon={CalendarDays}
+          title={`No holidays configured for ${year}.`}
+          action={
+            canWrite ? { label: "Add First Holiday", onClick: () => setAddOpen(true) } : undefined
+          }
+        />
       ) : (
-        <div className="bg-card rounded border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b">
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Name</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Date</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">
-                  Description
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Type</th>
-                {canWrite && (
-                  <th className="text-muted-foreground px-4 py-3 text-right font-medium">
-                    Actions
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {pagedHolidays.map((holiday) => (
-                <tr key={holiday.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-medium">{holiday.name}</td>
-                  <td className="text-muted-foreground px-4 py-3 whitespace-nowrap">
-                    {formatDate(holiday.date, "EEE, dd MMM yyyy")}
-                  </td>
-                  <td className="text-muted-foreground max-w-[300px] truncate px-4 py-3">
-                    {holiday.description ?? "-"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                        holiday.isOptional
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-blue-100 text-blue-700",
-                      )}
-                    >
-                      {holiday.isOptional ? "Optional" : "Mandatory"}
-                    </span>
-                  </td>
-                  {canWrite && (
-                    <td className="px-4 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive h-8 w-8"
-                        onClick={() => setDeleteId(holiday.id)}
-                        title="Delete holiday"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable columns={columns} rows={pagedHolidays} rowKey={(holiday) => holiday.id} />
       )}
 
       <Pagination

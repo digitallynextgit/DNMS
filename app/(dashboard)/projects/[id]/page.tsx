@@ -8,10 +8,11 @@ import { toast } from "sonner"
 import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +32,7 @@ import {
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
 } from "@/lib/constants"
-import { cn, formatDate, getInitials } from "@/lib/utils"
+import { cn, formatDate } from "@/lib/utils"
 import {
   ChevronLeft,
   ChevronDown,
@@ -173,18 +174,16 @@ export default function ProjectDetailPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className={cn("text-xs", PROJECT_STATUS_COLORS[project.status])}
-            >
-              {PROJECT_STATUS_LABELS[project.status]}
-            </Badge>
-            <Badge
-              variant="outline"
-              className={cn("text-xs", TASK_PRIORITY_COLORS[project.priority])}
-            >
-              {TASK_PRIORITY_LABELS[project.priority]} priority
-            </Badge>
+            <StatusBadge
+              status={project.status}
+              colorMap={PROJECT_STATUS_COLORS}
+              labelMap={PROJECT_STATUS_LABELS}
+            />
+            <StatusBadge
+              status={project.priority}
+              colorMap={TASK_PRIORITY_COLORS}
+              label={`${TASK_PRIORITY_LABELS[project.priority]} priority`}
+            />
             {canManage && (
               <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-1 h-3.5 w-3.5" />
@@ -332,12 +331,12 @@ export default function ProjectDetailPage() {
                   Account Manager
                 </p>
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    {project.owner.profilePhoto && <AvatarImage src={project.owner.profilePhoto} />}
-                    <AvatarFallback>
-                      {getInitials(project.owner.firstName, project.owner.lastName)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <AvatarDisplay
+                    src={project.owner.profilePhoto}
+                    firstName={project.owner.firstName}
+                    lastName={project.owner.lastName}
+                    size="md"
+                  />
                   <div>
                     <p className="font-medium">
                       {project.owner.firstName} {project.owner.lastName}

@@ -490,3 +490,52 @@ export const APPLICANT_STAGE_COLORS: Record<string, string> = {
   HIRED: "bg-green-500/10 text-green-600 dark:text-green-400",
   REJECTED: "bg-red-500/10 text-red-600 dark:text-red-400",
 }
+
+// ─── Centralized maps (were previously duplicated/inline in pages) ──────────
+
+export const EVALUATION_STATUS_LABELS: Record<string, string> = {
+  PENDING: "Pending",
+  SELF_DONE: "Self done",
+  MANAGER_DONE: "Manager done",
+  COMPLETED: "Completed",
+}
+
+export const EVALUATION_STATUS_COLORS: Record<string, string> = {
+  PENDING:
+    "border border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200",
+  SELF_DONE:
+    "border border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-300",
+  MANAGER_DONE:
+    "border border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-300",
+  COMPLETED:
+    "border border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300",
+}
+
+/** Single amber pill for the "on probation" flag (unifies 4 hand-copied variants). */
+export const PROBATION_BADGE = "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+
+export const DOC_ROLE_LABELS: Record<string, string> = {
+  employee: "Employee",
+  manager: "Manager",
+  hr: "HR",
+  admin: "Admin",
+}
+
+export const DOC_ROLE_COLORS: Record<string, string> = {
+  employee: "border border-blue-500/30 bg-blue-500/10 text-blue-500",
+  manager: "border border-purple-500/30 bg-purple-500/10 text-purple-500",
+  hr: "border border-emerald-500/30 bg-emerald-500/10 text-emerald-500",
+  admin: "border border-destructive/30 bg-destructive/10 text-destructive",
+}
+
+export const RESOURCE_CATEGORY_COLORS: Record<string, string> = {
+  BRIEFS:
+    "border border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
+  ASSETS:
+    "border border-purple-200 bg-purple-100 text-purple-700 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300",
+  DELIVERABLES:
+    "border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+  REFERENCES:
+    "border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+  OTHER: "border border-border bg-muted text-muted-foreground",
+}

@@ -8,6 +8,10 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
@@ -25,7 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, JOB_STATUS_LABELS, JOB_STATUS_COLORS } from "@/lib/constants"
 import { cn, formatDate } from "@/lib/utils"
@@ -143,6 +146,7 @@ export default function RecruitmentPage() {
 
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [deleteTarget, setDeleteTarget] = useState<JobPosting | null>(null)
 
   const createMut = useMutation({
     mutationFn: createJob,
@@ -342,23 +346,14 @@ export default function RecruitmentPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-44 rounded" />
-          ))}
-        </div>
+        <CardGridSkeleton />
       ) : jobs.length === 0 ? (
-        <div className="bg-card flex flex-col items-center justify-center rounded border py-20 text-center">
-          <Briefcase className="text-muted-foreground/40 mb-3 h-10 w-10" />
-          <p className="text-muted-foreground text-sm">
-            No job postings yet. Create your first one.
-          </p>
-          {canWrite && (
-            <Button onClick={() => setOpen(true)} variant="outline" size="sm" className="mt-4">
-              New Job Posting
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          icon={Briefcase}
+          title="No job postings yet. Create your first one."
+          variant="card"
+          action={canWrite ? { label: "New Job Posting", onClick: () => setOpen(true) } : undefined}
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {pagedJobs.map((job) => (
@@ -366,14 +361,12 @@ export default function RecruitmentPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-sm leading-snug">{job.title}</CardTitle>
-                  <span
-                    className={cn(
-                      "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                      JOB_STATUS_COLORS[job.status],
-                    )}
-                  >
-                    {JOB_STATUS_LABELS[job.status]}
-                  </span>
+                  <StatusBadge
+                    status={job.status}
+                    colorMap={JOB_STATUS_COLORS}
+                    labelMap={JOB_STATUS_LABELS}
+                    className="shrink-0"
+                  />
                 </div>
                 <p className="text-muted-foreground text-xs">
                   {job.department?.name ?? "No Department"} · {JOB_TYPE_LABELS[job.type]}
@@ -419,10 +412,7 @@ export default function RecruitmentPage() {
                       size="sm"
                       className="text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
                       disabled={jobActionMut.isPending}
-                      onClick={() => {
-                        if (confirm(`Delete job "${job.title}"? This removes its applicants too.`))
-                          jobActionMut.mutate({ id: job.id, action: "delete" })
-                      }}
+                      onClick={() => setDeleteTarget(job)}
                     >
                       Delete
                     </Button>
@@ -736,6 +726,26 @@ export default function RecruitmentPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Job confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="Delete job posting?"
+        description={
+          deleteTarget ? `Delete job "${deleteTarget.title}"? This removes its applicants too.` : ""
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={jobActionMut.isPending}
+        onConfirm={() => {
+          if (!deleteTarget) return
+          jobActionMut.mutate(
+            { id: deleteTarget.id, action: "delete" },
+            { onSuccess: () => setDeleteTarget(null) },
+          )
+        }}
+      />
     </div>
   )
 }

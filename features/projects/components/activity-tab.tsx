@@ -1,10 +1,10 @@
 "use client"
 
 import { useProjectActivity, type ProjectActivity } from "@/features/projects/hooks/use-projects"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Card, CardContent } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { getInitials, formatDate } from "@/lib/utils"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { formatDate } from "@/lib/utils"
 import {
   CheckCircle2,
   GitCommit,
@@ -15,6 +15,7 @@ import {
   Users,
   FileText,
   ArrowRight,
+  Activity,
 } from "lucide-react"
 
 interface Props {
@@ -91,23 +92,17 @@ export function ActivityTab({ projectId }: Props) {
   const activities = data?.data ?? []
 
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-12 rounded" />
-        ))}
-      </div>
-    )
+    return <ListSkeleton rows={5} height="h-12" className="space-y-3" />
   }
 
   if (activities.length === 0) {
     return (
-      <Card className="border-dashed">
-        <CardContent className="text-muted-foreground py-12 text-center text-sm">
-          No activity yet. Actions like creating tasks, posting comments, and changing statuses will
-          appear here.
-        </CardContent>
-      </Card>
+      <EmptyState
+        compact
+        icon={Activity}
+        title="No activity yet"
+        description="Actions like creating tasks, posting comments, and changing statuses will appear here."
+      />
     )
   }
 
@@ -136,12 +131,13 @@ export function ActivityTab({ projectId }: Props) {
               </p>
             </div>
 
-            <Avatar className="mt-1 h-6 w-6 shrink-0">
-              {activity.actor.profilePhoto && <AvatarImage src={activity.actor.profilePhoto} />}
-              <AvatarFallback className="text-[8px]">
-                {getInitials(activity.actor.firstName, activity.actor.lastName)}
-              </AvatarFallback>
-            </Avatar>
+            <AvatarDisplay
+              src={activity.actor.profilePhoto}
+              firstName={activity.actor.firstName}
+              lastName={activity.actor.lastName}
+              size="xs"
+              className="mt-1 h-6 w-6 shrink-0"
+            />
           </div>
         ))}
       </div>

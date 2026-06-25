@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PageHeader } from "@/components/shared/page-header"
+import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 import { APPLICANT_STAGE_LABELS } from "@/lib/constants"
 import { formatCurrency, cn } from "@/lib/utils"
@@ -129,11 +130,7 @@ export default function AnalyticsPage() {
     return (
       <div className="space-y-6">
         <PageHeader title="Analytics" description="Executive dashboard and reporting" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded" />
-          ))}
-        </div>
+        <CardGridSkeleton count={8} />
         <div className="grid gap-4 lg:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-64 rounded" />

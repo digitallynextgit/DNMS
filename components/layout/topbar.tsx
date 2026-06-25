@@ -4,7 +4,6 @@ import { Session } from "next-auth"
 import { signOut } from "next-auth/react"
 import { useTheme } from "next-themes"
 import { Bell, LogOut, User, ChevronDown, PanelLeft, PanelLeftClose } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
-import { getInitials } from "@/lib/utils"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { useSidebarStore } from "@/stores/sidebar-store"
 import { useThemeStore } from "@/stores/theme-store"
 import { useEmployee } from "@/features/employees"
@@ -113,12 +112,14 @@ export function Topbar({ session }: { session: Session }) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="hover:bg-accent focus-visible:ring-ring flex items-center gap-2 rounded px-2 py-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none">
-              <Avatar className="h-6 w-6">
-                <AvatarImage src={profilePhoto ?? undefined} />
-                <AvatarFallback className="bg-foreground text-background text-[10px] font-semibold">
-                  {getInitials(firstName, lastName)}
-                </AvatarFallback>
-              </Avatar>
+              <AvatarDisplay
+                src={profilePhoto}
+                firstName={firstName}
+                lastName={lastName}
+                size="xs"
+                fallbackClassName="bg-foreground text-background"
+                className="h-6 w-6"
+              />
               <span className="hidden text-sm font-medium md:block">
                 {firstName} {lastName}
               </span>
@@ -128,12 +129,14 @@ export function Topbar({ session }: { session: Session }) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel className="py-2 font-normal">
               <div className="flex items-center gap-2.5">
-                <Avatar className="h-7 w-7">
-                  <AvatarImage src={profilePhoto ?? undefined} />
-                  <AvatarFallback className="bg-foreground text-background text-[10px] font-semibold">
-                    {getInitials(firstName, lastName)}
-                  </AvatarFallback>
-                </Avatar>
+                <AvatarDisplay
+                  src={profilePhoto}
+                  firstName={firstName}
+                  lastName={lastName}
+                  size="xs"
+                  fallbackClassName="bg-foreground text-background"
+                  className="h-7 w-7"
+                />
                 <div>
                   <p className="text-sm leading-tight font-medium">
                     {firstName} {lastName}

@@ -2,10 +2,11 @@
 
 import { useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { useSalaryStructures, usePayrollRecords } from "@/features/payroll"
 import { cn } from "@/lib/utils"
+import { PAYROLL_STATUS_COLORS, PAYROLL_STATUS_LABELS } from "@/lib/constants"
 import { Wallet, TrendingUp, TrendingDown, Calendar, Inbox, IndianRupee } from "lucide-react"
 
 interface EmployeeSalaryTabProps {
@@ -38,15 +39,6 @@ const MONTH_LABELS = [
   "Nov",
   "Dec",
 ]
-
-const PAYROLL_STATUS_COLORS: Record<string, string> = {
-  DRAFT: "bg-muted text-muted-foreground border-border",
-  PROCESSING:
-    "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800",
-  APPROVED:
-    "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800",
-  PAID: "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-300 dark:border-green-800",
-}
 
 export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
   // All salary structures (filter by employee client-side; API doesn't accept filter)
@@ -235,12 +227,11 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
                         </td>
                         <td className="px-4 py-2.5 text-right font-semibold">{fmt(p.netSalary)}</td>
                         <td className="px-4 py-2.5">
-                          <Badge
-                            variant="outline"
-                            className={cn("text-xs", PAYROLL_STATUS_COLORS[p.status])}
-                          >
-                            {p.status}
-                          </Badge>
+                          <StatusBadge
+                            status={p.status}
+                            colorMap={PAYROLL_STATUS_COLORS}
+                            labelMap={PAYROLL_STATUS_LABELS}
+                          />
                         </td>
                       </tr>
                     ))}

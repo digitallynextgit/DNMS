@@ -11,11 +11,14 @@
 import { useEffect, useMemo, useState, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { Plus, Pencil, Trash2, ShieldCheck, Loader2 } from "lucide-react"
+import { Plus, Pencil, Trash2, ShieldCheck } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Pagination } from "@/components/shared/pagination"
+import { EmptyState } from "@/components/shared/empty-state"
+import { TableSkeleton } from "@/components/shared/loading-skeleton"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import {
   Table,
   TableBody,
@@ -24,16 +27,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { RoleForm } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
@@ -174,12 +167,9 @@ export default function RolesPage() {
       {/* Roles table */}
       <div className="border-border bg-card overflow-hidden rounded border">
         {loading ? (
-          <div className="text-muted-foreground flex items-center justify-center py-20">
-            <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-            Loading roles…
-          </div>
+          <TableSkeleton rows={6} cols={canWrite ? 6 : 5} />
         ) : roles.length === 0 ? (
-          <div className="text-muted-foreground py-20 text-center">No roles found.</div>
+          <EmptyState title="No roles found." compact />
         ) : (
           <Table>
             <TableHeader>
@@ -301,34 +291,22 @@ export default function RolesPage() {
       </Sheet>
 
       {/* Delete confirmation dialog */}
-      <AlertDialog
+      <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null)
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Role</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete the role <strong>{deleteTarget?.displayName}</strong>?
-              This action cannot be undone. Employees assigned this role will lose its permissions
-              immediately.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {deleting ? "Deleting…" : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Delete Role"
+        description={
+          deleteTarget
+            ? `Are you sure you want to delete the role "${deleteTarget.displayName}"? This action cannot be undone. Employees assigned this role will lose its permissions immediately.`
+            : ""
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDelete}
+        isLoading={deleting}
+      />
     </div>
   )
 }

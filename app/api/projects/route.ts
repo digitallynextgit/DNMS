@@ -4,6 +4,7 @@ import { withAuth, withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import type { Session } from "next-auth"
 
 export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
@@ -11,9 +12,10 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
     const { searchParams } = req.nextUrl
     const status = searchParams.get("status") ?? undefined
     const mine = searchParams.get("mine") === "true"
-    const page = parseInt(searchParams.get("page") ?? "1")
-    const limit = parseInt(searchParams.get("limit") ?? "20")
-    const skip = (page - 1) * limit
+    const { page, limit, skip, take } = resolvePagination(
+      { page: searchParams.get("page"), limit: searchParams.get("limit") },
+      20,
+    )
 
     const where: Record<string, unknown> = { isArchived: false }
     if (status) where.status = status
@@ -32,7 +34,7 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
       db.project.findMany({
         where,
         skip,
-        take: limit,
+        take,
         orderBy: { createdAt: "desc" },
         include: {
           owner: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
@@ -63,7 +65,7 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
 
     return NextResponse.json({
       data: decorated,
-      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      pagination: paginationMeta(total, page, limit),
     })
   } catch (error) {
     console.error("[PROJECTS_GET]", error)

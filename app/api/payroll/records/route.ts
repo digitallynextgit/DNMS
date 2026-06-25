@@ -4,6 +4,7 @@ import { withAuth } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import type { Session } from "next-auth"
 
 export const GET = withAuth(
@@ -21,9 +22,10 @@ export const GET = withAuth(
       // (e.g. an employee's full payslip history) omit it and get every record.
       const pageParam = searchParams.get("page")
       const paginate = pageParam !== null
-      const page = Math.max(1, Number(pageParam) || 1)
-      const limit = Math.max(1, Math.min(100, Number(searchParams.get("limit")) || 10))
-      const skip = (page - 1) * limit
+      const { page, limit, skip } = resolvePagination(
+        { page: pageParam, limit: searchParams.get("limit") },
+        10,
+      )
 
       const where: Record<string, unknown> = {}
       if (month) where.month = month
@@ -76,12 +78,9 @@ export const GET = withAuth(
 
       return NextResponse.json({
         data: records,
-        pagination: {
-          total,
-          page: paginate ? page : 1,
-          limit: paginate ? limit : total,
-          totalPages: paginate ? Math.max(1, Math.ceil(total / limit)) : 1,
-        },
+        pagination: paginate
+          ? paginationMeta(total, page, limit)
+          : { total, page: 1, limit: total, totalPages: 1 },
       })
     } catch (error) {
       console.error("[PAYROLL_RECORDS_GET]", error)

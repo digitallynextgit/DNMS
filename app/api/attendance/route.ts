@@ -3,6 +3,8 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import { computeAttendanceStatus } from "@/features/attendance/attendance"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
 // Overview (all employees) is HR/admin-only. Employees use /attendance/me instead.
@@ -16,9 +18,10 @@ export const GET = withAuth(
       const status = searchParams.get("status") ?? undefined
       const dateFrom = searchParams.get("dateFrom") ?? undefined
       const dateTo = searchParams.get("dateTo") ?? undefined
-      const page = Math.max(1, Number(searchParams.get("page") ?? "1"))
-      const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit") ?? "20")))
-      const skip = (page - 1) * limit
+      const { page, limit, skip, take } = resolvePagination(
+        { page: searchParams.get("page"), limit: searchParams.get("limit") },
+        20,
+      )
 
       const where: Record<string, unknown> = {}
 
@@ -37,30 +40,21 @@ export const GET = withAuth(
           include: {
             employee: {
               select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                employeeNo: true,
-                profilePhoto: true,
+                ...EMPLOYEE_SUMMARY_SELECT,
                 department: { select: { id: true, name: true } },
               },
             },
           },
           orderBy: [{ date: "desc" }, { createdAt: "desc" }],
           skip,
-          take: limit,
+          take,
         }),
         db.attendanceLog.count({ where }),
       ])
 
       return NextResponse.json({
         data: logs,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-        },
+        pagination: paginationMeta(total, page, limit),
       })
     } catch (error) {
       console.error("[ATTENDANCE_GET]", error)

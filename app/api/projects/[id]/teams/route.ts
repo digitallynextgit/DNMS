@@ -4,6 +4,7 @@ import { withAuth, withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
 // GET /api/projects/[id]/teams - list teams in a project
@@ -16,24 +17,12 @@ export const GET = withSession(
         where: { projectId },
         include: {
           manager: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              employeeNo: true,
-              profilePhoto: true,
-            },
+            select: EMPLOYEE_SUMMARY_SELECT,
           },
           members: {
             include: {
               employee: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  employeeNo: true,
-                  profilePhoto: true,
-                },
+                select: EMPLOYEE_SUMMARY_SELECT,
               },
             },
           },

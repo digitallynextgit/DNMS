@@ -8,8 +8,8 @@ import { toast } from "sonner"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/shared/pagination"
 import { cn, formatRelativeTime, truncate } from "@/lib/utils"
 
@@ -44,21 +44,6 @@ function getNotificationIcon(type: string) {
     default:
       return <Info className="h-5 w-5 text-blue-500" />
   }
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function NotificationSkeleton() {
-  return (
-    <div className="bg-card flex items-start gap-3 rounded border p-4">
-      <Skeleton className="h-9 w-9 rounded-full" />
-      <div className="flex flex-1 flex-col gap-2">
-        <Skeleton className="h-4 w-40" />
-        <Skeleton className="h-3 w-64" />
-        <Skeleton className="h-3 w-20" />
-      </div>
-    </div>
-  )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -135,7 +120,7 @@ export default function NotificationsPage() {
 
       <div className="flex flex-col gap-2">
         {isLoading ? (
-          Array.from({ length: 6 }).map((_, i) => <NotificationSkeleton key={i} />)
+          <ListSkeleton rows={6} height="h-[88px]" />
         ) : notifications.length === 0 ? (
           <EmptyState
             icon={CheckCircle}

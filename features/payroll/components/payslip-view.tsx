@@ -3,7 +3,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { Printer } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { MONTHS, PAYROLL_STATUS_LABELS, PAYROLL_STATUS_COLORS } from "@/lib/constants"
 import type { PayrollRecord } from "@/features/payroll/hooks/use-payroll"
 
@@ -21,8 +21,6 @@ export function PayslipView({ open, onOpenChange, record }: PayslipViewProps) {
   if (!record) return null
 
   const monthName = MONTHS[record.month - 1]
-  const statusLabel = PAYROLL_STATUS_LABELS[record.status] ?? record.status
-  const statusColor = PAYROLL_STATUS_COLORS[record.status] ?? "bg-gray-100 text-gray-700"
 
   const earnings = [
     { label: "Basic", amount: record.basicSalary },
@@ -63,14 +61,11 @@ export function PayslipView({ open, onOpenChange, record }: PayslipViewProps) {
 
           {/* Status + print */}
           <div className="flex items-center justify-between">
-            <span
-              className={cn(
-                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                statusColor,
-              )}
-            >
-              {statusLabel}
-            </span>
+            <StatusBadge
+              status={record.status}
+              colorMap={PAYROLL_STATUS_COLORS}
+              labelMap={PAYROLL_STATUS_LABELS}
+            />
             <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
               <Printer className="h-4 w-4" />
               Print

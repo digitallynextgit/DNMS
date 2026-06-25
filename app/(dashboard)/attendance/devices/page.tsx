@@ -3,10 +3,11 @@
 import { useState } from "react"
 import { Plus, RefreshCw, Pencil, Trash2, Wifi, WifiOff, Loader2, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { EmptyState } from "@/components/shared/empty-state"
+import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { DeviceFormDialog } from "@/features/attendance"
 import { useDevices, useDeleteDevice, useSyncDevice, useTestDevice } from "@/features/attendance"
 import type { HikvisionDevice } from "@/features/attendance"
@@ -91,66 +92,25 @@ export default function DevicesPage() {
 
       {isLoading ? (
         <div className="bg-card rounded border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b">
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Name</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Serial</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">
-                  IP Address
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Location</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Status</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Last Sync</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <tr key={i}>
-                  <td className="px-4 py-3">
-                    <Skeleton className="h-4 w-32" />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Skeleton className="h-4 w-24" />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Skeleton className="h-4 w-28" />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Skeleton className="h-4 w-20" />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Skeleton className="h-5 w-16 rounded-full" />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Skeleton className="h-4 w-32" />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Skeleton className="ml-auto h-8 w-20" />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TableSkeleton rows={4} cols={7} />
         </div>
       ) : devices.length === 0 ? (
-        <div className="bg-card flex flex-col items-center justify-center rounded border py-20 text-center">
-          <WifiOff className="text-muted-foreground/40 mb-3 h-10 w-10" />
-          <p className="text-muted-foreground text-sm">No devices configured yet.</p>
-          {canWrite && (
-            <Button
-              className="mt-4 gap-2"
-              onClick={() => {
-                setEditDevice(null)
-                setFormOpen(true)
-              }}
-            >
-              <Plus className="h-4 w-4" />
-              Add First Device
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          variant="card"
+          icon={WifiOff}
+          title="No devices configured yet."
+          action={
+            canWrite
+              ? {
+                  label: "Add First Device",
+                  onClick: () => {
+                    setEditDevice(null)
+                    setFormOpen(true)
+                  },
+                }
+              : undefined
+          }
+        />
       ) : (
         <div className="bg-card rounded border">
           <table className="w-full text-sm">

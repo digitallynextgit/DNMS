@@ -1,14 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { EmptyState } from "@/components/shared/empty-state"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { RejectDialog } from "@/features/leave/components/reject-dialog"
 import { useCancelLeave, useApproveLeave } from "@/features/leave/hooks/use-leave"
 import type { LeaveRequest } from "@/features/leave/hooks/use-leave"
-import { cn, formatDate, getInitials, getAvatarColor } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { Check, X, Ban } from "lucide-react"
 
@@ -37,11 +38,7 @@ export function LeaveRequestTable({
   }
 
   if (requests.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <p className="text-muted-foreground text-sm">No leave requests found.</p>
-      </div>
-    )
+    return <EmptyState compact title="No leave requests found." />
   }
 
   return (
@@ -64,10 +61,6 @@ export function LeaveRequestTable({
           <tbody className="divide-y">
             {requests.map((request) => {
               const fullName = `${request.employee.firstName} ${request.employee.lastName}`
-              const initials = getInitials(request.employee.firstName, request.employee.lastName)
-              const avatarBg = getAvatarColor(fullName)
-              const statusLabel = LEAVE_STATUS_LABELS[request.status] ?? request.status
-              const statusColor = LEAVE_STATUS_COLORS[request.status] ?? "bg-gray-100 text-gray-700"
               const isOwn = currentUserId === request.employeeId
 
               return (
@@ -75,16 +68,13 @@ export function LeaveRequestTable({
                   {showEmployee && (
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Avatar className="h-7 w-7 shrink-0">
-                          {request.employee.profilePhoto ? (
-                            <AvatarImage src={request.employee.profilePhoto} alt={fullName} />
-                          ) : null}
-                          <AvatarFallback
-                            className={cn("text-xs font-semibold text-white", avatarBg)}
-                          >
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
+                        <AvatarDisplay
+                          src={request.employee.profilePhoto}
+                          firstName={request.employee.firstName}
+                          lastName={request.employee.lastName}
+                          size="sm"
+                          className="shrink-0"
+                        />
                         <div className="min-w-0">
                           <p className="truncate font-medium">{fullName}</p>
                           <p className="text-muted-foreground text-xs">
@@ -127,9 +117,11 @@ export function LeaveRequestTable({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <Badge className={cn("rounded-full border-0 text-xs font-medium", statusColor)}>
-                      {statusLabel}
-                    </Badge>
+                    <StatusBadge
+                      status={request.status}
+                      colorMap={LEAVE_STATUS_COLORS}
+                      labelMap={LEAVE_STATUS_LABELS}
+                    />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">

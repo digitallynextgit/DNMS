@@ -5,19 +5,11 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Plus, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
+import { EmptyState } from "@/components/shared/empty-state"
+import { TableSkeleton } from "@/components/shared/loading-skeleton"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { SalaryStructureForm } from "@/features/payroll"
 import {
   useSalaryStructures,
@@ -109,21 +101,16 @@ export default function SalaryStructuresPage() {
       />
 
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 rounded" />
-          ))}
-        </div>
+        <TableSkeleton rows={5} cols={7} />
       ) : structures.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-muted-foreground text-sm">No salary structures configured yet.</p>
-          {can(PERMISSIONS.PAYROLL_WRITE) && (
-            <Button className="mt-4 gap-2" onClick={handleAdd}>
-              <Plus className="h-4 w-4" />
-              Add First Structure
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          title="No salary structures configured yet."
+          action={
+            can(PERMISSIONS.PAYROLL_WRITE)
+              ? { label: "Add First Structure", onClick: handleAdd }
+              : undefined
+          }
+        />
       ) : (
         <div className="bg-card rounded border">
           <table className="w-full text-sm">
@@ -233,26 +220,16 @@ export default function SalaryStructuresPage() {
       <SalaryStructureForm open={formOpen} onOpenChange={setFormOpen} editData={editData} />
 
       {/* Delete confirmation */}
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Salary Structure</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this salary structure? This action cannot be undone.
-              Salary structures linked to existing payroll records cannot be deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        title="Delete Salary Structure"
+        description="Are you sure you want to delete this salary structure? This action cannot be undone. Salary structures linked to existing payroll records cannot be deleted."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteConfirm}
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withSession } from "@/server/api-handler"
 import { db } from "@/server/db"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import type { Session } from "next-auth"
 
 // GET - paginated notifications for the current user
@@ -8,8 +9,10 @@ export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { searchParams } = new URL(req.url)
-      const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10))
-      const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "20", 10)))
+      const { page, limit, skip, take } = resolvePagination(
+        { page: searchParams.get("page"), limit: searchParams.get("limit") },
+        20,
+      )
       const unreadParam = searchParams.get("unread")
 
       const employeeId = session.user.id
@@ -31,20 +34,15 @@ export const GET = withSession(
         db.notification.findMany({
           where,
           orderBy: { createdAt: "desc" },
-          skip: (page - 1) * limit,
-          take: limit,
+          skip,
+          take,
         }),
         db.notification.count({ where }),
       ])
 
       return NextResponse.json({
         data: notifications,
-        meta: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
+        meta: paginationMeta(total, page, limit),
       })
     } catch (error) {
       console.error("[notifications/inbox] GET error:", error)

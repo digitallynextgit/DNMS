@@ -8,6 +8,8 @@ import {
   getResignationsToReview,
   reviewResignation,
 } from "@/features/resignations/server/resignations.actions"
+import { unwrap } from "@/lib/api-fetch"
+import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -59,22 +61,15 @@ interface ResignationsToReviewResult {
 export function useMyResignation() {
   return useQuery({
     queryKey: ["my-resignation"],
-    queryFn: async () => {
-      const r = await getMyResignation()
-      if (!r.ok) throw new Error(r.error)
-      return (r.data as { data: MyResignation | null }).data
-    },
+    queryFn: async () => (unwrap(await getMyResignation()) as { data: MyResignation | null }).data,
   })
 }
 
 export function useResignationsToReview(filters: { page?: number; limit?: number } = {}) {
   return useQuery({
     queryKey: ["resignations-review", filters],
-    queryFn: async () => {
-      const r = await getResignationsToReview(filters)
-      if (!r.ok) throw new Error(r.error)
-      return r.data as ResignationsToReviewResult
-    },
+    queryFn: async () =>
+      unwrap(await getResignationsToReview(filters)) as ResignationsToReviewResult,
   })
 }
 
@@ -82,44 +77,35 @@ export function useResignationsToReview(filters: { page?: number; limit?: number
 
 export function useApplyResignation() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (input: { reason?: string; requestedLastWorkingDate?: string }) => {
-      const r = await applyResignation(input)
-      if (!r.ok) throw new Error(r.error)
-      return r.data
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["my-resignation"] })
-      qc.invalidateQueries({ queryKey: ["employee"] })
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: async (input: { reason?: string; requestedLastWorkingDate?: string }) =>
+        unwrap(await applyResignation(input)),
+      invalidate: [["my-resignation"], ["employee"]],
+      onError: () => false,
+    }),
+  )
 }
 
 export function useCancelResignation() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const r = await cancelResignation(id)
-      if (!r.ok) throw new Error(r.error)
-      return r.data
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["my-resignation"] })
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: async (id: string) => unwrap(await cancelResignation(id)),
+      invalidate: [["my-resignation"]],
+      onError: () => false,
+    }),
+  )
 }
 
 export function useReviewResignation() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (input: { id: string; action: "APPROVE" | "REJECT"; note?: string }) => {
-      const r = await reviewResignation(input.id, input.action, input.note)
-      if (!r.ok) throw new Error(r.error)
-      return r.data
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["resignations-review"] })
-      qc.invalidateQueries({ queryKey: ["employees"] })
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: async (input: { id: string; action: "APPROVE" | "REJECT"; note?: string }) =>
+        unwrap(await reviewResignation(input.id, input.action, input.note)),
+      invalidate: [["resignations-review"], ["employees"]],
+      onError: () => false,
+    }),
+  )
 }

@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { apiFetch } from "@/lib/api-fetch"
+import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 import type { EvalCriterion } from "@/features/performance/evaluation"
 
 export interface EvalPerson {
@@ -60,14 +62,6 @@ export interface EvalTemplate {
   isActive: boolean
 }
 
-async function jsonOrThrow(res: Response, fallback: string) {
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: fallback }))
-    throw new Error(err.error?.message || fallback)
-  }
-  return res.json()
-}
-
 // ─── Evaluations ──────────────────────────────────────────────────────────────
 
 export function useEvaluations(params?: { status?: string; page?: number; limit?: number }) {
@@ -76,13 +70,10 @@ export function useEvaluations(params?: { status?: string; page?: number; limit?
   const limit = params?.limit ?? 10
   return useQuery({
     queryKey: ["evaluations", status ?? "all", page, limit],
-    queryFn: async (): Promise<{ data: Evaluation[]; pagination: PaginationMeta }> => {
+    queryFn: (): Promise<{ data: Evaluation[]; pagination: PaginationMeta }> => {
       const qs = new URLSearchParams({ page: String(page), limit: String(limit) })
       if (status) qs.set("status", status)
-      return jsonOrThrow(
-        await fetch(`/api/performance/evaluations?${qs.toString()}`),
-        "Failed to load evaluations",
-      )
+      return apiFetch(`/api/performance/evaluations?${qs.toString()}`)
     },
     staleTime: 30_000,
   })
@@ -92,78 +83,65 @@ export function useEvaluation(id: string | null) {
   return useQuery({
     queryKey: ["evaluation", id],
     enabled: !!id,
-    queryFn: async (): Promise<{ data: Evaluation; viewerRole: ViewerRole }> =>
-      jsonOrThrow(await fetch(`/api/performance/evaluations/${id}`), "Failed to load evaluation"),
+    queryFn: (): Promise<{ data: Evaluation; viewerRole: ViewerRole }> =>
+      apiFetch(`/api/performance/evaluations/${id}`),
   })
 }
 
 export function useCreateEvaluation() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (body: {
-      employeeId: string
-      managerId?: string
-      controllerId?: string
-      periodLabel: string
-      periodStart?: string
-      periodEnd?: string
-      dueDate?: string
-    }) =>
-      jsonOrThrow(
-        await fetch("/api/performance/evaluations", {
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (body: {
+        employeeId: string
+        managerId?: string
+        controllerId?: string
+        periodLabel: string
+        periodStart?: string
+        periodEnd?: string
+        dueDate?: string
+      }) =>
+        apiFetch("/api/performance/evaluations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         }),
-        "Failed to create evaluation",
-      ),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["evaluations"] })
-      toast.success("Evaluation created - employee and manager notified")
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
+      invalidate: [["evaluations"]],
+      success: "Evaluation created - employee and manager notified",
+    }),
+  )
 }
 
 export function useSubmitEvaluation(id: string) {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (body: {
-      role: "SELF" | "MANAGER" | "CONTROLLER"
-      ratings: Record<string, number>
-      comment?: string
-    }) =>
-      jsonOrThrow(
-        await fetch(`/api/performance/evaluations/${id}`, {
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (body: {
+        role: "SELF" | "MANAGER" | "CONTROLLER"
+        ratings: Record<string, number>
+        comment?: string
+      }) =>
+        apiFetch(`/api/performance/evaluations/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         }),
-        "Failed to submit evaluation",
-      ),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["evaluation", id] })
-      qc.invalidateQueries({ queryKey: ["evaluations"] })
-      toast.success("Submitted")
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
+      invalidate: [["evaluation", id], ["evaluations"]],
+      success: "Submitted",
+    }),
+  )
 }
 
 export function useDeleteEvaluation() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (id: string) =>
-      jsonOrThrow(
-        await fetch(`/api/performance/evaluations/${id}`, { method: "DELETE" }),
-        "Failed to delete evaluation",
-      ),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["evaluations"] })
-      toast.success("Evaluation deleted")
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (id: string) =>
+        apiFetch(`/api/performance/evaluations/${id}`, { method: "DELETE" }),
+      invalidate: [["evaluations"]],
+      success: "Evaluation deleted",
+    }),
+  )
 }
 
 // ─── Templates ────────────────────────────────────────────────────────────────
@@ -171,10 +149,10 @@ export function useDeleteEvaluation() {
 export function useEvalTemplates() {
   return useQuery({
     queryKey: ["eval-templates"],
-    queryFn: async (): Promise<{
+    queryFn: (): Promise<{
       data: EvalTemplate[]
       defaults: { criteria: EvalCriterion[]; sectionALabel: string; sectionBLabel: string }
-    }> => jsonOrThrow(await fetch("/api/performance/eval-templates"), "Failed to load templates"),
+    }> => apiFetch("/api/performance/eval-templates"),
   })
 }
 
@@ -191,17 +169,11 @@ export function useSaveEvalTemplate() {
       sectionALabel?: string
       sectionBLabel?: string
     }) =>
-      jsonOrThrow(
-        await fetch(
-          id ? `/api/performance/eval-templates/${id}` : "/api/performance/eval-templates",
-          {
-            method: id ? "PATCH" : "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          },
-        ),
-        "Failed to save template",
-      ),
+      apiFetch(id ? `/api/performance/eval-templates/${id}` : "/api/performance/eval-templates", {
+        method: id ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["eval-templates"] })
       toast.success("Template saved")

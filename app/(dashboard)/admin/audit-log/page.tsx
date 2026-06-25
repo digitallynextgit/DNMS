@@ -12,7 +12,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { toast } from "sonner"
-import { Loader2, Search, RefreshCw } from "lucide-react"
+import { Search, RefreshCw } from "lucide-react"
 import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,8 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Pagination } from "@/components/shared/pagination"
+import { EmptyState } from "@/components/shared/empty-state"
+import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { MODULES } from "@/lib/constants"
 
 // ---------------------------------------------------------------------------
@@ -238,12 +240,9 @@ export default function AuditLogPage() {
       {/* Table */}
       <div className="border-border bg-card overflow-hidden rounded border">
         {loading ? (
-          <div className="text-muted-foreground flex items-center justify-center py-20">
-            <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-            Loading…
-          </div>
+          <TableSkeleton rows={6} cols={6} />
         ) : entries.length === 0 ? (
-          <div className="text-muted-foreground py-20 text-center">No audit log entries found.</div>
+          <EmptyState title="No audit log entries found." compact />
         ) : (
           <Table>
             <TableHeader>

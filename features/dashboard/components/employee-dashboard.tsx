@@ -18,6 +18,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatCard } from "@/components/shared/stat-card"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { LeaveBalanceCard } from "@/features/leave"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { PAYROLL_STATUS_LABELS } from "@/lib/constants"
@@ -198,9 +200,10 @@ export function EmployeeDashboard() {
               ))}
             </div>
           ) : !data?.leaveBalances.length ? (
-            <p className="text-muted-foreground text-sm">
-              No leave balances allocated yet. Contact HR to set up your balances.
-            </p>
+            <EmptyState
+              title="No leave balances allocated yet. Contact HR to set up your balances."
+              compact
+            />
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {data.leaveBalances.map((balance) => (
@@ -228,7 +231,7 @@ export function EmployeeDashboard() {
             {isLoading ? (
               <Skeleton className="h-20 rounded" />
             ) : !data?.latestPayslip ? (
-              <p className="text-muted-foreground text-sm">No payslips available yet.</p>
+              <EmptyState title="No payslips available yet." compact />
             ) : (
               <Link
                 href="/payroll/me"
@@ -267,13 +270,9 @@ export function EmployeeDashboard() {
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="space-y-2 px-5 pb-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 rounded" />
-                ))}
-              </div>
+              <ListSkeleton rows={4} height="h-10" className="px-5 pb-4" />
             ) : !data?.upcomingHolidays.length ? (
-              <p className="text-muted-foreground px-5 pb-5 text-sm">No upcoming holidays.</p>
+              <EmptyState title="No upcoming holidays." compact />
             ) : (
               <div className="divide-border divide-y">
                 {data.upcomingHolidays.map((h) => (

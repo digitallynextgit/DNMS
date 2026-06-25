@@ -16,9 +16,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
+import { SearchInput } from "@/components/shared/search-input"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -84,6 +88,7 @@ export default function DepartmentsPage() {
   const [description, setDescription] = useState("")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
+  const [deleteTarget, setDeleteTarget] = useState<Department | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ["departments-admin"],
@@ -178,6 +183,94 @@ export default function DepartmentsPage() {
 
   const rows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  const columns: DataTableColumn<Department>[] = [
+    {
+      header: "Name",
+      cell: (d) => <span className={cn("font-medium", !d.isActive && "opacity-60")}>{d.name}</span>,
+    },
+    {
+      header: "Code",
+      cell: (d) => (
+        <span
+          className={cn("text-muted-foreground font-mono text-xs", !d.isActive && "opacity-60")}
+        >
+          {d.code}
+        </span>
+      ),
+    },
+    {
+      header: "Description",
+      cell: (d) => (
+        <span className={cn("text-muted-foreground", !d.isActive && "opacity-60")}>
+          {d.description ?? "-"}
+        </span>
+      ),
+    },
+    {
+      header: "Employees",
+      cell: (d) => (
+        <span className={cn("text-muted-foreground tabular-nums", !d.isActive && "opacity-60")}>
+          {d._count.employees}
+        </span>
+      ),
+    },
+    {
+      header: "Status",
+      cell: (d) => (
+        <span className={cn(!d.isActive && "opacity-60")}>
+          <Badge variant="outline" className="text-xs">
+            {d.isActive ? "Active" : "Inactive"}
+          </Badge>
+        </span>
+      ),
+    },
+    ...(canWrite
+      ? [
+          {
+            header: "Actions",
+            align: "right" as const,
+            cell: (d: Department) => (
+              <div
+                className={cn("flex items-center justify-end gap-1", !d.isActive && "opacity-60")}
+              >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  title="Edit"
+                  onClick={() => openEdit(d)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  title={d.isActive ? "Deactivate" : "Activate"}
+                  disabled={activeMut.isPending}
+                  onClick={() => activeMut.mutate({ id: d.id, isActive: !d.isActive })}
+                >
+                  <Power className="h-3.5 w-3.5" />
+                </Button>
+                {d._count.employees === 0 && d._count.jobPostings === 0 && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:bg-destructive/10 h-7 w-7"
+                    title="Delete permanently"
+                    disabled={purgeMut.isPending}
+                    onClick={() => setDeleteTarget(d)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            ),
+          },
+        ]
+      : []),
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -193,108 +286,28 @@ export default function DepartmentsPage() {
         }
       />
 
-      <div className="max-w-sm">
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search departments..."
-        />
-      </div>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Search departments..."
+        className="max-w-sm"
+      />
 
-      <div className="bg-card rounded border">
-        {isLoading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 rounded" />
-            ))}
-          </div>
-        ) : departments.length === 0 ? (
-          <div className="text-muted-foreground py-12 text-center text-sm">No departments yet.</div>
-        ) : rows.length === 0 ? (
-          <div className="text-muted-foreground py-12 text-center text-sm">
-            No departments match your search.
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b">
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Name</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Code</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">
-                  Description
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Employees</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Status</th>
-                {canWrite && (
-                  <th className="text-muted-foreground px-4 py-3 text-right font-medium">
-                    Actions
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {rows.map((d) => (
-                <tr
-                  key={d.id}
-                  className={cn("hover:bg-muted/20 transition-colors", !d.isActive && "opacity-60")}
-                >
-                  <td className="px-4 py-3 font-medium">{d.name}</td>
-                  <td className="text-muted-foreground px-4 py-3 font-mono text-xs">{d.code}</td>
-                  <td className="text-muted-foreground px-4 py-3">{d.description ?? "-"}</td>
-                  <td className="text-muted-foreground px-4 py-3 tabular-nums">
-                    {d._count.employees}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="outline" className="text-xs">
-                      {d.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </td>
-                  {canWrite && (
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title="Edit"
-                          onClick={() => openEdit(d)}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title={d.isActive ? "Deactivate" : "Activate"}
-                          disabled={activeMut.isPending}
-                          onClick={() => activeMut.mutate({ id: d.id, isActive: !d.isActive })}
-                        >
-                          <Power className="h-3.5 w-3.5" />
-                        </Button>
-                        {d._count.employees === 0 && d._count.jobPostings === 0 && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:bg-destructive/10 h-7 w-7"
-                            title="Delete permanently"
-                            disabled={purgeMut.isPending}
-                            onClick={() => {
-                              if (confirm(`Permanently delete "${d.name}"? This cannot be undone.`))
-                                purgeMut.mutate(d.id)
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {isLoading ? (
+        <div className="bg-card rounded border">
+          <ListSkeleton rows={5} height="h-12" className="p-4" />
+        </div>
+      ) : departments.length === 0 ? (
+        <div className="bg-card rounded border">
+          <EmptyState title="No departments yet." compact />
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="bg-card rounded border">
+          <EmptyState title="No departments match your search." compact />
+        </div>
+      ) : (
+        <DataTable columns={columns} rows={rows} rowKey={(d) => d.id} />
+      )}
 
       <Pagination
         page={page}
@@ -368,6 +381,22 @@ export default function DepartmentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete department?"
+        description={
+          deleteTarget ? `Permanently delete "${deleteTarget.name}"? This cannot be undone.` : ""
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => {
+          if (deleteTarget) purgeMut.mutate(deleteTarget.id)
+          setDeleteTarget(null)
+        }}
+        isLoading={purgeMut.isPending}
+      />
     </div>
   )
 }

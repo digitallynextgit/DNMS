@@ -6,6 +6,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
 import { sendEmail } from "@/lib/mailer"
 import { createAuditLog } from "@/lib/audit"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
 // GET /api/projects/[id]/teams/[teamId]/members
@@ -18,11 +19,7 @@ export const GET = withSession(
         include: {
           employee: {
             select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              employeeNo: true,
-              profilePhoto: true,
+              ...EMPLOYEE_SUMMARY_SELECT,
               designation: { select: { title: true } },
             },
           },
@@ -94,13 +91,7 @@ export const POST = withSession(
           data: { teamId, projectId, employeeId },
           include: {
             employee: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                employeeNo: true,
-                profilePhoto: true,
-              },
+              select: EMPLOYEE_SUMMARY_SELECT,
             },
           },
         })

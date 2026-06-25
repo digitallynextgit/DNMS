@@ -5,23 +5,19 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
-import { LayoutGrid, List, Plus, Pencil, Trash2, Download, X, UserCheck, UserX } from "lucide-react"
+import { Plus, Pencil, Trash2, Download, UserCheck, UserX } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { CardGridSkeleton, ListSkeleton } from "@/components/shared/loading-skeleton"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { BulkActionBar } from "@/components/shared/bulk-action-bar"
+import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
+import { useRowSelection } from "@/hooks/use-row-selection"
 import { EmployeeCard } from "@/features/employees"
 import { EmployeeFilters } from "@/features/employees"
 import { bulkTerminateEmployees } from "@/features/employees"
@@ -33,11 +29,10 @@ import {
 } from "@/features/employees"
 import { usePermissions } from "@/features/admin"
 import { useDebounce } from "@/hooks/use-debounce"
-import { cn, getInitials, getAvatarColor, formatDate, employeeSlug } from "@/lib/utils"
+import { cn, formatDate, employeeSlug } from "@/lib/utils"
 import { isOnProbation } from "@/features/employees"
-import { EMPLOYEE_STATUS_LABELS, PERMISSIONS } from "@/lib/constants"
-
-type ViewMode = "card" | "table"
+import { EMPLOYEE_STATUS_LABELS, PERMISSIONS, PROBATION_BADGE } from "@/lib/constants"
+import { exportToCsv } from "@/lib/export-csv"
 
 export default function EmployeesPage() {
   const router = useRouter()
@@ -47,7 +42,7 @@ export default function EmployeesPage() {
 
   // ── View mode ────────────────────────────────────────────────────────────
   // Table is the default; users can switch to card view via the toggle.
-  const [viewMode, setViewMode] = useState<ViewMode>("table")
+  const [viewMode, setViewMode] = useViewMode("employee-directory-view", "table")
 
   // ── Row action state ──────────────────────────────────────────────────────
   const [hardDeleteId, setHardDeleteId] = useState<string | null>(null)
@@ -57,7 +52,6 @@ export default function EmployeesPage() {
 
   // ── Bulk-selection state ──────────────────────────────────────────────────
   const queryClient = useQueryClient()
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
 
@@ -139,39 +133,17 @@ export default function EmployeesPage() {
 
   // ── Selection helpers ─────────────────────────────────────────────────────
   const pageIds = useMemo(() => employees.map((e) => e.id), [employees])
-  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id))
-  const someOnPageSelected = pageIds.some((id) => selectedIds.has(id)) && !allOnPageSelected
+  const { selectedIds, count, isSelected, toggle, toggleAll, clear, allSelected, someSelected } =
+    useRowSelection<string>(pageIds)
 
   // Reset selection when filters change (different page contents).
   useEffect(() => {
-    setSelectedIds(new Set())
-  }, [debouncedSearch, departmentId, status, page])
-
-  function toggleRow(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  function toggleAllOnPage() {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (allOnPageSelected) pageIds.forEach((id) => next.delete(id))
-      else pageIds.forEach((id) => next.add(id))
-      return next
-    })
-  }
-
-  function clearSelection() {
-    setSelectedIds(new Set())
-  }
+    clear()
+  }, [debouncedSearch, departmentId, status, page, clear])
 
   // CSV export of the currently selected rows.
   function exportSelectedCsv() {
-    const selected = employees.filter((e) => selectedIds.has(e.id))
+    const selected = employees.filter((e) => isSelected(e.id))
     if (selected.length === 0) return
     const cols = ["Employee No", "Name", "Email", "Department", "Designation", "Status", "Joined"]
     const rows = selected.map((e) => [
@@ -183,38 +155,21 @@ export default function EmployeesPage() {
       EMPLOYEE_STATUS_LABELS[e.status] ?? e.status,
       e.dateOfJoining ? formatDate(e.dateOfJoining) : "",
     ])
-    const csv = [cols, ...rows]
-      .map((row) =>
-        row
-          .map((cell) => {
-            const s = String(cell ?? "")
-            return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-          })
-          .join(","),
-      )
-      .join("\n")
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `employees-${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
+    const filename = `employees-${new Date().toISOString().slice(0, 10)}.csv`
+    exportToCsv(cols, rows, filename)
     toast.success(`Exported ${selected.length} employee${selected.length !== 1 ? "s" : ""}`)
   }
 
   // Bulk terminate via the bulkTerminateEmployees server action.
   async function confirmBulkDelete() {
-    if (selectedIds.size === 0) return
+    if (count === 0) return
     setBulkBusy(true)
     try {
-      const r = await bulkTerminateEmployees(Array.from(selectedIds))
+      const r = await bulkTerminateEmployees(selectedIds)
       if (!r.ok) throw new Error(r.error)
-      toast.success(`Terminated ${r.data.data.count ?? selectedIds.size} employees`)
+      toast.success(`Terminated ${r.data.data.count ?? count} employees`)
       queryClient.invalidateQueries({ queryKey: ["employees"] })
-      clearSelection()
+      clear()
       setBulkDeleteOpen(false)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Bulk terminate failed")
@@ -259,60 +214,27 @@ export default function EmployeesPage() {
         </div>
 
         {/* View toggle */}
-        <div className="bg-background flex items-center rounded border">
-          <button
-            onClick={() => setViewMode("card")}
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-l-md transition-colors",
-              viewMode === "card"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            title="Card view"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setViewMode("table")}
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-r-md transition-colors",
-              viewMode === "table"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            title="Table view"
-          >
-            <List className="h-4 w-4" />
-          </button>
-        </div>
+        <ViewToggle value={viewMode} onChange={setViewMode} />
       </div>
 
       {/* Loading state */}
       {isLoading &&
         (viewMode === "card" ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-48 rounded" />
-            ))}
-          </div>
+          <CardGridSkeleton count={8} />
         ) : (
-          <div className="space-y-2">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 rounded" />
-            ))}
-          </div>
+          <ListSkeleton rows={8} height="h-14" />
         ))}
 
       {/* Empty state */}
       {!isLoading && employees.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-muted-foreground text-sm">No employees found.</p>
-          {can(PERMISSIONS.EMPLOYEE_WRITE) && (
-            <Button asChild className="mt-4">
-              <Link href="/employees/new">Add First Employee</Link>
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          title="No employees found."
+          action={
+            can(PERMISSIONS.EMPLOYEE_WRITE)
+              ? { label: "Add First Employee", href: "/employees/new" }
+              : undefined
+          }
+        />
       )}
 
       {/* Card View */}
@@ -331,33 +253,24 @@ export default function EmployeesPage() {
       )}
 
       {/* Bulk action bar - visible when at least one row is selected */}
-      {viewMode === "table" && selectedIds.size > 0 && (
-        <div className="bg-accent/50 border-border flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2">
-          <div className="flex items-center gap-3 text-sm">
-            <span className="font-medium">{selectedIds.size} selected</span>
-            <Button variant="ghost" size="sm" onClick={clearSelection} className="h-7 gap-1">
-              <X className="h-3.5 w-3.5" />
-              Clear
+      {viewMode === "table" && (
+        <BulkActionBar count={count} onClear={clear}>
+          <Button variant="outline" size="sm" onClick={exportSelectedCsv} className="gap-1.5">
+            <Download className="h-3.5 w-3.5" />
+            Export CSV
+          </Button>
+          {can(PERMISSIONS.EMPLOYEE_DELETE) && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setBulkDeleteOpen(true)}
+              className="gap-1.5"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Terminate
             </Button>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={exportSelectedCsv} className="gap-1.5">
-              <Download className="h-3.5 w-3.5" />
-              Export CSV
-            </Button>
-            {can(PERMISSIONS.EMPLOYEE_DELETE) && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setBulkDeleteOpen(true)}
-                className="gap-1.5"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Terminate
-              </Button>
-            )}
-          </div>
-        </div>
+          )}
+        </BulkActionBar>
       )}
 
       {/* Table View */}
@@ -368,10 +281,8 @@ export default function EmployeesPage() {
               <tr className="bg-muted/40 border-b">
                 <th className="w-10 px-3 py-3 text-left">
                   <Checkbox
-                    checked={
-                      allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false
-                    }
-                    onCheckedChange={toggleAllOnPage}
+                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                    onCheckedChange={toggleAll}
                     aria-label="Select all on this page"
                   />
                 </th>
@@ -393,24 +304,22 @@ export default function EmployeesPage() {
             <tbody className="divide-y">
               {employees.map((emp, idx) => {
                 const fullName = `${emp.firstName} ${emp.lastName}`
-                const initials = getInitials(emp.firstName, emp.lastName)
-                const avatarBg = getAvatarColor(fullName)
                 const isActive = emp.isActive
                 const sno = ((pagination?.page ?? 1) - 1) * (pagination?.limit ?? 10) + idx + 1
-                const isSelected = selectedIds.has(emp.id)
+                const rowSelected = isSelected(emp.id)
 
                 return (
                   <tr
                     key={emp.id}
                     className={cn(
                       "hover:bg-muted/20 transition-colors",
-                      isSelected && "bg-accent/30",
+                      rowSelected && "bg-accent/30",
                     )}
                   >
                     <td className="px-3 py-3">
                       <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleRow(emp.id)}
+                        checked={rowSelected}
+                        onCheckedChange={() => toggle(emp.id)}
                         aria-label={`Select ${fullName}`}
                       />
                     </td>
@@ -421,16 +330,13 @@ export default function EmployeesPage() {
                         href={`/employees/${employeeSlug(emp.employeeNo, emp.firstName, emp.lastName)}`}
                         className="group flex items-center gap-3"
                       >
-                        <Avatar className="h-8 w-8 shrink-0">
-                          {emp.profilePhoto ? (
-                            <AvatarImage src={emp.profilePhoto} alt={fullName} />
-                          ) : null}
-                          <AvatarFallback
-                            className={cn("text-xs font-semibold text-white", avatarBg)}
-                          >
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
+                        <AvatarDisplay
+                          src={emp.profilePhoto}
+                          firstName={emp.firstName}
+                          lastName={emp.lastName}
+                          size="sm"
+                          className="shrink-0"
+                        />
                         <div className="min-w-0">
                           <p className="truncate font-medium underline-offset-4 group-hover:underline">
                             {fullName}
@@ -458,9 +364,11 @@ export default function EmployeesPage() {
                           {isActive ? "Active" : "Inactive"}
                         </span>
                         {isOnProbation(emp) && (
-                          <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-                            Probation
-                          </span>
+                          <StatusBadge
+                            status="Probation"
+                            label="Probation"
+                            colorMap={{ Probation: PROBATION_BADGE }}
+                          />
                         )}
                       </div>
                     </td>
@@ -552,50 +460,28 @@ export default function EmployeesPage() {
       )}
 
       {/* Hard-delete confirmation dialog */}
-      <AlertDialog open={!!hardDeleteId} onOpenChange={(open) => !open && setHardDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete employee permanently?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently removes the employee record and cannot be undone. Their attendance,
-              leave, payroll and document history will be detached or removed.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={hardDeleteEmployee.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmHardDelete}
-              disabled={hardDeleteEmployee.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {hardDeleteEmployee.isPending ? "Deleting..." : "Delete permanently"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!hardDeleteId}
+        onOpenChange={(open) => !open && setHardDeleteId(null)}
+        title="Delete employee permanently?"
+        description="This permanently removes the employee record and cannot be undone. Their attendance, leave, payroll and document history will be detached or removed."
+        confirmLabel={hardDeleteEmployee.isPending ? "Deleting..." : "Delete permanently"}
+        variant="destructive"
+        onConfirm={confirmHardDelete}
+        isLoading={hardDeleteEmployee.isPending}
+      />
 
       {/* Bulk terminate confirmation dialog */}
-      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Terminate {selectedIds.size} employees?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Each selected employee will be marked as terminated and deactivated. You can reverse
-              this individually from their profile. Your own account, if selected, will be skipped.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={bulkBusy}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmBulkDelete}
-              disabled={bulkBusy}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {bulkBusy ? "Terminating..." : "Terminate"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`Terminate ${count} employees?`}
+        description="Each selected employee will be marked as terminated and deactivated. You can reverse this individually from their profile. Your own account, if selected, will be skipped."
+        confirmLabel={bulkBusy ? "Terminating..." : "Terminate"}
+        variant="destructive"
+        onConfirm={confirmBulkDelete}
+        isLoading={bulkBusy}
+      />
     </div>
   )
 }

@@ -3,11 +3,12 @@
 import { useState } from "react"
 import { FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { PayslipView } from "@/features/payroll"
 import { useMyPayslips, useMyPayslip, type PayrollRecord } from "@/features/payroll"
-import { cn } from "@/lib/utils"
 import { MONTHS, PAYROLL_STATUS_COLORS, PAYROLL_STATUS_LABELS } from "@/lib/constants"
 
 function fmt(amount: number): string {
@@ -33,16 +34,9 @@ export default function MyPayslipsPage() {
       <PageHeader title="My Payslips" description="View your payslip history" />
 
       {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded" />
-          ))}
-        </div>
+        <ListSkeleton rows={5} height="h-16" />
       ) : payslips.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <FileText className="text-muted-foreground/50 mb-4 h-12 w-12" />
-          <p className="text-muted-foreground text-sm">No payslips available yet.</p>
-        </div>
+        <EmptyState icon={FileText} title="No payslips available yet." />
       ) : (
         <div className="bg-card rounded border">
           <table className="w-full text-sm">
@@ -61,9 +55,6 @@ export default function MyPayslipsPage() {
             </thead>
             <tbody className="divide-y">
               {payslips.map((payslip: PayrollRecord) => {
-                const statusColor =
-                  PAYROLL_STATUS_COLORS[payslip.status] ?? "bg-gray-100 text-gray-700"
-                const statusLabel = PAYROLL_STATUS_LABELS[payslip.status] ?? payslip.status
                 const monthName = MONTHS[payslip.month - 1]
 
                 return (
@@ -78,14 +69,11 @@ export default function MyPayslipsPage() {
                       {fmt(payslip.netSalary)}
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                          statusColor,
-                        )}
-                      >
-                        {statusLabel}
-                      </span>
+                      <StatusBadge
+                        status={payslip.status}
+                        colorMap={PAYROLL_STATUS_COLORS}
+                        labelMap={PAYROLL_STATUS_LABELS}
+                      />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Button variant="outline" size="sm" onClick={() => handleView(payslip.id)}>

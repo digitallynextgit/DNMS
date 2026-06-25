@@ -1,18 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -20,13 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { FormDialog } from "@/components/shared/form-dialog"
 import { ATTENDANCE_STATUS_LABELS } from "@/lib/constants"
 import {
   useCreateAttendanceLog,
   useUpdateAttendanceLog,
 } from "@/features/attendance/hooks/use-attendance"
 import type { AttendanceLog } from "@/features/attendance/hooks/use-attendance"
-import { useEmployees } from "@/features/employees"
+import { EmployeeCombobox } from "@/features/employees"
 import { format } from "date-fns"
 
 interface ManualAttendanceDialogProps {
@@ -71,10 +63,6 @@ export function ManualAttendanceDialog({
   const updateLog = useUpdateAttendanceLog()
   const isPending = createLog.isPending || updateLog.isPending
 
-  // Fetch employees for select
-  const { data: employeesData } = useEmployees({ limit: 200, status: "ACTIVE" })
-  const employees = employeesData?.data ?? []
-
   // Populate form when editing
   useEffect(() => {
     if (editLog) {
@@ -118,124 +106,100 @@ export function ManualAttendanceDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Attendance Record" : "Add Manual Attendance"}</DialogTitle>
-        </DialogHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={isEdit ? "Edit Attendance Record" : "Add Manual Attendance"}
+      isEdit={isEdit}
+      isPending={isPending}
+      submitDisabled={(!isEdit && !employeeId) || !date}
+      submitLabel={isEdit ? "Save Changes" : "Add Record"}
+      onSubmit={handleSubmit}
+      contentClassName="sm:max-w-[500px]"
+    >
+      {/* Employee select */}
+      {!isEdit && (
+        <div className="space-y-1.5">
+          <Label htmlFor="employee">Employee</Label>
+          <EmployeeCombobox
+            value={employeeId || undefined}
+            onChange={(id) => setEmployeeId(id ?? "")}
+            placeholder="Select employee..."
+            modal
+          />
+        </div>
+      )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-2">
-          {/* Employee select */}
-          {!isEdit && (
-            <div className="space-y-1.5">
-              <Label htmlFor="employee">Employee</Label>
-              <Select
-                value={employeeId || "none"}
-                onValueChange={(v) => setEmployeeId(v === "none" ? "" : v)}
-                required
-              >
-                <SelectTrigger id="employee">
-                  <SelectValue placeholder="Select employee..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>
-                      {emp.firstName} {emp.lastName}{" "}
-                      <span className="text-muted-foreground text-xs">({emp.employeeNo})</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+      {/* Date */}
+      <div className="space-y-1.5">
+        <Label htmlFor="date">Date</Label>
+        <Input
+          id="date"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          required
+          disabled={isEdit}
+        />
+      </div>
 
-          {/* Date */}
-          <div className="space-y-1.5">
-            <Label htmlFor="date">Date</Label>
-            <Input
-              id="date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-              disabled={isEdit}
-            />
-          </div>
+      {/* Check in / check out */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="check-in">Check In</Label>
+          <Input
+            id="check-in"
+            type="time"
+            value={checkIn}
+            onChange={(e) => setCheckIn(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="check-out">Check Out</Label>
+          <Input
+            id="check-out"
+            type="time"
+            value={checkOut}
+            onChange={(e) => setCheckOut(e.target.value)}
+          />
+        </div>
+      </div>
 
-          {/* Check in / check out */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="check-in">Check In</Label>
-              <Input
-                id="check-in"
-                type="time"
-                value={checkIn}
-                onChange={(e) => setCheckIn(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="check-out">Check Out</Label>
-              <Input
-                id="check-out"
-                type="time"
-                value={checkOut}
-                onChange={(e) => setCheckOut(e.target.value)}
-              />
-            </div>
-          </div>
+      {/* Work hours preview */}
+      {workHoursPreview && (
+        <p className="text-muted-foreground text-sm">
+          Work hours: <span className="text-foreground font-medium">{workHoursPreview}</span>
+        </p>
+      )}
 
-          {/* Work hours preview */}
-          {workHoursPreview && (
-            <p className="text-muted-foreground text-sm">
-              Work hours: <span className="text-foreground font-medium">{workHoursPreview}</span>
-            </p>
-          )}
+      {/* Status */}
+      <div className="space-y-1.5">
+        <Label htmlFor="status">Status</Label>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger id="status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(ATTENDANCE_STATUS_LABELS).map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-          {/* Status */}
-          <div className="space-y-1.5">
-            <Label htmlFor="status">Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger id="status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(ATTENDANCE_STATUS_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-1.5">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              placeholder="Optional notes..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-            />
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending || (!isEdit && !employeeId) || !date}>
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isEdit ? "Save Changes" : "Add Record"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      {/* Notes */}
+      <div className="space-y-1.5">
+        <Label htmlFor="notes">Notes</Label>
+        <Textarea
+          id="notes"
+          placeholder="Optional notes..."
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
+        />
+      </div>
+    </FormDialog>
   )
 }

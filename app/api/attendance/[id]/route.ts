@@ -3,6 +3,7 @@ import { db } from "@/server/db"
 import { withAuth, withSession } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import { computeAttendanceStatus } from "@/features/attendance/attendance"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
 export const GET = withSession(
@@ -15,11 +16,7 @@ export const GET = withSession(
         include: {
           employee: {
             select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              employeeNo: true,
-              profilePhoto: true,
+              ...EMPLOYEE_SUMMARY_SELECT,
               department: { select: { id: true, name: true } },
             },
           },

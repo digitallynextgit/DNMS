@@ -1,13 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { CheckCircle2, XCircle, Clock, Timer } from "lucide-react"
+import { CheckCircle2, XCircle, Clock, Timer, CalendarDays } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { cn, formatDate } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import { ATTENDANCE_STATUS_LABELS, ATTENDANCE_STATUS_COLORS } from "@/lib/constants"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { useMyAttendance } from "@/features/attendance"
 
 function formatTime(dt: string | null): string {
@@ -90,23 +92,16 @@ export default function MyAttendancePage() {
 
       {/* Attendance list */}
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded" />
-          ))}
-        </div>
+        <ListSkeleton rows={10} height="h-16" />
       ) : logs.length === 0 ? (
-        <div className="bg-card flex flex-col items-center justify-center rounded border py-20 text-center">
-          <p className="text-muted-foreground text-sm">
-            No attendance records found for the last 30 days.
-          </p>
-        </div>
+        <EmptyState
+          variant="card"
+          icon={CalendarDays}
+          title="No attendance records found for the last 30 days."
+        />
       ) : (
         <div className="bg-card divide-y overflow-hidden rounded border">
           {logs.map((log) => {
-            const statusColor = ATTENDANCE_STATUS_COLORS[log.status] ?? "bg-gray-100 text-gray-700"
-            const statusLabel = ATTENDANCE_STATUS_LABELS[log.status] ?? log.status
-
             return (
               <div
                 key={log.id}
@@ -138,14 +133,11 @@ export default function MyAttendancePage() {
                 </div>
 
                 {/* Status */}
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    statusColor,
-                  )}
-                >
-                  {statusLabel}
-                </span>
+                <StatusBadge
+                  status={log.status}
+                  colorMap={ATTENDANCE_STATUS_COLORS}
+                  labelMap={ATTENDANCE_STATUS_LABELS}
+                />
 
                 {/* Notes */}
                 {log.notes && (

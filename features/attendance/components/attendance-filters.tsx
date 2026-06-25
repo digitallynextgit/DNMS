@@ -1,16 +1,9 @@
 "use client"
 
-import { X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { FilterSelect, FilterToolbar } from "@/components/shared/filter-bar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { SearchInput } from "@/components/shared/search-input"
 import { ATTENDANCE_STATUS_LABELS } from "@/lib/constants"
 
 export interface AttendanceFiltersProps {
@@ -40,15 +33,14 @@ export function AttendanceFilters({
     employeeSearch !== "" || dateFrom !== "" || dateTo !== "" || status !== ""
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
+    <FilterToolbar hasActiveFilters={hasActiveFilters} onClear={onClear} className="items-end">
       {/* Employee search */}
       <div className="flex max-w-xs min-w-[180px] flex-1 flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs">Employee</Label>
-        <Input
+        <SearchInput
           placeholder="Search by name or ID..."
           value={employeeSearch}
-          onChange={(e) => onEmployeeSearchChange(e.target.value)}
-          className="h-9"
+          onChange={onEmployeeSearchChange}
         />
       </div>
 
@@ -77,28 +69,17 @@ export function AttendanceFilters({
       {/* Status filter */}
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs">Status</Label>
-        <Select value={status || "all"} onValueChange={(v) => onStatusChange(v === "all" ? "" : v)}>
-          <SelectTrigger className="h-9 w-[140px]">
-            <SelectValue placeholder="All Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {Object.entries(ATTENDANCE_STATUS_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <FilterSelect
+          value={status}
+          onChange={onStatusChange}
+          options={Object.entries(ATTENDANCE_STATUS_LABELS).map(([value, label]) => ({
+            value,
+            label,
+          }))}
+          allLabel="All Statuses"
+          className="w-[140px]"
+        />
       </div>
-
-      {/* Clear button */}
-      {hasActiveFilters && (
-        <Button variant="ghost" size="sm" onClick={onClear} className="h-9 gap-1.5 self-end">
-          <X className="h-3.5 w-3.5" />
-          Clear
-        </Button>
-      )}
-    </div>
+    </FilterToolbar>
   )
 }

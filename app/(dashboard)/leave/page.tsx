@@ -4,9 +4,10 @@ import { useState } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
+import { EmptyState } from "@/components/shared/empty-state"
+import { CardGridSkeleton, ListSkeleton } from "@/components/shared/loading-skeleton"
 import { LeaveBalanceCard } from "@/features/leave"
 import { LeaveRequestTable } from "@/features/leave"
 import { useLeaveBalances, useMyLeaveRequests } from "@/features/leave"
@@ -50,20 +51,13 @@ export default function LeaveDashboardPage() {
         <h2 className="text-foreground text-base font-semibold">Leave Balances - {currentYear}</h2>
 
         {balancesLoading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-40 rounded" />
-            ))}
-          </div>
+          <CardGridSkeleton count={4} />
         ) : balances.length === 0 ? (
-          <div className="bg-muted/30 rounded border py-12 text-center">
-            <p className="text-muted-foreground text-sm">
-              No leave balances have been allocated for {currentYear}.
-            </p>
-            <p className="text-muted-foreground mt-1 text-xs">
-              Contact your HR administrator to set up your leave balance.
-            </p>
-          </div>
+          <EmptyState
+            variant="card"
+            title={`No leave balances have been allocated for ${currentYear}.`}
+            description="Contact your HR administrator to set up your leave balance."
+          />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {balances.map((balance) => (
@@ -80,11 +74,7 @@ export default function LeaveDashboardPage() {
         </div>
 
         {requestsLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 rounded" />
-            ))}
-          </div>
+          <ListSkeleton rows={4} height="h-14" />
         ) : (
           <>
             <LeaveRequestTable

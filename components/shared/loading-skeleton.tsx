@@ -35,6 +35,24 @@ export function TableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: nu
   )
 }
 
+export function ListSkeleton({
+  rows = 6,
+  height = "h-14",
+  className,
+}: {
+  rows?: number
+  height?: string
+  className?: string
+}) {
+  return (
+    <div className={cn("space-y-2", className)}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className={cn("bg-muted w-full animate-pulse rounded", height)} />
+      ))}
+    </div>
+  )
+}
+
 export function CardGridSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

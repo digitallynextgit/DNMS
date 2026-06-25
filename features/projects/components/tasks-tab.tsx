@@ -5,7 +5,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import {
   Dialog,
   DialogContent,
@@ -46,13 +47,14 @@ import {
   LayoutList,
   Kanban,
 } from "lucide-react"
-import { cn, formatDate, getInitials } from "@/lib/utils"
+import { cn, formatDate } from "@/lib/utils"
 import {
   TASK_STATUS_LABELS,
   TASK_STATUS_COLORS,
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
 } from "@/lib/constants"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { TaskDetailSheet } from "./task-detail-sheet"
 import { KanbanView, formatHours } from "./kanban-view"
 
@@ -285,6 +287,7 @@ function TaskRow({
   const del = useDeleteTask()
   const [rejectOpen, setRejectOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const isAssignee = task.assigneeId === currentUserId
   const isPending = task.approvalStatus === "PENDING_APPROVAL"
@@ -357,12 +360,12 @@ function TaskRow({
             </p>
           )}
           <div className="text-muted-foreground mt-1 flex items-center gap-3 text-[11px]">
-            <Badge
-              variant="outline"
-              className={cn("text-[10px]", TASK_PRIORITY_COLORS[task.priority])}
-            >
-              {TASK_PRIORITY_LABELS[task.priority]}
-            </Badge>
+            <StatusBadge
+              status={task.priority}
+              colorMap={TASK_PRIORITY_COLORS}
+              labelMap={TASK_PRIORITY_LABELS}
+              size="xs"
+            />
             {task.dueDate && <span>Due {formatDate(task.dueDate)}</span>}
             {task.estimatedHours != null && (
               <span className="flex items-center gap-0.5">
@@ -372,11 +375,12 @@ function TaskRow({
             )}
             {task.assignee && (
               <span className="flex items-center gap-1">
-                <Avatar className="h-4 w-4">
-                  <AvatarFallback className="text-[8px]">
-                    {getInitials(task.assignee.firstName, task.assignee.lastName)}
-                  </AvatarFallback>
-                </Avatar>
+                <AvatarDisplay
+                  firstName={task.assignee.firstName}
+                  lastName={task.assignee.lastName}
+                  size="xs"
+                  className="h-4 w-4"
+                />
                 {task.assignee.firstName}
               </span>
             )}
@@ -420,9 +424,7 @@ function TaskRow({
               variant="ghost"
               size="icon"
               className="text-muted-foreground hover:text-destructive h-7 w-7"
-              onClick={() => {
-                if (confirm(`Delete task "${task.title}"?`)) del.mutate(task.id)
-              }}
+              onClick={() => setConfirmOpen(true)}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -435,6 +437,17 @@ function TaskRow({
           onConfirm={(reason) => {
             reject.mutate({ taskId: task.id, reason }, { onSuccess: () => setRejectOpen(false) })
           }}
+        />
+
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title="Delete task"
+          description={`Delete task "${task.title}"?`}
+          confirmLabel="Delete"
+          variant="destructive"
+          isLoading={del.isPending}
+          onConfirm={() => del.mutate(task.id, { onSuccess: () => setConfirmOpen(false) })}
         />
       </div>
 

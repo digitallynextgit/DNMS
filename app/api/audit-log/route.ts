@@ -25,6 +25,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
+import { resolvePagination, paginationMeta } from "@/lib/pagination"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Prisma } from "@prisma/client"
 
 export const GET = withAuth(PERMISSIONS.AUDIT_READ, async (req: NextRequest) => {
@@ -33,12 +35,10 @@ export const GET = withAuth(PERMISSIONS.AUDIT_READ, async (req: NextRequest) => 
   // -----------------------------------------------------------------------
   // Parse query parameters
   // -----------------------------------------------------------------------
-  const rawPage = parseInt(searchParams.get("page") ?? "1", 10)
-  const rawLimit = parseInt(searchParams.get("limit") ?? "20", 10)
-
-  const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
-  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 20
-  const skip = (page - 1) * limit
+  const { page, limit, skip } = resolvePagination(
+    { page: searchParams.get("page"), limit: searchParams.get("limit") },
+    20,
+  )
 
   const moduleFilter = searchParams.get("module") ?? undefined
   const actorIdFilter = searchParams.get("actorId") ?? undefined
@@ -93,27 +93,14 @@ export const GET = withAuth(PERMISSIONS.AUDIT_READ, async (req: NextRequest) => 
       take: limit,
       include: {
         actor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            employeeNo: true,
-            profilePhoto: true,
-          },
+          select: EMPLOYEE_SUMMARY_SELECT,
         },
       },
     }),
   ])
 
-  const totalPages = Math.ceil(total / limit)
-
   return NextResponse.json({
     data: entries,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages,
-    },
+    pagination: paginationMeta(total, page, limit),
   })
 })

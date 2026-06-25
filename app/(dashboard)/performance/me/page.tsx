@@ -15,8 +15,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
 import { REVIEW_STATUS_LABELS, REVIEW_STATUS_COLORS } from "@/lib/constants"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 
 interface Review {
@@ -143,11 +145,7 @@ export default function MyReviewsPage() {
           title="My Reviews"
           description="View and submit your performance self-assessment"
         />
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 rounded" />
-          ))}
-        </div>
+        <ListSkeleton rows={3} height="h-32" />
       </div>
     )
   }
@@ -159,10 +157,7 @@ export default function MyReviewsPage() {
           title="My Reviews"
           description="View and submit your performance self-assessment"
         />
-        <div className="bg-card flex flex-col items-center justify-center rounded border py-20 text-center">
-          <Star className="text-muted-foreground/40 mb-3 h-10 w-10" />
-          <p className="text-muted-foreground text-sm">No performance reviews assigned yet.</p>
-        </div>
+        <EmptyState icon={Star} variant="card" title="No performance reviews assigned yet." />
       </div>
     )
   }
@@ -200,14 +195,11 @@ export default function MyReviewsPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">{review.cycle.name}</CardTitle>
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                      REVIEW_STATUS_COLORS[review.status],
-                    )}
-                  >
-                    {REVIEW_STATUS_LABELS[review.status]}
-                  </span>
+                  <StatusBadge
+                    status={review.status}
+                    colorMap={REVIEW_STATUS_COLORS}
+                    labelMap={REVIEW_STATUS_LABELS}
+                  />
                 </div>
                 <p className="text-muted-foreground text-sm">
                   Reviewer:{" "}

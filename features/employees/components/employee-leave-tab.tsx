@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { CardGridSkeleton, ListSkeleton } from "@/components/shared/loading-skeleton"
 import {
   Select,
   SelectContent,
@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { LeaveBalanceCard } from "@/features/leave"
 import { useLeaveBalances, useLeaveRequests } from "@/features/leave"
 import { formatDate, cn } from "@/lib/utils"
@@ -108,11 +109,7 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
           Balances · {year}
         </h4>
         {balancesLoading ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-40 rounded" />
-            ))}
-          </div>
+          <CardGridSkeleton count={4} />
         ) : balances.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="text-muted-foreground py-10 text-center text-sm">
@@ -134,11 +131,7 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
           Request History · {year}
         </h4>
         {requestsLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 rounded" />
-            ))}
-          </div>
+          <ListSkeleton rows={4} height="h-14" />
         ) : yearRequests.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="py-10 text-center">
@@ -187,12 +180,11 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
                           <td className="px-4 py-2.5 text-center font-medium">{r.totalDays}</td>
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-1.5">
-                              <Badge
-                                variant="outline"
-                                className={cn("text-xs", LEAVE_STATUS_COLORS[r.status])}
-                              >
-                                {LEAVE_STATUS_LABELS[r.status]}
-                              </Badge>
+                              <StatusBadge
+                                status={r.status}
+                                colorMap={LEAVE_STATUS_COLORS}
+                                labelMap={LEAVE_STATUS_LABELS}
+                              />
                               {lateNotice && (
                                 <span title="Late notice - double salary deduction flagged">
                                   <AlertTriangle className="h-3.5 w-3.5 text-red-500" />

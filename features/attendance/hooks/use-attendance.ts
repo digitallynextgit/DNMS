@@ -2,6 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { apiFetch } from "@/lib/api-fetch"
+import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -114,12 +116,7 @@ async function fetchAttendanceLogs(
   if (filters.page) params.set("page", String(filters.page))
   if (filters.limit) params.set("limit", String(filters.limit))
 
-  const res = await fetch(`/api/attendance?${params.toString()}`)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch attendance logs" }))
-    throw new Error(err.error?.message || "Failed to fetch attendance logs")
-  }
-  return res.json()
+  return apiFetch<PaginatedResponse<AttendanceLog>>(`/api/attendance?${params.toString()}`)
 }
 
 async function fetchMyAttendance(
@@ -131,12 +128,7 @@ async function fetchMyAttendance(
   if (filters.page) params.set("page", String(filters.page))
   if (filters.limit) params.set("limit", String(filters.limit))
 
-  const res = await fetch(`/api/attendance/me?${params.toString()}`)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch attendance" }))
-    throw new Error(err.error?.message || "Failed to fetch attendance")
-  }
-  return res.json()
+  return apiFetch<PaginatedResponse<AttendanceLog>>(`/api/attendance/me?${params.toString()}`)
 }
 
 async function fetchAttendanceSummary(
@@ -145,27 +137,17 @@ async function fetchAttendanceSummary(
   year: number,
 ): Promise<{ data: AttendanceSummary }> {
   const params = new URLSearchParams({ employeeId, month: String(month), year: String(year) })
-  const res = await fetch(`/api/attendance/summary?${params.toString()}`)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch summary" }))
-    throw new Error(err.error?.message || "Failed to fetch summary")
-  }
-  return res.json()
+  return apiFetch<{ data: AttendanceSummary }>(`/api/attendance/summary?${params.toString()}`)
 }
 
 async function createAttendanceLog(
   body: Record<string, unknown>,
 ): Promise<{ data: AttendanceLog }> {
-  const res = await fetch("/api/attendance", {
+  return apiFetch<{ data: AttendanceLog }>("/api/attendance", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to create attendance log" }))
-    throw new Error(err.error?.message || "Failed to create attendance log")
-  }
-  return res.json()
 }
 
 async function updateAttendanceLog({
@@ -175,47 +157,27 @@ async function updateAttendanceLog({
   id: string
   body: Record<string, unknown>
 }): Promise<{ data: AttendanceLog }> {
-  const res = await fetch(`/api/attendance/${id}`, {
+  return apiFetch<{ data: AttendanceLog }>(`/api/attendance/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to update attendance log" }))
-    throw new Error(err.error?.message || "Failed to update attendance log")
-  }
-  return res.json()
 }
 
 async function deleteAttendanceLog(id: string): Promise<{ message: string }> {
-  const res = await fetch(`/api/attendance/${id}`, { method: "DELETE" })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to delete attendance log" }))
-    throw new Error(err.error?.message || "Failed to delete attendance log")
-  }
-  return res.json()
+  return apiFetch<{ message: string }>(`/api/attendance/${id}`, { method: "DELETE" })
 }
 
 async function fetchDevices(): Promise<{ data: HikvisionDevice[] }> {
-  const res = await fetch("/api/attendance/devices")
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch devices" }))
-    throw new Error(err.error?.message || "Failed to fetch devices")
-  }
-  return res.json()
+  return apiFetch<{ data: HikvisionDevice[] }>("/api/attendance/devices")
 }
 
 async function createDevice(body: Record<string, unknown>): Promise<{ data: HikvisionDevice }> {
-  const res = await fetch("/api/attendance/devices", {
+  return apiFetch<{ data: HikvisionDevice }>("/api/attendance/devices", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to create device" }))
-    throw new Error(err.error?.message || "Failed to create device")
-  }
-  return res.json()
 }
 
 async function updateDevice({
@@ -225,67 +187,39 @@ async function updateDevice({
   id: string
   body: Record<string, unknown>
 }): Promise<{ data: HikvisionDevice }> {
-  const res = await fetch(`/api/attendance/devices/${id}`, {
+  return apiFetch<{ data: HikvisionDevice }>(`/api/attendance/devices/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to update device" }))
-    throw new Error(err.error?.message || "Failed to update device")
-  }
-  return res.json()
 }
 
 async function deleteDevice(id: string): Promise<{ message: string }> {
-  const res = await fetch(`/api/attendance/devices/${id}`, { method: "DELETE" })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to delete device" }))
-    throw new Error(err.error?.message || "Failed to delete device")
-  }
-  return res.json()
+  return apiFetch<{ message: string }>(`/api/attendance/devices/${id}`, { method: "DELETE" })
 }
 
 async function syncDevice(id: string): Promise<{ message: string; synced: number }> {
-  const res = await fetch(`/api/attendance/devices/${id}/sync`, { method: "POST" })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to sync device" }))
-    throw new Error(err.error?.message || "Failed to sync device")
-  }
-  return res.json()
+  return apiFetch<{ message: string; synced: number }>(`/api/attendance/devices/${id}/sync`, {
+    method: "POST",
+  })
 }
 
 async function fetchHolidays(year?: number): Promise<{ data: Holiday[] }> {
   const params = new URLSearchParams()
   if (year) params.set("year", String(year))
-  const res = await fetch(`/api/attendance/holidays?${params.toString()}`)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch holidays" }))
-    throw new Error(err.error?.message || "Failed to fetch holidays")
-  }
-  return res.json()
+  return apiFetch<{ data: Holiday[] }>(`/api/attendance/holidays?${params.toString()}`)
 }
 
 async function createHoliday(body: Record<string, unknown>): Promise<{ data: Holiday }> {
-  const res = await fetch("/api/attendance/holidays", {
+  return apiFetch<{ data: Holiday }>("/api/attendance/holidays", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to create holiday" }))
-    throw new Error(err.error?.message || "Failed to create holiday")
-  }
-  return res.json()
 }
 
 async function deleteHoliday(id: string): Promise<{ message: string }> {
-  const res = await fetch(`/api/attendance/holidays/${id}`, { method: "DELETE" })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to delete holiday" }))
-    throw new Error(err.error?.message || "Failed to delete holiday")
-  }
-  return res.json()
+  return apiFetch<{ message: string }>(`/api/attendance/holidays/${id}`, { method: "DELETE" })
 }
 
 // ─── Hooks ─────────────────────────────────────────────────────────────────────
@@ -320,52 +254,39 @@ export function useAttendanceSummary(
 }
 
 export function useCreateAttendanceLog() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: createAttendanceLog,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["attendance-logs"] })
-      queryClient.invalidateQueries({ queryKey: ["attendance-summary"] })
-      toast.success("Attendance record created successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to create attendance record")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: createAttendanceLog,
+      invalidate: [["attendance-logs"], ["attendance-summary"]],
+      success: "Attendance record created successfully",
+    }),
+  )
 }
 
 export function useUpdateAttendanceLog() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: updateAttendanceLog,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["attendance-logs"] })
-      queryClient.invalidateQueries({ queryKey: ["my-attendance"] })
-      queryClient.invalidateQueries({ queryKey: ["attendance-summary"] })
-      toast.success("Attendance record updated successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to update attendance record")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: updateAttendanceLog,
+      invalidate: [["attendance-logs"], ["my-attendance"], ["attendance-summary"]],
+      success: "Attendance record updated successfully",
+    }),
+  )
 }
 
 export function useDeleteAttendanceLog() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: deleteAttendanceLog,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["attendance-logs"] })
-      queryClient.invalidateQueries({ queryKey: ["attendance-summary"] })
-      toast.success("Attendance record deleted successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete attendance record")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: deleteAttendanceLog,
+      invalidate: [["attendance-logs"], ["attendance-summary"]],
+      success: "Attendance record deleted successfully",
+    }),
+  )
 }
 
 export function useDevices() {
@@ -377,48 +298,39 @@ export function useDevices() {
 }
 
 export function useCreateDevice() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: createDevice,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["attendance-devices"] })
-      toast.success("Device added successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to add device")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: createDevice,
+      invalidate: [["attendance-devices"]],
+      success: "Device added successfully",
+    }),
+  )
 }
 
 export function useUpdateDevice() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: updateDevice,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["attendance-devices"] })
-      toast.success("Device updated successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to update device")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: updateDevice,
+      invalidate: [["attendance-devices"]],
+      success: "Device updated successfully",
+    }),
+  )
 }
 
 export function useDeleteDevice() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: deleteDevice,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["attendance-devices"] })
-      toast.success("Device deleted successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete device")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: deleteDevice,
+      invalidate: [["attendance-devices"]],
+      success: "Device deleted successfully",
+    }),
+  )
 }
 
 export function useSyncDevice() {
@@ -443,12 +355,11 @@ async function testDevice(id: string): Promise<{
   message: string
   info?: { deviceName: string; model: string; firmwareVersion: string }
 }> {
-  const res = await fetch(`/api/attendance/devices/${id}/test`, { method: "POST" })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to test device" }))
-    throw new Error(err.error?.message || "Failed to test device")
-  }
-  return res.json()
+  return apiFetch<{
+    success: boolean
+    message: string
+    info?: { deviceName: string; model: string; firmwareVersion: string }
+  }>(`/api/attendance/devices/${id}/test`, { method: "POST" })
 }
 
 export function useTestDevice() {
@@ -477,31 +388,25 @@ export function useHolidays(year?: number) {
 }
 
 export function useCreateHoliday() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: createHoliday,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["attendance-holidays"] })
-      toast.success("Holiday added successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to add holiday")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: createHoliday,
+      invalidate: [["attendance-holidays"]],
+      success: "Holiday added successfully",
+    }),
+  )
 }
 
 export function useDeleteHoliday() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: deleteHoliday,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["attendance-holidays"] })
-      toast.success("Holiday deleted successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete holiday")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: deleteHoliday,
+      invalidate: [["attendance-holidays"]],
+      success: "Holiday deleted successfully",
+    }),
+  )
 }

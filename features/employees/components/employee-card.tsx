@@ -11,9 +11,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getInitials, employeeSlug } from "@/lib/utils"
-import { EMPLOYEE_STATUS_LABELS } from "@/lib/constants"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { employeeSlug } from "@/lib/utils"
+import { EMPLOYEE_STATUS_COLORS, EMPLOYEE_STATUS_LABELS, PROBATION_BADGE } from "@/lib/constants"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { isOnProbation } from "@/features/employees/probation"
 
 export interface EmployeeCardProps {
@@ -39,8 +40,6 @@ export interface EmployeeCardProps {
 
 export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: EmployeeCardProps) {
   const fullName = `${employee.firstName} ${employee.lastName}`
-  const initials = getInitials(employee.firstName, employee.lastName)
-  const statusLabel = EMPLOYEE_STATUS_LABELS[employee.status] ?? employee.status
   const onProbation = isOnProbation(employee)
 
   return (
@@ -48,14 +47,14 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
-            <Avatar className="h-9 w-9 shrink-0">
-              {employee.profilePhoto ? (
-                <AvatarImage src={employee.profilePhoto} alt={fullName} />
-              ) : null}
-              <AvatarFallback className="bg-accent text-foreground text-xs font-medium">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            <AvatarDisplay
+              src={employee.profilePhoto}
+              firstName={employee.firstName}
+              lastName={employee.lastName}
+              size="sm"
+              fallbackClassName="bg-accent text-foreground font-medium"
+              className="h-9 w-9 shrink-0"
+            />
 
             <div className="min-w-0">
               <p className="text-foreground truncate text-sm leading-tight font-medium">
@@ -131,13 +130,19 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
 
         <div className="mt-3 flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <span className="border-border text-muted-foreground inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium">
-              {statusLabel}
-            </span>
+            <StatusBadge
+              status={employee.status}
+              colorMap={EMPLOYEE_STATUS_COLORS}
+              labelMap={EMPLOYEE_STATUS_LABELS}
+              size="xs"
+            />
             {onProbation && (
-              <span className="inline-flex items-center rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400">
-                Probation
-              </span>
+              <StatusBadge
+                status="Probation"
+                label="Probation"
+                colorMap={{ Probation: PROBATION_BADGE }}
+                size="xs"
+              />
             )}
           </div>
           <Button variant="outline" size="sm" className="h-7 px-2 text-xs" asChild>

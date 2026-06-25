@@ -7,7 +7,8 @@ import { CalendarDays, Check } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/shared/empty-state"
+import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { cn, formatDate } from "@/lib/utils"
 
 interface Holiday {
@@ -137,18 +138,13 @@ export default function FloatingHolidaysPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded" />
-          ))}
-        </div>
+        <CardGridSkeleton count={6} />
       ) : !fd || fd.optionalHolidays.length === 0 ? (
-        <div className="bg-card flex flex-col items-center justify-center rounded border py-20 text-center">
-          <CalendarDays className="text-muted-foreground/40 mb-3 h-10 w-10" />
-          <p className="text-muted-foreground text-sm">
-            No optional holidays are configured for {year} yet.
-          </p>
-        </div>
+        <EmptyState
+          variant="card"
+          icon={CalendarDays}
+          title={`No optional holidays are configured for ${year} yet.`}
+        />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {pagedHolidays.map((h) => {

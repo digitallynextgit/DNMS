@@ -4,8 +4,11 @@
 // with one company-branded, email-client-safe HTML message.
 // =============================================================================
 // Table-based layout + inline styles (the only thing Outlook/Gmail render
-// reliably). Logo sits on a dark header; point EMAIL_LOGO_URL at a hosted PNG/WEBP.
+// reliably). The shared `wrapEmail` provides the dark logo header + footer; point
+// EMAIL_LOGO_URL at a hosted PNG/WEBP.
 // =============================================================================
+
+import { BRAND_NAME, detailRow, wrapEmail } from "@/lib/email-layout"
 
 interface WelcomeCredentialsInput {
   firstName: string
@@ -17,25 +20,6 @@ interface WelcomeCredentialsInput {
   password: string
   mustChange: boolean
   loginUrl: string
-}
-
-const BRAND_NAME = "Digitally Next"
-
-function logoUrl(): string {
-  const base = (process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "")
-  return process.env.EMAIL_LOGO_URL ?? `${base}/logo_dark_bg.webp`
-}
-
-// A single "Label / value" row in the details card (omitted when value is empty).
-function detailRow(label: string, value?: string | null): string {
-  if (!value) return ""
-  return `
-    <tr>
-      <td style="padding:10px 0; border-bottom:1px solid #f0f0f0;">
-        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:#9ca3af;">${label}</div>
-        <div style="font-size:15px; color:#111827; margin-top:2px;">${value}</div>
-      </td>
-    </tr>`
 }
 
 export function renderWelcomeCredentialsEmail(input: WelcomeCredentialsInput): {
@@ -60,29 +44,7 @@ export function renderWelcomeCredentialsEmail(input: WelcomeCredentialsInput): {
     ? "For security, you'll be asked to set your own password the first time you sign in."
     : "Please sign in and change your password from your profile."
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="x-apple-disable-message-reformatting" />
-  <title>${subject}</title>
-</head>
-<body style="margin:0; padding:0; background-color:#f4f4f5; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5; padding:32px 12px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px; background:#ffffff; border-radius:14px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-          <!-- Header / logo -->
-          <tr>
-            <td align="center" style="background:linear-gradient(135deg,#171717 0%,#0a0a0a 100%); padding:32px 32px 28px;">
-              <img src="${logoUrl()}" alt="${BRAND_NAME}" height="34" style="height:34px; width:auto; display:block; border:0;" />
-            </td>
-          </tr>
-
-          <!-- Body -->
-          <tr>
-            <td style="padding:36px 36px 8px;">
+  const body = `
               <h1 style="margin:0 0 14px; font-size:20px; font-weight:600; color:#111827;">Welcome aboard, ${firstName}!</h1>
               <p style="margin:0 0 24px; font-size:15px; line-height:1.6; color:#4b5563;">
                 Your ${BRAND_NAME} Management System account is ready. Here are your details and sign-in credentials.
@@ -122,27 +84,9 @@ export function renderWelcomeCredentialsEmail(input: WelcomeCredentialsInput): {
               <p style="margin:22px 0 0; font-size:12px; line-height:1.6; color:#9ca3af; text-align:center;">
                 Button not working? Copy and paste this link into your browser:<br />
                 <a href="${loginUrl}" style="color:#6b7280;">${loginUrl}</a>
-              </p>
-            </td>
-          </tr>
+              </p>`
 
-          <!-- Footer -->
-          <tr>
-            <td align="center" style="background:#fafafa; border-top:1px solid #f0f0f0; padding:20px 32px; margin-top:24px;">
-              <p style="margin:0; font-size:12px; color:#9ca3af;">
-                Questions? Reach out to your HR team. This is an automated message from ${BRAND_NAME} Management System.
-              </p>
-              <p style="margin:6px 0 0; font-size:12px; color:#c4c4c8;">
-                &copy; 2026 ${BRAND_NAME}. All rights reserved.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`
+  const html = wrapEmail({ title: subject, bodyHtml: body })
 
   const text = `Welcome aboard, ${firstName}!
 

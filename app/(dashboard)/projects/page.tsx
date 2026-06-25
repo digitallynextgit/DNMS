@@ -9,8 +9,12 @@ import { Plus, FolderKanban, Calendar, Users, MoreHorizontal, GripVertical } fro
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { EmptyState } from "@/components/shared/empty-state"
+import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
@@ -26,7 +30,7 @@ import {
   TASK_PRIORITY_COLORS,
   TASK_PRIORITY_LABELS,
 } from "@/lib/constants"
-import { formatDate, cn, getInitials } from "@/lib/utils"
+import { formatDate, cn } from "@/lib/utils"
 import { ProjectFormDialog } from "@/features/projects"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 
@@ -92,6 +96,7 @@ export default function ProjectsPage() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
+  const [archiveTarget, setArchiveTarget] = useState<Project | null>(null)
   const [viewMode, setViewMode] = useViewMode("projects:list")
   const [page, setPage] = useState(1)
 
@@ -198,23 +203,19 @@ export default function ProjectsPage() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-52 rounded" />
-            ))}
-          </div>
+          <CardGridSkeleton />
         )
       ) : projects.length === 0 ? (
-        <div className="bg-card flex flex-col items-center justify-center rounded border py-20 text-center">
-          <FolderKanban className="text-muted-foreground/40 mb-3 h-10 w-10" />
-          <p className="text-muted-foreground text-sm">No projects yet.</p>
-          {canWrite && (
-            <Button className="mt-4 gap-2" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Create First Project
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          variant="card"
+          icon={FolderKanban}
+          title="No projects yet."
+          action={
+            canWrite
+              ? { label: "Create First Project", onClick: () => setCreateOpen(true) }
+              : undefined
+          }
+        />
       ) : viewMode === "kanban" ? (
         /* ── Kanban board ── */
         <DragDropContext onDragEnd={onDragEnd}>
@@ -224,14 +225,11 @@ export default function ProjectsPage() {
               return (
                 <div key={col.id} className="flex min-w-0 flex-col">
                   <div className="mb-2 flex items-center justify-between px-1">
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                        PROJECT_STATUS_COLORS[col.id],
-                      )}
-                    >
-                      {PROJECT_STATUS_LABELS[col.id]}
-                    </span>
+                    <StatusBadge
+                      status={col.id}
+                      colorMap={PROJECT_STATUS_COLORS}
+                      labelMap={PROJECT_STATUS_LABELS}
+                    />
                     <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
                       {group.length}
                     </Badge>
@@ -305,10 +303,7 @@ export default function ProjectsPage() {
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                           className="text-destructive"
-                                          onClick={() => {
-                                            if (confirm(`Archive "${project.name}"?`))
-                                              archiveMut.mutate(project.id)
-                                          }}
+                                          onClick={() => setArchiveTarget(project)}
                                         >
                                           Archive
                                         </DropdownMenuItem>
@@ -324,15 +319,13 @@ export default function ProjectsPage() {
                                 )}
 
                                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                                  <Badge
-                                    variant="outline"
-                                    className={cn(
-                                      "py-0 text-[10px]",
-                                      TASK_PRIORITY_COLORS[project.priority],
-                                    )}
-                                  >
-                                    {TASK_PRIORITY_LABELS[project.priority]}
-                                  </Badge>
+                                  <StatusBadge
+                                    status={project.priority}
+                                    colorMap={TASK_PRIORITY_COLORS}
+                                    labelMap={TASK_PRIORITY_LABELS}
+                                    size="xs"
+                                    className="py-0"
+                                  />
                                   <span className="text-muted-foreground flex items-center gap-0.5 text-[10px]">
                                     <FolderKanban className="h-3 w-3" />
                                     {project._count.tasks}
@@ -345,17 +338,12 @@ export default function ProjectsPage() {
 
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-1">
-                                    <Avatar className="h-5 w-5">
-                                      {project.owner.profilePhoto && (
-                                        <AvatarImage src={project.owner.profilePhoto} />
-                                      )}
-                                      <AvatarFallback className="text-[8px]">
-                                        {getInitials(
-                                          project.owner.firstName,
-                                          project.owner.lastName,
-                                        )}
-                                      </AvatarFallback>
-                                    </Avatar>
+                                    <AvatarDisplay
+                                      src={project.owner.profilePhoto}
+                                      firstName={project.owner.firstName}
+                                      lastName={project.owner.lastName}
+                                      size="xs"
+                                    />
                                     <span className="text-muted-foreground text-[10px]">
                                       {project.owner.firstName}
                                     </span>
@@ -392,14 +380,11 @@ export default function ProjectsPage() {
             group.length === 0 ? null : (
               <div key={status}>
                 <div className="mb-3 flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                      PROJECT_STATUS_COLORS[status],
-                    )}
-                  >
-                    {PROJECT_STATUS_LABELS[status]}
-                  </span>
+                  <StatusBadge
+                    status={status}
+                    colorMap={PROJECT_STATUS_COLORS}
+                    labelMap={PROJECT_STATUS_LABELS}
+                  />
                   <span className="text-muted-foreground text-xs">
                     {group.length} project{group.length !== 1 ? "s" : ""}
                   </span>
@@ -435,14 +420,12 @@ export default function ProjectsPage() {
                             </td>
                             <td className="px-4 py-2.5">
                               <div className="flex items-center gap-1.5">
-                                <Avatar className="h-5 w-5">
-                                  {project.owner.profilePhoto && (
-                                    <AvatarImage src={project.owner.profilePhoto} />
-                                  )}
-                                  <AvatarFallback className="text-[9px]">
-                                    {getInitials(project.owner.firstName, project.owner.lastName)}
-                                  </AvatarFallback>
-                                </Avatar>
+                                <AvatarDisplay
+                                  src={project.owner.profilePhoto}
+                                  firstName={project.owner.firstName}
+                                  lastName={project.owner.lastName}
+                                  size="xs"
+                                />
                                 <span className="text-xs">
                                   {project.owner.firstName} {project.owner.lastName}
                                 </span>
@@ -480,10 +463,7 @@ export default function ProjectsPage() {
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                       className="text-destructive"
-                                      onClick={() => {
-                                        if (confirm(`Archive "${project.name}"?`))
-                                          archiveMut.mutate(project.id)
-                                      }}
+                                      onClick={() => setArchiveTarget(project)}
                                     >
                                       Archive
                                     </DropdownMenuItem>
@@ -535,10 +515,7 @@ export default function ProjectsPage() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   className="text-destructive"
-                                  onClick={() => {
-                                    if (confirm(`Archive "${project.name}"?`))
-                                      archiveMut.mutate(project.id)
-                                  }}
+                                  onClick={() => setArchiveTarget(project)}
                                 >
                                   Archive
                                 </DropdownMenuItem>
@@ -554,14 +531,12 @@ export default function ProjectsPage() {
                         )}
 
                         <div className="flex items-center gap-2 text-xs">
-                          <Avatar className="h-5 w-5">
-                            {project.owner.profilePhoto && (
-                              <AvatarImage src={project.owner.profilePhoto} />
-                            )}
-                            <AvatarFallback className="text-[9px]">
-                              {getInitials(project.owner.firstName, project.owner.lastName)}
-                            </AvatarFallback>
-                          </Avatar>
+                          <AvatarDisplay
+                            src={project.owner.profilePhoto}
+                            firstName={project.owner.firstName}
+                            lastName={project.owner.lastName}
+                            size="xs"
+                          />
                           <span className="text-muted-foreground">Account Manager:</span>
                           <span className="font-medium">
                             {project.owner.firstName} {project.owner.lastName}
@@ -587,17 +562,14 @@ export default function ProjectsPage() {
 
                         <div className="flex items-center gap-1">
                           {project.members.slice(0, 5).map((m) => (
-                            <Avatar
+                            <AvatarDisplay
                               key={m.employee.id}
+                              src={m.employee.profilePhoto}
+                              firstName={m.employee.firstName}
+                              lastName={m.employee.lastName}
+                              size="xs"
                               className="border-background -ml-1 h-6 w-6 border-2 first:ml-0"
-                            >
-                              {m.employee.profilePhoto && (
-                                <AvatarImage src={m.employee.profilePhoto} />
-                              )}
-                              <AvatarFallback className="text-[9px]">
-                                {getInitials(m.employee.firstName, m.employee.lastName)}
-                              </AvatarFallback>
-                            </Avatar>
+                            />
                           ))}
                           {project.members.length > 5 && (
                             <span className="text-muted-foreground ml-1 text-xs">
@@ -654,6 +626,20 @@ export default function ProjectsPage() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!archiveTarget}
+        onOpenChange={(o) => !o && setArchiveTarget(null)}
+        title="Archive project"
+        description={archiveTarget ? `Archive "${archiveTarget.name}"?` : ""}
+        confirmLabel="Archive"
+        variant="destructive"
+        isLoading={archiveMut.isPending}
+        onConfirm={() => {
+          if (archiveTarget)
+            archiveMut.mutate(archiveTarget.id, { onSuccess: () => setArchiveTarget(null) })
+        }}
+      />
     </div>
   )
 }

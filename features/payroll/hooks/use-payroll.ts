@@ -2,6 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { apiFetch } from "@/lib/api-fetch"
+import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,36 +106,21 @@ export interface Pagination {
 // ─── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function fetchSalaryStructures(): Promise<{ data: SalaryStructure[] }> {
-  const res = await fetch("/api/payroll/salary-structures")
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch salary structures" }))
-    throw new Error(err.error?.message || "Failed to fetch salary structures")
-  }
-  return res.json()
+  return apiFetch<{ data: SalaryStructure[] }>("/api/payroll/salary-structures")
 }
 
 async function fetchSalaryStructure(id: string): Promise<{ data: SalaryStructure }> {
-  const res = await fetch(`/api/payroll/salary-structures/${id}`)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch salary structure" }))
-    throw new Error(err.error?.message || "Failed to fetch salary structure")
-  }
-  return res.json()
+  return apiFetch<{ data: SalaryStructure }>(`/api/payroll/salary-structures/${id}`)
 }
 
 async function createSalaryStructure(
   body: Record<string, unknown>,
 ): Promise<{ data: SalaryStructure }> {
-  const res = await fetch("/api/payroll/salary-structures", {
+  return apiFetch<{ data: SalaryStructure }>("/api/payroll/salary-structures", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to create salary structure" }))
-    throw new Error(err.error?.message || "Failed to create salary structure")
-  }
-  return res.json()
 }
 
 async function updateSalaryStructure({
@@ -143,25 +130,15 @@ async function updateSalaryStructure({
   id: string
   body: Record<string, unknown>
 }): Promise<{ data: SalaryStructure }> {
-  const res = await fetch(`/api/payroll/salary-structures/${id}`, {
+  return apiFetch<{ data: SalaryStructure }>(`/api/payroll/salary-structures/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to update salary structure" }))
-    throw new Error(err.error?.message || "Failed to update salary structure")
-  }
-  return res.json()
 }
 
 async function deleteSalaryStructure(id: string): Promise<{ message: string }> {
-  const res = await fetch(`/api/payroll/salary-structures/${id}`, { method: "DELETE" })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to delete salary structure" }))
-    throw new Error(err.error?.message || "Failed to delete salary structure")
-  }
-  return res.json()
+  return apiFetch<{ message: string }>(`/api/payroll/salary-structures/${id}`, { method: "DELETE" })
 }
 
 async function fetchPayrollRecords(
@@ -176,21 +153,13 @@ async function fetchPayrollRecords(
   if (filters.page) params.set("page", String(filters.page))
   if (filters.limit) params.set("limit", String(filters.limit))
 
-  const res = await fetch(`/api/payroll/records?${params.toString()}`)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch payroll records" }))
-    throw new Error(err.error?.message || "Failed to fetch payroll records")
-  }
-  return res.json()
+  return apiFetch<{ data: PayrollRecord[]; pagination?: Pagination }>(
+    `/api/payroll/records?${params.toString()}`,
+  )
 }
 
 async function fetchPayrollRecord(id: string): Promise<{ data: PayrollRecord }> {
-  const res = await fetch(`/api/payroll/records/${id}`)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch payroll record" }))
-    throw new Error(err.error?.message || "Failed to fetch payroll record")
-  }
-  return res.json()
+  return apiFetch<{ data: PayrollRecord }>(`/api/payroll/records/${id}`)
 }
 
 async function generatePayroll(body: {
@@ -198,16 +167,14 @@ async function generatePayroll(body: {
   year: number
   employeeIds?: string[]
 }): Promise<{ message: string; created: number; skipped: number; errors: number }> {
-  const res = await fetch("/api/payroll/records", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to generate payroll" }))
-    throw new Error(err.error?.message || "Failed to generate payroll")
-  }
-  return res.json()
+  return apiFetch<{ message: string; created: number; skipped: number; errors: number }>(
+    "/api/payroll/records",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  )
 }
 
 async function updatePayrollStatus({
@@ -219,43 +186,23 @@ async function updatePayrollStatus({
   status: string
   notes?: string
 }): Promise<{ data: PayrollRecord }> {
-  const res = await fetch(`/api/payroll/records/${id}`, {
+  return apiFetch<{ data: PayrollRecord }>(`/api/payroll/records/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status, notes }),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to update payroll status" }))
-    throw new Error(err.error?.message || "Failed to update payroll status")
-  }
-  return res.json()
 }
 
 async function deletePayrollRecord(id: string): Promise<{ message: string }> {
-  const res = await fetch(`/api/payroll/records/${id}`, { method: "DELETE" })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to delete payroll record" }))
-    throw new Error(err.error?.message || "Failed to delete payroll record")
-  }
-  return res.json()
+  return apiFetch<{ message: string }>(`/api/payroll/records/${id}`, { method: "DELETE" })
 }
 
 async function fetchMyPayslips(): Promise<{ data: PayrollRecord[] }> {
-  const res = await fetch("/api/payroll/me")
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch payslips" }))
-    throw new Error(err.error?.message || "Failed to fetch payslips")
-  }
-  return res.json()
+  return apiFetch<{ data: PayrollRecord[] }>("/api/payroll/me")
 }
 
 async function fetchMyPayslip(id: string): Promise<{ data: PayrollRecord }> {
-  const res = await fetch(`/api/payroll/me/${id}`)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch payslip" }))
-    throw new Error(err.error?.message || "Failed to fetch payslip")
-  }
-  return res.json()
+  return apiFetch<{ data: PayrollRecord }>(`/api/payroll/me/${id}`)
 }
 
 async function fetchPayrollSummary(
@@ -266,12 +213,7 @@ async function fetchPayrollSummary(
   if (month) params.set("month", String(month))
   if (year) params.set("year", String(year))
 
-  const res = await fetch(`/api/payroll/summary?${params.toString()}`)
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Failed to fetch payroll summary" }))
-    throw new Error(err.error?.message || "Failed to fetch payroll summary")
-  }
-  return res.json()
+  return apiFetch<{ data: PayrollSummary }>(`/api/payroll/summary?${params.toString()}`)
 }
 
 // ─── Hooks ─────────────────────────────────────────────────────────────────────
@@ -294,49 +236,42 @@ export function useSalaryStructure(id: string | null | undefined) {
 }
 
 export function useCreateSalaryStructure() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: createSalaryStructure,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["salary-structures"] })
-      toast.success("Salary structure created successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to create salary structure")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: createSalaryStructure,
+      invalidate: [["salary-structures"]],
+      success: "Salary structure created successfully",
+    }),
+  )
 }
 
 export function useUpdateSalaryStructure() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: updateSalaryStructure,
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["salary-structures"] })
-      queryClient.invalidateQueries({ queryKey: ["salary-structure", variables.id] })
-      toast.success("Salary structure updated successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to update salary structure")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: updateSalaryStructure,
+      invalidate: [["salary-structures"]],
+      success: "Salary structure updated successfully",
+      onSuccess: (_data, variables) => {
+        qc.invalidateQueries({ queryKey: ["salary-structure", variables.id] })
+      },
+    }),
+  )
 }
 
 export function useDeleteSalaryStructure() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: deleteSalaryStructure,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["salary-structures"] })
-      toast.success("Salary structure deleted successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete salary structure")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: deleteSalaryStructure,
+      invalidate: [["salary-structures"]],
+      success: "Salary structure deleted successfully",
+    }),
+  )
 }
 
 export function usePayrollRecords(filters: PayrollFilters = {}) {
@@ -373,36 +308,30 @@ export function useGeneratePayroll() {
 }
 
 export function useUpdatePayrollStatus() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: updatePayrollStatus,
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["payroll-records"] })
-      queryClient.invalidateQueries({ queryKey: ["payroll-record", variables.id] })
-      queryClient.invalidateQueries({ queryKey: ["payroll-summary"] })
-      toast.success("Payroll status updated successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to update payroll status")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: updatePayrollStatus,
+      invalidate: [["payroll-records"], ["payroll-summary"]],
+      success: "Payroll status updated successfully",
+      onSuccess: (_data, variables) => {
+        qc.invalidateQueries({ queryKey: ["payroll-record", variables.id] })
+      },
+    }),
+  )
 }
 
 export function useDeletePayrollRecord() {
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
 
-  return useMutation({
-    mutationFn: deletePayrollRecord,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["payroll-records"] })
-      queryClient.invalidateQueries({ queryKey: ["payroll-summary"] })
-      toast.success("Payroll record deleted successfully")
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete payroll record")
-    },
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: deletePayrollRecord,
+      invalidate: [["payroll-records"], ["payroll-summary"]],
+      success: "Payroll record deleted successfully",
+    }),
+  )
 }
 
 export function useMyPayslips() {

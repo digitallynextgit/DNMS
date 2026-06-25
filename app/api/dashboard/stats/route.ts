@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
+import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 
 export const GET = withAuth(
   PERMISSIONS.DASHBOARD_READ,
@@ -60,11 +61,7 @@ export const GET = withAuth(
         orderBy: { dateOfJoining: "desc" },
         take: 5,
         select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          employeeNo: true,
-          profilePhoto: true,
+          ...EMPLOYEE_SUMMARY_SELECT,
           dateOfJoining: true,
           designation: {
             select: { title: true },

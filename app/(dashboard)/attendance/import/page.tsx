@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { downloadCsv } from "@/lib/export-csv"
 
 interface CsvRow {
   employee_no: string
@@ -49,13 +50,7 @@ async function confirmImport(
 function downloadTemplate() {
   const csv =
     "employee_no,date,check_in,check_out\nEMP001,2026-04-01,09:00,18:00\nEMP002,2026-04-01,09:30,17:30"
-  const blob = new Blob([csv], { type: "text/csv" })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = "attendance_import_template.csv"
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadCsv(csv, "attendance_import_template.csv")
 }
 
 export default function AttendanceImportPage() {

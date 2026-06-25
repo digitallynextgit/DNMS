@@ -4,6 +4,7 @@ import { useRouter, useParams } from "next/navigation"
 import { ArrowLeft, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
+import { EmptyState } from "@/components/shared/empty-state"
 import { RoleBadge } from "@/features/docs"
 import { GuideContent } from "@/features/docs"
 
@@ -78,22 +79,12 @@ export default function GuideDetailPage() {
 
   if (!guide) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
-        <div className="bg-muted flex h-16 w-16 items-center justify-center rounded-full">
-          <BookOpen className="text-muted-foreground h-8 w-8" />
-        </div>
-        <div className="space-y-1">
-          <h3 className="text-foreground text-lg font-semibold">Guide not found</h3>
-          <p className="text-muted-foreground text-sm">
-            The guide you are looking for does not exist. It may have been moved or the link is
-            incorrect.
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => router.push("/docs")}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Help Center
-        </Button>
-      </div>
+      <EmptyState
+        icon={BookOpen}
+        title="Guide not found"
+        description="The guide you are looking for does not exist. It may have been moved or the link is incorrect."
+        action={{ label: "Back to Help Center", href: "/docs" }}
+      />
     )
   }
 

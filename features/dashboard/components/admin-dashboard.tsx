@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatCard } from "@/components/shared/stat-card"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { EmptyState } from "@/components/shared/empty-state"
+import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { formatDate } from "@/lib/utils"
 import { EMPLOYEE_STATUS_LABELS } from "@/lib/constants"
 
@@ -262,23 +264,9 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="space-y-0 px-5 pb-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="border-border flex items-center gap-3 border-b py-3 last:border-0"
-                  >
-                    <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
-                    <div className="flex-1 space-y-1.5">
-                      <Skeleton className="h-3.5 w-32" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                    <Skeleton className="h-3 w-16" />
-                  </div>
-                ))}
-              </div>
+              <ListSkeleton rows={5} height="h-12" className="px-5 pb-4" />
             ) : !data?.recentJoiners.length ? (
-              <p className="text-muted-foreground px-5 pb-5 text-sm">No recent joiners found.</p>
+              <EmptyState title="No recent joiners found." compact />
             ) : (
               <div className="divide-border divide-y">
                 {data.recentJoiners.map((emp) => (

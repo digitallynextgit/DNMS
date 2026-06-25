@@ -2,6 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { unwrap } from "@/lib/api-fetch"
+import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 import {
   getWfhEligibility,
   getWfhRequests,
@@ -66,15 +68,11 @@ interface WfhFilters {
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
 async function fetchEligibility(): Promise<WfhEligibility> {
-  const r = await getWfhEligibility()
-  if (!r.ok) throw new Error(r.error)
-  return r.data as WfhEligibility
+  return unwrap(await getWfhEligibility()) as WfhEligibility
 }
 
 async function fetchWfhRequests(filters: WfhFilters): Promise<PaginatedResponse<WfhRequest>> {
-  const r = await getWfhRequests(filters)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as PaginatedResponse<WfhRequest>
+  return unwrap(await getWfhRequests(filters)) as PaginatedResponse<WfhRequest>
 }
 
 async function applyWfh(body: {
@@ -82,9 +80,7 @@ async function applyWfh(body: {
   reason?: string
   isEmergency?: boolean
 }): Promise<{ data: WfhRequest; tier: number }> {
-  const r = await applyWfhAction(body)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: WfhRequest; tier: number }
+  return unwrap(await applyWfhAction(body)) as { data: WfhRequest; tier: number }
 }
 
 async function patchWfh({
@@ -98,9 +94,9 @@ async function patchWfh({
   rejectionReason?: string
   approverRole?: "MANAGER" | "HR"
 }): Promise<{ data: WfhRequest }> {
-  const r = await updateWfhRequest(id, action, rejectionReason, approverRole)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: WfhRequest }
+  return unwrap(await updateWfhRequest(id, action, rejectionReason, approverRole)) as {
+    data: WfhRequest
+  }
 }
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -127,53 +123,57 @@ export function useWfhRequests(filters: WfhFilters = {}) {
 
 export function useApplyWfh() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: applyWfh,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["my-wfh-requests"] })
-      qc.invalidateQueries({ queryKey: ["wfh-requests"] })
-      qc.invalidateQueries({ queryKey: ["wfh-eligibility"] })
-      toast.success("WFH request submitted")
-    },
-    onError: (err: Error) => toast.error(err.message),
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: applyWfh,
+      invalidate: [["my-wfh-requests"], ["wfh-requests"], ["wfh-eligibility"]],
+      success: "WFH request submitted",
+      onError: (err) => {
+        toast.error(err.message)
+      },
+    }),
+  )
 }
 
 export function useCancelWfh() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => patchWfh({ id, action: "CANCEL" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["my-wfh-requests"] })
-      qc.invalidateQueries({ queryKey: ["wfh-requests"] })
-      qc.invalidateQueries({ queryKey: ["wfh-eligibility"] })
-      toast.success("WFH request cancelled")
-    },
-    onError: (err: Error) => toast.error(err.message),
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (id: string) => patchWfh({ id, action: "CANCEL" }),
+      invalidate: [["my-wfh-requests"], ["wfh-requests"], ["wfh-eligibility"]],
+      success: "WFH request cancelled",
+      onError: (err) => {
+        toast.error(err.message)
+      },
+    }),
+  )
 }
 
 export function useApproveWfh() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => patchWfh({ id, action: "APPROVE" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["wfh-requests"] })
-      toast.success("WFH request approved")
-    },
-    onError: (err: Error) => toast.error(err.message),
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (id: string) => patchWfh({ id, action: "APPROVE" }),
+      invalidate: [["wfh-requests"]],
+      success: "WFH request approved",
+      onError: (err) => {
+        toast.error(err.message)
+      },
+    }),
+  )
 }
 
 export function useRejectWfh() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, rejectionReason }: { id: string; rejectionReason: string }) =>
-      patchWfh({ id, action: "REJECT", rejectionReason }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["wfh-requests"] })
-      toast.success("WFH request rejected")
-    },
-    onError: (err: Error) => toast.error(err.message),
-  })
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: ({ id, rejectionReason }: { id: string; rejectionReason: string }) =>
+        patchWfh({ id, action: "REJECT", rejectionReason }),
+      invalidate: [["wfh-requests"]],
+      success: "WFH request rejected",
+      onError: (err) => {
+        toast.error(err.message)
+      },
+    }),
+  )
 }
