@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Check, UserMinus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,7 @@ import {
 import { cn, getAvatarColor, formatDate } from "@/lib/utils"
 
 export default function ResignationsPage() {
+  const router = useRouter()
   const [page, setPage] = useState(1)
   const { data, isLoading } = useResignationsToReview({ page, limit: 10 })
   const reviewMut = useReviewResignation()
@@ -29,6 +31,20 @@ export default function ResignationsPage() {
   const resignations = data?.data ?? []
   const canReviewAll = data?.canReviewAll ?? false
   const pagination = data?.pagination
+  const authorized = data?.authorized
+
+  // Only HR/admin or managers with reports may review resignations. Send anyone
+  // else back to where they came from (falling back to the dashboard).
+  useEffect(() => {
+    if (data && authorized === false) {
+      toast.error("You don't have access to that page")
+      if (window.history.length > 1) router.back()
+      else router.replace("/dashboard")
+    }
+  }, [data, authorized, router])
+
+  // Render nothing while redirecting an unauthorized user (avoids a content flash).
+  if (authorized === false) return null
 
   function confirmApprove() {
     if (!approveTarget) return

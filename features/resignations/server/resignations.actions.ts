@@ -11,7 +11,8 @@ import { ok, fail, runAction, serialize, type ActionResult } from "@/server/acti
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC, toDateOnly } from "@/lib/dates"
-import { renderDecisionEmail, renderResignationRequestEmail } from "@/lib/email-layout"
+import { renderResignationDecisionEmail, renderResignationRequestEmail } from "@/lib/email-layout"
+import { getConfig, warmConfig } from "@/server/app-config"
 
 // Roles whose holders act as HR for approvals/notifications.
 const HR_ROLE_NAMES = ["hr_manager", "admin"]
@@ -60,6 +61,8 @@ export async function applyResignation(input: {
         // Present only when the employee has configured a Gmail App Password -
         // i.e. their personal Google SMTP. We gate the HR email on this.
         gmailAppPassword: true,
+        department: { select: { name: true } },
+        designation: { select: { title: true } },
         manager: { select: { firstName: true, lastName: true, email: true } },
       },
     })
@@ -107,7 +110,7 @@ export async function applyResignation(input: {
         // Send to the shared HR inbox (HR_EMAIL). Only if it isn't configured do
         // we fall back to the work emails of HR-role employees, then the manager.
         let to: string[] = []
-        const hrMailbox = process.env.HR_EMAIL?.trim()
+        const hrMailbox = (await getConfig("HR_EMAIL"))?.trim()
         if (hrMailbox) {
           to = [hrMailbox]
         } else {
@@ -130,22 +133,29 @@ export async function applyResignation(input: {
           const mail = renderResignationRequestEmail({
             employeeName: `${me.firstName} ${me.lastName}`.trim(),
             employeeNo: me.employeeNo,
+            department: me.department?.name ?? null,
+            designation: me.designation?.title ?? null,
             reason: input.reason?.trim() || null,
             lastWorkingDate: lastWorkingDate ? toDateOnly(lastWorkingDate) : null,
-            managerName: me.manager
-              ? `${me.manager.firstName} ${me.manager.lastName}`.trim()
-              : null,
             reviewUrl: process.env.NEXTAUTH_URL
               ? `${process.env.NEXTAUTH_URL.replace(/\/$/, "")}/resignations`
               : undefined,
           })
-          await sendEmailAs(me.id, {
+          const messageId = await sendEmailAs(me.id, {
             to,
             cc,
             subject: mail.subject,
             html: mail.html,
             text: mail.text,
           })
+          // Store the sent email's Message-ID so the approve/decline email can
+          // reply on the same thread.
+          if (messageId) {
+            await db.resignation.update({
+              where: { id: resignation.id },
+              data: { requestEmailMessageId: messageId },
+            })
+          }
         }
       }
     } catch (err) {
@@ -205,7 +215,24 @@ export async function getResignationsToReview(
     const session = await requireSession()
     const canReviewAll = hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)
 
+    // Only HR/admin (canReviewAll) or a manager with at least one direct report
+    // may access this page. Regular employees are not authorized; the client
+    // redirects them away.
+    const authorized =
+      canReviewAll || (await db.employee.count({ where: { managerId: session.user.id } })) > 0
+
     const { page, limit, skip, take } = resolvePagination(filters, 10)
+
+    if (!authorized) {
+      return ok(
+        serialize({
+          data: [],
+          canReviewAll: false,
+          authorized: false,
+          pagination: paginationMeta(0, page, limit),
+        }),
+      )
+    }
 
     const where = canReviewAll
       ? { status: "PENDING" as const }
@@ -236,9 +263,27 @@ export async function getResignationsToReview(
       serialize({
         data: resignations,
         canReviewAll,
+        authorized: true,
         pagination: paginationMeta(total, page, limit),
       }),
     )
+  })
+}
+
+// ---------------------------------------------------------------------------
+// getPendingResignationCount – number of PENDING resignations the current user
+// may review (HR/admin: all; a manager: their direct reports; others: 0). Used
+// for the live sidebar badge.
+// ---------------------------------------------------------------------------
+export async function getPendingResignationCount(): Promise<ActionResult<{ count: number }>> {
+  return runAction(async () => {
+    const session = await requireSession()
+    const canReviewAll = hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)
+    const where = canReviewAll
+      ? { status: "PENDING" as const }
+      : { status: "PENDING" as const, employee: { managerId: session.user.id } }
+    const count = await db.resignation.count({ where })
+    return ok({ count })
   })
 }
 
@@ -260,7 +305,15 @@ export async function reviewResignation(
       where: { id },
       include: {
         employee: {
-          select: { id: true, firstName: true, email: true, managerId: true, status: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            managerId: true,
+            status: true,
+            manager: { select: { email: true } },
+          },
         },
       },
     })
@@ -274,6 +327,9 @@ export async function reviewResignation(
     const canReviewAll = hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)
     if (!isManager && !canReviewAll)
       return fail("Only the employee's manager or HR can review this resignation")
+
+    // Warm runtime config so the email logo/branding reflect admin settings.
+    await warmConfig()
 
     if (action === "REJECT") {
       const updated = await db.resignation.update({
@@ -293,6 +349,30 @@ export async function reviewResignation(
         type: "warning",
         link: "/profile",
       })
+
+      // Best-effort decline letter to the employee (manager CC'd), from HR.
+      try {
+        if (resignation.employee.email) {
+          const email = renderResignationDecisionEmail({
+            approved: false,
+            employeeName:
+              `${resignation.employee.firstName} ${resignation.employee.lastName}`.trim(),
+            firstName: resignation.employee.firstName,
+            note: note?.trim() || null,
+          })
+          await sendEmail({
+            to: resignation.employee.email,
+            cc: resignation.employee.manager?.email || undefined,
+            subject: email.subject,
+            html: email.html,
+            text: email.text,
+            inReplyTo: resignation.requestEmailMessageId ?? undefined,
+            references: resignation.requestEmailMessageId ?? undefined,
+          })
+        }
+      } catch (e) {
+        console.error("[reviewResignation] decline email failed:", e)
+      }
 
       const meta = await getAuditMeta()
       await createAuditLog(session, {
@@ -339,24 +419,28 @@ export async function reviewResignation(
       link: "/profile",
     })
 
-    // Best-effort email; never block the approval on a mail failure.
+    // Best-effort acceptance letter to the employee (manager CC'd), from HR.
     try {
       if (resignation.employee.email) {
-        const email = renderDecisionEmail({
-          kind: "Resignation request",
+        const email = renderResignationDecisionEmail({
           approved: true,
+          employeeName: `${resignation.employee.firstName} ${resignation.employee.lastName}`.trim(),
           firstName: resignation.employee.firstName,
-          detailLine: "Your DNMS account has been deactivated effective immediately.",
+          lastWorkingDate: toDateOnly(lastWorkingDate),
+          note: note?.trim() || null,
         })
         await sendEmail({
           to: resignation.employee.email,
+          cc: resignation.employee.manager?.email || undefined,
           subject: email.subject,
           html: email.html,
           text: email.text,
+          inReplyTo: resignation.requestEmailMessageId ?? undefined,
+          references: resignation.requestEmailMessageId ?? undefined,
         })
       }
-    } catch {
-      // non-blocking
+    } catch (e) {
+      console.error("[reviewResignation] approval email failed:", e)
     }
 
     const meta = await getAuditMeta()

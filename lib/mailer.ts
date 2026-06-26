@@ -1,7 +1,8 @@
-import nodemailer, { type Transporter } from "nodemailer"
+import nodemailer from "nodemailer"
 import type { EmailTemplate } from "@prisma/client"
 import { db } from "@/server/db"
 import { tryDecrypt } from "@/lib/crypto"
+import { getConfig } from "@/server/app-config"
 
 // ---------------------------------------------------------------------------
 // Mailer profiles
@@ -19,32 +20,28 @@ import { tryDecrypt } from "@/lib/crypto"
 // ---------------------------------------------------------------------------
 export type MailerProfile = "default" | "notifications" | "hr" | (string & {})
 
-// Read a config value for a profile, falling back to the base SMTP_* var.
-function profileEnv(profile: string, key: string): string | undefined {
+// Resolve a config value for a profile via app-config (DB settings → env),
+// falling back to the base SMTP_* key. e.g. profile "hr" key "HOST" tries
+// SMTP_HR_HOST then SMTP_HOST.
+async function profileConfig(profile: string, key: string): Promise<string | undefined> {
   if (profile !== "default") {
-    const scoped = process.env[`SMTP_${profile.toUpperCase()}_${key}`]
+    const scoped = await getConfig(`SMTP_${profile.toUpperCase()}_${key}`)
     if (scoped) return scoped
   }
-  return process.env[`SMTP_${key}`]
+  return getConfig(`SMTP_${key}`)
 }
 
-// One cached transporter per profile (built lazily on first use).
-const transporters = new Map<string, Transporter>()
-
-function getProfile(profile: string): { transporter: Transporter; from: string } {
-  let transporter = transporters.get(profile)
-  if (!transporter) {
-    const user = profileEnv(profile, "USER")
-    const pass = profileEnv(profile, "PASS")
-    transporter = nodemailer.createTransport({
-      host: profileEnv(profile, "HOST") || "smtp.gmail.com",
-      port: parseInt(profileEnv(profile, "PORT") || "587", 10),
-      secure: profileEnv(profile, "SECURE") === "true",
-      auth: user ? { user, pass } : undefined,
-    })
-    transporters.set(profile, transporter)
-  }
-  const from = profileEnv(profile, "FROM") || "DNMS <noreply@digitallynext.com>"
+// Build a fresh transporter from the current config (no caching, so admin edits
+// to SMTP settings on the Integrations page take effect immediately).
+async function buildProfile(profile: string) {
+  const user = await profileConfig(profile, "USER")
+  const transporter = nodemailer.createTransport({
+    host: (await profileConfig(profile, "HOST")) || "smtp.gmail.com",
+    port: parseInt((await profileConfig(profile, "PORT")) || "587", 10),
+    secure: (await profileConfig(profile, "SECURE")) === "true",
+    auth: user ? { user, pass: await profileConfig(profile, "PASS") } : undefined,
+  })
+  const from = (await profileConfig(profile, "FROM")) || "DNMS <noreply@digitallynext.com>"
   return { transporter, from }
 }
 
@@ -56,6 +53,10 @@ interface SendEmailOptions {
   text?: string
   attachments?: Array<{ filename: string; content: Buffer; contentType: string }>
   replyTo?: string
+  // Threading headers: set both to a prior message's Message-ID so this email
+  // replies on the same email thread (Gmail conversation).
+  inReplyTo?: string
+  references?: string | string[]
   // Which configured mailbox to send from (default: "default").
   profile?: MailerProfile
   // Explicit From override; wins over the profile's configured From.
@@ -70,18 +71,25 @@ function addressList(value?: string | string[]): string | undefined {
   return joined || undefined
 }
 
-export async function sendEmail(options: SendEmailOptions): Promise<void> {
-  const { transporter, from } = getProfile(options.profile ?? "default")
-  await transporter.sendMail({
-    from: options.from ?? from,
-    to: addressList(options.to),
-    cc: addressList(options.cc),
-    subject: options.subject,
-    html: options.html,
-    text: options.text,
-    attachments: options.attachments,
-    replyTo: options.replyTo,
-  })
+export async function sendEmail(options: SendEmailOptions): Promise<string | null> {
+  const { transporter, from } = await buildProfile(options.profile ?? "default")
+  try {
+    const info = await transporter.sendMail({
+      from: options.from ?? from,
+      to: addressList(options.to),
+      cc: addressList(options.cc),
+      subject: options.subject,
+      html: options.html,
+      text: options.text,
+      attachments: options.attachments,
+      replyTo: options.replyTo,
+      inReplyTo: options.inReplyTo,
+      references: options.references,
+    })
+    return info.messageId ?? null
+  } finally {
+    transporter.close()
+  }
 }
 
 /**
@@ -92,7 +100,10 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
  * approving a leave, a recruiter sending a stage-change message. System-level mail
  * (password resets, birthdays) should keep using sendEmail.
  */
-export async function sendEmailAs(employeeId: string, options: SendEmailOptions): Promise<void> {
+export async function sendEmailAs(
+  employeeId: string,
+  options: SendEmailOptions,
+): Promise<string | null> {
   const emp = await db.employee.findUnique({
     where: { id: employeeId },
     select: { email: true, firstName: true, lastName: true, gmailAppPassword: true },
@@ -100,8 +111,7 @@ export async function sendEmailAs(employeeId: string, options: SendEmailOptions)
 
   // No employee or no App Password on file → fall back to the shared system mailer.
   if (!emp?.gmailAppPassword) {
-    await sendEmail(options)
-    return
+    return sendEmail(options)
   }
 
   const password = tryDecrypt(emp.gmailAppPassword)
@@ -111,22 +121,21 @@ export async function sendEmailAs(employeeId: string, options: SendEmailOptions)
       employeeId,
       "- falling back to system mailer",
     )
-    await sendEmail(options)
-    return
+    return sendEmail(options)
   }
 
   // Build a one-off transporter for this employee, send, discard.
   const perUser = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.SMTP_PORT || "587"),
-    secure: process.env.SMTP_SECURE === "true",
+    host: (await getConfig("SMTP_HOST")) || "smtp.gmail.com",
+    port: parseInt((await getConfig("SMTP_PORT")) || "587", 10),
+    secure: (await getConfig("SMTP_SECURE")) === "true",
     auth: { user: emp.email, pass: password },
   })
 
   const fromName = `${emp.firstName} ${emp.lastName}`.trim() || emp.email
 
   try {
-    await perUser.sendMail({
+    const info = await perUser.sendMail({
       from: `"${fromName}" <${emp.email}>`,
       to: addressList(options.to),
       cc: addressList(options.cc),
@@ -135,7 +144,10 @@ export async function sendEmailAs(employeeId: string, options: SendEmailOptions)
       text: options.text,
       attachments: options.attachments,
       replyTo: options.replyTo,
+      inReplyTo: options.inReplyTo,
+      references: options.references,
     })
+    return info.messageId ?? null
   } finally {
     perUser.close()
   }

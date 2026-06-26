@@ -6,6 +6,7 @@ import {
   applyResignation,
   cancelResignation,
   getResignationsToReview,
+  getPendingResignationCount,
   reviewResignation,
 } from "@/features/resignations/server/resignations.actions"
 import { unwrap } from "@/lib/api-fetch"
@@ -53,6 +54,8 @@ export interface PaginationMeta {
 interface ResignationsToReviewResult {
   data: ReviewableResignation[]
   canReviewAll: boolean
+  /** True only for HR/admin or a manager with reports; others are redirected. */
+  authorized: boolean
   pagination: PaginationMeta
 }
 
@@ -70,6 +73,25 @@ export function useResignationsToReview(filters: { page?: number; limit?: number
     queryKey: ["resignations-review", filters],
     queryFn: async () =>
       unwrap(await getResignationsToReview(filters)) as ResignationsToReviewResult,
+    // Keep the panel live (matches the sidebar badge) so new requests appear
+    // without a reload. The badge watcher also invalidates this on arrival.
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  })
+}
+
+/**
+ * Live count of pending resignations the user can review, for the sidebar badge.
+ * Polls every 30s (and on window focus) for near-real-time updates; mutations
+ * below also invalidate it for instant updates on the reviewer's own actions.
+ */
+export function usePendingResignationCount() {
+  return useQuery({
+    queryKey: ["pending-resignation-count"],
+    queryFn: async () => (unwrap(await getPendingResignationCount()) as { count: number }).count,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+    staleTime: 5_000,
   })
 }
 
@@ -81,7 +103,7 @@ export function useApplyResignation() {
     mutationWithToast(qc, {
       mutationFn: async (input: { reason?: string; requestedLastWorkingDate?: string }) =>
         unwrap(await applyResignation(input)),
-      invalidate: [["my-resignation"], ["employee"]],
+      invalidate: [["my-resignation"], ["employee"], ["pending-resignation-count"]],
       onError: () => false,
     }),
   )
@@ -92,7 +114,7 @@ export function useCancelResignation() {
   return useMutation(
     mutationWithToast(qc, {
       mutationFn: async (id: string) => unwrap(await cancelResignation(id)),
-      invalidate: [["my-resignation"]],
+      invalidate: [["my-resignation"], ["pending-resignation-count"]],
       onError: () => false,
     }),
   )
@@ -104,7 +126,7 @@ export function useReviewResignation() {
     mutationWithToast(qc, {
       mutationFn: async (input: { id: string; action: "APPROVE" | "REJECT"; note?: string }) =>
         unwrap(await reviewResignation(input.id, input.action, input.note)),
-      invalidate: [["resignations-review"], ["employees"]],
+      invalidate: [["resignations-review"], ["employees"], ["pending-resignation-count"]],
       onError: () => false,
     }),
   )

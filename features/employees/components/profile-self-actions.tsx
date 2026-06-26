@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -183,16 +184,20 @@ export function ProfileSelfActions({
       )}
 
       <Dialog open={resignOpen} onOpenChange={setResignOpen}>
-        <DialogContent className="sm:max-w-105">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Apply for Resignation</DialogTitle>
+            <DialogDescription>
+              Submit your resignation for manager approval. Share a reason and your requested last
+              working day below.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-1">
+          <div className="space-y-5 py-2">
             <div className="space-y-2">
               <Label htmlFor="res-reason">Reason</Label>
               <Textarea
                 id="res-reason"
-                rows={3}
+                rows={6}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Briefly share why you're resigning (optional)"

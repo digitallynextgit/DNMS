@@ -750,6 +750,19 @@ model WfhRequest {
 // deactivated (isActive=false), which blocks any further login.
 // =============================================================================
 
+// =============================================================================
+// APP SETTING - admin-editable runtime config (SMTP, HR inbox, branding…).
+// Key/value; secret values (e.g. SMTP passwords) are stored encrypted.
+// =============================================================================
+model AppSetting {
+  key       String   @id @map("key")
+  value     String?  @map("value")
+  isSecret  Boolean  @default(false) @map("is_secret")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
+
 model Resignation {
   id                       String      @id @default(uuid()) @map("id")
   employeeId               String      @map("employee_id")
@@ -759,6 +772,9 @@ model Resignation {
   reviewerId               String?     @map("reviewer_id")
   reviewNote               String?     @map("review_note")
   reviewedAt               DateTime?   @map("reviewed_at")
+  // Message-ID of the resignation email sent to HR, so the approve/decline
+  // email can reply on the same Gmail thread.
+  requestEmailMessageId    String?     @map("request_email_message_id")
   createdAt                DateTime    @default(now()) @map("created_at")
   updatedAt                DateTime    @updatedAt @map("updated_at")
 

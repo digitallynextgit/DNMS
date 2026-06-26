@@ -2,8 +2,10 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { Session } from "next-auth"
 import {
   LayoutDashboard,
@@ -26,11 +28,14 @@ import {
   Network,
   ListChecks,
   UserMinus,
+  Plug,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebarStore } from "@/stores/sidebar-store"
 import { PERMISSIONS } from "@/lib/constants"
+import { usePendingResignationCount } from "@/features/resignations"
+import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
 
 interface NavChild {
   label: string
@@ -44,6 +49,96 @@ interface NavItem {
   icon: React.ElementType
   permission?: string
   children?: NavChild[]
+  /** Live count badge to render next to the item. */
+  badge?: "pending-resignations" | "unread-notifications"
+}
+
+// Live count badge shown on the Resignations nav item. Also watches for new
+// arrivals (count increases): toasts a notification and refreshes any open
+// resignations list so the panel updates without a reload.
+function ResignationCountBadge({ collapsed }: { collapsed: boolean }) {
+  const router = useRouter()
+  const qc = useQueryClient()
+  const { data } = usePendingResignationCount()
+  const prev = useRef<number | null>(null)
+
+  // Ask once (best-effort) for desktop-notification permission for reviewers.
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {})
+    }
+  }, [])
+
+  useEffect(() => {
+    // Wait for the first real value; the loading state must not seed the
+    // baseline, otherwise every reload looks like a 0 -> N "new request".
+    if (data === undefined) return
+
+    if (prev.current !== null && prev.current !== data) {
+      // Any change - new request, withdrawal, or a decision - refreshes the
+      // open resignations panel so it never shows stale rows.
+      qc.invalidateQueries({ queryKey: ["resignations-review"] })
+
+      // Only a genuine increase (a new request) notifies.
+      if (data > prev.current) {
+        const delta = data - prev.current
+        const msg = `${delta} new resignation request${delta > 1 ? "s" : ""} to review`
+        toast.info(msg, {
+          action: { label: "View", onClick: () => router.push("/resignations") },
+        })
+        if ("Notification" in window && Notification.permission === "granted") {
+          const note = new Notification("New resignation request", {
+            body: msg,
+            icon: "/logo_dark_bg.webp",
+          })
+          note.onclick = () => {
+            window.focus()
+            router.push("/resignations")
+          }
+        }
+      }
+    }
+    prev.current = data
+  }, [data, qc, router])
+
+  return <CountBadge collapsed={collapsed} count={data ?? 0} />
+}
+
+// Live unread-notification count for the sidebar Notifications item (badge only,
+// no toast/desktop notification).
+function NotificationCountBadge({ collapsed }: { collapsed: boolean }) {
+  const { data: count = 0 } = useUnreadNotificationCount()
+  return <CountBadge collapsed={collapsed} count={count} />
+}
+
+// Shared presentational red count pill.
+function CountBadge({ collapsed, count }: { collapsed: boolean; count: number }) {
+  if (count <= 0) return null
+  const label = count > 99 ? "99+" : String(count)
+  return (
+    <span
+      className={cn(
+        "bg-destructive flex items-center justify-center rounded-full font-semibold text-white",
+        collapsed
+          ? "absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[9px] leading-none"
+          : "ml-auto h-5 min-w-5 px-1.5 text-[11px] leading-none",
+      )}
+    >
+      {label}
+    </span>
+  )
+}
+
+// Dispatch a nav item's badge key to its live-count component.
+function NavBadge({
+  badge,
+  collapsed,
+}: {
+  badge: NonNullable<NavItem["badge"]>
+  collapsed: boolean
+}) {
+  if (badge === "pending-resignations") return <ResignationCountBadge collapsed={collapsed} />
+  return <NotificationCountBadge collapsed={collapsed} />
 }
 
 // ── Employee: personal self-service. No permission gate - every signed-in
@@ -55,7 +150,7 @@ const EMPLOYEE_ITEMS: NavItem[] = [
   { label: "My Payslips", href: "/payroll/me", icon: DollarSign },
   { label: "My Performance", href: "/performance/me", icon: Star },
   { label: "Work From Home", href: "/wfh", icon: Laptop },
-  { label: "Notifications", href: "/notifications", icon: Bell },
+  { label: "Notifications", href: "/notifications", icon: Bell, badge: "unread-notifications" },
 ]
 
 // ── Company: shared, company-wide. Visible to everyone. ─────────────────────
@@ -100,6 +195,7 @@ const HRMS_ITEMS: NavItem[] = [
     href: "/resignations",
     icon: UserMinus,
     permission: PERMISSIONS.EMPLOYEE_READ,
+    badge: "pending-resignations",
   },
   {
     label: "Attendance",
@@ -188,6 +284,12 @@ const ADMIN_ITEMS: NavItem[] = [
     href: "/admin/project-settings",
     icon: FolderKanban,
     permission: PERMISSIONS.PROJECT_WRITE,
+  },
+  {
+    label: "Integrations",
+    href: "/admin/integrations",
+    icon: Plug,
+    permission: PERMISSIONS.SETTINGS_WRITE,
   },
 ]
 
@@ -308,13 +410,14 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
             <Link
               href={item.href!}
               className={cn(
-                "mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors",
+                "relative mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors",
                 isActive
                   ? "bg-accent text-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent",
               )}
             >
               <item.icon className="h-4 w-4" />
+              {item.badge && <NavBadge badge={item.badge} collapsed />}
             </Link>
           </TooltipTrigger>
           <TooltipContent side="right" className="text-xs font-medium">
@@ -337,6 +440,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
     >
       <item.icon className="h-4 w-4 shrink-0" />
       <span>{item.label}</span>
+      {item.badge && <NavBadge badge={item.badge} collapsed={false} />}
     </Link>
   )
 }

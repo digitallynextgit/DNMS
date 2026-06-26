@@ -18,16 +18,9 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { useSidebarStore } from "@/stores/sidebar-store"
 import { useThemeStore } from "@/stores/theme-store"
 import { useEmployee } from "@/features/employees"
+import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
 import { ThemePicker } from "./theme-picker"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
-
-async function fetchUnreadCount() {
-  const res = await fetch("/api/notifications/inbox?unread=true&limit=1")
-  if (!res.ok) return 0
-  const data = await res.json()
-  return data.unreadCount ?? 0
-}
 
 export function Topbar({ session }: { session: Session }) {
   const { id, firstName, lastName, email, profilePhoto: sessionPhoto } = session.user
@@ -49,11 +42,7 @@ export function Topbar({ session }: { session: Session }) {
     signOut({ callbackUrl: "/login" })
   }
 
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ["notifications", "unread-count"],
-    queryFn: fetchUnreadCount,
-    refetchInterval: 30_000,
-  })
+  const { data: unreadCount = 0 } = useUnreadNotificationCount()
 
   return (
     <header className="bg-background border-border flex h-14.25 shrink-0 items-center justify-between border-b px-4">
@@ -98,9 +87,8 @@ export function Topbar({ session }: { session: Session }) {
           >
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 flex h-1.5 w-1.5">
-                <span className="bg-foreground absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" />
-                <span className="bg-foreground relative inline-flex h-1.5 w-1.5 rounded-full" />
+              <span className="bg-destructive absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] leading-none font-semibold text-white">
+                {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
           </Button>

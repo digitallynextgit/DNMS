@@ -15,6 +15,8 @@ export const PERMISSIONS = {
   // Email templates
   EMAIL_TEMPLATE_READ: "email_template:read",
   EMAIL_TEMPLATE_WRITE: "email_template:write",
+  // Integrations / app settings (SMTP, HR inbox, branding) - sensitive
+  SETTINGS_WRITE: "settings:write",
   // Dashboard
   DASHBOARD_READ: "dashboard:read",
   // Attendance
