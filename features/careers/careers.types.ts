@@ -82,8 +82,3 @@ export interface AdminCareerGroup {
   status: CareerStatus
   subDepartments: AdminCareerSubDepartment[]
 }
-
-/** `?mode=full-time` → DB enum. Defaults to FULL_TIME. */
-export function toDbMode(mode: string | null | undefined): CareerDbMode {
-  return mode === "internship" || mode === "INTERNSHIP" ? "INTERNSHIP" : "FULL_TIME"
-}

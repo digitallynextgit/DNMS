@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPublishedCareers } from "@/features/careers/server/careers.service"
-import { toDbMode } from "@/features/careers/careers.types"
 
 // Public Careers API consumed by the marketing site. Returns the PUBLISHED
 // careers tree for the requested mode in the CareersDepartmentGroup[] contract
@@ -32,8 +31,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS })
   }
 
-  // ?mode=full-time (default) | internship
-  const mode = toDbMode(req.nextUrl.searchParams.get("mode"))
+  // ?mode MUST be exactly full-time or internship. Anything else (typo, missing)
+  // is rejected with 400 — we never silently default to full-time.
+  const modeParam = req.nextUrl.searchParams.get("mode")
+  if (modeParam !== "full-time" && modeParam !== "internship") {
+    return NextResponse.json(
+      {
+        error: "Invalid or missing 'mode'. Use ?mode=full-time or ?mode=internship.",
+        received: modeParam,
+      },
+      { status: 400, headers: CORS_HEADERS },
+    )
+  }
+  const mode = modeParam === "internship" ? "INTERNSHIP" : "FULL_TIME"
   const groups = await getPublishedCareers(mode)
 
   return NextResponse.json(groups, {
