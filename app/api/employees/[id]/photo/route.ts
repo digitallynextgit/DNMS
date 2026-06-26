@@ -3,7 +3,7 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
-import { isB2Configured, uploadFile, deleteFile, getObjectKey, getSignedUrl } from "@/lib/b2"
+import { isB2Configured, uploadFile, deleteFile, getObjectKey, getSignedUrl } from "@/lib/storage"
 import type { Session } from "next-auth"
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
@@ -57,7 +57,7 @@ export const POST = withSession(
       if (!canEdit(session, id)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }
-      if (!isB2Configured()) {
+      if (!(await isB2Configured())) {
         return NextResponse.json(
           { error: "Backblaze B2 storage is not configured." },
           { status: 500 },

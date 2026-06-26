@@ -19,10 +19,10 @@ const nextConfig = {
   },
   images: {
     remotePatterns: [
+      // Backblaze B2 (S3-compatible) signed URLs for profile photos / documents.
       {
         protocol: "https",
-        hostname: "*.supabase.co",
-        pathname: "/storage/v1/object/**",
+        hostname: "*.backblazeb2.com",
       },
     ],
   },

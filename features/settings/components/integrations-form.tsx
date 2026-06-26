@@ -22,8 +22,12 @@ const GROUP_IMPACT: Record<string, string> = {
   HR: "This controls which inbox receives resignation requests. A wrong address means HR won't be notified.",
   "Default mailer":
     "This is the SMTP server used for most system emails. An incorrect value will stop those emails from being delivered.",
+  "Notifications mailer":
+    "Required. The guaranteed fallback mailer - whenever the Default or HR mailer isn't configured, mail is sent through this one. It must always stay fully configured.",
   "HR mailer":
     "This is the SMTP server used for HR emails. An incorrect value will stop HR emails from being delivered.",
+  "Storage (B2)":
+    "Backblaze B2 bucket for uploaded files (documents, profile photos, resumes). Incorrect values will break uploads and downloads.",
 }
 
 export function IntegrationsForm({ settings }: { settings: SettingValue[] }) {
@@ -64,6 +68,8 @@ function SettingsGroupCard({
   const configured = fields.some((f) => byKey.get(f.key)?.isSet)
   // "Complete" = every non-boolean field has a value (booleans default to off).
   const complete = fields.filter((f) => f.type !== "boolean").every((f) => byKey.get(f.key)?.isSet)
+  // A group is required when any of its fields are - the notifications mailer.
+  const groupRequired = fields.some((f) => f.required)
   // Unconfigured groups open straight into editing; configured ones are locked.
   const [editing, setEditing] = useState(!configured)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -112,6 +118,11 @@ function SettingsGroupCard({
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
         <div className="flex min-w-0 items-center gap-2">
           <CardTitle className="truncate text-base">{group}</CardTitle>
+          {groupRequired && (
+            <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+              Required
+            </span>
+          )}
           {complete ? (
             <CheckCircle2
               className="h-4 w-4 shrink-0 text-emerald-500"
@@ -238,13 +249,20 @@ function FieldInput({
   }
 
   const isPassword = field.type === "password"
+  // A set secret may be left blank (keeps the existing value), so it isn't
+  // natively required; everything else required must carry a value.
+  const nativeRequired = field.required && !(field.secret && meta?.isSet)
   return (
     <div>
-      <Label htmlFor={field.key}>{field.label}</Label>
+      <Label htmlFor={field.key}>
+        {field.label}
+        {field.required && <span className="text-destructive ml-0.5">*</span>}
+      </Label>
       <Input
         id={field.key}
         type={isPassword ? "password" : field.type === "number" ? "number" : "text"}
         value={value}
+        required={nativeRequired}
         autoComplete={isPassword ? "new-password" : "off"}
         placeholder={
           isPassword && meta?.isSet

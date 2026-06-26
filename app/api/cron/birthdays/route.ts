@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { sendEmail } from "@/lib/mailer"
+import { getConfig } from "@/server/app-config"
 
 // This route is called daily by a cron job (e.g., Vercel Cron, node-cron in worker.ts, or external scheduler).
 // Protect it with CRON_SECRET env variable.
@@ -43,6 +44,7 @@ export const GET = async (req: NextRequest) => {
       return dob.getMonth() + 1 === month && dob.getDate() === day
     })
 
+    const appName = (await getConfig("APP_NAME")) || "DNMS"
     let sent = 0
     const results: { name: string; email: string; status: string }[] = []
 
@@ -60,7 +62,7 @@ export const GET = async (req: NextRequest) => {
                 Thank you for being an amazing part of our team!
               </p>
               <p style="color: #888; font-size: 13px; margin-top: 32px;">
-                - The HR Team at ${process.env.APP_NAME ?? "DNMS"}
+                - The HR Team at ${appName}
               </p>
             </div>
           `,

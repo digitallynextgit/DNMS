@@ -2,7 +2,7 @@
 
 import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
-import { isB2Configured, uploadFile, getObjectKey, getSignedUrl, deleteFile } from "@/lib/b2"
+import { isB2Configured, uploadFile, getObjectKey, getSignedUrl, deleteFile } from "@/lib/storage"
 import { PERMISSIONS, ALLOWED_FILE_TYPES, MAX_FILE_SIZE } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
 import type { DocumentCategory } from "@prisma/client"
@@ -32,8 +32,8 @@ export async function uploadEmployeeDocument(
     const canWrite = hasPermission(session, PERMISSIONS.DOCUMENT_WRITE)
     if (!canWrite && session.user.id !== employeeId) return fail("Forbidden")
 
-    if (!isB2Configured())
-      return fail("Backblaze B2 storage is not configured. Set the B2_* env vars.")
+    if (!(await isB2Configured()))
+      return fail("Backblaze B2 storage is not configured. Set it in Admin → Integrations.")
 
     const employee = await db.employee.findUnique({
       where: { id: employeeId },
@@ -124,7 +124,7 @@ export async function deleteEmployeeDocument(
     if (!document) return fail("Document not found")
 
     // Best-effort storage delete; never block the DB cleanup if it fails.
-    if (isB2Configured()) {
+    if (await isB2Configured()) {
       await deleteFile(document.objectKey).catch((err) =>
         console.error("[employee-document] B2 delete failed:", err),
       )

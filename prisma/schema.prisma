@@ -1073,7 +1073,7 @@ model ProjectResource {
   fileName     String           @map("file_name")
   fileSize     Int              @map("file_size")
   mimeType     String           @map("mime_type")
-  objectKey    String           @unique @map("object_key")                   // Supabase storage path
+  objectKey    String           @unique @map("object_key")                   // B2 object key
   description  String?          @map("description")
   uploadedById String           @map("uploaded_by_id")
   createdAt    DateTime         @default(now()) @map("created_at")

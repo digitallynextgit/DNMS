@@ -52,6 +52,25 @@ export async function updateSettings(
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.SETTINGS_WRITE)
 
+    // Required fields (the mandatory notifications mailer) must never be left
+    // blank. A blank secret is allowed only when a value is already stored
+    // (blank means "keep the existing secret").
+    const requiredBlank: string[] = []
+    for (const field of SETTING_FIELDS) {
+      if (!field.required || !(field.key in values)) continue
+      const raw = values[field.key]
+      const value = typeof raw === "string" ? raw.trim() : ""
+      if (value !== "") continue
+      if (field.secret) {
+        const existing = await db.appSetting.findUnique({ where: { key: field.key } })
+        if (existing?.value || process.env[field.key]) continue
+      }
+      requiredBlank.push(field.label)
+    }
+    if (requiredBlank.length > 0) {
+      return fail(`Required and cannot be empty: ${requiredBlank.join(", ")}`)
+    }
+
     const changedKeys: string[] = []
     for (const field of SETTING_FIELDS) {
       if (!(field.key in values)) continue

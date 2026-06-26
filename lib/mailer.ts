@@ -8,40 +8,95 @@ import { getConfig } from "@/server/app-config"
 // Mailer profiles
 // ---------------------------------------------------------------------------
 // Different use-cases can send from different mailboxes. Each named profile
-// reads SMTP_<PROFILE>_* env vars and falls back to the base SMTP_* vars for
-// anything it doesn't override - so to send notifications from a different
-// address on the SAME SMTP account you only need to set SMTP_NOTIFICATIONS_FROM.
+// reads SMTP_<PROFILE>_* config (DB settings → env), with the base SMTP_* keys
+// belonging to the "default" profile:
 //
 //   default       → SMTP_*                    (e.g. noreply@digitallynext.com)
-//   notifications → SMTP_NOTIFICATIONS_*      (notification@digitallynext.com)
+//   notifications → SMTP_NOTIFICATIONS_*      (REQUIRED - the guaranteed fallback)
 //   hr            → SMTP_HR_*                  (hr@digitallynext.com)
 //
-// Add more by simply using a new profile name + matching SMTP_<NAME>_* vars.
+// The "notifications" profile is mandatory (enforced on the Integrations page)
+// and acts as the final fallback for EVERY other profile: when a requested
+// profile has no usable credentials of its own, mail is sent through the next
+// profile in the chain that does, ending at notifications. Credentials
+// (host/user/pass) are always taken as one coherent unit from a single profile
+// so we never mix one account's host with another's password.
+//
+// Add more by simply using a new profile name + matching SMTP_<NAME>_* keys.
 // ---------------------------------------------------------------------------
 export type MailerProfile = "default" | "notifications" | "hr" | (string & {})
 
-// Resolve a config value for a profile via app-config (DB settings → env),
-// falling back to the base SMTP_* key. e.g. profile "hr" key "HOST" tries
-// SMTP_HR_HOST then SMTP_HOST.
-async function profileConfig(profile: string, key: string): Promise<string | undefined> {
-  if (profile !== "default") {
-    const scoped = await getConfig(`SMTP_${profile.toUpperCase()}_${key}`)
-    if (scoped) return scoped
-  }
-  return getConfig(`SMTP_${key}`)
+interface ProfileConfig {
+  from?: string
+  host?: string
+  port?: string
+  secure?: string
+  user?: string
+  pass?: string
+}
+
+// The config-key prefix for a profile. "default" uses the base SMTP_* keys.
+function keyPrefix(profile: string): string {
+  return profile === "default" ? "SMTP_" : `SMTP_${profile.toUpperCase()}_`
+}
+
+// Read a profile's full SMTP config (DB settings → env) in one shot.
+async function readProfile(profile: string): Promise<ProfileConfig> {
+  const p = keyPrefix(profile)
+  const [from, host, port, secure, user, pass] = await Promise.all([
+    getConfig(`${p}FROM`),
+    getConfig(`${p}HOST`),
+    getConfig(`${p}PORT`),
+    getConfig(`${p}SECURE`),
+    getConfig(`${p}USER`),
+    getConfig(`${p}PASS`),
+  ])
+  return { from, host, port, secure, user, pass }
+}
+
+// A profile can actually authenticate and send only with all three of these.
+function hasCredentials(c: ProfileConfig): boolean {
+  return Boolean(c.host && c.user && c.pass)
+}
+
+// Fallback order, ending at the mandatory "notifications" profile so mail still
+// sends when the Default or HR mailer isn't configured.
+function fallbackChain(profile: string): string[] {
+  if (profile === "notifications") return ["notifications"]
+  if (profile === "default") return ["default", "notifications"]
+  return [profile, "default", "notifications"] // hr or any custom profile
 }
 
 // Build a fresh transporter from the current config (no caching, so admin edits
 // to SMTP settings on the Integrations page take effect immediately).
 async function buildProfile(profile: string) {
-  const user = await profileConfig(profile, "USER")
+  const requested = await readProfile(profile)
+
+  // Pick the first profile in the chain that has usable credentials; the
+  // mandatory notifications profile is the guaranteed tail of every chain.
+  let account: ProfileConfig | null = hasCredentials(requested) ? requested : null
+  if (!account) {
+    for (const candidate of fallbackChain(profile)) {
+      if (candidate === profile) continue
+      const c = await readProfile(candidate)
+      if (hasCredentials(c)) {
+        account = c
+        break
+      }
+    }
+  }
+  // Last resort so we never crash building the transporter.
+  if (!account) account = await readProfile("notifications")
+
   const transporter = nodemailer.createTransport({
-    host: (await profileConfig(profile, "HOST")) || "smtp.gmail.com",
-    port: parseInt((await profileConfig(profile, "PORT")) || "587", 10),
-    secure: (await profileConfig(profile, "SECURE")) === "true",
-    auth: user ? { user, pass: await profileConfig(profile, "PASS") } : undefined,
+    host: account.host || "smtp.gmail.com",
+    port: parseInt(account.port || "587", 10),
+    secure: account.secure === "true",
+    auth: account.user ? { user: account.user, pass: account.pass } : undefined,
   })
-  const from = (await profileConfig(profile, "FROM")) || "DNMS <noreply@digitallynext.com>"
+  // Prefer the requested profile's own From (send-as), else the sending
+  // account's configured From, else a safe default.
+  const from = requested.from || account.from || "DNMS <noreply@digitallynext.com>"
   return { transporter, from }
 }
 

@@ -12,6 +12,8 @@ export interface SettingField {
   placeholder?: string
   /** Stored encrypted; the value is never sent back to the client. */
   secret?: boolean
+  /** Must always have a value - cannot be saved blank or cleared. */
+  required?: boolean
   help?: string
 }
 
@@ -65,6 +67,56 @@ export const SETTING_FIELDS: SettingField[] = [
   { key: "SMTP_USER", label: "Username", type: "text", group: "Default mailer" },
   { key: "SMTP_PASS", label: "Password", type: "password", group: "Default mailer", secret: true },
 
+  // ── Notifications mailer (REQUIRED fallback) ─────────────────────────────────
+  // This profile must always be fully configured: it is the guaranteed fallback
+  // used to send mail whenever the Default or HR mailer isn't set up.
+  {
+    key: "SMTP_NOTIFICATIONS_FROM",
+    label: "From",
+    type: "text",
+    group: "Notifications mailer",
+    placeholder: "DNMS <no-reply@example.com>",
+    required: true,
+    help: "Used as the fallback sender when other mailers aren't configured.",
+  },
+  {
+    key: "SMTP_NOTIFICATIONS_HOST",
+    label: "Host",
+    type: "text",
+    group: "Notifications mailer",
+    placeholder: "smtp-relay.brevo.com",
+    required: true,
+  },
+  {
+    key: "SMTP_NOTIFICATIONS_PORT",
+    label: "Port",
+    type: "number",
+    group: "Notifications mailer",
+    placeholder: "587",
+    required: true,
+  },
+  {
+    key: "SMTP_NOTIFICATIONS_SECURE",
+    label: "Use TLS (SSL)",
+    type: "boolean",
+    group: "Notifications mailer",
+  },
+  {
+    key: "SMTP_NOTIFICATIONS_USER",
+    label: "Username",
+    type: "text",
+    group: "Notifications mailer",
+    required: true,
+  },
+  {
+    key: "SMTP_NOTIFICATIONS_PASS",
+    label: "Password",
+    type: "password",
+    group: "Notifications mailer",
+    secret: true,
+    required: true,
+  },
+
   // ── HR mailer ──────────────────────────────────────────────────────────────
   {
     key: "SMTP_HR_FROM",
@@ -84,10 +136,36 @@ export const SETTING_FIELDS: SettingField[] = [
   { key: "SMTP_HR_SECURE", label: "Use TLS (SSL)", type: "boolean", group: "HR mailer" },
   { key: "SMTP_HR_USER", label: "Username", type: "text", group: "HR mailer" },
   { key: "SMTP_HR_PASS", label: "Password", type: "password", group: "HR mailer", secret: true },
+
+  // ── Storage (Backblaze B2, S3-compatible) ────────────────────────────────────
+  {
+    key: "B2_EMPLOYEE_DOCS_ENDPOINT",
+    label: "Endpoint",
+    type: "url",
+    group: "Storage (B2)",
+    placeholder: "https://s3.us-east-005.backblazeb2.com",
+  },
+  {
+    key: "B2_EMPLOYEE_DOCS_REGION",
+    label: "Region",
+    type: "text",
+    group: "Storage (B2)",
+    placeholder: "us-east-005",
+  },
+  { key: "B2_EMPLOYEE_DOCS_BUCKET", label: "Bucket", type: "text", group: "Storage (B2)" },
+  { key: "B2_EMPLOYEE_DOCS_KEY_ID", label: "Key ID", type: "text", group: "Storage (B2)" },
+  {
+    key: "B2_EMPLOYEE_DOCS_APP_KEY",
+    label: "Application key",
+    type: "password",
+    group: "Storage (B2)",
+    secret: true,
+  },
 ]
 
 export const SETTING_KEYS = SETTING_FIELDS.map((f) => f.key)
 export const SECRET_KEYS = new Set(SETTING_FIELDS.filter((f) => f.secret).map((f) => f.key))
+export const REQUIRED_KEYS = new Set(SETTING_FIELDS.filter((f) => f.required).map((f) => f.key))
 
 /** Group order as they should appear in the UI (insertion order of the array). */
 export const SETTING_GROUPS = [...new Set(SETTING_FIELDS.map((f) => f.group))]
