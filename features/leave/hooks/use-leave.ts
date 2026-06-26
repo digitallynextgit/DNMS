@@ -2,20 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { unwrap } from "@/lib/api-fetch"
+import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
-import {
-  getLeaveTypes,
-  createLeaveType as createLeaveTypeAction,
-  updateLeaveType as updateLeaveTypeAction,
-  deleteLeaveType as deleteLeaveTypeAction,
-  getLeaveBalances,
-  allocateLeave as allocateLeaveAction,
-  getLeaveRequests,
-  getTeamLeaveRequests,
-  applyLeave as applyLeaveAction,
-  updateLeaveRequest,
-} from "@/features/leave/server/leave.actions"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -96,12 +84,20 @@ interface PaginatedResponse<T> {
 
 // ─── Fetch helpers ─────────────────────────────────────────────────────────────
 
+// Each endpoint returns the standard { success, data: P } envelope where P is
+// this helper's declared return type, so we read one `.data` hop to get P.
 async function fetchLeaveTypes(): Promise<{ data: LeaveType[] }> {
-  return unwrap(await getLeaveTypes()) as { data: LeaveType[] }
+  return (await apiFetch<{ data: { data: LeaveType[] } }>("/api/leave/types")).data
 }
 
 async function createLeaveType(body: Partial<LeaveType>): Promise<{ data: LeaveType }> {
-  return unwrap(await createLeaveTypeAction(body as Record<string, unknown>)) as { data: LeaveType }
+  return (
+    await apiFetch<{ data: { data: LeaveType } }>("/api/leave/types", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  ).data
 }
 
 async function updateLeaveType({
@@ -111,20 +107,32 @@ async function updateLeaveType({
   id: string
   body: Partial<LeaveType>
 }): Promise<{ data: LeaveType }> {
-  return unwrap(await updateLeaveTypeAction(id, body as Record<string, unknown>)) as {
-    data: LeaveType
-  }
+  return (
+    await apiFetch<{ data: { data: LeaveType } }>(`/api/leave/types/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  ).data
 }
 
 async function deleteLeaveType(id: string): Promise<{ message: string }> {
-  return unwrap(await deleteLeaveTypeAction(id))
+  return (
+    await apiFetch<{ data: { message: string } }>(`/api/leave/types/${id}`, { method: "DELETE" })
+  ).data
 }
 
 async function fetchLeaveBalances(
   employeeId?: string,
   year?: number,
 ): Promise<{ data: LeaveBalance[] }> {
-  return unwrap(await getLeaveBalances(employeeId, year)) as { data: LeaveBalance[] }
+  const params = new URLSearchParams()
+  if (employeeId) params.set("employeeId", employeeId)
+  if (year !== undefined) params.set("year", String(year))
+  const qs = params.toString()
+  return (
+    await apiFetch<{ data: { data: LeaveBalance[] } }>(`/api/leave/balances${qs ? `?${qs}` : ""}`)
+  ).data
 }
 
 async function allocateLeave(body: {
@@ -134,13 +142,32 @@ async function allocateLeave(body: {
   allocated: number
   carried?: number
 }): Promise<{ data: LeaveBalance }> {
-  return unwrap(await allocateLeaveAction(body)) as { data: LeaveBalance }
+  return (
+    await apiFetch<{ data: { data: LeaveBalance } }>("/api/leave/balances", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  ).data
 }
 
 async function fetchLeaveRequests(
   filters: LeaveRequestFilters,
 ): Promise<PaginatedResponse<LeaveRequest>> {
-  return unwrap(await getLeaveRequests(filters)) as PaginatedResponse<LeaveRequest>
+  const params = new URLSearchParams()
+  if (filters.status) params.set("status", filters.status)
+  if (filters.employeeId) params.set("employeeId", filters.employeeId)
+  if (filters.leaveTypeId) params.set("leaveTypeId", filters.leaveTypeId)
+  if (filters.from) params.set("from", filters.from)
+  if (filters.to) params.set("to", filters.to)
+  if (filters.page !== undefined) params.set("page", String(filters.page))
+  if (filters.limit !== undefined) params.set("limit", String(filters.limit))
+  const qs = params.toString()
+  return (
+    await apiFetch<{ data: PaginatedResponse<LeaveRequest> }>(
+      `/api/leave/requests${qs ? `?${qs}` : ""}`,
+    )
+  ).data
 }
 
 async function fetchTeamLeaveRequests(filters: {
@@ -148,7 +175,16 @@ async function fetchTeamLeaveRequests(filters: {
   page?: number
   limit?: number
 }): Promise<PaginatedResponse<LeaveRequest>> {
-  return unwrap(await getTeamLeaveRequests(filters)) as PaginatedResponse<LeaveRequest>
+  const params = new URLSearchParams()
+  if (filters.status) params.set("status", filters.status)
+  if (filters.page !== undefined) params.set("page", String(filters.page))
+  if (filters.limit !== undefined) params.set("limit", String(filters.limit))
+  const qs = params.toString()
+  return (
+    await apiFetch<{ data: PaginatedResponse<LeaveRequest> }>(
+      `/api/leave/team${qs ? `?${qs}` : ""}`,
+    )
+  ).data
 }
 
 async function applyLeave(body: {
@@ -158,15 +194,33 @@ async function applyLeave(body: {
   reason?: string
   isHalfDay?: boolean
 }): Promise<{ data: LeaveRequest }> {
-  return unwrap(await applyLeaveAction(body)) as { data: LeaveRequest }
+  return (
+    await apiFetch<{ data: { data: LeaveRequest } }>("/api/leave/requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  ).data
 }
 
 async function cancelLeave(id: string): Promise<{ data: LeaveRequest }> {
-  return unwrap(await updateLeaveRequest(id, "CANCEL")) as { data: LeaveRequest }
+  return (
+    await apiFetch<{ data: { data: LeaveRequest } }>(`/api/leave/requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "CANCEL" }),
+    })
+  ).data
 }
 
 async function approveLeave(id: string): Promise<{ data: LeaveRequest }> {
-  return unwrap(await updateLeaveRequest(id, "APPROVE")) as { data: LeaveRequest }
+  return (
+    await apiFetch<{ data: { data: LeaveRequest } }>(`/api/leave/requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "APPROVE" }),
+    })
+  ).data
 }
 
 async function rejectLeave({
@@ -176,7 +230,13 @@ async function rejectLeave({
   id: string
   rejectionReason: string
 }): Promise<{ data: LeaveRequest }> {
-  return unwrap(await updateLeaveRequest(id, "REJECT", rejectionReason)) as { data: LeaveRequest }
+  return (
+    await apiFetch<{ data: { data: LeaveRequest } }>(`/api/leave/requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "REJECT", rejectionReason }),
+    })
+  ).data
 }
 
 // ─── Query Hooks ───────────────────────────────────────────────────────────────

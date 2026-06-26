@@ -26,12 +26,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
-import {
-  getDepartments,
-  createDepartment,
-  updateDepartment,
-  deleteDepartment,
-} from "@/features/employees"
+import { apiFetch } from "@/lib/api-fetch"
 
 interface Department {
   id: string
@@ -44,9 +39,8 @@ interface Department {
 }
 
 async function fetchDepartments(): Promise<{ data: Department[] }> {
-  const r = await getDepartments({ includeInactive: true })
-  if (!r.ok) throw new Error(r.error)
-  return { data: r.data as Department[] }
+  const body = await apiFetch<{ data: Department[] }>("/api/departments?includeInactive=true")
+  return { data: body.data as Department[] }
 }
 
 async function saveDepartment(body: {
@@ -55,25 +49,36 @@ async function saveDepartment(body: {
   code: string
   description?: string
 }): Promise<{ data: Department }> {
-  const r = body.id
-    ? await updateDepartment(body.id, {
-        name: body.name,
-        code: body.code,
-        description: body.description,
+  const res = body.id
+    ? await apiFetch<{ data: Department }>(`/api/departments/${body.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: body.name,
+          code: body.code,
+          description: body.description,
+        }),
       })
-    : await createDepartment({ name: body.name, code: body.code, description: body.description })
-  if (!r.ok) throw new Error(r.error)
-  return { data: r.data as Department }
+    : await apiFetch<{ data: Department }>("/api/departments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: body.name, code: body.code, description: body.description }),
+      })
+  return { data: res.data as Department }
 }
 
 async function patchActive(id: string, isActive: boolean): Promise<void> {
-  const r = await updateDepartment(id, { isActive })
-  if (!r.ok) throw new Error(r.error)
+  await apiFetch<{ data: Department }>(`/api/departments/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isActive }),
+  })
 }
 
 async function purgeDepartment(id: string): Promise<void> {
-  const r = await deleteDepartment(id, true)
-  if (!r.ok) throw new Error(r.error)
+  await apiFetch<{ data: { message: string } }>(`/api/departments/${id}?permanent=true`, {
+    method: "DELETE",
+  })
 }
 
 export default function DepartmentsPage() {

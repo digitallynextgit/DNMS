@@ -4,22 +4,8 @@ import { useState, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useDebounce } from "@/hooks/use-debounce"
-import { unwrap } from "@/lib/api-fetch"
+import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
-import { getDepartments } from "@/features/employees/server/departments.actions"
-import { getDesignations } from "@/features/employees/server/designations.actions"
-import {
-  getEmployees,
-  getEmployee,
-  getEmployeeCodes,
-  createEmployee as createEmployeeAction,
-  updateEmployee as updateEmployeeAction,
-  deactivateEmployee,
-  deleteEmployeePermanent,
-  activateEmployee as activateEmployeeAction,
-  checkEmailAvailability,
-  getOrgChart,
-} from "@/features/employees/server/employees.actions"
 
 export interface EmployeeCodeItem {
   id: string
@@ -120,15 +106,36 @@ interface PaginatedResponse<T> {
 async function fetchEmployees(
   filters: EmployeeFilters,
 ): Promise<PaginatedResponse<EmployeeListItem>> {
-  return unwrap(await getEmployees(filters)) as PaginatedResponse<EmployeeListItem>
+  const qs = new URLSearchParams()
+  if (filters.search) qs.set("search", filters.search)
+  if (filters.departmentId) qs.set("departmentId", filters.departmentId)
+  if (filters.designationId) qs.set("designationId", filters.designationId)
+  if (filters.status) qs.set("status", filters.status)
+  if (filters.employmentType) qs.set("employmentType", filters.employmentType)
+  if (filters.page !== undefined) qs.set("page", String(filters.page))
+  if (filters.limit !== undefined) qs.set("limit", String(filters.limit))
+  const query = qs.toString()
+  return (
+    await apiFetch<{ data: PaginatedResponse<EmployeeListItem> }>(
+      `/api/employees${query ? `?${query}` : ""}`,
+    )
+  ).data as PaginatedResponse<EmployeeListItem>
 }
 
 async function fetchEmployee(id: string): Promise<{ data: EmployeeDetail }> {
-  return unwrap(await getEmployee(id)) as { data: EmployeeDetail }
+  return (await apiFetch<{ data: { data: EmployeeDetail } }>(`/api/employees/${id}`)).data as {
+    data: EmployeeDetail
+  }
 }
 
 async function createEmployee(body: Record<string, unknown>): Promise<{ data: EmployeeListItem }> {
-  return unwrap(await createEmployeeAction(body)) as { data: EmployeeListItem }
+  return (
+    await apiFetch<{ data: { data: EmployeeListItem } }>("/api/employees", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  ).data as { data: EmployeeListItem }
 }
 
 async function updateEmployee({
@@ -138,32 +145,46 @@ async function updateEmployee({
   id: string
   body: Record<string, unknown>
 }): Promise<{ data: EmployeeListItem }> {
-  return unwrap(await updateEmployeeAction(id, body)) as { data: EmployeeListItem }
+  return (
+    await apiFetch<{ data: { data: EmployeeListItem } }>(`/api/employees/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  ).data as { data: EmployeeListItem }
 }
 
 async function deleteEmployee(id: string): Promise<{ message: string }> {
-  return unwrap(await deactivateEmployee(id))
+  return (
+    await apiFetch<{ data: { message: string } }>(`/api/employees/${id}/deactivate`, {
+      method: "POST",
+    })
+  ).data
 }
 
 async function activateEmployee(id: string): Promise<{ message: string }> {
-  unwrap(await activateEmployeeAction(id))
+  await apiFetch<{ data: unknown }>(`/api/employees/${id}/activate`, { method: "POST" })
   return { message: "Employee reactivated" }
 }
 
 async function hardDeleteEmployee(id: string): Promise<{ message: string }> {
-  return unwrap(await deleteEmployeePermanent(id))
+  return (
+    await apiFetch<{ data: { message: string } }>(`/api/employees/${id}`, { method: "DELETE" })
+  ).data
 }
 
 async function fetchOrgChart(): Promise<{ data: import("@/types").OrgNode[] }> {
-  return unwrap(await getOrgChart())
+  return (
+    await apiFetch<{ data: { data: import("@/types").OrgNode[] } }>("/api/employees/org-chart")
+  ).data
 }
 
 async function fetchDepartments(): Promise<{ data: Department[] }> {
-  return { data: unwrap(await getDepartments()) }
+  return { data: (await apiFetch<{ data: Department[] }>("/api/departments")).data }
 }
 
 async function fetchDesignations(): Promise<{ data: Designation[] }> {
-  return { data: unwrap(await getDesignations()) }
+  return { data: (await apiFetch<{ data: Designation[] }>("/api/designations")).data }
 }
 
 // ─── Hooks ─────────────────────────────────────────────────────────────────────
@@ -188,7 +209,10 @@ export function useEmployee(id: string | null | undefined) {
 export function useEmployeeCodes() {
   return useQuery({
     queryKey: ["employee-codes"],
-    queryFn: async () => unwrap(await getEmployeeCodes()) as { data: EmployeeCodeItem[] },
+    queryFn: async () =>
+      (await apiFetch<{ data: { data: EmployeeCodeItem[] } }>("/api/employees/codes")).data as {
+        data: EmployeeCodeItem[]
+      },
     staleTime: 60_000,
   })
 }
@@ -323,14 +347,12 @@ export function useEmailAvailability(
     }
     let active = true
     setStatus("checking")
-    checkEmailAvailability(debounced, excludeId)
-      .then((r) => {
+    const qs = new URLSearchParams({ email: debounced })
+    if (excludeId) qs.set("excludeId", excludeId)
+    apiFetch<{ data: { available: boolean } }>(`/api/employees/check-email?${qs.toString()}`)
+      .then((body) => {
         if (!active) return
-        if (!r.ok) {
-          setStatus("idle")
-          return
-        }
-        setStatus(r.data.available ? "available" : "taken")
+        setStatus(body.data.available ? "available" : "taken")
       })
       .catch(() => active && setStatus("idle"))
     return () => {

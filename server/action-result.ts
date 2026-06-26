@@ -7,15 +7,15 @@
 // =============================================================================
 
 export type ActionOk<T> = { ok: true; data: T }
-export type ActionFail = { ok: false; error: string; details?: unknown }
+export type ActionFail = { ok: false; error: string; details?: unknown; status?: number }
 export type ActionResult<T> = ActionOk<T> | ActionFail
 
 export function ok<T>(data: T): ActionOk<T> {
   return { ok: true, data }
 }
 
-export function fail(error: string, details?: unknown): ActionFail {
-  return { ok: false, error, details }
+export function fail(error: string, details?: unknown, status?: number): ActionFail {
+  return { ok: false, error, details, status }
 }
 
 // Convert a DB result to its plain-JSON form (Date -> ISO string, etc.) so an
@@ -43,8 +43,8 @@ export async function runAction<T>(fn: () => Promise<ActionResult<T>>): Promise<
   try {
     return await fn()
   } catch (e) {
-    if (e instanceof ActionError) return fail(e.message)
+    if (e instanceof ActionError) return fail(e.message, undefined, e.status)
     console.error("[action] unexpected error:", e)
-    return fail("Internal server error")
+    return fail("Internal server error", undefined, 500)
   }
 }

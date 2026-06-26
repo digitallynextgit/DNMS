@@ -10,17 +10,18 @@ import { DocumentList } from "@/features/documents"
 import { DocumentUploadDialog } from "@/features/documents"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
-import { getEmployee } from "@/features/employees"
+import { apiFetch } from "@/lib/api-fetch"
 
 function useEmployeeName(employeeId: string) {
   const [name, setName] = React.useState<string>("")
 
   React.useEffect(() => {
     if (!employeeId) return
-    getEmployee(employeeId)
-      .then((r) => {
-        if (!r.ok) return
-        const emp = (r.data as { data: { firstName: string; lastName: string } }).data
+    apiFetch<{ data: { data: { firstName: string; lastName: string } } }>(
+      `/api/employees/${employeeId}`,
+    )
+      .then((body) => {
+        const emp = body.data.data
         if (emp) setName(`${emp.firstName} ${emp.lastName}`)
       })
       .catch(() => {})

@@ -32,7 +32,7 @@ import {
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, JOB_STATUS_LABELS, JOB_STATUS_COLORS } from "@/lib/constants"
 import { cn, formatDate } from "@/lib/utils"
-import { getDepartments, updateDepartment } from "@/features/employees"
+import { apiFetch } from "@/lib/api-fetch"
 
 interface Department {
   id: string
@@ -60,9 +60,8 @@ async function fetchJobs(status?: string): Promise<{ data: JobPosting[] }> {
 }
 
 async function fetchDepts(): Promise<{ data: Department[] }> {
-  const r = await getDepartments()
-  if (!r.ok) throw new Error(r.error)
-  return { data: r.data as Department[] }
+  const body = await apiFetch<{ data: Department[] }>("/api/departments")
+  return { data: body.data as Department[] }
 }
 
 async function createJob(body: Record<string, unknown>) {
@@ -259,11 +258,14 @@ export default function RecruitmentPage() {
     if (!selectedDept) return
     setDeptSaving(true)
     try {
-      const r = await updateDepartment(selectedDept.id, {
-        careersTone: deptTone || null,
-        careersJobsLabel: deptJobsLabel || null,
+      await apiFetch<{ data: Department }>(`/api/departments/${selectedDept.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          careersTone: deptTone || null,
+          careersJobsLabel: deptJobsLabel || null,
+        }),
       })
-      if (!r.ok) throw new Error(r.error)
       await qc.invalidateQueries({ queryKey: ["departments"] })
       toast.success("Department careers settings saved")
     } catch {

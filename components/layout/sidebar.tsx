@@ -250,7 +250,10 @@ const HRMS_ITEMS: NavItem[] = [
     label: "Recruitment",
     icon: Briefcase,
     permission: PERMISSIONS.RECRUITMENT_READ,
-    children: [{ label: "Job Postings", href: "/recruitment" }],
+    children: [
+      { label: "Job Postings", href: "/recruitment" },
+      { label: "Careers", href: "/admin/careers" },
+    ],
   },
   {
     label: "Analytics",

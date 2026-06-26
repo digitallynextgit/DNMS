@@ -1,0 +1,679 @@
+{
+  "$comment": "Careers seed for the DNMS. Source of truth: digitallynext/src/data/careersDepartments.ts. Hierarchy: group -> subDepartment -> role -> opening.",
+  "groups": [
+    {
+      "mode": "FULL_TIME",
+      "code": "SMG",
+      "title": "Strategic Management Group",
+      "slug": "smg",
+      "jobsLabel": "Explore Sub-Departments",
+      "tone": "teal",
+      "order": 0,
+      "subDepartments": [
+        {
+          "title": "BSG - Business Support Group",
+          "slug": "bsg-business-support-group",
+          "jobsLabel": "Explore Open Roles",
+          "tone": "teal",
+          "order": 0,
+          "roles": [
+            {
+              "title": "Business Relations Lead",
+              "slug": "business-relations-lead",
+              "meta": null,
+              "summary": null,
+              "order": 0,
+              "intro": "Growth today is global. Influence is built through relationships. We’re looking for a Strategic Relations – Lead who can open international corridors, build powerful alliances, and drive expansion across the US and Middle East markets. This isn’t business development. This is strategic expansion through trust, positioning, and high-value partnerships.",
+              "jobEssence": "Lead international growth by identifying and securing high-value clients and strategic partners across overseas markets. Build long-term alliances, own cross-border conversations, and position the organization as a trusted global partner. Drive revenue through relationship architecture, market intelligence, and structured expansion strategy.",
+              "keyRequirements": [
+                "3–5 years of experience in international growth, partnerships, consulting, or strategic roles",
+                "Strong exposure to Indian, US and Middle East markets",
+                "Proven ability to build and close high-value international relationships",
+                "Strong negotiation, communication, and stakeholder management skills",
+                "Strategic mindset with clear revenue-growth orientation",
+                "Cultural intelligence and ability to operate across time zones",
+                "Understanding of digital/agency/consulting ecosystems preferred"
+              ],
+              "openings": []
+            }
+          ]
+        },
+        {
+          "title": "MSG - Marketing Services Group",
+          "slug": "msg-marketing-services-group",
+          "jobsLabel": "Explore Open Roles",
+          "tone": "red",
+          "order": 1,
+          "roles": [
+            {
+              "title": "Content Writers / Copywriters",
+              "slug": "content-writers-copywriters",
+              "meta": null,
+              "summary": null,
+              "order": 0,
+              "intro": "It’s Only Words ..and the words are all I have ..to take your heart away… Or Country Roads take me home …. Or Har rang kuchh kehta hai… We are looking for those who can feel the soul of seasons, the flora and fauna, the mountains, and the river…similarly if they feel the soul, the character of a brand to communicate and build the connect with its audience!",
+              "jobEssence": "Having a sound understanding of storytelling in terms of creative writing on digital and social mediums, PR outreach, business and commercial aspects. Ideal to be adept in both short and long form writing.",
+              "keyRequirements": [
+                "Creative Writing for Social Media & Digital Platforms",
+                "Commercial Writing",
+                "SEO to AEO to GEO driven content journeys",
+                "Performance based Campaign storytelling",
+                "Media and brand outreach communication"
+              ],
+              "openings": [
+                {
+                  "label": "Junior content writer (1-2 Years Exp)",
+                  "order": 0
+                },
+                {
+                  "label": "Senior content creator",
+                  "order": 1
+                },
+                {
+                  "label": "Content Lead",
+                  "order": 2
+                }
+              ]
+            },
+            {
+              "title": "Digital Marketing Executive",
+              "slug": "digital-marketing-executive",
+              "meta": null,
+              "summary": null,
+              "order": 1,
+              "intro": "Driving brands from visibility to impact. In today’s fast-moving digital landscape, marketing is more than posting content, it’s about building meaningful connections, generating engagement, and creating measurable business growth. If you’re creative, data-driven, and passionate about digital trends, this role is for you.",
+              "jobEssence": "The role focuses on planning, executing, and optimizing digital marketing campaigns across multiple online channels. This includes content strategy, social media management, paid advertising, performance tracking, audience engagement, and leveraging data-driven insights to enhance brand visibility and drive conversions.",
+              "keyRequirements": [
+                "Strong understanding of Digital Marketing fundamentals",
+                "Social Media Marketing & Community Management",
+                "Content Planning & Campaign Execution",
+                "SEO & SEM knowledge",
+                "Google Ads, Meta Ads & Performance Marketing",
+                "Email Marketing & Lead Generation",
+                "Analytics tools (Google Analytics, Search Console, Meta Insights)",
+                "Content writing & copywriting skills",
+                "Marketing automation tools familiarity",
+                "Influencer & partnership coordination",
+                "Strong communication and creative thinking skills",
+                "Campaign performance reporting & optimization",
+                "Familiarity with AI-enabled marketing tools"
+              ],
+              "openings": [
+                {
+                  "label": "Digital Marketing Executive (1-2 Years Exp)",
+                  "order": 0
+                }
+              ]
+            },
+            {
+              "title": "SMO - Social Media Optimisation - LinkedIN | Meta | X | YouTube",
+              "slug": "smo-social-media-optimisation-linkedin-meta-x-youtube",
+              "meta": null,
+              "summary": null,
+              "order": 2,
+              "intro": "Visibility is power in today’s digital-first world. Social media isn’t just about posting content - it’s about shaping perception, driving engagement, and building brand authority. If you understand how to engineer reach, relevance, and impact across platforms, we’d love to have you on board.",
+              "jobEssence": "The role focuses on optimizing social media presence across platforms to maximize reach, engagement, and performance. This includes platform-specific content optimization, trend analysis, audience behavior tracking, and data-backed strategies to ensure the brand remains memorable, relevant, and influential.",
+              "keyRequirements": [
+                "Social Media Optimization (SMO)",
+                "Platform Algorithm Understanding",
+                "Content & Engagement Strategy",
+                "Analytics & Performance Tracking",
+                "Hashtag, Keyword & Caption Optimization",
+                "SEO for Social Media"
+              ],
+              "openings": [
+                {
+                  "label": "Social Media Optimization Specialist (1–2+ Years Exp)",
+                  "order": 0
+                },
+                {
+                  "label": "SMO - Meta Specialist",
+                  "order": 1
+                },
+                {
+                  "label": "SMO - LinkedIn Specialist",
+                  "order": 2
+                },
+                {
+                  "label": "SMO - YouTube Specialist",
+                  "order": 3
+                }
+              ]
+            },
+            {
+              "title": "PR and Communications Executive",
+              "slug": "pr-and-communications-executive",
+              "meta": null,
+              "summary": null,
+              "order": 3,
+              "intro": "Perception is powerful. In a world driven by narratives, brands don’t just need visibility - they need credibility. As a PR & Communications Executive, you shape how the world sees, hears, and remembers us. If you understand storytelling, media relationships, and strategic messaging, this role is for you.",
+              "jobEssence": "The role focuses on managing brand communication and media presence to strengthen reputation and positioning. This includes drafting press releases, coordinating with media houses, ensuring consistent brand messaging, and supporting external and internal communication strategies.",
+              "keyRequirements": [
+                "Media relations & coordination",
+                "Press release & PR content writing",
+                "Brand messaging & communication strategy",
+                "Crisis communication understanding",
+                "Strong writing & articulation skills",
+                "Relationship management & networking"
+              ],
+              "openings": [
+                {
+                  "label": "PR & COMMUNICATIONS EXECUTIVE (1–2+ Years Exp)",
+                  "order": 0
+                }
+              ]
+            },
+            {
+              "title": "Influencer Marketing",
+              "slug": "influencer-marketing",
+              "meta": null,
+              "summary": null,
+              "order": 4,
+              "intro": "Influence drives action. Today’s digital conversations are shaped by creators, communities, and culture. As an Influencer Marketing Specialist, you don’t just collaborate – you build partnerships that amplify reach, relevance, and measurable impact.",
+              "jobEssence": "The role focuses on identifying, managing, and executing influencer collaborations to drive brand visibility and engagement. This includes creator research, campaign coordination, negotiation, performance tracking, and ensuring brand alignment across digital platforms.",
+              "keyRequirements": [
+                "Influencer research & shortlisting",
+                "Campaign planning & execution",
+                "Negotiation & partnership management",
+                "Analytics & performance tracking",
+                "Platform trend & algorithm understanding",
+                "Strong coordination & communication skills"
+              ],
+              "openings": [
+                {
+                  "label": "Influencer Marketing Specialist (2-3+ Years Exp)",
+                  "order": 0
+                }
+              ]
+            },
+            {
+              "title": "Performance Marketer",
+              "slug": "performance-marketer",
+              "meta": null,
+              "summary": null,
+              "order": 5,
+              "intro": "Strategy, plan, and process make a digital campaign more effective and perform better. Only operational understanding or knowledge of tools won’t give any results anymore. If that’s what you also think, then we are looking for you.",
+              "jobEssence": "The role focuses on crafting and implementing data-driven campaigns that optimize user engagement, leveraging insights to deliver measurable business growth and impactful results.",
+              "keyRequirements": [
+                "Paid media setups - Meta | Google | LinkedIn | Quora | Bing",
+                "Google Analytics",
+                "Organic marketing, including ORM",
+                "Result centric landing page knowledge",
+                "Must have experience of D2C brands"
+              ],
+              "openings": [
+                {
+                  "label": "Performance Marketer (2-3 Years Exp)",
+                  "order": 0
+                },
+                {
+                  "label": "Performance Marketer (4-7 Years Exp)",
+                  "order": 1
+                }
+              ]
+            },
+            {
+              "title": "SEO/AEO/GEO Specialist",
+              "slug": "seoaeogeo-specialist",
+              "meta": null,
+              "summary": null,
+              "order": 6,
+              "intro": "It’s not just keywords… it’s the art of being discovered. Like hidden trails leading to breathtaking views, or a compass guiding travelers home, your expertise ensures brands are found where it matters most. We’re looking for someone who understands the rhythm of search engines, the pulse of online audiences, and can weave strategy with creativity to amplify a brand’s digital heartbeat.",
+              "jobEssence": "Having a deep understanding of search engine optimization across on-page, off-page, and technical aspects. Skilled in analyzing trends, optimizing content, and improving website visibility. Ideal for someone who can blend data-driven insights with creative problem-solving to drive measurable growth.",
+              "keyRequirements": [
+                "On-page and off-page SEO",
+                "Keyword research and competitor analysis",
+                "Technical SEO and site audits",
+                "Content optimization and link-building strategies",
+                "Journey from SEO>GEO>AEO",
+                "Familiarity with tools like Google Analytics, Search Console, and SEMrush"
+              ],
+              "openings": [
+                {
+                  "label": "Junior SEO Executive (1-2 Years Exp)",
+                  "order": 0
+                },
+                {
+                  "label": "SEO Specialist",
+                  "order": 1
+                },
+                {
+                  "label": "SEO Lead",
+                  "order": 2
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "FULL_TIME",
+      "code": "ADAC",
+      "title": "AI Decision and Acceleration Centre",
+      "slug": "adac",
+      "jobsLabel": "Explore Sub-Departments",
+      "tone": "red",
+      "order": 1,
+      "subDepartments": [
+        {
+          "title": "PMG - Project Management Group",
+          "slug": "pmg-project-management-group",
+          "jobsLabel": "Explore Open Roles",
+          "tone": "teal",
+          "order": 0,
+          "roles": [
+            {
+              "title": "Project Controller",
+              "slug": "project-controller",
+              "meta": null,
+              "summary": null,
+              "order": 0,
+              "intro": "Great ideas fail without great execution. We’re looking for a system-driven Project Manager who builds structure, drives operational clarity, and integrates AI into execution across teams.",
+              "jobEssence": "Lead and streamline the entire Create–Publish–Promote lifecycle with structured execution and operational clarity. Align budgets with bandwidth, validate Time & Effort vs Cost metrics, drive AI-enabled process optimization, and ensure seamless coordination across teams to deliver projects on time, with quality and profitability.",
+              "keyRequirements": [
+                "3–4 years of experience in Digital / Creative Agencies or Consulting",
+                "Strong operational & database management skills",
+                "Ability to manage parallel projects under structured timelines",
+                "Expertise in Excel & PowerPoint",
+                "Familiarity with GSC, Notion or similar PM/CRM tools",
+                "Exposure to automation & AI-enabled workflows",
+                "Strong analytical and reporting capabilities",
+                "Clear communication and coordination mindset"
+              ],
+              "openings": []
+            }
+          ]
+        },
+        {
+          "title": "AI Enablement",
+          "slug": "ai-enablement",
+          "jobsLabel": "Explore Open Roles",
+          "tone": "red",
+          "order": 1,
+          "roles": [
+            {
+              "title": "AI/ML Engineers",
+              "slug": "aiml-engineers",
+              "meta": null,
+              "summary": null,
+              "order": 0,
+              "intro": "Development is no longer just code, it’s intelligent architecture. As an AI-First Web Developer, you build platforms that are not just responsive, but adaptive. You integrate automation, AI APIs, and smart systems into scalable digital infrastructure.",
+              "jobEssence": "The role focuses on building modern web applications with AI integrations at their core. This includes implementing AI APIs, automating backend processes, optimizing performance using intelligent systems, and developing scalable AI-powered digital platforms.",
+              "keyRequirements": [
+                "Strong expertise in modern web frameworks (Next.js / React preferred)",
+                "AI API integration & automation workflows",
+                "Backend & database understanding",
+                "Performance optimization & scalable architecture",
+                "Deployment & cloud environment familiarity",
+                "Systems-thinking & innovation mindset"
+              ],
+              "openings": [
+                {
+                  "label": "AI Integration Engineer",
+                  "order": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "FULL_TIME",
+      "code": "AMG",
+      "title": "Account Management Group",
+      "slug": "amg",
+      "jobsLabel": "Explore Open Roles",
+      "tone": "teal",
+      "order": 2,
+      "subDepartments": [
+        {
+          "title": "Key Account Managers",
+          "slug": "key-account-managers",
+          "jobsLabel": "Explore Open Roles",
+          "tone": "teal",
+          "order": 0,
+          "roles": [
+            {
+              "title": "Key Account Manager",
+              "slug": "key-account-manager",
+              "meta": null,
+              "summary": null,
+              "order": 0,
+              "intro": "Strategic thinking, operational structure, and financial clarity are what our clients demand. We’re looking for Account Managers who can translate business goals into actionable digital plans, align internal teams seamlessly, and ensure every account grows profitably while maintaining long-term client relationships.",
+              "jobEssence": "Sound understanding of client lifecycle management, brand brief creation, inter-department coordination, structured execution planning, profitability tracking, reporting alignment with performance metrics, and identifying upsell or growth opportunities within existing accounts.",
+              "keyRequirements": [
+                "2-3 years of experience in Consulting firms and/or Agency environment",
+                "Strong communication and professional tonality",
+                "Strategic and structured thinking ability",
+                "Advanced Excel & PPT proficiency",
+                "Financial understanding of margins and receivables",
+                "Stakeholder and multi-project management skills",
+                "Familiarity with Analytics & CRM tools (like GSC, Notion)",
+                "Strong attention to deadlines and workflow discipline",
+                "Confidence in handling client escalations"
+              ],
+              "openings": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "FULL_TIME",
+      "code": "MAP",
+      "title": "Marketing Asset Production",
+      "slug": "map",
+      "jobsLabel": "Explore Sub-Departments",
+      "tone": "red",
+      "order": 3,
+      "subDepartments": [
+        {
+          "title": "WEM - Web Essentials Management",
+          "slug": "wem-web-essentials-management",
+          "jobsLabel": "Explore Open Roles",
+          "tone": "red",
+          "order": 0,
+          "roles": [
+            {
+              "title": "Full Stack Developer",
+              "slug": "full-stack-developer",
+              "meta": null,
+              "summary": null,
+              "order": 0,
+              "intro": "Turning code into high-impact brand experiences. In a world where digital performance defines perception, this role goes beyond building websites - it’s about engineering fast, scalable, and conversion-focused platforms. If you think in systems, care about performance, and build with ownership, you’ll fit right in.",
+              "jobEssence": "The role focuses on building end-to-end web applications using modern frontend and backend technologies. This includes developing scalable architectures, optimizing performance and SEO readiness, integrating APIs and databases, and managing deployments to ensure stability, speed, and long-term reliability.",
+              "keyRequirements": [
+                "Strong expertise in Next.js & React.js",
+                "TypeScript / JavaScript proficiency",
+                "Frontend + Backend integration (Node.js and/or Python)",
+                "Database handling (Supabase, NeonDB, AWS databases)",
+                "ORM tools like Prisma / Drizzle",
+                "Responsive UI development & Figma collaboration",
+                "Deployment via Vercel / AWS",
+                "Git & GitHub with CI/CD pipelines",
+                "Knowledge of DNS, hosting & domain management",
+                "Familiarity with AI enabled tools"
+              ],
+              "openings": [
+                {
+                  "label": "Junior Full Stack Developer (0-2 years Exp)",
+                  "order": 0
+                },
+                {
+                  "label": "Senior Full Stack Developer (2-4 years Exp)",
+                  "order": 1
+                }
+              ]
+            },
+            {
+              "title": "Wordpress Developers",
+              "slug": "wordpress-developers",
+              "meta": null,
+              "summary": null,
+              "order": 1,
+              "intro": "Crafting websites that don’t just look great, they perform, convert, and scale. In a digital-first world, a website is often the first impression of a brand. This role is about building seamless, user-friendly WordPress experiences that combine design, functionality, and performance to help businesses grow online.",
+              "jobEssence": "The role focuses on developing, customizing, and maintaining WordPress websites tailored to business goals. This includes theme and plugin customization, performance optimization, SEO readiness, website security, and ensuring a smooth user experience across devices while maintaining scalability and reliability.",
+              "keyRequirements": [
+                "Strong expertise in WordPress development",
+                "Proficiency in PHP, HTML, CSS & JavaScript",
+                "Experience with Elementor, Gutenberg, and popular page builders",
+                "Custom theme and plugin development/customization",
+                "WooCommerce setup and customization",
+                "Responsive website development",
+                "Website speed optimization & performance tuning",
+                "Basic SEO implementation and best practices",
+                "Website migration, hosting & domain management",
+                "Git/GitHub and version control knowledge",
+                "Familiarity with Figma and design-to-website implementation",
+                "Understanding of website security and maintenance",
+                "Familiarity with AI-enabled tools"
+              ],
+              "openings": [
+                {
+                  "label": "WordPress Developer (1-2 Years Exp)",
+                  "order": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "VIM - Visual Impact Management",
+          "slug": "vim-visual-impact-management",
+          "jobsLabel": "Explore Open Roles",
+          "tone": "teal",
+          "order": 1,
+          "roles": [
+            {
+              "title": "Creative Lead",
+              "slug": "creative-lead",
+              "meta": null,
+              "summary": null,
+              "order": 0,
+              "intro": "Creativity scales only when it’s managed well. This role is for someone who can lead, align, and elevate video, design, content, and social media teams to deliver consistent, high-impact brand communication across platforms.",
+              "jobEssence": "The role focuses on managing end-to-end creative execution across video, graphic design, content, and social media. It involves team coordination, quality control, campaign alignment, and ensuring timely, platform-optimized delivery while maintaining brand consistency and performance.",
+              "keyRequirements": [
+                "Creative Team Management (Video, Graphic, Content & Social)",
+                "Content & Campaign Planning",
+                "Social Media Strategy & Execution Oversight",
+                "Quality Control & Brand Consistency",
+                "Must have Agency Experience",
+                "Familiarity with AI enabled tools"
+              ],
+              "openings": [
+                {
+                  "label": "Create Manager (4-5+ Years Exp)",
+                  "order": 0
+                }
+              ]
+            },
+            {
+              "title": "Video Editors / Motion Graphic Artists",
+              "slug": "video-editors-motion-graphic-artists",
+              "meta": null,
+              "summary": null,
+              "order": 1,
+              "intro": "Every video you edit should be a movie, a story, a legendary portfolio having a capability to move mountains, arouse emotions among the audience. We are looking for someone who can create memories, and give the audience a reason to share it among their circle!",
+              "jobEssence": "Having a sound understanding of - Podcasts | Reels | Video shoot with multiple camera set-ups | YouTube | OTTs | Motion Graphics | Explanatory | Streaming/News Centric.",
+              "keyRequirements": [
+                "Adobe After Effects",
+                "Adobe Premiere Pro",
+                "Any related video editing software",
+                "Cinematography and Storytelling video editing",
+                "Familiarity with AI enabled outputs"
+              ],
+              "openings": [
+                {
+                  "label": "Junior video editor (1-2 Years Exp)",
+                  "order": 0
+                },
+                {
+                  "label": "Senior video editor",
+                  "order": 1
+                },
+                {
+                  "label": "Video Production Lead",
+                  "order": 2
+                }
+              ]
+            },
+            {
+              "title": "Graphic Designers / UI & UX Designers",
+              "slug": "graphic-designers-ui-ux-designers",
+              "meta": null,
+              "summary": null,
+              "order": 2,
+              "intro": "Fine arts, visual finesse, and visual treats are what our clients demand. We are looking for modern-day artists who can be inspired by Michelangelo and know how to create captivating visual treats for the audience of 2019!",
+              "jobEssence": "Having a sound understanding Visual Content assets – Infographics | Memes | Social Media creative updates | Comic Strips | Mind Maps | Caricatures | Announcement creatives | landing page based on Storyboarding/Trends specific Scenarios.",
+              "keyRequirements": [
+                "Visualization",
+                "Adobe Photoshop",
+                "Adobe Illustrator",
+                "Any other related software",
+                "Familiarity with AI enabled tools"
+              ],
+              "openings": [
+                {
+                  "label": "Junior Graphic Designer (1-2 Years Exp)",
+                  "order": 0
+                },
+                {
+                  "label": "Senior Graphic Designer",
+                  "order": 1
+                },
+                {
+                  "label": "Visual Lead",
+                  "order": 2
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "FULL_TIME",
+      "code": "HR",
+      "title": "Human Resources",
+      "slug": "hr",
+      "jobsLabel": "Explore Open Roles",
+      "tone": "teal",
+      "order": 4,
+      "subDepartments": [
+        {
+          "title": "Human Resources",
+          "slug": "human-resources",
+          "jobsLabel": "Explore Open Roles",
+          "tone": "red",
+          "order": 0,
+          "roles": [
+            {
+              "title": "HR Executive",
+              "slug": "hr-executive",
+              "meta": null,
+              "summary": null,
+              "order": 0,
+              "intro": "Behind every high-performing team is a strong HR backbone that attracts, nurtures, and empowers talent. As an HR Executive, you won’t just manage processes - you’ll help shape culture, drive engagement and create an environment where people do their best work.",
+              "jobEssence": "The role focuses on managing core HR operations including recruitment, onboarding, performance management, employee engagement, employer branding and compliance and as a whole ensuring smooth employee lifecycle management.",
+              "keyRequirements": [
+                "End-to-end recruitment coordination",
+                "Candidate sourcing & screening",
+                "Onboarding & documentation management",
+                "Performance management",
+                "HR operations & compliance understanding",
+                "Employee engagement initiatives",
+                "Employer Branding",
+                "Strong communication & interpersonal skills"
+              ],
+              "openings": [
+                {
+                  "label": "HR EXECUTIVE (1-2 yrs. Exp)",
+                  "order": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "INTERNSHIP",
+      "code": "Internships",
+      "title": "Internships",
+      "slug": "internships",
+      "jobsLabel": "Explore Open Positions",
+      "tone": "teal",
+      "order": 0,
+      "subDepartments": [
+        {
+          "title": "Internships",
+          "slug": "internships",
+          "jobsLabel": "Explore Open Positions",
+          "tone": "teal",
+          "order": 0,
+          "roles": [
+            {
+              "title": "SEO / AEO Intern",
+              "slug": "seo-aeo-intern",
+              "meta": null,
+              "summary": null,
+              "order": 0,
+              "intro": "Are you passionate about digital marketing, search engines and AI-driven search? Do you enjoy optimizing content and improving online visibility? Join us as an SEO / AEO Intern and gain hands-on experience in SEO, AEO, content strategy and organic growth.",
+              "jobEssence": null,
+              "keyRequirements": [],
+              "openings": []
+            },
+            {
+              "title": "Digital Marketing Intern",
+              "slug": "digital-marketing-intern",
+              "meta": null,
+              "summary": null,
+              "order": 1,
+              "intro": "Are you someone who lives and breathes trends, creativity, and content? Do you enjoy blending strategy with aesthetics- whether it’s SEO, Graphics, Video editing or Social media? Join us as a Digital Marketing Intern and turn your ideas into impactful campaigns.",
+              "jobEssence": null,
+              "keyRequirements": [],
+              "openings": []
+            },
+            {
+              "title": "Graphic Designer Intern",
+              "slug": "graphic-designer-intern",
+              "meta": null,
+              "summary": null,
+              "order": 2,
+              "intro": "Are you a visual storyteller with a passion for design? Do you see the world in colors, shapes, and patterns? Join us as a Graphic Designer Intern and let your creativity shine.",
+              "jobEssence": null,
+              "keyRequirements": [],
+              "openings": []
+            },
+            {
+              "title": "Content Writing Intern",
+              "slug": "content-writing-intern",
+              "meta": null,
+              "summary": null,
+              "order": 3,
+              "intro": "Are you a wordsmith with a passion for storytelling? If you have a knack for turning ideas into compelling content, join us as a Content Writing Intern.",
+              "jobEssence": null,
+              "keyRequirements": [],
+              "openings": []
+            },
+            {
+              "title": "Video Editing Intern",
+              "slug": "video-editing-intern",
+              "meta": null,
+              "summary": null,
+              "order": 4,
+              "intro": "Do you have a passion for storytelling through visuals? Are you a wizard with video editing software? If so, we have an exciting opportunity for you! Join us as a Video Editor Intern and help us create compelling visual content that captivates and inspires.",
+              "jobEssence": null,
+              "keyRequirements": [],
+              "openings": []
+            },
+            {
+              "title": "Social Media Content Creator Intern",
+              "slug": "social-media-content-creator-intern",
+              "meta": null,
+              "summary": null,
+              "order": 5,
+              "intro": "Are you a storyteller at heart with a flair for creating captivating content? Do you live and breathe social media trends? If so, we have the perfect opportunity for you! Join us as a Social Media Content Creator Intern and help us tell our story to the world.",
+              "jobEssence": null,
+              "keyRequirements": [],
+              "openings": []
+            },
+            {
+              "title": "HR Intern",
+              "slug": "hr-intern",
+              "meta": null,
+              "summary": null,
+              "order": 6,
+              "intro": "Are you passionate about people, culture and building great workplaces? Do you enjoy organizing, communicating and being the go-to person who keeps things running smoothly? If so, we have the perfect opportunity for you! Join us as an HR Intern and be a part of shaping an engaging and high-performing work environment.",
+              "jobEssence": null,
+              "keyRequirements": [],
+              "openings": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

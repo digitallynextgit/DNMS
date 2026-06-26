@@ -2,14 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { unwrap } from "@/lib/api-fetch"
+import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
-import {
-  getWfhEligibility,
-  getWfhRequests,
-  applyWfh as applyWfhAction,
-  updateWfhRequest,
-} from "@/features/wfh/server/wfh.actions"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,11 +62,23 @@ interface WfhFilters {
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
 async function fetchEligibility(): Promise<WfhEligibility> {
-  return unwrap(await getWfhEligibility()) as WfhEligibility
+  return (await apiFetch<{ data: WfhEligibility }>("/api/wfh/eligibility")).data
 }
 
 async function fetchWfhRequests(filters: WfhFilters): Promise<PaginatedResponse<WfhRequest>> {
-  return unwrap(await getWfhRequests(filters)) as PaginatedResponse<WfhRequest>
+  const params = new URLSearchParams()
+  if (filters.status) params.set("status", filters.status)
+  if (filters.employeeId) params.set("employeeId", filters.employeeId)
+  if (filters.from) params.set("from", filters.from)
+  if (filters.to) params.set("to", filters.to)
+  if (filters.page != null) params.set("page", String(filters.page))
+  if (filters.limit != null) params.set("limit", String(filters.limit))
+  const qs = params.toString()
+  return (
+    await apiFetch<{ data: PaginatedResponse<WfhRequest> }>(
+      `/api/wfh/requests${qs ? `?${qs}` : ""}`,
+    )
+  ).data
 }
 
 async function applyWfh(body: {
@@ -80,7 +86,13 @@ async function applyWfh(body: {
   reason?: string
   isEmergency?: boolean
 }): Promise<{ data: WfhRequest; tier: number }> {
-  return unwrap(await applyWfhAction(body)) as { data: WfhRequest; tier: number }
+  return (
+    await apiFetch<{ data: { data: WfhRequest; tier: number } }>("/api/wfh/requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  ).data
 }
 
 async function patchWfh({
@@ -94,9 +106,13 @@ async function patchWfh({
   rejectionReason?: string
   approverRole?: "MANAGER" | "HR"
 }): Promise<{ data: WfhRequest }> {
-  return unwrap(await updateWfhRequest(id, action, rejectionReason, approverRole)) as {
-    data: WfhRequest
-  }
+  return (
+    await apiFetch<{ data: { data: WfhRequest } }>(`/api/wfh/requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, rejectionReason, approverRole }),
+    })
+  ).data
 }
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────

@@ -2,14 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { getEmployeeDocuments } from "@/features/documents/server/employee-documents.actions"
-import {
-  getCompanyDocuments,
-  uploadDocument,
-  deleteDocument,
-  getDocumentUrl,
-} from "@/features/documents/server/documents.actions"
-import { unwrap } from "@/lib/api-fetch"
+import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -69,7 +62,11 @@ export function useEmployeeDocuments(employeeId: string) {
   return useQuery<DocumentRecord[]>({
     queryKey: documentKeys.employee(employeeId),
     queryFn: async () =>
-      (unwrap(await getEmployeeDocuments(employeeId)) as { data: DocumentRecord[] }).data,
+      (
+        await apiFetch<{ data: { data: DocumentRecord[] } }>(
+          `/api/employees/${employeeId}/documents`,
+        )
+      ).data.data,
     enabled: Boolean(employeeId),
   })
 }
@@ -81,8 +78,13 @@ export function useEmployeeDocuments(employeeId: string) {
 export function useCompanyDocuments(category?: string, page = 1, limit = 10) {
   return useQuery<CompanyDocumentsResult>({
     queryKey: documentKeys.company(category, page),
-    queryFn: async () =>
-      unwrap(await getCompanyDocuments(category, { page, limit })) as CompanyDocumentsResult,
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (category) params.set("category", category)
+      params.set("page", String(page))
+      params.set("limit", String(limit))
+      return (await apiFetch<{ data: CompanyDocumentsResult }>(`/api/documents?${params}`)).data
+    },
   })
 }
 
@@ -95,7 +97,12 @@ export function useUploadDocument() {
   return useMutation<DocumentRecord, Error, FormData>(
     mutationWithToast(qc, {
       mutationFn: async (formData: FormData) =>
-        (unwrap(await uploadDocument(formData)) as { data: DocumentRecord }).data,
+        (
+          await apiFetch<{ data: { data: DocumentRecord } }>("/api/documents", {
+            method: "POST",
+            body: formData,
+          })
+        ).data.data,
       invalidate: [["documents", "company"]],
       success: "Document uploaded successfully",
       onSuccess: (doc) => {
@@ -120,7 +127,7 @@ export function useDeleteDocument() {
   return useMutation<void, Error, string>(
     mutationWithToast(qc, {
       mutationFn: async (id: string) => {
-        unwrap(await deleteDocument(id))
+        await apiFetch(`/api/documents/${id}`, { method: "DELETE" })
       },
       invalidate: [documentKeys.all],
       success: "Document deleted",
@@ -140,17 +147,11 @@ export function useUploadEmployeeDocument(employeeId: string) {
   const qc = useQueryClient()
   return useMutation<unknown, Error, FormData>(
     mutationWithToast(qc, {
-      mutationFn: async (formData: FormData) => {
-        const res = await fetch(`/api/employees/${employeeId}/documents`, {
+      mutationFn: async (formData: FormData) =>
+        apiFetch(`/api/employees/${employeeId}/documents`, {
           method: "POST",
           body: formData,
-        })
-        if (!res.ok) {
-          const json = await res.json().catch(() => ({}))
-          throw new Error(json.error?.message ?? "Upload failed")
-        }
-        return res.json()
-      },
+        }),
       invalidate: [documentKeys.employee(employeeId)],
       success: "Document uploaded successfully",
       onError: (error) => {
@@ -166,13 +167,9 @@ export function useDeleteEmployeeDocument(employeeId: string) {
   return useMutation<void, Error, string>(
     mutationWithToast(qc, {
       mutationFn: async (docId: string) => {
-        const res = await fetch(`/api/employees/${employeeId}/documents/${docId}`, {
+        await apiFetch(`/api/employees/${employeeId}/documents/${docId}`, {
           method: "DELETE",
         })
-        if (!res.ok) {
-          const json = await res.json().catch(() => ({}))
-          throw new Error(json.error?.message ?? "Delete failed")
-        }
       },
       invalidate: [documentKeys.employee(employeeId)],
       success: "Document deleted",
@@ -191,7 +188,7 @@ export function useDocumentUrl(id: string | null) {
   return useQuery<DocumentUrlData>({
     queryKey: documentKeys.url(id ?? ""),
     queryFn: async () =>
-      (unwrap(await getDocumentUrl(id as string)) as { data: DocumentUrlData }).data,
+      (await apiFetch<{ data: { data: DocumentUrlData } }>(`/api/documents/${id}`)).data.data,
     enabled: Boolean(id),
     staleTime: 10 * 60 * 1000, // 10 min - URL valid for 15 min
     gcTime: 12 * 60 * 1000,

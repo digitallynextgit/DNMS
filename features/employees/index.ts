@@ -15,9 +15,6 @@ export * from "./components/profile-self-actions"
 export * from "./components/section-edit-dialogs"
 export * from "./hooks/use-employees"
 export * from "./schemas/employee.schema"
-export * from "./server/departments.actions"
-export * from "./server/designations.actions"
-export * from "./server/employees.actions"
 export * from "./probation"
 
 // Disambiguate export* clash (component wins over hook-exported filter type)

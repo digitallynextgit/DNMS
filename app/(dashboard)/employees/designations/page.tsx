@@ -25,12 +25,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
-import {
-  getDesignations,
-  createDesignation,
-  updateDesignation,
-  deleteDesignation,
-} from "@/features/employees"
+import { apiFetch } from "@/lib/api-fetch"
 
 interface Designation {
   id: string
@@ -41,9 +36,8 @@ interface Designation {
 }
 
 async function fetchDesignations(): Promise<{ data: Designation[] }> {
-  const r = await getDesignations({ includeInactive: true })
-  if (!r.ok) throw new Error(r.error)
-  return { data: r.data as Designation[] }
+  const body = await apiFetch<{ data: Designation[] }>("/api/designations?includeInactive=true")
+  return { data: body.data as Designation[] }
 }
 
 async function saveDesignation(body: {
@@ -51,21 +45,32 @@ async function saveDesignation(body: {
   title: string
   level: number
 }): Promise<{ data: Designation }> {
-  const r = body.id
-    ? await updateDesignation(body.id, { title: body.title, level: body.level })
-    : await createDesignation({ title: body.title, level: body.level })
-  if (!r.ok) throw new Error(r.error)
-  return { data: r.data as Designation }
+  const res = body.id
+    ? await apiFetch<{ data: Designation }>(`/api/designations/${body.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: body.title, level: body.level }),
+      })
+    : await apiFetch<{ data: Designation }>("/api/designations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: body.title, level: body.level }),
+      })
+  return { data: res.data as Designation }
 }
 
 async function patchActive(id: string, isActive: boolean): Promise<void> {
-  const r = await updateDesignation(id, { isActive })
-  if (!r.ok) throw new Error(r.error)
+  await apiFetch<{ data: Designation }>(`/api/designations/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isActive }),
+  })
 }
 
 async function purgeDesignation(id: string): Promise<void> {
-  const r = await deleteDesignation(id, true)
-  if (!r.ok) throw new Error(r.error)
+  await apiFetch<{ data: { message: string } }>(`/api/designations/${id}?permanent=true`, {
+    method: "DELETE",
+  })
 }
 
 export default function DesignationsPage() {

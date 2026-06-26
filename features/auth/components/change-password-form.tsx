@@ -8,7 +8,7 @@ import { signIn, signOut, useSession } from "next-auth/react"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
-import { setOwnPassword } from "@/features/auth/server/auth.actions"
+import { apiFetch } from "@/lib/api-fetch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -43,9 +43,14 @@ export function ChangePasswordForm() {
   const { isSubmitting } = form.formState
 
   async function onSubmit(values: FormValues) {
-    const r = await setOwnPassword(values.newPassword)
-    if (!r.ok) {
-      toast.error(r.error)
+    try {
+      await apiFetch<{ data: { ok: true } }>("/api/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: values.newPassword }),
+      })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update password")
       return
     }
     // Re-issue the JWT (now mustChangePassword=false) by signing in with the new

@@ -1,15 +1,7 @@
 "use client"
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import {
-  getMyResignation,
-  applyResignation,
-  cancelResignation,
-  getResignationsToReview,
-  getPendingResignationCount,
-  reviewResignation,
-} from "@/features/resignations/server/resignations.actions"
-import { unwrap } from "@/lib/api-fetch"
+import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -64,15 +56,25 @@ interface ResignationsToReviewResult {
 export function useMyResignation() {
   return useQuery({
     queryKey: ["my-resignation"],
-    queryFn: async () => (unwrap(await getMyResignation()) as { data: MyResignation | null }).data,
+    queryFn: async () =>
+      (await apiFetch<{ data: { data: MyResignation | null } }>("/api/resignations")).data.data,
   })
 }
 
 export function useResignationsToReview(filters: { page?: number; limit?: number } = {}) {
   return useQuery({
     queryKey: ["resignations-review", filters],
-    queryFn: async () =>
-      unwrap(await getResignationsToReview(filters)) as ResignationsToReviewResult,
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (filters.page != null) params.set("page", String(filters.page))
+      if (filters.limit != null) params.set("limit", String(filters.limit))
+      const qs = params.toString()
+      return (
+        await apiFetch<{ data: ResignationsToReviewResult }>(
+          `/api/resignations/review${qs ? `?${qs}` : ""}`,
+        )
+      ).data
+    },
     // Keep the panel live (matches the sidebar badge) so new requests appear
     // without a reload. The badge watcher also invalidates this on arrival.
     refetchInterval: 30_000,
@@ -88,7 +90,8 @@ export function useResignationsToReview(filters: { page?: number; limit?: number
 export function usePendingResignationCount() {
   return useQuery({
     queryKey: ["pending-resignation-count"],
-    queryFn: async () => (unwrap(await getPendingResignationCount()) as { count: number }).count,
+    queryFn: async () =>
+      (await apiFetch<{ data: { count: number } }>("/api/resignations/review/count")).data.count,
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
     staleTime: 5_000,
@@ -102,7 +105,13 @@ export function useApplyResignation() {
   return useMutation(
     mutationWithToast(qc, {
       mutationFn: async (input: { reason?: string; requestedLastWorkingDate?: string }) =>
-        unwrap(await applyResignation(input)),
+        (
+          await apiFetch<{ data: unknown }>("/api/resignations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(input),
+          })
+        ).data,
       invalidate: [["my-resignation"], ["employee"], ["pending-resignation-count"]],
       onError: () => false,
     }),
@@ -113,7 +122,8 @@ export function useCancelResignation() {
   const qc = useQueryClient()
   return useMutation(
     mutationWithToast(qc, {
-      mutationFn: async (id: string) => unwrap(await cancelResignation(id)),
+      mutationFn: async (id: string) =>
+        (await apiFetch<{ data: unknown }>(`/api/resignations/${id}`, { method: "DELETE" })).data,
       invalidate: [["my-resignation"], ["pending-resignation-count"]],
       onError: () => false,
     }),
@@ -125,7 +135,13 @@ export function useReviewResignation() {
   return useMutation(
     mutationWithToast(qc, {
       mutationFn: async (input: { id: string; action: "APPROVE" | "REJECT"; note?: string }) =>
-        unwrap(await reviewResignation(input.id, input.action, input.note)),
+        (
+          await apiFetch<{ data: unknown }>(`/api/resignations/${input.id}/review`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: input.action, note: input.note }),
+          })
+        ).data,
       invalidate: [["resignations-review"], ["employees"], ["pending-resignation-count"]],
       onError: () => false,
     }),

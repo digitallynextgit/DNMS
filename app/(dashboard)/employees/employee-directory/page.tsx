@@ -20,7 +20,7 @@ import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { EmployeeCard } from "@/features/employees"
 import { EmployeeFilters } from "@/features/employees"
-import { bulkTerminateEmployees } from "@/features/employees"
+import { apiFetch } from "@/lib/api-fetch"
 import {
   useEmployees,
   useDeleteEmployee,
@@ -160,14 +160,20 @@ export default function EmployeesPage() {
     toast.success(`Exported ${selected.length} employee${selected.length !== 1 ? "s" : ""}`)
   }
 
-  // Bulk terminate via the bulkTerminateEmployees server action.
+  // Bulk terminate via the /api/employees/bulk-terminate endpoint.
   async function confirmBulkDelete() {
     if (count === 0) return
     setBulkBusy(true)
     try {
-      const r = await bulkTerminateEmployees(selectedIds)
-      if (!r.ok) throw new Error(r.error)
-      toast.success(`Terminated ${r.data.data.count ?? count} employees`)
+      const body = await apiFetch<{ data: { data: { count: number } } }>(
+        "/api/employees/bulk-terminate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: selectedIds }),
+        },
+      )
+      toast.success(`Terminated ${body.data.data.count ?? count} employees`)
       queryClient.invalidateQueries({ queryKey: ["employees"] })
       clear()
       setBulkDeleteOpen(false)

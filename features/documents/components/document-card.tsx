@@ -8,8 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { formatDate, formatFileSize, cn, truncate } from "@/lib/utils"
 import { DOCUMENT_CATEGORY_LABELS } from "@/lib/constants"
-import { getDocumentUrl } from "@/features/documents/server/documents.actions"
-import { getEmployeeDocumentUrl } from "@/features/documents/server/employee-documents.actions"
+import { apiFetch } from "@/lib/api-fetch"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,11 +87,12 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
   // Resolve a fresh short-lived presigned URL. `download: true` forces the file
   // to download (content-disposition: attachment); otherwise it opens inline.
   const resolveUrl = async (download: boolean): Promise<string | undefined> => {
-    const r = employeeId
-      ? await getEmployeeDocumentUrl(employeeId, document.id, { download })
-      : await getDocumentUrl(document.id, { download })
-    if (!r.ok) throw new Error("Failed to get file link")
-    return (r.data as { data?: { url?: string } }).data?.url
+    const query = download ? "?download=1" : ""
+    const url = employeeId
+      ? `/api/employees/${employeeId}/documents/${document.id}${query}`
+      : `/api/documents/${document.id}${query}`
+    const body = await apiFetch<{ data: { data?: { url?: string } } }>(url)
+    return body.data.data?.url
   }
 
   // View: open the document/image inline in a new tab.

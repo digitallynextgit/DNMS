@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { getEmployeeDocuments, deleteEmployeeDocument } from "@/features/documents"
+import { apiFetch } from "@/lib/api-fetch"
 import {
   Check,
   ChevronLeft,
@@ -295,9 +295,10 @@ interface ExistingDoc {
 }
 
 async function fetchEmployeeDocs(employeeId: string): Promise<{ data: ExistingDoc[] }> {
-  const r = await getEmployeeDocuments(employeeId)
-  if (!r.ok) throw new Error(r.error)
-  return r.data as { data: ExistingDoc[] }
+  const body = await apiFetch<{ data: { data: ExistingDoc[] } }>(
+    `/api/employees/${employeeId}/documents`,
+  )
+  return body.data
 }
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -501,7 +502,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         })
         if (!res.ok) {
           const json = await res.json().catch(() => ({}))
-          throw new Error(json.error ?? "Upload failed")
+          throw new Error(json.error?.message ?? json.error ?? "Upload failed")
         }
         okCount++
       } catch (err) {
@@ -519,8 +520,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   async function deleteExistingDoc(docId: string) {
     if (!employeeId) return
     try {
-      const r = await deleteEmployeeDocument(employeeId, docId)
-      if (!r.ok) throw new Error(r.error)
+      await apiFetch(`/api/employees/${employeeId}/documents/${docId}`, { method: "DELETE" })
       toast.success("Document removed")
       refetchDocs()
       queryClient.invalidateQueries({ queryKey: ["employee-documents", employeeId] })

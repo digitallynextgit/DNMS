@@ -17,7 +17,8 @@ import type { Session } from "next-auth"
 import { auth } from "@/server/auth"
 import { isSuperAdmin } from "@/lib/permissions"
 import { AppError, UnauthorizedError, ForbiddenError } from "@/lib/errors"
-import { fail } from "@/lib/api-response"
+import { fail, ok } from "@/lib/api-response"
+import type { ActionResult } from "@/server/action-result"
 
 export async function getSession(): Promise<Session | null> {
   return auth() as Promise<Session | null>
@@ -54,6 +55,19 @@ const STATUS_CODE: Record<number, string> = {
   422: "VALIDATION_ERROR",
   429: "RATE_LIMITED",
   500: "INTERNAL_ERROR",
+}
+
+/**
+ * Map a server-only service ActionResult ({ ok, data } | { ok:false, error, … })
+ * to the standard HTTP envelope, so thin route handlers can wrap service
+ * functions directly:
+ *   export const GET = withSession(async () => respond(await listThings()))
+ * Success → ok(data); failure → fail() with the carried status (default 400).
+ */
+export function respond<T>(result: ActionResult<T>, okStatus = 200): NextResponse {
+  if (result.ok) return ok(result.data, { status: okStatus })
+  const status = result.status ?? 400
+  return fail(STATUS_CODE[status] ?? "ERROR", result.error, status, result.details)
 }
 
 // Standardize a handler's JSON response to the CLAUDE.md envelope:

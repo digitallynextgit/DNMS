@@ -1531,3 +1531,97 @@ model PasswordReset {
 
   @@map("password_resets")
 }
+
+// =============================================================================
+// CAREERS - public careers taxonomy managed in the DNMS, served to the
+// marketing site via GET /api/public/careers. 4-level tree:
+//   CareerGroup -> CareerSubDepartment -> CareerRole -> CareerOpening
+// =============================================================================
+
+enum CareerMode {
+  FULL_TIME
+  INTERNSHIP
+}
+
+enum CareerStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model CareerGroup {
+  id        String       @id @default(uuid()) @map("id")
+  mode      CareerMode   @map("mode")
+  code      String       @map("code")
+  title     String       @map("title")
+  slug      String       @map("slug")
+  jobsLabel String       @map("jobs_label")
+  tone      String       @default("teal") @map("tone")
+  order     Int          @default(0) @map("order")
+  status    CareerStatus @default(DRAFT) @map("status")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  subDepartments CareerSubDepartment[]
+
+  @@unique([mode, slug])
+  @@index([mode, status])
+  @@map("career_groups")
+}
+
+model CareerSubDepartment {
+  id        String       @id @default(uuid()) @map("id")
+  groupId   String       @map("group_id")
+  title     String       @map("title")
+  slug      String       @map("slug")
+  jobsLabel String       @map("jobs_label")
+  tone      String       @default("teal") @map("tone")
+  order     Int          @default(0) @map("order")
+  status    CareerStatus @default(DRAFT) @map("status")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  group CareerGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  roles CareerRole[]
+
+  @@unique([groupId, slug])
+  @@index([groupId])
+  @@map("career_sub_departments")
+}
+
+model CareerRole {
+  id              String       @id @default(uuid()) @map("id")
+  subDepartmentId String       @map("sub_department_id")
+  title           String       @map("title")
+  slug            String       @map("slug")
+  meta            String?      @map("meta")
+  summary         String?      @map("summary") @db.Text
+  intro           String?      @map("intro") @db.Text
+  jobEssence      String?      @map("job_essence") @db.Text
+  keyRequirements String[]     @default([]) @map("key_requirements")
+  order           Int          @default(0) @map("order")
+  status          CareerStatus @default(DRAFT) @map("status")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  subDepartment CareerSubDepartment @relation(fields: [subDepartmentId], references: [id], onDelete: Cascade)
+  openings      CareerOpening[]
+
+  @@unique([subDepartmentId, slug])
+  @@index([subDepartmentId])
+  @@map("career_roles")
+}
+
+model CareerOpening {
+  id        String       @id @default(uuid()) @map("id")
+  roleId    String       @map("role_id")
+  label     String       @map("label")
+  order     Int          @default(0) @map("order")
+  status    CareerStatus @default(DRAFT) @map("status")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  role CareerRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@index([roleId])
+  @@map("career_openings")
+}

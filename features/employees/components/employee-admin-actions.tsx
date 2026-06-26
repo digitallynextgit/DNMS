@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
-import { applyResignation } from "@/features/resignations"
+import { apiFetch } from "@/lib/api-fetch"
 
 export function EmployeeAdminActions({
   employeeId,
@@ -82,12 +82,15 @@ export function EmployeeAdminActions({
 
   const resignMut = useMutation({
     mutationFn: async () => {
-      const r = await applyResignation({
-        reason: reason || undefined,
-        requestedLastWorkingDate: lastWorkingDate || undefined,
+      const body = await apiFetch<{ data: unknown }>("/api/resignations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: reason || undefined,
+          requestedLastWorkingDate: lastWorkingDate || undefined,
+        }),
       })
-      if (!r.ok) throw new Error(r.error)
-      return r.data
+      return body.data
     },
     onSuccess: () => {
       refresh()

@@ -1,9 +1,10 @@
 // =============================================================================
 // Server-action auth/permission guards
 // =============================================================================
-// Server-side only (imported by "use server" action modules). Mirrors the
-// route wrappers withSession / withAuth from lib/permissions.ts, but throws an
-// ActionError (caught by runAction) instead of returning a NextResponse.
+// Server-side only (imported by the *.service.ts modules). Mirrors the route
+// wrappers withSession / withAuth from lib/permissions.ts, but throws an
+// ActionError (caught by runAction) instead of returning a NextResponse; the
+// thin route handlers turn that ActionResult into an HTTP response via respond().
 // =============================================================================
 
 import { headers } from "next/headers"

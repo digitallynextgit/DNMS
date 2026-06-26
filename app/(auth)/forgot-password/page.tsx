@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AuthShell } from "@/features/auth"
-import { requestPasswordOtp, verifyPasswordOtp, resetPasswordWithToken } from "@/features/auth"
+import { apiFetch } from "@/lib/api-fetch"
 
 type Step = "email" | "otp" | "password"
 
@@ -42,11 +42,14 @@ export default function ForgotPasswordPage() {
 
   // Step 1 - request the code (server confirms the active employee first).
   const requestOtp = useMutation({
-    mutationFn: async () => {
-      const res = await requestPasswordOtp(email)
-      if (!res.ok) throw new Error(res.error)
-      return res.data
-    },
+    mutationFn: async () =>
+      (
+        await apiFetch<{ data: { sent: true } }>("/api/password/forgot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        })
+      ).data,
     onSuccess: () => {
       setStep("otp")
       setResendCooldown(60)
@@ -57,11 +60,14 @@ export default function ForgotPasswordPage() {
 
   // Step 2 - verify the code, receive the reset token.
   const verifyOtp = useMutation({
-    mutationFn: async () => {
-      const res = await verifyPasswordOtp(email, otp)
-      if (!res.ok) throw new Error(res.error)
-      return res.data
-    },
+    mutationFn: async () =>
+      (
+        await apiFetch<{ data: { token: string } }>("/api/password/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, otp }),
+        })
+      ).data,
     onSuccess: (data) => {
       setToken(data.token)
       setStep("password")
@@ -71,11 +77,14 @@ export default function ForgotPasswordPage() {
 
   // Step 3 - set the new password, then send them to login.
   const resetPassword = useMutation({
-    mutationFn: async () => {
-      const res = await resetPasswordWithToken(token, password)
-      if (!res.ok) throw new Error(res.error)
-      return res.data
-    },
+    mutationFn: async () =>
+      (
+        await apiFetch<{ data: { reset: true } }>("/api/password/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, password }),
+        })
+      ).data,
     onSuccess: () => {
       toast.success("Password updated. Please sign in with your new password.")
       router.push(`/login?email=${encodeURIComponent(email)}`)
