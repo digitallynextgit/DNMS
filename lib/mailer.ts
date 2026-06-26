@@ -59,6 +59,13 @@ function hasCredentials(c: ProfileConfig): boolean {
   return Boolean(c.host && c.user && c.pass)
 }
 
+// Parse a configured port, falling back to 587 for missing or non-numeric values
+// (a stray DB/env value must never produce a NaN port on the transporter).
+function toPort(value: string | undefined): number {
+  const n = Number.parseInt(value ?? "", 10)
+  return Number.isNaN(n) ? 587 : n
+}
+
 // Fallback order, ending at the mandatory "notifications" profile so mail still
 // sends when the Default or HR mailer isn't configured.
 function fallbackChain(profile: string): string[] {
@@ -90,7 +97,7 @@ async function buildProfile(profile: string) {
 
   const transporter = nodemailer.createTransport({
     host: account.host || "smtp.gmail.com",
-    port: parseInt(account.port || "587", 10),
+    port: toPort(account.port),
     secure: account.secure === "true",
     auth: account.user ? { user: account.user, pass: account.pass } : undefined,
   })
@@ -182,7 +189,7 @@ export async function sendEmailAs(
   // Build a one-off transporter for this employee, send, discard.
   const perUser = nodemailer.createTransport({
     host: (await getConfig("SMTP_HOST")) || "smtp.gmail.com",
-    port: parseInt((await getConfig("SMTP_PORT")) || "587", 10),
+    port: toPort(await getConfig("SMTP_PORT")),
     secure: (await getConfig("SMTP_SECURE")) === "true",
     auth: { user: emp.email, pass: password },
   })

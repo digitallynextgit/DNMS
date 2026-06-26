@@ -66,14 +66,18 @@ export async function getSignedUrl(
   const { s3, bucket } = await getClient()
   // ResponseContentDisposition=attachment forces a download (and names the
   // file); omitting it lets images/PDFs open inline in the browser ("View").
+  // Strip quotes + CR/LF from the filename to keep the header well-formed.
   const command = new GetObjectCommand({
     Bucket: bucket,
     Key: objectKey,
     ResponseContentDisposition: opts?.downloadFileName
-      ? `attachment; filename="${opts.downloadFileName.replace(/"/g, "")}"`
+      ? `attachment; filename="${opts.downloadFileName.replace(/["\r\n]/g, "")}"`
       : undefined,
   })
-  return presignUrl(s3, command, { expiresIn: expirySeconds })
+  // SigV4 presigned URLs cannot be valid for more than 7 days; clamp so callers
+  // asking for longer don't trigger a hard rejection from the signer.
+  const SEVEN_DAYS = 7 * 24 * 60 * 60
+  return presignUrl(s3, command, { expiresIn: Math.min(expirySeconds, SEVEN_DAYS) })
 }
 
 export async function deleteFile(objectKey: string): Promise<void> {

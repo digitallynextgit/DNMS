@@ -10,6 +10,7 @@ import {
 import { generateEmployeeNo } from "@/lib/utils"
 import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
+import { getConfig } from "@/server/app-config"
 import { canAccessEmployee } from "@/lib/permissions"
 import { encrypt } from "@/lib/encryption"
 import bcrypt from "bcryptjs"
@@ -334,7 +335,8 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
       // (both when available), via the notifications relay.
       const recipients = [employee.email, employee.personalEmail].filter(Boolean).join(", ")
       if (recipients) {
-        const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/login`
+        const appUrl = (await getConfig("APP_URL")) ?? "http://localhost:3000"
+        const loginUrl = `${appUrl}/login`
         const { subject, html, text } = renderWelcomeCredentialsEmail({
           firstName: employee.firstName,
           lastName: employee.lastName,

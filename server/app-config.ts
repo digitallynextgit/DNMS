@@ -20,11 +20,12 @@ async function load(): Promise<Record<string, string>> {
       map[r.key] = r.isSecret ? (tryDecrypt(r.value) ?? "") : r.value
     }
     cache = map
+    return cache
   } catch {
-    // Table missing / DB hiccup → behave as if no overrides (pure env).
-    cache = {}
+    // Table missing / DB hiccup → behave as if no overrides (pure env) for this
+    // call, but DON'T cache the empty result so the next call retries the DB.
+    return {}
   }
-  return cache
 }
 
 /** Resolve a config value: DB setting (decrypted) first, then process.env. */
