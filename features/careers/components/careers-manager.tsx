@@ -1,10 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, ChevronRight, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
+import { Loader2, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -17,10 +15,18 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { FormDialog } from "@/components/shared/form-dialog"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
+import { cn } from "@/lib/utils"
 import {
   useCareersTree,
   useCreateGroup,
@@ -42,11 +48,148 @@ import type {
   CareerDbMode,
 } from "@/features/careers/careers.types"
 
-function StatusBadge({ status }: { status: "DRAFT" | "PUBLISHED" }) {
+type CareerRowStatus = "DRAFT" | "PUBLISHED"
+
+// Calm status dot (a badge at every level was too noisy).
+function StatusDot({ status }: { status: CareerRowStatus }) {
+  const live = status === "PUBLISHED"
   return (
-    <Badge variant={status === "PUBLISHED" ? "default" : "secondary"} className="text-[10px]">
-      {status}
-    </Badge>
+    <span
+      aria-label={live ? "Published" : "Draft"}
+      className={cn(
+        "h-2 w-2 shrink-0 rounded-full",
+        live ? "bg-primary" : "bg-muted-foreground/40",
+      )}
+    />
+  )
+}
+
+// A large navigational tile (matches the public careers cards' layout) styled
+// with the APP THEME (card surface, primary accent), plus admin controls
+// (publish toggle + ⋮ menu). Click the tile to drill in.
+function CareerTile({
+  code,
+  title,
+  footer,
+  status,
+  onOpen,
+  onEdit,
+  onDelete,
+  onToggle,
+  pending,
+}: {
+  code?: string
+  title: string
+  footer: string
+  status: CareerRowStatus
+  onOpen: () => void
+  onEdit: () => void
+  onDelete: () => void
+  onToggle: (next: CareerRowStatus) => void
+  pending?: boolean
+}) {
+  const live = status === "PUBLISHED"
+  const stop = (e: React.MouseEvent) => e.stopPropagation()
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+      className={cn(
+        "bg-card hover:border-primary/40 focus-visible:ring-ring relative flex min-h-[190px] cursor-pointer flex-col rounded border p-6 shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2",
+        !live && "opacity-95",
+      )}
+    >
+      <div className="absolute top-3 right-3" onClick={stop}>
+        <RowActions onEdit={onEdit} onDelete={onDelete} />
+      </div>
+
+      {code && (
+        <span className="text-primary text-xs font-bold tracking-widest uppercase">{code}</span>
+      )}
+      <h3 className="text-foreground mt-2 max-w-[88%] text-2xl leading-tight font-bold">{title}</h3>
+
+      <div className="mt-auto flex items-end justify-between gap-2 pt-6">
+        <div className="min-w-0">
+          {!live && (
+            <span className="bg-muted text-muted-foreground mb-1.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium">
+              Draft — hidden from site
+            </span>
+          )}
+          <p className="text-muted-foreground text-sm">{footer}</p>
+        </div>
+        <div onClick={stop} className="shrink-0">
+          <PublishToggle status={status} disabled={pending} onChange={onToggle} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Inline publish/unpublish switch with a clear Live/Draft label.
+function PublishToggle({
+  status,
+  onChange,
+  disabled,
+}: {
+  status: CareerRowStatus
+  onChange: (next: CareerRowStatus) => void
+  disabled?: boolean
+}) {
+  const live = status === "PUBLISHED"
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-1.5">
+            <Switch
+              checked={live}
+              disabled={disabled}
+              onCheckedChange={(c) => onChange(c ? "PUBLISHED" : "DRAFT")}
+            />
+            <span className={cn("w-9 text-xs", live ? "text-foreground" : "text-muted-foreground")}>
+              {live ? "Live" : "Draft"}
+            </span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          {live ? "Published — visible on the site" : "Draft — hidden from the site"}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+// Edit / Delete tucked into a compact overflow menu to keep rows tidy.
+// Dialog opening is deferred to the next tick so the menu's focus/pointer
+// cleanup finishes first (avoids the Radix "pointer-events stuck" race).
+function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  const defer = (fn: () => void) => () => setTimeout(fn, 0)
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Actions">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={defer(onEdit)}>
+          <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={defer(onDelete)}
+          className="text-destructive focus:text-destructive"
+        >
+          <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -424,28 +567,54 @@ function RoleDialog({
   )
 }
 
-// ─── Role row ──────────────────────────────────────────────────────────────────
+// ─── Role card ───────────────────────────────────────────────────────────────
 function RoleItem({ role, subId }: { role: AdminCareerRole; subId: string }) {
   const [edit, setEdit] = useState(false)
   const [confirm, setConfirm] = useState(false)
   const del = useDeleteRole()
+  const update = useUpdateRole()
+  const openings = role.openings ?? []
   return (
-    <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="truncate text-sm font-medium">{role.title}</span>
-        <StatusBadge status={role.status} />
-        {role.openings?.length > 0 && (
-          <span className="text-muted-foreground text-xs">{role.openings.length} openings</span>
-        )}
+    <div className="bg-card flex flex-col rounded border p-3 shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex items-start justify-between gap-2">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          onClick={() => setEdit(true)}
+          title="Edit role"
+        >
+          <StatusDot status={role.status} />
+          <span className="truncate text-sm font-semibold hover:underline">{role.title}</span>
+        </button>
+        <RowActions onEdit={() => setEdit(true)} onDelete={() => setConfirm(true)} />
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEdit(true)}>
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setConfirm(true)}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+
+      {openings.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {openings.map((op) => (
+            <span
+              key={op.id}
+              className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[11px]"
+            >
+              {op.label}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-muted-foreground mt-2 text-xs italic">No openings listed</p>
+      )}
+
+      <div className="mt-3 flex items-center justify-between border-t pt-2">
+        <span className="text-muted-foreground text-xs">
+          {openings.length} opening{openings.length === 1 ? "" : "s"}
+        </span>
+        <PublishToggle
+          status={role.status}
+          disabled={update.isPending}
+          onChange={(status) => update.mutate({ id: role.id, body: { status } })}
+        />
       </div>
+
       {edit && (
         <RoleDialog open={edit} onOpenChange={setEdit} subDepartmentId={subId} role={role} />
       )}
@@ -461,112 +630,27 @@ function RoleItem({ role, subId }: { role: AdminCareerRole; subId: string }) {
   )
 }
 
-// ─── Sub-department block ────────────────────────────────────────────────────
-function SubDeptBlock({ sub }: { sub: AdminCareerSubDepartment }) {
+// ─── Group tile (drills into its sub-departments) ────────────────────────────
+function GroupTile({ group, onOpen }: { group: AdminCareerGroup; onOpen: () => void }) {
   const [edit, setEdit] = useState(false)
-  const [addRole, setAddRole] = useState(false)
-  const [confirm, setConfirm] = useState(false)
-  const del = useDeleteSubDepartment()
-  return (
-    <div className="rounded-md border border-dashed p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-semibold">{sub.title}</span>
-          <StatusBadge status={sub.status} />
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button variant="outline" size="sm" className="h-7" onClick={() => setAddRole(true)}>
-            <Plus className="mr-1 h-3.5 w-3.5" /> Role
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEdit(true)}>
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setConfirm(true)}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
-      <div className="mt-2 space-y-1.5">
-        {sub.roles.map((r) => (
-          <RoleItem key={r.id} role={r} subId={sub.id} />
-        ))}
-        {sub.roles.length === 0 && <p className="text-muted-foreground text-xs">No roles yet.</p>}
-      </div>
-      {edit && <SubDeptDialog open={edit} onOpenChange={setEdit} groupId={sub.id} sub={sub} />}
-      {addRole && <RoleDialog open={addRole} onOpenChange={setAddRole} subDepartmentId={sub.id} />}
-      <ConfirmDialog
-        open={confirm}
-        onOpenChange={setConfirm}
-        title={`Delete "${sub.title}"?`}
-        description="This removes the sub-department, its roles and openings. This cannot be undone."
-        confirmLabel="Delete"
-        onConfirm={() => del.mutate(sub.id)}
-      />
-    </div>
-  )
-}
-
-// ─── Group card ──────────────────────────────────────────────────────────────
-function GroupCard({ group }: { group: AdminCareerGroup }) {
-  const [openBody, setOpenBody] = useState(true)
-  const [edit, setEdit] = useState(false)
-  const [addSub, setAddSub] = useState(false)
   const [confirm, setConfirm] = useState(false)
   const del = useDeleteGroup()
   const update = useUpdateGroup()
-
+  const n = group.subDepartments.length
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 py-3">
-        <button
-          type="button"
-          className="flex min-w-0 items-center gap-2 text-left"
-          onClick={() => setOpenBody((v) => !v)}
-        >
-          {openBody ? (
-            <ChevronDown className="h-4 w-4 shrink-0" />
-          ) : (
-            <ChevronRight className="h-4 w-4 shrink-0" />
-          )}
-          <span className="truncate font-semibold">{group.title}</span>
-          <Badge variant="outline" className="text-[10px]">
-            {group.code}
-          </Badge>
-          <StatusBadge status={group.status} />
-        </button>
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <Switch
-              checked={group.status === "PUBLISHED"}
-              onCheckedChange={(c) =>
-                update.mutate({ id: group.id, body: { status: c ? "PUBLISHED" : "DRAFT" } })
-              }
-            />
-            <span className="text-muted-foreground text-xs">Published</span>
-          </div>
-          <Button variant="outline" size="sm" className="h-7" onClick={() => setAddSub(true)}>
-            <Plus className="mr-1 h-3.5 w-3.5" /> Sub-dept
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEdit(true)}>
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setConfirm(true)}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </CardHeader>
-      {openBody && (
-        <CardContent className="space-y-2">
-          {group.subDepartments.map((s) => (
-            <SubDeptBlock key={s.id} sub={s} />
-          ))}
-          {group.subDepartments.length === 0 && (
-            <p className="text-muted-foreground text-sm">No sub-departments yet.</p>
-          )}
-        </CardContent>
-      )}
+    <>
+      <CareerTile
+        code={group.code}
+        title={group.title}
+        status={group.status}
+        footer={`${group.jobsLabel} · ${n} department${n === 1 ? "" : "s"}`}
+        onOpen={onOpen}
+        onEdit={() => setEdit(true)}
+        onDelete={() => setConfirm(true)}
+        onToggle={(status) => update.mutate({ id: group.id, body: { status } })}
+        pending={update.isPending}
+      />
       {edit && <GroupDialog open={edit} onOpenChange={setEdit} group={group} mode={group.mode} />}
-      {addSub && <SubDeptDialog open={addSub} onOpenChange={setAddSub} groupId={group.id} />}
       <ConfirmDialog
         open={confirm}
         onOpenChange={setConfirm}
@@ -575,24 +659,157 @@ function GroupCard({ group }: { group: AdminCareerGroup }) {
         confirmLabel="Delete"
         onConfirm={() => del.mutate(group.id)}
       />
-    </Card>
+    </>
   )
 }
 
-// ─── Mode panel ──────────────────────────────────────────────────────────────
-function ModePanel({ groups, mode }: { groups: AdminCareerGroup[]; mode: CareerDbMode }) {
-  const [addGroup, setAddGroup] = useState(false)
+// ─── Sub-department tile (drills into its roles) ─────────────────────────────
+function SubDeptTile({ sub, onOpen }: { sub: AdminCareerSubDepartment; onOpen: () => void }) {
+  const [edit, setEdit] = useState(false)
+  const [confirm, setConfirm] = useState(false)
+  const del = useDeleteSubDepartment()
+  const update = useUpdateSubDepartment()
+  const n = sub.roles.length
   return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
+    <>
+      <CareerTile
+        title={sub.title}
+        status={sub.status}
+        footer={`${sub.jobsLabel} · ${n} role${n === 1 ? "" : "s"}`}
+        onOpen={onOpen}
+        onEdit={() => setEdit(true)}
+        onDelete={() => setConfirm(true)}
+        onToggle={(status) => update.mutate({ id: sub.id, body: { status } })}
+        pending={update.isPending}
+      />
+      {edit && <SubDeptDialog open={edit} onOpenChange={setEdit} groupId={sub.id} sub={sub} />}
+      <ConfirmDialog
+        open={confirm}
+        onOpenChange={setConfirm}
+        title={`Delete "${sub.title}"?`}
+        description="This removes the sub-department, its roles and openings. This cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => del.mutate(sub.id)}
+      />
+    </>
+  )
+}
+
+// ─── Mode panel (drill-down: groups → sub-departments → roles) ───────────────
+function ModePanel({ groups, mode }: { groups: AdminCareerGroup[]; mode: CareerDbMode }) {
+  const [groupId, setGroupId] = useState<string | null>(null)
+  const [subId, setSubId] = useState<string | null>(null)
+  const [addGroup, setAddGroup] = useState(false)
+  const [addSub, setAddSub] = useState(false)
+  const [addRole, setAddRole] = useState(false)
+
+  const group = groups.find((g) => g.id === groupId) ?? null
+  const sub = group?.subDepartments.find((s) => s.id === subId) ?? null
+
+  const crumb = (label: string, active: boolean, onClick?: () => void) =>
+    onClick ? (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "max-w-[16rem] truncate hover:underline",
+          active ? "text-foreground font-semibold" : "text-muted-foreground",
+        )}
+      >
+        {label}
+      </button>
+    ) : (
+      <span className="text-foreground max-w-[16rem] truncate font-semibold">{label}</span>
+    )
+
+  const sep = <span className="text-muted-foreground/60">/</span>
+
+  const breadcrumb = (
+    <nav className="flex items-center gap-1.5 text-sm">
+      {crumb("All groups", !group, () => {
+        setGroupId(null)
+        setSubId(null)
+      })}
+      {group && sep}
+      {group && crumb(group.title, !sub, sub ? () => setSubId(null) : undefined)}
+      {sub && sep}
+      {sub && crumb(sub.title, true)}
+    </nav>
+  )
+
+  // ── Roles view ──
+  if (group && sub) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {breadcrumb}
+          <Button size="sm" onClick={() => setAddRole(true)}>
+            <Plus className="mr-1.5 h-4 w-4" /> Add role
+          </Button>
+        </div>
+        {sub.roles.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {sub.roles.map((r) => (
+              <RoleItem key={r.id} role={r} subId={sub.id} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="No roles yet"
+            description="Add the first role to this sub-department."
+          />
+        )}
+        {addRole && (
+          <RoleDialog open={addRole} onOpenChange={setAddRole} subDepartmentId={sub.id} />
+        )}
+      </div>
+    )
+  }
+
+  // ── Sub-departments view ──
+  if (group) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {breadcrumb}
+          <Button size="sm" onClick={() => setAddSub(true)}>
+            <Plus className="mr-1.5 h-4 w-4" /> Add sub-department
+          </Button>
+        </div>
+        {group.subDepartments.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {group.subDepartments.map((s) => (
+              <SubDeptTile key={s.id} sub={s} onOpen={() => setSubId(s.id)} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="No sub-departments yet"
+            description="Add the first sub-department to this group."
+          />
+        )}
+        {addSub && <SubDeptDialog open={addSub} onOpenChange={setAddSub} groupId={group.id} />}
+      </div>
+    )
+  }
+
+  // ── Groups view ──
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        {breadcrumb}
         <Button size="sm" onClick={() => setAddGroup(true)}>
           <Plus className="mr-1.5 h-4 w-4" /> Add group
         </Button>
       </div>
-      {groups.length === 0 ? (
-        <EmptyState title="No groups" description="Create the first group for this mode." />
+      {groups.length > 0 ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {groups.map((g) => (
+            <GroupTile key={g.id} group={g} onOpen={() => setGroupId(g.id)} />
+          ))}
+        </div>
       ) : (
-        groups.map((g) => <GroupCard key={g.id} group={g} />)
+        <EmptyState title="No groups" description="Create the first group for this mode." />
       )}
       {addGroup && <GroupDialog open={addGroup} onOpenChange={setAddGroup} mode={mode} />}
     </div>
