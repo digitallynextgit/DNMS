@@ -188,6 +188,7 @@ const HRMS_ITEMS: NavItem[] = [
       { label: "Employee Directory", href: "/employees/employee-directory" },
       { label: "Departments", href: "/employees/departments" },
       { label: "Designations", href: "/employees/designations" },
+      { label: "Job Roles", href: "/employees/job-roles" },
     ],
   },
   {
@@ -294,7 +295,7 @@ const ADMIN_ITEMS: NavItem[] = [
 ]
 
 function canAccess(item: { permission?: string }, permissions: string[], roles: string[]): boolean {
-  if (roles.includes("super_admin")) return true
+  if (roles.includes("admin_")) return true
   if (!item.permission) return true
   return permissions.includes(item.permission)
 }
@@ -494,6 +495,9 @@ export function Sidebar({ session }: { session: Session }) {
   const { isCollapsed, toggle } = useSidebarStore()
   const permissions = session.user.permissions
   const roles = session.user.roles
+  // Admin_ is a silent watch account, not an employee - it gets no personal
+  // self-service ("My …") section.
+  const isAdmin_ = roles.includes("admin_")
 
   // Ctrl+B (Windows/Linux) and Cmd+B (macOS) toggle the sidebar.
   useEffect(() => {
@@ -552,20 +556,23 @@ export function Sidebar({ session }: { session: Session }) {
 
       {/* Nav */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-        <SidebarSection
-          label="Employee"
-          items={EMPLOYEE_ITEMS}
-          isCollapsed={isCollapsed}
-          permissions={permissions}
-          roles={roles}
-          first
-        />
+        {!isAdmin_ && (
+          <SidebarSection
+            label="Employee"
+            items={EMPLOYEE_ITEMS}
+            isCollapsed={isCollapsed}
+            permissions={permissions}
+            roles={roles}
+            first
+          />
+        )}
         <SidebarSection
           label="HRMS"
           items={HRMS_ITEMS}
           isCollapsed={isCollapsed}
           permissions={permissions}
           roles={roles}
+          first={isAdmin_}
         />
         <SidebarSection
           label="Project"

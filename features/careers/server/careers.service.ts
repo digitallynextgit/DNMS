@@ -26,7 +26,7 @@ function normalizeTone(value: string | null | undefined): CareersTone {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PUBLIC read — no session (the route gates with X-API-Key). Returns only
+// PUBLIC read - no session (the route gates with X-API-Key). Returns only
 // PUBLISHED rows for the given mode, ordered, in the marketing-site contract.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getPublishedCareers(mode: CareerDbMode): Promise<CareersDepartmentGroup[]> {
@@ -79,7 +79,7 @@ export async function getPublishedCareers(mode: CareerDbMode): Promise<CareersDe
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ADMIN read — full tree (all statuses) for the management UI.
+// ADMIN read - full tree (all statuses) for the management UI.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getCareersTree(): Promise<ActionResult<{ data: AdminCareerGroup[] }>> {
   return runAction(async () => {

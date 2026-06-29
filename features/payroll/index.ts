@@ -4,6 +4,7 @@
 // intentionally NOT re-exported here - API routes import those directly.
 export * from "./components/generate-payroll-dialog"
 export * from "./components/payroll-filters"
+export * from "./components/payslip-document"
 export * from "./components/payslip-view"
 export * from "./components/salary-structure-form"
 export * from "./hooks/use-payroll"

@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const sectionALabel = template?.sectionALabel ?? DEFAULT_SECTION_A_LABEL
     const sectionBLabel = template?.sectionBLabel ?? DEFAULT_SECTION_B_LABEL
 
-    // Active employees, excluding the invisible super_admin account.
+    // Active employees, excluding the invisible admin_ account.
     const employees = await db.employee.findMany({
       where: {
         isActive: true,

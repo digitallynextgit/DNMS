@@ -266,7 +266,7 @@ function FieldInput({
         autoComplete={isPassword ? "new-password" : "off"}
         placeholder={
           isPassword && meta?.isSet
-            ? "•••••••••••• (set — leave blank to keep)"
+            ? "•••••••••••• (set - leave blank to keep)"
             : (field.placeholder ?? "")
         }
         onChange={(e) => onChange(e.target.value)}

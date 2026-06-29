@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import { sendEmail } from "@/lib/mailer"
 import { createNotification } from "@/lib/notifications"
+import { createAuditLog } from "@/lib/audit"
 import { requireSession, requirePermission } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
@@ -12,6 +13,9 @@ import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC } from "@/lib/dates"
 import { renderDecisionEmail } from "@/lib/email-layout"
 import { recomputeAccrued } from "./leave-accrual.service"
+// Canonical probation rule (pure helpers) - keep leave eligibility in lockstep
+// with how the rest of the app decides who is on probation.
+import { isOnProbation, getProbationEndDate } from "@/features/employees/probation"
 
 const REQUEST_INCLUDE = {
   employee: {
@@ -36,7 +40,7 @@ function daysFromToday(date: Date): number {
 
 // ─── Approval routing ─────────────────────────────────────────────────────────
 // Who must approve a request depends on who applied:
-//   employee -> their manager · manager -> HR · HR -> Admin · super_admin -> auto.
+//   employee -> their manager · manager -> HR · HR -> Admin · admin_ -> auto.
 type ApprovalStage = "MANAGER" | "HR" | "ADMIN"
 type ApprovalRoute = {
   stage: ApprovalStage | null
@@ -50,8 +54,7 @@ async function resolveApprovalRoute(
   permissions: string[],
 ): Promise<ApprovalRoute> {
   const has = (r: string) => roles.includes(r)
-  if (has(SYSTEM_ROLES.SUPER_ADMIN))
-    return { stage: null, currentApproverId: null, autoApprove: true }
+  if (has(SYSTEM_ROLES.ADMIN_)) return { stage: null, currentApproverId: null, autoApprove: true }
   if (has(SYSTEM_ROLES.ADMIN))
     return { stage: "ADMIN", currentApproverId: null, autoApprove: false }
   if (has(SYSTEM_ROLES.HR_MANAGER) || has(SYSTEM_ROLES.HR_EMPLOYEE))
@@ -76,7 +79,7 @@ function canActOnRequest(
   request: { approvalStage: string | null; currentApproverId: string | null },
   userId: string,
 ): boolean {
-  if (roles.includes(SYSTEM_ROLES.SUPER_ADMIN) || roles.includes(SYSTEM_ROLES.ADMIN)) return true
+  if (roles.includes(SYSTEM_ROLES.ADMIN_) || roles.includes(SYSTEM_ROLES.ADMIN)) return true
   switch (request.approvalStage) {
     case "MANAGER":
       return request.currentApproverId === userId
@@ -182,14 +185,11 @@ export async function createLeaveType(
           isActive: true,
         },
       })
-      await db.auditLog.create({
-        data: {
-          actorId: session.user.id,
-          action: "CREATE",
-          module: "leave",
-          entityType: "LeaveType",
-          entityId: leaveType.id,
-        },
+      await createAuditLog(session, {
+        action: "CREATE",
+        module: "leave",
+        entityType: "LeaveType",
+        entityId: leaveType.id,
       })
       return ok(serialize({ data: leaveType }))
     } catch (e) {
@@ -224,15 +224,12 @@ export async function updateLeaveType(
 
     try {
       const leaveType = await db.leaveType.update({ where: { id }, data: updateData })
-      await db.auditLog.create({
-        data: {
-          actorId: session.user.id,
-          action: "UPDATE",
-          module: "leave",
-          entityType: "LeaveType",
-          entityId: id,
-          changes: updateData as object,
-        },
+      await createAuditLog(session, {
+        action: "UPDATE",
+        module: "leave",
+        entityType: "LeaveType",
+        entityId: id,
+        changes: updateData as object,
       })
       return ok(serialize({ data: leaveType }))
     } catch (e) {
@@ -250,15 +247,12 @@ export async function deleteLeaveType(id: string): Promise<ActionResult<{ messag
     if (!existing) return fail("Leave type not found")
 
     await db.leaveType.update({ where: { id }, data: { isActive: false } })
-    await db.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "DELETE",
-        module: "leave",
-        entityType: "LeaveType",
-        entityId: id,
-        changes: { softDeleted: true },
-      },
+    await createAuditLog(session, {
+      action: "DELETE",
+      module: "leave",
+      entityType: "LeaveType",
+      entityId: id,
+      changes: { softDeleted: true },
     })
     return ok({ message: "Leave type deactivated successfully" })
   })
@@ -332,15 +326,12 @@ export async function allocateLeave(body: {
     })
     if (!balance) return fail("Failed to allocate leave balance")
 
-    await db.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "ALLOCATE",
-        module: "leave",
-        entityType: "LeaveBalance",
-        entityId: balance.id,
-        changes: { employeeId, leaveTypeId, year, allocated, carried },
-      },
+    await createAuditLog(session, {
+      action: "ALLOCATE",
+      module: "leave",
+      entityType: "LeaveBalance",
+      entityId: balance.id,
+      changes: { employeeId, leaveTypeId, year, allocated, carried },
     })
     return ok(serialize({ data: balance }))
   })
@@ -421,7 +412,7 @@ export async function getTeamLeaveRequests(
     if (directReportIds.length) orConds.push({ employeeId: { in: directReportIds } })
     if (roles.includes(SYSTEM_ROLES.HR_MANAGER) || roles.includes(SYSTEM_ROLES.HR_EMPLOYEE))
       orConds.push({ approvalStage: "HR" })
-    if (roles.includes(SYSTEM_ROLES.ADMIN) || roles.includes(SYSTEM_ROLES.SUPER_ADMIN))
+    if (roles.includes(SYSTEM_ROLES.ADMIN) || roles.includes(SYSTEM_ROLES.ADMIN_))
       orConds.push({ approvalStage: "ADMIN" })
 
     const where: Record<string, unknown> = {
@@ -481,16 +472,17 @@ export async function applyLeave(body: {
 
     const employee = await db.employee.findUnique({
       where: { id: session.user.id },
-      select: { probationEndDate: true, confirmationDate: true, dateOfJoining: true },
+      select: {
+        onProbation: true,
+        probationMonths: true,
+        dateOfJoining: true,
+        confirmationDate: true,
+      },
     })
 
     // Paid leave is blocked during probation; unpaid leave (e.g. LWP) is always
     // available - this is how interns/probationers can still take unpaid time off.
-    if (
-      leaveType.isPaid &&
-      employee?.probationEndDate &&
-      new Date() < new Date(employee.probationEndDate)
-    )
+    if (leaveType.isPaid && employee && isOnProbation(employee))
       return fail(
         "Paid leave is not available during probation. You may apply for unpaid leave (LWP) instead.",
       )
@@ -500,7 +492,11 @@ export async function applyLeave(body: {
     if (totalDays === 0) return fail("Selected date range results in zero leave days")
 
     if (leaveType.code === "EL") {
-      const probationEnd = employee?.probationEndDate ?? employee?.confirmationDate
+      // EL unlocks 6 months after probation completion (confirmation date if
+      // recorded, else joining + probationMonths) - matches the accrual engine.
+      const probationEnd = employee
+        ? (employee.confirmationDate ?? getProbationEndDate(employee))
+        : null
       if (probationEnd) {
         const eligibleFrom = new Date(probationEnd)
         eligibleFrom.setMonth(eligibleFrom.getMonth() + 6)
@@ -657,7 +653,7 @@ export async function applyLeave(body: {
           endDate: end,
           totalDays,
           reason: reason ? String(reason).trim() : null,
-          // super_admin's own leave is auto-granted; everyone else is routed.
+          // admin_'s own leave is auto-granted; everyone else is routed.
           status: route.autoApprove ? "APPROVED" : "PENDING",
           approvedAt: route.autoApprove ? new Date() : null,
           approverId: route.autoApprove ? session.user.id : null,

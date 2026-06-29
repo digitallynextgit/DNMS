@@ -68,7 +68,16 @@ export interface PayrollRecord {
   createdAt: string
   updatedAt: string
   employee: EmployeeSnippet
-  salaryStructure?: { id: string; basicSalary: number; effectiveFrom: string } | null
+  salaryStructure?: {
+    id: string
+    basicSalary: number
+    hra: number
+    conveyance: number
+    medicalAllowance: number
+    telephoneAllowance: number
+    otherAllowances: number
+    effectiveFrom: string
+  } | null
 }
 
 export interface PayrollSummary {

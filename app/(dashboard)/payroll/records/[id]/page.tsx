@@ -4,7 +4,7 @@ import { use, useState } from "react"
 import Link from "next/link"
 import { useMutation } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ChevronLeft, Loader2, Printer } from "lucide-react"
+import { ChevronLeft, Loader2, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { usePayrollRecord } from "@/features/payroll"
+import { usePayrollRecord, PayslipDocument } from "@/features/payroll"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, PAYROLL_STATUS_LABELS, PAYROLL_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -86,7 +86,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
-              <Printer className="h-4 w-4" /> Print / PDF
+              <Download className="h-4 w-4" /> Download PDF
             </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/payroll" className="flex items-center gap-1.5">
@@ -115,7 +115,13 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* The official payslip (this is what prints / downloads). */}
+      <div className="bg-card rounded border p-2 sm:p-4">
+        <PayslipDocument record={r} />
+      </div>
+
+      {/* HR breakdown - on-screen only (auto-hidden when printing the payslip). */}
+      <div className="no-print grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Attendance</CardTitle>

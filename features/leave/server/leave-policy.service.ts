@@ -3,6 +3,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { SYSTEM_ROLES } from "@/lib/constants"
 import { requireAnyRole } from "@/server/action-guard"
+import { createAuditLog } from "@/lib/audit"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 
 // Company-wide leave policy is created/edited by HR Manager or Admin only.
@@ -70,14 +71,11 @@ export async function saveLeavePolicies(
       }),
     )
 
-    await db.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "UPDATE",
-        module: "leave",
-        entityType: "LeavePolicy",
-        changes: { count: entries.length },
-      },
+    await createAuditLog(session, {
+      action: "UPDATE",
+      module: "leave",
+      entityType: "LeavePolicy",
+      changes: { count: entries.length },
     })
 
     const policies = await db.leavePolicy.findMany()

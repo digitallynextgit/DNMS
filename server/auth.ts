@@ -56,7 +56,9 @@ export const authOptions: NextAuthConfig = {
 
   secret: process.env.AUTH_SECRET,
 
-  pages: { signIn: "/login" },
+  // error -> /login so auth failures show a toast on the login page instead of
+  // the default Auth.js "Access Denied" screen.
+  pages: { signIn: "/login", error: "/login" },
 
   providers: [
     // -----------------------------------------------------------------------
@@ -111,13 +113,17 @@ export const authOptions: NextAuthConfig = {
     // -----------------------------------------------------------------------
     async signIn({ user, account }) {
       if (account?.provider === "google") {
-        if (!user.email) return false
+        // Returning a URL string denies the sign-in AND redirects there, so the
+        // login page can show a specific toast (no account vs deactivated).
+        if (!user.email) return "/login?error=no_account"
 
         const employee = await db.employee.findUnique({
           where: { email: user.email },
+          select: { id: true, isActive: true },
         })
 
-        if (!employee || !employee.isActive) return false
+        if (!employee) return "/login?error=no_account"
+        if (!employee.isActive) return "/login?error=deactivated"
 
         // Align the OAuth user id with our employee id so the JWT callback
         // can look up roles & permissions using a consistent identifier.
@@ -184,6 +190,12 @@ export const authOptions: NextAuthConfig = {
     async signIn({ user }) {
       if (!user?.id) return
       try {
+        // Admin_ is a silent watch account - never log its logins.
+        const isAdmin_ = await db.employeeRole.findFirst({
+          where: { employeeId: user.id, role: { name: "admin_" } },
+          select: { employeeId: true },
+        })
+        if (isAdmin_) return
         await db.auditLog.create({
           data: {
             actorId: user.id,

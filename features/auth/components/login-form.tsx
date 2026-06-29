@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -46,6 +46,24 @@ export function LoginForm() {
   })
 
   const { isSubmitting } = form.formState
+
+  // Surface auth redirects (e.g. a rejected Google sign-in) as a toast, then
+  // strip the ?error= param so it doesn't re-fire on refresh.
+  useEffect(() => {
+    const err = searchParams.get("error")
+    if (!err) return
+    const messages: Record<string, string> = {
+      no_account: "No account exists for this email. Contact your HR administrator.",
+      deactivated: "Your account has been deactivated. Contact your HR administrator.",
+      AccessDenied: "You do not have permission to sign in.",
+    }
+    toast.error(messages[err] ?? "Sign-in failed. Please try again.")
+
+    const params = new URLSearchParams(Array.from(searchParams.entries()))
+    params.delete("error")
+    const qs = params.toString()
+    router.replace(qs ? `/login?${qs}` : "/login", { scroll: false })
+  }, [searchParams, router])
 
   async function onSubmit(values: LoginInput) {
     setAuthError(null)

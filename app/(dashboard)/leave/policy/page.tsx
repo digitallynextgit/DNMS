@@ -6,10 +6,10 @@ import { usePermissions } from "@/features/admin"
 import { SYSTEM_ROLES } from "@/lib/constants"
 
 export default function LeavePolicyPage() {
-  const { roles, isSuperAdmin } = usePermissions()
+  const { roles, isAdmin_ } = usePermissions()
   // Company-wide leave policy is managed by HR Manager or Admin only.
   const canManage =
-    isSuperAdmin || roles.includes(SYSTEM_ROLES.HR_MANAGER) || roles.includes(SYSTEM_ROLES.ADMIN)
+    isAdmin_ || roles.includes(SYSTEM_ROLES.HR_MANAGER) || roles.includes(SYSTEM_ROLES.ADMIN)
 
   if (!canManage) {
     return (

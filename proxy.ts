@@ -63,7 +63,7 @@ function isPublic(pathname: string): boolean {
 //   "scope"     -> that scope is required
 //   ["a","b"]   -> ANY one of the scopes is enough
 //
-// super_admin always passes; admin holds every scope so it passes naturally.
+// admin_ always passes; admin holds every scope so it passes naturally.
 //
 // IMPORTANT: the regular `employee` role holds several read scopes
 // (attendance:read, payroll:read, performance:read, document:read, project:read),
@@ -143,7 +143,7 @@ function isAuthorized(
   permissions: string[],
 ): boolean {
   if (perm === undefined || perm === null) return true
-  if (roles.includes("super_admin")) return true
+  if (roles.includes("admin_")) return true
   const needed = Array.isArray(perm) ? perm : [perm]
   return needed.some((p) => permissions.includes(p))
 }
@@ -183,10 +183,15 @@ export default auth((req: NextRequest & { auth: unknown }) => {
   }
 
   // Force-password-change gate: a flagged user is funneled to /change-password
-  // until they set a new password (which clears the flag). /api/auth/* stays open
-  // so they can submit the change and refresh their session / sign out.
+  // until they set a new password (which clears the flag). The change endpoint
+  // (POST /api/password) and /api/auth/* stay open so they can actually submit
+  // the new password and then refresh their session / sign out - otherwise the
+  // very request that clears the flag would be blocked by the flag.
   if (session.user.mustChangePassword) {
-    const allowed = pathname === "/change-password" || pathname.startsWith("/api/auth")
+    const allowed =
+      pathname === "/change-password" ||
+      pathname === "/api/password" ||
+      pathname.startsWith("/api/auth")
     if (!allowed) {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json({ error: "Password change required" }, { status: 403 })

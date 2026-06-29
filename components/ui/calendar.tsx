@@ -81,7 +81,9 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
             <SelectTrigger className="h-8 w-fit gap-1 px-2 text-sm font-medium focus:ring-0 focus:ring-offset-0">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="max-h-72">
+            {/* z-70 lifts the month/year list above the calendar's own popover
+                (z-60); without it the dropdown opens *behind* the calendar. */}
+            <SelectContent className="z-70 max-h-72">
               {options?.map((option) => (
                 <SelectItem
                   key={option.value}

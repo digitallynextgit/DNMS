@@ -1,6 +1,17 @@
 import type { Metadata } from "next"
+import { Inter } from "next/font/google"
+import NextTopLoader from "nextjs-toploader"
 import "./globals.css"
 import { Providers } from "@/components/providers/providers"
+
+// Self-hosted via next/font (no render-blocking Google Fonts request, no FOUT,
+// no layout shift). Exposed as a CSS variable consumed by globals.css.
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-inter",
+})
 
 export const metadata: Metadata = {
   title: {
@@ -12,20 +23,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         {/* Theme-boot applies the saved palette before paint (no flash). Loaded as
             an external script (public/theme-boot.js) and render-blocking in <head>;
             React 19 only warns about INLINE scripts, not src ones. */}
         <script src="/theme-boot.js" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body className="antialiased">
+        {/* Navigation progress bar (perceived speed on route changes). */}
+        <NextTopLoader color="#ef4444" height={3} showSpinner={false} shadow="0 0 8px #ef4444" />
         <Providers>{children}</Providers>
       </body>
     </html>

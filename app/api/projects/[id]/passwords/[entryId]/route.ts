@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
-import { encrypt, decrypt } from "@/lib/encryption"
+import { encrypt, tryDecrypt } from "@/lib/crypto"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
@@ -13,7 +13,7 @@ export const GET = withSession(
       const { entryId } = await ctx.params
       const entry = await db.projectPasswordEntry.findUnique({ where: { id: entryId } })
       if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 })
-      return NextResponse.json({ data: { password: decrypt(entry.encPassword) } })
+      return NextResponse.json({ data: { password: tryDecrypt(entry.encPassword) ?? "" } })
     } catch (error) {
       console.error("[PASSWORD_REVEAL]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })

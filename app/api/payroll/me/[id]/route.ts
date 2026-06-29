@@ -26,6 +26,11 @@ export const GET = withSession(
             select: {
               id: true,
               basicSalary: true,
+              hra: true,
+              conveyance: true,
+              medicalAllowance: true,
+              telephoneAllowance: true,
+              otherAllowances: true,
               effectiveFrom: true,
             },
           },

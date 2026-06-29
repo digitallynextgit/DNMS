@@ -287,6 +287,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
                 <InfoRow label="Employee No" value={emp.employeeNo} />
                 <InfoRow label="Department" value={emp.department?.name} />
                 <InfoRow label="Designation" value={emp.designation?.title} />
+                <InfoRow label="Job Role" value={emp.jobRole?.name} />
                 <InfoRow
                   label="Employment Type"
                   value={EMPLOYMENT_TYPE_LABELS[emp.employmentType] ?? emp.employmentType}

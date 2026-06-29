@@ -16,6 +16,7 @@ import { StatCard } from "@/components/shared/stat-card"
 import { Button } from "@/components/ui/button"
 import { useMyAttendanceCalendar, useSyncAttendance } from "@/features/attendance"
 import { AttendanceCalendar } from "@/features/attendance/components/attendance-calendar"
+import { formatWorkHours } from "@/lib/utils"
 
 const MONTHS = [
   "January",
@@ -74,7 +75,7 @@ export default function MyAttendancePage() {
   const halfDays = days.filter((d) => d.status === "HALF_DAY").length
   const worked = days.filter((d) => d.workHours != null && d.workHours > 0)
   const totalHours = worked.reduce((sum, d) => sum + (d.workHours ?? 0), 0)
-  const avgHours = worked.length > 0 ? Math.round((totalHours / worked.length) * 10) / 10 : 0
+  const avgHours = worked.length > 0 ? totalHours / worked.length : 0
 
   return (
     <div className="space-y-6">
@@ -146,7 +147,7 @@ export default function MyAttendancePage() {
         />
         <StatCard
           title="Avg Work Hours"
-          value={isLoading ? "-" : `${avgHours}h`}
+          value={isLoading ? "-" : formatWorkHours(avgHours)}
           icon={Timer}
           iconColor="text-blue-600"
           iconBg="bg-blue-50"

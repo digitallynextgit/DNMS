@@ -1,21 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { Users, UserPlus, FileText, Bell, UserCircle, Upload, ClipboardList } from "lucide-react"
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip as RechartsTooltip,
-  Legend,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-} from "recharts"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -25,7 +13,16 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { formatDate } from "@/lib/utils"
-import { EMPLOYEE_STATUS_LABELS } from "@/lib/constants"
+
+// Charts are code-split: recharts only downloads once the dashboard data is in.
+const DepartmentPieChart = dynamic(
+  () => import("./dashboard-charts").then((m) => m.DepartmentPieChart),
+  { ssr: false, loading: () => <ChartSkeleton /> },
+)
+const EmployeeStatusBarChart = dynamic(
+  () => import("./dashboard-charts").then((m) => m.EmployeeStatusBarChart),
+  { ssr: false, loading: () => <ChartSkeleton /> },
+)
 
 interface DashboardStats {
   employees: {
@@ -47,16 +44,6 @@ interface DashboardStats {
     profilePhoto: string | null
   }[]
 }
-
-const DEPT_COLORS = [
-  "hsl(var(--foreground))",
-  "hsl(var(--muted-foreground))",
-  "#555",
-  "#888",
-  "#aaa",
-  "#333",
-  "#777",
-]
 
 async function fetchDashboardStats(): Promise<DashboardStats> {
   const res = await fetch("/api/dashboard/stats")
@@ -152,40 +139,7 @@ export function AdminDashboard() {
             {isLoading ? (
               <ChartSkeleton />
             ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={data?.employees.byDepartment ?? []}
-                    dataKey="count"
-                    nameKey="department"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={3}
-                  >
-                    {(data?.employees.byDepartment ?? []).map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={DEPT_COLORS[index % DEPT_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip
-                    formatter={(value, name) => [
-                      `${Number(value)} employee${Number(value) !== 1 ? "s" : ""}`,
-                      String(name ?? ""),
-                    ]}
-                    contentStyle={{
-                      borderRadius: "var(--radius)",
-                      fontSize: "12px",
-                      border: "1px solid hsl(var(--border))",
-                      background: "hsl(var(--card))",
-                      color: "hsl(var(--foreground))",
-                    }}
-                    itemStyle={{ color: "hsl(var(--foreground))" }}
-                    labelStyle={{ color: "hsl(var(--foreground))" }}
-                  />
-                  <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "11px" }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <DepartmentPieChart data={data?.employees.byDepartment ?? []} />
             )}
           </CardContent>
         </Card>
@@ -200,56 +154,7 @@ export function AdminDashboard() {
             {isLoading ? (
               <ChartSkeleton />
             ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart
-                  data={(data?.employees.byStatus ?? []).map((s) => ({
-                    status: EMPLOYEE_STATUS_LABELS[s.status] ?? s.status,
-                    count: s.count,
-                  }))}
-                  margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="status"
-                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={32}
-                  />
-                  <RechartsTooltip
-                    cursor={false}
-                    formatter={(value) => [
-                      `${Number(value)} employee${Number(value) !== 1 ? "s" : ""}`,
-                      "Count",
-                    ]}
-                    contentStyle={{
-                      borderRadius: "var(--radius)",
-                      fontSize: "12px",
-                      border: "1px solid hsl(var(--border))",
-                      background: "hsl(var(--card))",
-                      color: "hsl(var(--foreground))",
-                    }}
-                    itemStyle={{ color: "hsl(var(--foreground))" }}
-                    labelStyle={{ color: "hsl(var(--foreground))" }}
-                  />
-                  <Bar
-                    dataKey="count"
-                    fill="hsl(var(--foreground))"
-                    radius={[3, 3, 0, 0]}
-                    maxBarSize={48}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              <EmployeeStatusBarChart data={data?.employees.byStatus ?? []} />
             )}
           </CardContent>
         </Card>

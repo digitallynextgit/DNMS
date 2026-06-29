@@ -54,9 +54,17 @@ import {
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
 } from "@/lib/constants"
+import dynamic from "next/dynamic"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { TaskDetailSheet } from "./task-detail-sheet"
-import { KanbanView, formatHours } from "./kanban-view"
+import { formatHours } from "../lib/format-hours"
+
+// The Kanban board pulls in @hello-pangea/dnd; load it only when the board view
+// is shown, so the default list view's bundle stays lean.
+const KanbanView = dynamic(() => import("./kanban-view").then((m) => m.KanbanView), {
+  ssr: false,
+  loading: () => <div className="bg-muted h-[60vh] w-full animate-pulse rounded-lg" />,
+})
 
 interface Props {
   projectId: string

@@ -15,6 +15,7 @@ import { TaskDetailSheet } from "./task-detail-sheet"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { cn, formatDate } from "@/lib/utils"
 import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
+import { formatHours } from "../lib/format-hours"
 import { AlertTriangle, Clock, Milestone, GripVertical } from "lucide-react"
 
 const COLUMNS: { id: string; label: string; color: string }[] = [
@@ -234,12 +235,4 @@ export function KanbanView({ projectId, currentUserId, isAdmin, teamFilter }: Pr
       />
     </>
   )
-}
-
-export function formatHours(h: number): string {
-  const hrs = Math.floor(h)
-  const mins = Math.round((h - hrs) * 60)
-  if (hrs === 0) return `${mins}m`
-  if (mins === 0) return `${hrs}h`
-  return `${hrs}h ${mins}m`
 }

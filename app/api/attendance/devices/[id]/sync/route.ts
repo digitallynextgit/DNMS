@@ -2,17 +2,24 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
-import { syncDeviceAttendance, recentDates } from "@/features/attendance/server/sync"
+import { syncDeviceSmart } from "@/features/attendance/server/sync"
 import type { Session } from "next-auth"
 
 // Manually trigger a sync for one device. The DNMS must be able to reach the
-// device (run it on the same network). NO simulation fallback — if the device is
+// device (run it on the same network). NO simulation fallback - if the device is
 // unreachable this returns an error rather than inventing data.
+//
+// Smart per-employee window: never-synced employees get a full backfill, the rest
+// just re-pull from their last recorded day. Optional query params:
+//   ?employeeNo=145  → sync only that employee (by HR code or device id)
+//   ?full=1          → force a complete re-backfill (ignore existing data)
 export const POST = withAuth(
   PERMISSIONS.ATTENDANCE_WRITE,
-  async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
+  async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id } = ctx.params
+      const onlyEmployeeNo = req.nextUrl.searchParams.get("employeeNo") ?? undefined
+      const full = req.nextUrl.searchParams.get("full") === "1"
 
       const device = await db.hikvisionDevice.findUnique({ where: { id } })
       if (!device) return NextResponse.json({ error: "Device not found" }, { status: 404 })
@@ -26,10 +33,9 @@ export const POST = withAuth(
         password: device.password,
       }
 
-      let result: { synced: number; errors: string[] }
+      let result: Awaited<ReturnType<typeof syncDeviceSmart>>
       try {
-        // Sync the last 8 days (incl. today) so corrections are picked up.
-        result = await syncDeviceAttendance(id, deviceConfig, recentDates(8))
+        result = await syncDeviceSmart(id, deviceConfig, { onlyEmployeeNo, full })
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         return NextResponse.json(
@@ -41,9 +47,9 @@ export const POST = withAuth(
       await db.hikvisionDevice.update({ where: { id }, data: { lastSyncAt: new Date() } })
 
       return NextResponse.json({
-        message: `Sync complete. ${result.synced} records processed.`,
-        synced: result.synced,
-        errors: result.errors.length > 0 ? result.errors : undefined,
+        message: `Sync complete. ${result.totalSynced} records processed.`,
+        synced: result.totalSynced,
+        employees: result.results,
       })
     } catch (error) {
       console.error("[DEVICE_SYNC_POST]", error)

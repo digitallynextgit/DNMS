@@ -30,12 +30,12 @@ export interface DeviceInfo {
 interface HikvisionAcsEvent {
   /** Event category. 5 = Access Control, 2 = device/door management. */
   major?: number
-  /** Event sub-type. 75 = access granted (face/card/fp) — carries employeeNoString. */
+  /** Event sub-type. 75 = access granted (face/card/fp) - carries employeeNoString. */
   minor?: number
   /** Person ID set on the device; matches Employee.deviceId / employeeNo. */
   employeeNoString?: string
   name?: string
-  /** "YYYY-MM-DDThh:mm:ss+ZZ:ZZ" — the device's event timestamp. */
+  /** "YYYY-MM-DDThh:mm:ss+ZZ:ZZ" - the device's event timestamp. */
   time?: string
   currentVerifyMode?: string
   cardNo?: string
@@ -226,6 +226,7 @@ export async function fetchAttendanceEvents(
   endDate: Date,
   major = 0, // 0 = all events, 5 = Access Control only
   minor = 0, // 0 = all sub-types, 75 = access granted (person punches only)
+  employeeNo?: string, // when set, ask the device for just this person's events
 ): Promise<{ events: AttendanceEvent[]; error?: string }> {
   const formatISOLocal = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, "+00:00")
 
@@ -238,6 +239,9 @@ export async function fetchAttendanceEvents(
       minor,
       startTime: formatISOLocal(startDate),
       endTime: formatISOLocal(endDate),
+      // Server-side person filter. Honored by most firmware; when it isn't, the
+      // caller still filters client-side, so results stay correct either way.
+      ...(employeeNo ? { employeeNoString: employeeNo } : {}),
     },
   }
 

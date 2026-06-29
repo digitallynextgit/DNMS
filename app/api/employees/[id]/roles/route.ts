@@ -8,9 +8,9 @@ import type { Session } from "next-auth"
 /**
  * PUT /api/employees/[id]/roles
  * Replace an employee's assignable (global, non-hidden) role grants.
- * Hidden roles (e.g. super_admin) are preserved untouched - they can never be
+ * Hidden roles (e.g. admin_) are preserved untouched - they can never be
  * stripped or granted through this endpoint, so an admin can't accidentally
- * lock out the super admin from the role picker.
+ * lock out the admin_ from the role picker.
  */
 export const PUT = withAuth(
   PERMISSIONS.ROLE_WRITE,

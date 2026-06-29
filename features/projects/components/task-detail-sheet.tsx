@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
+import { formatHours } from "../lib/format-hours"
 import {
   useTaskComments,
   useAddComment,
@@ -466,12 +467,4 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
       </div>
     </div>
   )
-}
-
-export function formatHours(h: number): string {
-  const hrs = Math.floor(h)
-  const mins = Math.round((h - hrs) * 60)
-  if (hrs === 0) return `${mins}m`
-  if (mins === 0) return `${hrs}h`
-  return `${hrs}h ${mins}m`
 }

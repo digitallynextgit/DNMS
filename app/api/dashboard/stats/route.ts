@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
-import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
+import { EMPLOYEE_SUMMARY_SELECT, VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 
 export const GET = withAuth(
   PERMISSIONS.DASHBOARD_READ,
@@ -22,7 +22,7 @@ export const GET = withAuth(
     ] = await Promise.all([
       // Total active employees
       db.employee.count({
-        where: { status: "ACTIVE", isActive: true },
+        where: { status: "ACTIVE", isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
       }),
 
       // Joined in the last 30 days
@@ -30,20 +30,21 @@ export const GET = withAuth(
         where: {
           isActive: true,
           dateOfJoining: { gte: thirtyDaysAgo },
+          ...VISIBLE_EMPLOYEE_FILTER,
         },
       }),
 
       // Grouped by status
       db.employee.groupBy({
         by: ["status"],
-        where: { isActive: true },
+        where: { isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
         _count: { _all: true },
       }),
 
       // Grouped by department
       db.employee.groupBy({
         by: ["departmentId"],
-        where: { status: "ACTIVE", isActive: true },
+        where: { status: "ACTIVE", isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
         _count: { _all: true },
       }),
 
@@ -57,7 +58,7 @@ export const GET = withAuth(
 
       // Last 5 joiners
       db.employee.findMany({
-        where: { isActive: true },
+        where: { isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
         orderBy: { dateOfJoining: "desc" },
         take: 5,
         select: {

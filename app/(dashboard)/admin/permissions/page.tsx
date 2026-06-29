@@ -110,7 +110,7 @@ export default function PermissionsPage() {
                           </td>
                           {rolesData?.map((role) => (
                             <td key={role.id} className="px-3 py-2 text-center">
-                              {role.name === "super_admin" || hasPermission(role, perm.id) ? (
+                              {role.name === "admin_" || hasPermission(role, perm.id) ? (
                                 <CheckCircle2 className="mx-auto h-4 w-4 text-green-500" />
                               ) : (
                                 <XCircle className="mx-auto h-4 w-4 text-slate-200" />

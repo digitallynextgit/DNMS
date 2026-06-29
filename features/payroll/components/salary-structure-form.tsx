@@ -143,7 +143,8 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
       submitDisabled={!canSubmit}
       submitLabel={isPending ? "Saving..." : isEdit ? "Update" : "Create"}
       onSubmit={handleSubmit}
-      contentClassName="max-h-[90vh] max-w-2xl overflow-x-hidden overflow-y-auto"
+      scrollBody
+      contentClassName="max-w-2xl"
     >
       <div className="space-y-6">
         {/* Employee */}

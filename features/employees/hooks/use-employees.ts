@@ -43,6 +43,7 @@ export interface EmployeeListItem {
   createdAt: string
   department: { id: string; name: string } | null
   designation: { id: string; title: string } | null
+  jobRole: { id: string; name: string } | null
   manager: { id: string; firstName: string; lastName: string } | null
 }
 

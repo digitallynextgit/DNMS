@@ -35,6 +35,14 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+/** Decimal hours → "Xh Ym" (e.g. 8.58 → "8h 35m"); drops minutes when zero. */
+export function formatWorkHours(hours: number): string {
+  const totalMinutes = Math.round(hours * 60)
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
+}
+
 export function generateEmployeeNo(sequence: number, year = new Date().getFullYear()): string {
   return `EMP-${year}-${String(sequence).padStart(4, "0")}`
 }

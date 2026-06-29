@@ -1,6 +1,19 @@
 import { db } from "@/server/db"
+import { getSession } from "@/server/api-handler"
+import { isAdmin_Session } from "@/lib/audit"
 
 type NotificationType = "info" | "success" | "warning" | "error"
+
+// Admin_ is a silent watch account: actions it performs must not generate
+// notifications. Checks the current request's session - a null session (e.g. a
+// cron run with no logged-in user) is NOT admin_, so those proceed normally.
+async function suppressedForAdmin_(): Promise<boolean> {
+  try {
+    return isAdmin_Session(await getSession())
+  } catch {
+    return false
+  }
+}
 
 interface CreateNotificationOptions {
   employeeId: string
@@ -16,6 +29,7 @@ interface CreateNotificationOptions {
  * is never disrupted by a notification failure.
  */
 export async function createNotification(opts: CreateNotificationOptions): Promise<void> {
+  if (await suppressedForAdmin_()) return
   try {
     await db.notification.create({
       data: {
@@ -82,6 +96,7 @@ export async function notifyApprovers(opts: {
 export async function createNotifications(
   notifications: CreateNotificationOptions[],
 ): Promise<void> {
+  if (await suppressedForAdmin_()) return
   try {
     await db.notification.createMany({
       data: notifications.map((n) => ({

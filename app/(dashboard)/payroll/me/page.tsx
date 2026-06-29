@@ -1,14 +1,13 @@
 "use client"
 
-import { useState } from "react"
-import { FileText } from "lucide-react"
+import Link from "next/link"
+import { FileText, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
-import { PayslipView } from "@/features/payroll"
-import { useMyPayslips, useMyPayslip, type PayrollRecord } from "@/features/payroll"
+import { useMyPayslips, type PayrollRecord } from "@/features/payroll"
 import { MONTHS, PAYROLL_STATUS_COLORS, PAYROLL_STATUS_LABELS } from "@/lib/constants"
 
 function fmt(amount: number): string {
@@ -16,18 +15,9 @@ function fmt(amount: number): string {
 }
 
 export default function MyPayslipsPage() {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [sheetOpen, setSheetOpen] = useState(false)
-
   const { data, isLoading } = useMyPayslips()
-  const { data: payslipDetail } = useMyPayslip(selectedId)
 
   const payslips = data?.data ?? []
-
-  function handleView(id: string) {
-    setSelectedId(id)
-    setSheetOpen(true)
-  }
 
   return (
     <div className="space-y-6">
@@ -49,6 +39,7 @@ export default function MyPayslipsPage() {
                   Deductions
                 </th>
                 <th className="text-muted-foreground px-4 py-3 text-right font-medium">Net</th>
+                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Generated</th>
                 <th className="text-muted-foreground px-4 py-3 text-left font-medium">Status</th>
                 <th className="text-muted-foreground px-4 py-3 text-right font-medium">Action</th>
               </tr>
@@ -68,6 +59,13 @@ export default function MyPayslipsPage() {
                     <td className="px-4 py-3 text-right font-semibold text-emerald-600">
                       {fmt(payslip.netSalary)}
                     </td>
+                    <td className="text-muted-foreground px-4 py-3 text-xs whitespace-nowrap">
+                      {new Date(payslip.createdAt).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </td>
                     <td className="px-4 py-3">
                       <StatusBadge
                         status={payslip.status}
@@ -76,8 +74,11 @@ export default function MyPayslipsPage() {
                       />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button variant="outline" size="sm" onClick={() => handleView(payslip.id)}>
-                        View
+                      <Button variant="outline" size="sm" asChild className="gap-1.5">
+                        <Link href={`/payroll/me/${payslip.id}`}>
+                          <Download className="h-3.5 w-3.5" />
+                          View
+                        </Link>
                       </Button>
                     </td>
                   </tr>
@@ -87,15 +88,6 @@ export default function MyPayslipsPage() {
           </table>
         </div>
       )}
-
-      <PayslipView
-        open={sheetOpen}
-        onOpenChange={(open) => {
-          setSheetOpen(open)
-          if (!open) setSelectedId(null)
-        }}
-        record={payslipDetail?.data ?? null}
-      />
     </div>
   )
 }

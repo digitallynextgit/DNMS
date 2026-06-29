@@ -119,7 +119,7 @@ function CareerTile({
         <div className="min-w-0">
           {!live && (
             <span className="bg-muted text-muted-foreground mb-1.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium">
-              Draft — hidden from site
+              Draft - hidden from site
             </span>
           )}
           <p className="text-muted-foreground text-sm">{footer}</p>
@@ -159,7 +159,7 @@ function PublishToggle({
           </div>
         </TooltipTrigger>
         <TooltipContent>
-          {live ? "Published — visible on the site" : "Draft — hidden from the site"}
+          {live ? "Published - visible on the site" : "Draft - hidden from the site"}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

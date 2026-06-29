@@ -18,7 +18,7 @@ export function AdminGuide() {
         <InfoTable
           rows={[
             {
-              term: "Super Admin",
+              term: "Admin_",
               description: "Full access to everything in the system. Can manage other admins.",
             },
             {
@@ -124,9 +124,9 @@ export function AdminGuide() {
       </GuideSection>
 
       <TipBox variant="warning">
-        Only Super Admins should manage roles and permissions. Giving the wrong permissions to a
-        user can accidentally lock them out of the system or give them access to sensitive data they
-        should not see.
+        Only Admin_s should manage roles and permissions. Giving the wrong permissions to a user can
+        accidentally lock them out of the system or give them access to sensitive data they should
+        not see.
       </TipBox>
     </div>
   )

@@ -15,7 +15,7 @@ import { canAccessEmployee } from "@/lib/permissions"
 // Server-only cross-feature call (not the client barrel): seed leave balances
 // from the policy matrix when a new hire is created.
 import { allocateFromPolicy } from "@/features/leave/server/leave-accrual.service"
-import { encrypt } from "@/lib/encryption"
+import { encrypt } from "@/lib/crypto"
 import bcrypt from "bcryptjs"
 import { randomInt } from "crypto"
 
@@ -111,6 +111,8 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
     if (departmentId) where.departmentId = departmentId
     if (designationId) where.designationId = designationId
     if (status) where.status = status
+    // Admin_ is a hidden watch account - never list it in the directory.
+    where.NOT = { employeeRoles: { some: { role: { name: { in: [...HIDDEN_ROLES] } } } } }
 
     const [employees, total] = await Promise.all([
       db.employee.findMany({
@@ -118,6 +120,7 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
         include: {
           department: { select: { id: true, name: true } },
           designation: { select: { id: true, title: true } },
+          jobRole: { select: { id: true, name: true } },
           manager: { select: { id: true, firstName: true, lastName: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -165,6 +168,7 @@ export async function getEmployee(idOrSlug: string): Promise<ActionResult<unknow
       include: {
         department: { select: { id: true, name: true, code: true } },
         designation: { select: { id: true, title: true, level: true } },
+        jobRole: { select: { id: true, name: true } },
         manager: {
           select: { id: true, firstName: true, lastName: true, email: true, profilePhoto: true },
         },
@@ -188,6 +192,9 @@ export async function getEmployeeCodes(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.EMPLOYEE_WRITE)
     const employees = await db.employee.findMany({
+      // Hide the silent watch (admin_) account from the codes list, same as the
+      // directory, org chart, and analytics.
+      where: { NOT: { employeeRoles: { some: { role: { name: { in: [...HIDDEN_ROLES] } } } } } },
       orderBy: { employeeNo: "asc" },
       select: EMPLOYEE_SUMMARY_SELECT,
     })
@@ -278,6 +285,7 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
           bloodGroup: data.bloodGroup || null,
           departmentId: data.departmentId || null,
           designationId: data.designationId || null,
+          jobRoleId: data.jobRoleId || null,
           managerId: data.managerId || null,
           dottedManagerId: data.dottedManagerId || null,
           employmentType: data.employmentType,
@@ -405,6 +413,7 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
     if (data.bloodGroup !== undefined) updateData.bloodGroup = data.bloodGroup || null
     if (data.departmentId !== undefined) updateData.departmentId = data.departmentId || null
     if (data.designationId !== undefined) updateData.designationId = data.designationId || null
+    if (data.jobRoleId !== undefined) updateData.jobRoleId = data.jobRoleId || null
     if (data.managerId !== undefined) updateData.managerId = data.managerId || null
     if (data.employmentType !== undefined) updateData.employmentType = data.employmentType
     if (data.dateOfJoining !== undefined)
@@ -415,6 +424,12 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
     if (data.deviceId !== undefined) updateData.deviceId = data.deviceId || null
     if (data.onProbation !== undefined) updateData.onProbation = data.onProbation
     if (data.probationMonths !== undefined) updateData.probationMonths = data.probationMonths
+    // Confirming probation early (toggling "on probation" off) records WHEN it
+    // happened, so leave starts accruing from that date instead of the original
+    // joining + probationMonths window.
+    if (data.onProbation === false && before.onProbation && !before.confirmationDate) {
+      updateData.confirmationDate = new Date()
+    }
     // Only overwrite the App Password when a new one is supplied; blank means
     // "leave the existing value unchanged".
     if (data.gmailAppPassword) updateData.gmailAppPassword = encrypt(data.gmailAppPassword)
@@ -441,6 +456,25 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
           manager: { select: { id: true, firstName: true, lastName: true } },
         },
       })
+
+      // Refresh this year's leave balances when something that drives accrual
+      // changed (confirmation, joining date, employment type), so it takes effect
+      // immediately rather than waiting for the monthly accrual cron. Best-effort.
+      if (
+        [
+          "onProbation",
+          "probationMonths",
+          "dateOfJoining",
+          "employmentType",
+          "confirmationDate",
+        ].some((k) => k in updateData)
+      ) {
+        try {
+          await allocateFromPolicy(id, new Date().getFullYear())
+        } catch (e) {
+          console.error("[updateEmployee] leave re-allocation failed", e)
+        }
+      }
 
       const changedFields: Record<string, { before: unknown; after: unknown }> = {}
       for (const key of Object.keys(updateData)) {
@@ -610,7 +644,11 @@ export async function getOrgChart(): Promise<ActionResult<{ data: OrgNode[] }>> 
     // which proxy.ts gates with `null`), not just those with employee:read.
     await requireSession()
     const employees = await db.employee.findMany({
-      where: { isActive: true },
+      // Exclude the hidden admin_ watch account from the org chart.
+      where: {
+        isActive: true,
+        NOT: { employeeRoles: { some: { role: { name: { in: [...HIDDEN_ROLES] } } } } },
+      },
       select: {
         ...EMPLOYEE_SUMMARY_SELECT,
         managerId: true,

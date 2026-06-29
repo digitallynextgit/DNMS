@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
-import { encrypt, decrypt } from "@/lib/encryption"
+import { encrypt } from "@/lib/crypto"
 import type { Session } from "next-auth"
 
 const CREATOR_SELECT = {

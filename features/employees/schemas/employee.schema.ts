@@ -39,6 +39,7 @@ export const createEmployeeSchema = z.object({
   // Employment
   departmentId: z.string().uuid("Select a department").optional(),
   designationId: z.string().uuid("Select a designation").optional(),
+  jobRoleId: z.union([z.string().uuid(), z.literal("")]).optional(),
   roleId: z.string().uuid("Select a role").optional(),
   managerId: z.string().uuid().optional(),
   dottedManagerId: z.string().uuid().optional(),
@@ -98,6 +99,7 @@ export const employeeFilterSchema = z.object({
   search: z.string().optional(),
   departmentId: z.string().uuid().optional(),
   designationId: z.string().uuid().optional(),
+  jobRoleId: z.union([z.string().uuid(), z.literal("")]).optional(),
   status: z.enum(["ACTIVE", "ON_LEAVE", "SUSPENDED", "RESIGNED", "TERMINATED"]).optional(),
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]).optional(),
   page: z.coerce.number().min(1).default(1),

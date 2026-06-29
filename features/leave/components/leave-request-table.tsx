@@ -27,7 +27,7 @@ interface LeaveRequestTableProps {
   showSerial?: boolean
   /** Offset for the S.No when the parent paginates, e.g. (page - 1) * pageSize. */
   serialOffset?: number
-  /** Optional multi-select wiring — pass `useRowSelection(pageIds)` to enable checkboxes. */
+  /** Optional multi-select wiring - pass `useRowSelection(pageIds)` to enable checkboxes. */
   selection?: DataTableSelection
 }
 

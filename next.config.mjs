@@ -13,6 +13,9 @@ const nextConfig = {
     // "Every task must have a task type". Trade-off: slightly slower cold
     // restarts, no more cache-restore panics.
     turbopackFileSystemCacheForDev: false,
+    // Tree-shake heavy barrel imports so only the icons/utilities actually used
+    // land in each route's bundle.
+    optimizePackageImports: ["lucide-react", "recharts", "date-fns"],
   },
   typescript: {
     ignoreBuildErrors: true,

@@ -294,6 +294,7 @@ export default function PayrollPage() {
                   Deductions
                 </th>
                 <th className="text-muted-foreground px-4 py-3 text-right font-medium">Net</th>
+                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Generated</th>
                 <th className="text-muted-foreground px-4 py-3 text-left font-medium">Status</th>
                 <th className="text-muted-foreground px-4 py-3 text-right font-medium">Actions</th>
               </tr>
@@ -339,6 +340,13 @@ export default function PayrollPage() {
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-emerald-600">
                       {fmt(record.netSalary)}
+                    </td>
+                    <td className="text-muted-foreground px-4 py-3 text-xs whitespace-nowrap">
+                      {new Date(record.createdAt).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge

@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   }
 
   // ?mode MUST be exactly full-time or internship. Anything else (typo, missing)
-  // is rejected with 400 — we never silently default to full-time.
+  // is rejected with 400 - we never silently default to full-time.
   const modeParam = req.nextUrl.searchParams.get("mode")
   if (modeParam !== "full-time" && modeParam !== "internship") {
     return NextResponse.json(

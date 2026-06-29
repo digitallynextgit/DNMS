@@ -104,8 +104,8 @@ async function main() {
 
   const rolesData = [
     {
-      name: "super_admin",
-      displayName: "Super Admin",
+      name: "admin_",
+      displayName: "Admin_",
       description: "CEO-only role. Hidden from every UI listing. Full system access.",
       isSystem: true,
       permissions: "ALL" as const,
@@ -322,7 +322,7 @@ async function main() {
       email: "admin@hrms.dev",
       designation: "Manager",
       department: "Management",
-      role: "super_admin",
+      role: "admin_",
       managerEmployeeNo: null as string | null,
       dateOfJoining: new Date("2024-01-01") as Date | null,
       phone: null as string | null,
@@ -2897,7 +2897,7 @@ async function main() {
   console.log("✓ Seed completed successfully")
   console.log("─────────────────────────────────────────")
   console.log("Login account (password: Admin@123):")
-  console.log("  Super Admin:  admin@hrms.dev")
+  console.log("  Admin_:  admin@hrms.dev")
   console.log("")
   console.log("35 employees seeded (34 real + 1 system admin)")
   console.log("  Active:   24 employees")

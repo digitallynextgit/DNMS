@@ -14,6 +14,7 @@ export * from "./components/org-chart-tree"
 export * from "./components/profile-self-actions"
 export * from "./components/section-edit-dialogs"
 export * from "./hooks/use-employees"
+export * from "./hooks/use-job-roles"
 export * from "./schemas/employee.schema"
 export * from "./probation"
 

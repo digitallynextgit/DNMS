@@ -9,7 +9,7 @@
 
 import { headers } from "next/headers"
 import { getSession } from "@/server/api-handler"
-import { isSuperAdmin } from "@/lib/permissions"
+import { isAdmin_ } from "@/lib/permissions"
 import { ActionError } from "./action-result"
 import type { Session } from "next-auth"
 
@@ -22,18 +22,18 @@ export async function requireSession(): Promise<Session> {
 export async function requirePermission(perm: string | string[]): Promise<Session> {
   const session = await requireSession()
   const perms = Array.isArray(perm) ? perm : [perm]
-  const allowed = isSuperAdmin(session) || perms.every((p) => session.user.permissions.includes(p))
+  const allowed = isAdmin_(session) || perms.every((p) => session.user.permissions.includes(p))
   if (!allowed) throw new ActionError("Forbidden: insufficient permissions", 403)
   return session
 }
 
-// Require the user to hold at least one of the given roles (super admin always
+// Require the user to hold at least one of the given roles (admin_ always
 // passes). Use for actions gated by who someone IS rather than a fine-grained
 // permission - e.g. only HR Manager / Admin may edit company-wide leave policy.
 export async function requireAnyRole(roles: string[]): Promise<Session> {
   const session = await requireSession()
   const userRoles = session.user.roles ?? []
-  const allowed = isSuperAdmin(session) || roles.some((r) => userRoles.includes(r))
+  const allowed = isAdmin_(session) || roles.some((r) => userRoles.includes(r))
   if (!allowed) throw new ActionError("Forbidden: insufficient role", 403)
   return session
 }

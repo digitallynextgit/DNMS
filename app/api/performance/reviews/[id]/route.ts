@@ -12,17 +12,17 @@ export const PATCH = withSession(
 
       const isReviewee = review.revieweeId === session.user.id
       const isReviewer = review.reviewerId === session.user.id
-      const isSuperAdmin =
-        session.user.roles?.includes("super_admin") || session.user.roles?.includes("hr_admin")
+      const isAdmin_ =
+        session.user.roles?.includes("admin_") || session.user.roles?.includes("hr_admin")
 
-      if (!isReviewee && !isReviewer && !isSuperAdmin) {
+      if (!isReviewee && !isReviewer && !isAdmin_) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
       }
 
       const data: Record<string, unknown> = {}
 
       // Reviewee fields
-      if (isReviewee || isSuperAdmin) {
+      if (isReviewee || isAdmin_) {
         if (body.selfRating !== undefined)
           data.selfRating = body.selfRating ? parseFloat(body.selfRating) : null
         if (body.selfComments !== undefined) data.selfComments = body.selfComments
@@ -35,7 +35,7 @@ export const PATCH = withSession(
       }
 
       // Reviewer / admin fields
-      if (isReviewer || isSuperAdmin) {
+      if (isReviewer || isAdmin_) {
         if (body.managerRating !== undefined)
           data.managerRating = body.managerRating ? parseFloat(body.managerRating) : null
         if (body.managerComments !== undefined) data.managerComments = body.managerComments

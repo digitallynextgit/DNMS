@@ -55,7 +55,7 @@ const PAGE_SIZE = 10
 export default function RolesPage() {
   const { data: session } = useSession()
   const canWrite =
-    session?.user?.roles?.includes("super_admin") ||
+    session?.user?.roles?.includes("admin_") ||
     session?.user?.permissions?.includes(PERMISSIONS.ROLE_WRITE)
 
   const [roles, setRoles] = useState<RoleRow[]>([])

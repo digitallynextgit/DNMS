@@ -26,6 +26,7 @@ export interface EmployeeCardProps {
     email: string
     phone?: string | null
     designation?: { title: string } | null
+    jobRole?: { name: string } | null
     department?: { name: string } | null
     status: string
     profilePhoto?: string | null
@@ -60,9 +61,11 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
               <p className="text-foreground truncate text-sm leading-tight font-medium">
                 {fullName}
               </p>
-              {employee.designation?.title && (
+              {(employee.jobRole?.name || employee.designation?.title) && (
                 <p className="text-muted-foreground mt-0.5 truncate text-xs">
-                  {employee.designation.title}
+                  {[employee.jobRole?.name, employee.designation?.title]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
               )}
             </div>

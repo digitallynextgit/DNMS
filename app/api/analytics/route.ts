@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
+import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import type { Session } from "next-auth"
 
 export const GET = withAuth(
@@ -15,17 +16,23 @@ export const GET = withAuth(
 
       // Employee stats
       const [totalEmployees, activeEmployees, newThisMonth, newLastMonth] = await Promise.all([
-        db.employee.count(),
-        db.employee.count({ where: { status: "ACTIVE" } }),
-        db.employee.count({ where: { createdAt: { gte: startOfMonth } } }),
-        db.employee.count({ where: { createdAt: { gte: lastMonth, lte: endOfLastMonth } } }),
+        db.employee.count({ where: { ...VISIBLE_EMPLOYEE_FILTER } }),
+        db.employee.count({ where: { status: "ACTIVE", ...VISIBLE_EMPLOYEE_FILTER } }),
+        db.employee.count({
+          where: { createdAt: { gte: startOfMonth }, ...VISIBLE_EMPLOYEE_FILTER },
+        }),
+        db.employee.count({
+          where: { createdAt: { gte: lastMonth, lte: endOfLastMonth }, ...VISIBLE_EMPLOYEE_FILTER },
+        }),
       ])
 
       // Department headcount
       const deptHeadcount = await db.department.findMany({
         select: {
           name: true,
-          _count: { select: { employees: { where: { status: "ACTIVE" } } } },
+          _count: {
+            select: { employees: { where: { status: "ACTIVE", ...VISIBLE_EMPLOYEE_FILTER } } },
+          },
         },
         orderBy: { employees: { _count: "desc" } },
       })
@@ -86,7 +93,7 @@ export const GET = withAuth(
           const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
           const end = new Date(now.getFullYear(), now.getMonth() - (5 - i) + 1, 0)
           return db.employee
-            .count({ where: { createdAt: { gte: d, lte: end } } })
+            .count({ where: { createdAt: { gte: d, lte: end }, ...VISIBLE_EMPLOYEE_FILTER } })
             .then((count) => ({
               month: d.toLocaleString("default", { month: "short" }),
               count,
@@ -97,6 +104,7 @@ export const GET = withAuth(
       // Employee status distribution
       const statusDistribution = await db.employee.groupBy({
         by: ["status"],
+        where: { ...VISIBLE_EMPLOYEE_FILTER },
         _count: { id: true },
       })
 

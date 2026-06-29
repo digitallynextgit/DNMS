@@ -1,6 +1,6 @@
 "use client"
 
-import { cn } from "@/lib/utils"
+import { cn, formatWorkHours } from "@/lib/utils"
 import type { CalendarDay, CalendarDayStatus } from "@/features/attendance/hooks/use-attendance"
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -48,7 +48,9 @@ function DayCell({ d }: { d: CalendarDay }) {
       <div className="flex items-start justify-between gap-1">
         <span className="text-xs font-semibold">{d.day}</span>
         {isPresence && d.workHours != null && (
-          <span className="text-[10px] font-semibold tabular-nums">{d.workHours}h</span>
+          <span className="text-[10px] font-semibold tabular-nums">
+            {formatWorkHours(d.workHours)}
+          </span>
         )}
       </div>
       {isPresence ? (

@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { ZodError } from "zod"
 import type { Session } from "next-auth"
 import { auth } from "@/server/auth"
-import { isSuperAdmin } from "@/lib/permissions"
+import { isAdmin_ } from "@/lib/permissions"
 import { AppError, UnauthorizedError, ForbiddenError } from "@/lib/errors"
 import { fail, ok } from "@/lib/api-response"
 import type { ActionResult } from "@/server/action-result"
@@ -143,7 +143,7 @@ export function withAuth(requiredPermission: string | string[], handler: AuthedH
         ? requiredPermission
         : [requiredPermission]
       const allowed =
-        isSuperAdmin(session) || permissions.every((p) => session.user.permissions.includes(p))
+        isAdmin_(session) || permissions.every((p) => session.user.permissions.includes(p))
       if (!allowed) throw new ForbiddenError("Forbidden: insufficient permissions")
 
       const params = await resolveParams(context)

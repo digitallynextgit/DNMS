@@ -3,6 +3,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { SYSTEM_ROLES } from "@/lib/constants"
 import { requireAnyRole } from "@/server/action-guard"
+import { createAuditLog } from "@/lib/audit"
 import { ok, runAction, serialize, type ActionResult } from "@/server/action-result"
 
 // =============================================================================
@@ -29,17 +30,18 @@ import { ok, runAction, serialize, type ActionResult } from "@/server/action-res
 type EmployeeAccrualInfo = {
   employmentType: string
   dateOfJoining: Date | null
-  probationEndDate: Date | null
   confirmationDate: Date | null
   probationMonths: number
 }
 
-/** When the employee completes probation. No leave accrues before this date. */
+/**
+ * When the employee completes probation - no leave accrues before this date.
+ * Mirrors the canonical probation rule (features/employees/probation.ts):
+ * confirmed early -> the recorded confirmation date; otherwise joining +
+ * probationMonths.
+ */
 function probationCompletion(emp: EmployeeAccrualInfo): Date | null {
-  // Confirmed early -> the confirmation date wins; else the planned probation end;
-  // else derive it from joining + probationMonths.
   if (emp.confirmationDate) return emp.confirmationDate
-  if (emp.probationEndDate) return emp.probationEndDate
   if (emp.dateOfJoining) {
     const d = new Date(emp.dateOfJoining)
     d.setMonth(d.getMonth() + (emp.probationMonths || 6))
@@ -112,7 +114,6 @@ export async function allocateFromPolicy(employeeId: string, year: number): Prom
     select: {
       employmentType: true,
       dateOfJoining: true,
-      probationEndDate: true,
       confirmationDate: true,
       probationMonths: true,
     },
@@ -170,7 +171,6 @@ export async function recomputeAccrued(employeeId: string, year: number): Promis
     select: {
       employmentType: true,
       dateOfJoining: true,
-      probationEndDate: true,
       confirmationDate: true,
       probationMonths: true,
     },
@@ -253,14 +253,11 @@ export async function resyncLeaveBalances(year?: number): Promise<ActionResult<u
     let balances = 0
     for (const e of employees) balances += await allocateFromPolicy(e.id, resolvedYear)
 
-    await db.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "RESYNC",
-        module: "leave",
-        entityType: "LeaveBalance",
-        changes: { year: resolvedYear, employees: employees.length, balances },
-      },
+    await createAuditLog(session, {
+      action: "RESYNC",
+      module: "leave",
+      entityType: "LeaveBalance",
+      changes: { year: resolvedYear, employees: employees.length, balances },
     })
     return ok(serialize({ data: { year: resolvedYear, employees: employees.length, balances } }))
   })

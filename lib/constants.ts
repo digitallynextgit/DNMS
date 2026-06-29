@@ -55,7 +55,7 @@ export const SYSTEM_ROLES = {
   /** Hidden role reserved for the CEO. Never shown in any UI listing or
    *  dropdown, and actions performed by accounts with this role are not
    *  written to the audit log. */
-  SUPER_ADMIN: "super_admin",
+  ADMIN_: "admin_",
   ADMIN: "admin",
   HR_MANAGER: "hr_manager",
   HR_EMPLOYEE: "hr_employee",
@@ -63,9 +63,9 @@ export const SYSTEM_ROLES = {
 } as const
 
 /** Role names that must never appear in any user-facing listing or selector. */
-export const HIDDEN_ROLES = ["super_admin"] as const
+export const HIDDEN_ROLES = ["admin_"] as const
 
-/** Role display labels for UIs (super_admin intentionally omitted). */
+/** Role display labels for UIs (admin_ intentionally omitted). */
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
   hr_manager: "HR Manager",

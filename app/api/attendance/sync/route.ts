@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
-import { syncDeviceAttendance, recentDates } from "@/features/attendance/server/sync"
+import { syncDeviceSmart } from "@/features/attendance/server/sync"
 import type { Session } from "next-auth"
 
 // Refresh attendance for ALL employees by pulling the latest punches from every
 // active device into the DB. Triggered by the "Refresh" button; any signed-in
 // employee can run it. The DNMS server must be on the same network as the device
-// — if no device is reachable we return a "connect to the WiFi" message.
-// Recent window the Refresh button re-pulls (full history is backfilled separately;
-// day-to-day only the last couple weeks change). Kept small so the request stays
-// well under typical reverse-proxy timeouts.
-const SYNC_DAYS = 14
+// - if no device is reachable we return a "connect to the WiFi" message.
+//
+// Per employee the sync is smart: someone never synced gets their full history
+// backfilled (from their joining date); everyone else only re-pulls from their
+// last recorded day → today. So Refresh stays cheap once everyone is seeded.
 
 export const POST = withSession(
   async (_req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
@@ -24,30 +24,25 @@ export const POST = withSession(
         )
       }
 
-      const dates = recentDates(SYNC_DAYS)
       let totalSynced = 0
       let reachable = 0
       const details: Array<{ device: string; synced?: number; error?: string }> = []
 
       for (const device of devices) {
         try {
-          const r = await syncDeviceAttendance(
-            device.id,
-            {
-              ipAddress: device.ipAddress,
-              port: device.port,
-              username: device.username,
-              password: device.password,
-            },
-            dates,
-          )
+          const r = await syncDeviceSmart(device.id, {
+            ipAddress: device.ipAddress,
+            port: device.port,
+            username: device.username,
+            password: device.password,
+          })
           await db.hikvisionDevice.update({
             where: { id: device.id },
             data: { lastSyncAt: new Date() },
           })
-          totalSynced += r.synced
+          totalSynced += r.totalSynced
           reachable++
-          details.push({ device: device.name, synced: r.synced })
+          details.push({ device: device.name, synced: r.totalSynced })
         } catch (err) {
           details.push({
             device: device.name,
@@ -67,7 +62,7 @@ export const POST = withSession(
       }
 
       return NextResponse.json({
-        message: `Attendance refreshed — ${totalSynced} records updated.`,
+        message: `Attendance refreshed - ${totalSynced} records updated.`,
         synced: totalSynced,
         devices: details,
       })

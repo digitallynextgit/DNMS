@@ -16,7 +16,7 @@ export interface DataTableColumn<T> {
   headClassName?: string
 }
 
-/** Multi-select wiring — pass the result of `useRowSelection(pageIds)`. */
+/** Multi-select wiring - pass the result of `useRowSelection(pageIds)`. */
 export interface DataTableSelection {
   isSelected: (key: string) => boolean
   toggle: (key: string) => void

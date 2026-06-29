@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { useForm } from "react-hook-form"
+import { useForm, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -58,6 +58,7 @@ import {
   useEmailAvailability,
   type EmailAvailability,
 } from "@/features/employees/hooks/use-employees"
+import { useJobRoles } from "@/features/employees/hooks/use-job-roles"
 import { EmployeeCombobox } from "@/features/employees/components/employee-combobox"
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
@@ -80,6 +81,7 @@ const formSchema = z.object({
   // Step 2 - Employment (required core fields)
   departmentId: z.string().min(1, "Department is required"),
   designationId: z.string().min(1, "Designation is required"),
+  jobRoleId: z.string().optional(),
   managerId: z.string().optional(),
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]),
   dateOfJoining: z.string().min(1, "Date of joining is required"),
@@ -271,6 +273,51 @@ const STEPS = [
   { number: 5, label: "Review & Submit" },
 ]
 
+// Which wizard step each field lives on, so a validation error can jump the
+// user straight to the step that needs fixing (used by the submit onInvalid
+// handler). Anything not listed defaults to step 1.
+const FIELD_TO_STEP: Partial<Record<keyof FormData, number>> = {
+  firstName: 1,
+  lastName: 1,
+  email: 1,
+  personalEmail: 1,
+  phone: 1,
+  personalPhone: 1,
+  dateOfBirth: 1,
+  gender: 1,
+  nationality: 1,
+  bloodGroup: 1,
+  employeeNo: 2,
+  departmentId: 2,
+  designationId: 2,
+  jobRoleId: 2,
+  managerId: 2,
+  employmentType: 2,
+  dateOfJoining: 2,
+  probationEndDate: 2,
+  onProbation: 2,
+  probationMonths: 2,
+  workLocation: 2,
+  deviceId: 2,
+  password: 2,
+  mustChangePassword: 2,
+  gmailAppPassword: 2,
+  currentLine1: 4,
+  currentLine2: 4,
+  currentCity: 4,
+  currentState: 4,
+  currentZip: 4,
+  sameAsCurrent: 4,
+  permanentLine1: 4,
+  permanentLine2: 4,
+  permanentCity: 4,
+  permanentState: 4,
+  permanentZip: 4,
+  emergencyName: 4,
+  emergencyRelation: 4,
+  emergencyPhone: 4,
+}
+
 // ─── Document step state ──────────────────────────────────────────────────────
 
 type DocCategory = keyof typeof DOCUMENT_CATEGORY_LABELS
@@ -423,6 +470,10 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [currentStep, setCurrentStep] = useState(1)
+  // Stays true from a successful save until the route actually swaps in, so the
+  // submit button keeps a spinner during the (dev-only) page compile + fetch
+  // instead of snapping back to "Create Employee" and looking stuck.
+  const [redirecting, setRedirecting] = useState(false)
 
   // Documents step state
   const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([])
@@ -564,6 +615,13 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   const sameAsCurrent = watch("sameAsCurrent")
   const watchedValues = watch()
 
+  // Job roles for the currently-selected department (the dropdown is filtered;
+  // empty until a department is picked).
+  const { data: jobRolesData } = useJobRoles({
+    departmentId: watchedValues.departmentId || undefined,
+  })
+  const jobRoleList = watchedValues.departmentId ? (jobRolesData ?? []) : []
+
   // Real-time, debounced duplicate-email checks (skip the edited employee's own
   // record). Both fields are checked against work AND personal emails.
   const excludeForCheck = mode === "edit" ? employeeId : undefined
@@ -582,9 +640,9 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codesData, mode, setValue])
 
-  // Probation fields are editable only by Super Admin / Admin / HR Manager.
-  const { isSuperAdmin, roles } = usePermissions()
-  const isProbationAdmin = isSuperAdmin || roles.includes("admin") || roles.includes("hr_manager")
+  // Probation fields are editable only by Admin_ / Admin / HR Manager.
+  const { isAdmin_, roles } = usePermissions()
+  const isProbationAdmin = isAdmin_ || roles.includes("admin") || roles.includes("hr_manager")
 
   // Live preview of when probation ends, from the joining date + selected period.
   const probationPreview = getProbationStatus({
@@ -624,6 +682,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
         bloodGroup: emp.bloodGroup ?? "",
         departmentId: emp.department?.id ?? "",
         designationId: emp.designation?.id ?? "",
+        jobRoleId: emp.jobRole?.id ?? "",
         managerId: emp.manager?.id ?? "",
         employmentType: (emp.employmentType as FormData["employmentType"]) ?? "FULL_TIME",
         dateOfJoining: emp.dateOfJoining ? emp.dateOfJoining.split("T")[0] : "",
@@ -690,6 +749,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
     // Don't leave step 1 while a duplicate email is flagged. The red EmailStatusHint
     // under the field already explains why; the server re-checks on submit too.
     if (currentStep === 1 && (emailStatus === "taken" || personalEmailStatus === "taken")) {
+      toast.error("This email is already used by another employee")
       return
     }
 
@@ -702,6 +762,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
           type: "required",
           message: "Gmail App Password is required",
         })
+        toast.error("Gmail App Password is required (or turn it off to skip)")
         return
       }
     }
@@ -714,6 +775,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
           type: "required",
           message: "Password must be at least 8 characters",
         })
+        toast.error("Login password must be at least 8 characters")
         return
       }
     }
@@ -745,10 +807,19 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
           clearErrors(field)
         }
       }
-      if (addrHasError) return
+      if (addrHasError) {
+        toast.error("Please fill in all required address fields")
+        return
+      }
     }
 
-    if (valid) setCurrentStep((s) => Math.min(s + 1, STEPS.length))
+    if (valid) {
+      setCurrentStep((s) => Math.min(s + 1, STEPS.length))
+    } else {
+      // trigger() has already painted the red inline messages; nudge the user
+      // so an empty required field off-screen doesn't look like a dead button.
+      toast.error("Please fill in all required fields on this step")
+    }
   }
 
   function goPrev() {
@@ -777,6 +848,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       bloodGroup: data.bloodGroup || undefined,
       departmentId: data.departmentId || undefined,
       designationId: data.designationId || undefined,
+      jobRoleId: data.jobRoleId || undefined,
       managerId: data.managerId || undefined,
       employmentType: data.employmentType,
       dateOfJoining: data.dateOfJoining || undefined,
@@ -833,18 +905,59 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       if (created?.id) {
         // Upload any staged documents before redirecting.
         if (pendingDocs.length > 0) await uploadPendingDocs(created.id)
-        router.push(
-          `/employees/${employeeSlug(created.employeeNo, created.firstName, created.lastName)}`,
-        )
+        const slug = employeeSlug(created.employeeNo, created.firstName, created.lastName)
+        goToProfile(slug, created)
       }
     } else if (mode === "edit" && employeeId) {
       await updateEmployee.mutateAsync({ id: employeeId, body: payload as Record<string, unknown> })
       if (pendingDocs.length > 0) await uploadPendingDocs(employeeId)
-      router.push(`/employees/${employeeSlug(data.employeeNo, data.firstName, data.lastName)}`)
+      goToProfile(employeeSlug(data.employeeNo, data.firstName, data.lastName))
     }
   }
 
-  const isSubmitting = createEmployee.isPending || updateEmployee.isPending || docsBusy
+  // Warm the destination route + seed its detail cache so the profile paints
+  // immediately, and hold the submit button in a busy state until the route
+  // swaps in (the component unmounts on navigation, so this never resets here).
+  function goToProfile(slug: string, seed?: { id: string }) {
+    const url = `/employees/${slug}`
+    if (seed) {
+      // Show the header straight away from what we already have, then refetch
+      // the full detail (invalidate marks it stale so the page still loads the
+      // address / roles / tabs the create result doesn't include).
+      queryClient.setQueryData(["employee", slug], { data: seed })
+      queryClient.invalidateQueries({ queryKey: ["employee", slug] })
+    }
+    router.prefetch(url)
+    setRedirecting(true)
+    router.push(url)
+  }
+
+  // Final-submit validation failed. Without this, handleSubmit() silently does
+  // nothing and the "Create Employee" button looks broken. Jump to the earliest
+  // step with an error and name the first problem so it's clear what to fix.
+  function onInvalid(formErrors: FieldErrors<FormData>) {
+    const errored = (Object.keys(formErrors) as (keyof FormData)[]).filter((f) => formErrors[f])
+    if (errored.length === 0) {
+      toast.error("Please fix the highlighted fields before saving")
+      return
+    }
+    const stepOf = (f: keyof FormData) => FIELD_TO_STEP[f] ?? 1
+    errored.sort((a, b) => stepOf(a) - stepOf(b))
+    const targetStep = stepOf(errored[0])
+    setCurrentStep(targetStep)
+    const firstMsg = formErrors[errored[0]]?.message
+    const extra = errored.length - 1
+    toast.error(
+      extra > 0
+        ? `${firstMsg || "Please fix the highlighted fields"} (and ${extra} more issue${
+            extra > 1 ? "s" : ""
+          })`
+        : firstMsg || "Please fix the highlighted fields",
+    )
+  }
+
+  const isSubmitting =
+    createEmployee.isPending || updateEmployee.isPending || docsBusy || redirecting
 
   if (mode === "edit" && isLoadingEmployee) {
     return (
@@ -858,7 +971,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   const selectedDesig = designations.find((d) => d.id === watchedValues.designationId)
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
+    <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
       <StepIndicator steps={STEPS} currentStep={currentStep} />
 
       {/* ── Step 1: Personal Info ──────────────────────────────────────────── */}
@@ -869,7 +982,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <FormField label="First Name" required error={errors.firstName?.message}>
-              <Input {...register("firstName")} placeholder="John" />
+              <Input {...register("firstName")} placeholder="Diwakar" />
             </FormField>
 
             <FormField label="Last Name" required error={errors.lastName?.message}>
@@ -877,12 +990,12 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             </FormField>
 
             <FormField label="Work Email" required error={errors.email?.message}>
-              <Input {...register("email")} type="email" placeholder="john.doe@company.com" />
+              <Input {...register("email")} type="email" placeholder="Diwakar.doe@company.com" />
               {!errors.email && <EmailStatusHint status={emailStatus} />}
             </FormField>
 
             <FormField label="Personal Email" required error={errors.personalEmail?.message}>
-              <Input {...register("personalEmail")} type="email" placeholder="john@gmail.com" />
+              <Input {...register("personalEmail")} type="email" placeholder="Diwakar@gmail.com" />
               {!errors.personalEmail && <EmailStatusHint status={personalEmailStatus} />}
             </FormField>
 
@@ -1075,7 +1188,11 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               <Select
                 key={`dept-${watchedValues.departmentId || "none"}`}
                 value={watchedValues.departmentId || ""}
-                onValueChange={(v) => setValue("departmentId", v, { shouldValidate: true })}
+                onValueChange={(v) => {
+                  setValue("departmentId", v, { shouldValidate: true })
+                  // Job role belongs to a department - clear it when the dept changes.
+                  setValue("jobRoleId", "")
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select department" />
@@ -1105,6 +1222,35 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                       {d.title}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField label="Job Role" error={errors.jobRoleId?.message}>
+              <Select
+                key={`jobrole-${watchedValues.departmentId || "nodept"}-${watchedValues.jobRoleId || "none"}`}
+                value={watchedValues.jobRoleId || "none"}
+                onValueChange={(v) => setValue("jobRoleId", v === "none" ? "" : v)}
+                disabled={!watchedValues.departmentId}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      watchedValues.departmentId
+                        ? "Select job role (optional)"
+                        : "Pick a department first"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">- None —</SelectItem>
+                  {jobRoleList
+                    .filter((r) => r.isActive)
+                    .map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </FormField>
@@ -1793,7 +1939,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  {redirecting ? "Opening profile…" : "Saving..."}
                 </>
               ) : mode === "create" ? (
                 "Create Employee"
