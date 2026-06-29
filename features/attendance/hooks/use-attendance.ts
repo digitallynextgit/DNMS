@@ -103,6 +103,34 @@ interface PaginatedResponse<T> {
   }
 }
 
+export type CalendarDayStatus =
+  | "PRESENT"
+  | "HALF_DAY"
+  | "ABSENT"
+  | "WEEKEND"
+  | "HOLIDAY"
+  | "LEAVE"
+  | "UPCOMING"
+
+export interface CalendarDay {
+  date: string
+  day: number
+  dow: number
+  status: CalendarDayStatus
+  label: string | null
+  checkIn: string | null
+  checkOut: string | null
+  workHours: number | null
+}
+
+export interface AttendanceCalendarMonth {
+  year: number
+  month: number
+  /** ISO date (YYYY-MM-DD) of the employee's first-ever punch, or null. */
+  firstPunchDate: string | null
+  days: CalendarDay[]
+}
+
 // ─── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function fetchAttendanceLogs(
@@ -129,6 +157,16 @@ async function fetchMyAttendance(
   if (filters.limit) params.set("limit", String(filters.limit))
 
   return apiFetch<PaginatedResponse<AttendanceLog>>(`/api/attendance/me?${params.toString()}`)
+}
+
+async function fetchMyCalendar(
+  year: number,
+  month: number,
+): Promise<{ data: AttendanceCalendarMonth }> {
+  const mm = String(month).padStart(2, "0")
+  return apiFetch<{ data: AttendanceCalendarMonth }>(
+    `/api/attendance/me/calendar?month=${year}-${mm}`,
+  )
 }
 
 async function fetchAttendanceSummary(
@@ -236,6 +274,36 @@ export function useMyAttendance(filters: MyAttendanceFilters = {}) {
   return useQuery({
     queryKey: ["my-attendance", filters],
     queryFn: () => fetchMyAttendance(filters),
+    staleTime: 30_000,
+  })
+}
+
+async function syncAllAttendance(): Promise<{ message: string; synced: number }> {
+  return apiFetch<{ message: string; synced: number }>("/api/attendance/sync", { method: "POST" })
+}
+
+/** Refresh DB from the device (all employees). Shows the WiFi message on failure. */
+export function useSyncAttendance() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: syncAllAttendance,
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["my-attendance"] })
+      qc.invalidateQueries({ queryKey: ["my-attendance-calendar"] })
+      qc.invalidateQueries({ queryKey: ["attendance-logs"] })
+      qc.invalidateQueries({ queryKey: ["attendance-summary"] })
+      toast.success(data.message || "Attendance refreshed")
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to refresh attendance")
+    },
+  })
+}
+
+export function useMyAttendanceCalendar(year: number, month: number) {
+  return useQuery({
+    queryKey: ["my-attendance-calendar", year, month],
+    queryFn: () => fetchMyCalendar(year, month),
     staleTime: 30_000,
   })
 }

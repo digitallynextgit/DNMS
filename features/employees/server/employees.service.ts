@@ -595,7 +595,9 @@ function buildOrgTree(
 
 export async function getOrgChart(): Promise<ActionResult<{ data: OrgNode[] }>> {
   return runAction(async () => {
-    await requirePermission(PERMISSIONS.EMPLOYEE_READ)
+    // Org chart is visible to every signed-in employee (matches the page route,
+    // which proxy.ts gates with `null`), not just those with employee:read.
+    await requireSession()
     const employees = await db.employee.findMany({
       where: { isActive: true },
       select: {

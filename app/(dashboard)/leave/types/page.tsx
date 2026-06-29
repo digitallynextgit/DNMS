@@ -23,6 +23,8 @@ import { PERMISSIONS } from "@/lib/constants"
 import { Plus, MoreHorizontal, Pencil, ToggleLeft, ToggleRight, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination } from "@/components/shared/pagination"
+import { useRowSelection } from "@/hooks/use-row-selection"
+import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 
 const PAGE_SIZE = 10
 
@@ -49,6 +51,8 @@ export default function LeaveTypesPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
   const pagedTypes = leaveTypes.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const selection = useRowSelection(pagedTypes.map((t) => t.id))
+  const [bulkOpen, setBulkOpen] = useState(false)
 
   function openCreate() {
     setEditingType(null)
@@ -71,6 +75,14 @@ export default function LeaveTypesPage() {
     if (!deleteId) return
     await deleteLeaveType.mutateAsync(deleteId)
     setDeleteId(null)
+  }
+
+  async function handleBulkDeactivate() {
+    for (const id of selection.selectedIds) {
+      await deleteLeaveType.mutateAsync(id)
+    }
+    selection.clear()
+    setBulkOpen(false)
   }
 
   if (!canManage) {
@@ -216,6 +228,18 @@ export default function LeaveTypesPage() {
         }
       />
 
+      <BulkActionBar count={selection.count} onClear={selection.clear}>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setBulkOpen(true)}
+          disabled={deleteLeaveType.isPending}
+        >
+          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+          Deactivate
+        </Button>
+      </BulkActionBar>
+
       {/* Table */}
       {isLoading ? (
         <ListSkeleton rows={5} height="h-14" />
@@ -226,7 +250,14 @@ export default function LeaveTypesPage() {
           action={{ label: "Create First Leave Type", onClick: openCreate }}
         />
       ) : (
-        <DataTable columns={columns} rows={pagedTypes} rowKey={(type) => type.id} />
+        <DataTable
+          columns={columns}
+          rows={pagedTypes}
+          rowKey={(type) => type.id}
+          showSerial
+          serialOffset={(currentPage - 1) * PAGE_SIZE}
+          selection={selection}
+        />
       )}
 
       {!isLoading && total > 0 && (
@@ -249,6 +280,17 @@ export default function LeaveTypesPage() {
         confirmLabel="Deactivate"
         variant="destructive"
         onConfirm={handleDelete}
+        isLoading={deleteLeaveType.isPending}
+      />
+
+      <ConfirmDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        title={`Deactivate ${selection.count} leave type${selection.count === 1 ? "" : "s"}?`}
+        description="The selected leave types will be deactivated and hidden from employees. Existing requests and balances are unaffected."
+        confirmLabel="Deactivate"
+        variant="destructive"
+        onConfirm={handleBulkDeactivate}
         isLoading={deleteLeaveType.isPending}
       />
     </div>

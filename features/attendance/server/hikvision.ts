@@ -26,18 +26,21 @@ export interface DeviceInfo {
   model: string
 }
 
-/** Raw event record returned by the Hikvision AcsEvent endpoint */
+/** Raw event record returned by the Hikvision AcsEvent endpoint (real field names). */
 interface HikvisionAcsEvent {
-  majorEventType: number
-  subEventType: number
-  /** Employee number as string, matches AttendanceRule employeeNoString */
+  /** Event category. 5 = Access Control, 2 = device/door management. */
+  major?: number
+  /** Event sub-type. 75 = access granted (face/card/fp) — carries employeeNoString. */
+  minor?: number
+  /** Person ID set on the device; matches Employee.deviceId / employeeNo. */
   employeeNoString?: string
   name?: string
-  /** "YYYY-MM-DDThh:mm:ss+ZZ:ZZ" */
-  dateTime?: string
-  /** 1 = check-in, 2 = check-out */
+  /** "YYYY-MM-DDThh:mm:ss+ZZ:ZZ" — the device's event timestamp. */
+  time?: string
   currentVerifyMode?: string
   cardNo?: string
+  cardReaderNo?: number
+  doorNo?: number
   serialNo?: number
 }
 
@@ -222,6 +225,7 @@ export async function fetchAttendanceEvents(
   startDate: Date,
   endDate: Date,
   major = 0, // 0 = all events, 5 = Access Control only
+  minor = 0, // 0 = all sub-types, 75 = access granted (person punches only)
 ): Promise<{ events: AttendanceEvent[]; error?: string }> {
   const formatISOLocal = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, "+00:00")
 
@@ -231,7 +235,7 @@ export async function fetchAttendanceEvents(
       searchResultPosition: 0,
       maxResults: 50,
       major,
-      minor: 0,
+      minor,
       startTime: formatISOLocal(startDate),
       endTime: formatISOLocal(endDate),
     },
@@ -239,7 +243,9 @@ export async function fetchAttendanceEvents(
 
   const allEvents: AttendanceEvent[] = []
   let position = 0
-  const maxPages = 20 // safety limit
+  // Device returns ~30/page; a single busy day can exceed 500 events. With
+  // per-day fetching this caps one day at 50*~30 ≈ 1500 events.
+  const maxPages = 50 // safety limit
 
   for (let page = 0; page < maxPages; page++) {
     searchCondition.AcsEventCond.searchResultPosition = position
@@ -282,26 +288,16 @@ export async function fetchAttendanceEvents(
     const rawList: HikvisionAcsEvent[] = acsEvent.InfoList ?? []
 
     for (const raw of rawList) {
-      if (!raw.employeeNoString || !raw.dateTime) continue
+      // Only person-identified access grants (minor 75) carry employeeNoString +
+      // time; door/alarm events (minor 21-24, major 2) have neither, so skip them.
+      if (!raw.employeeNoString || !raw.time) continue
 
-      const timestamp = new Date(raw.dateTime)
+      const timestamp = new Date(raw.time)
       if (isNaN(timestamp.getTime())) continue
 
-      // Hikvision uses subEventType to indicate direction:
-      //   75  = check-in,  76 = check-out (most models)
-      //   currentVerifyMode "verifyMode" strings also carry direction
-      let direction: AttendanceEvent["direction"] = "unknown"
-      if (raw.subEventType === 75 || raw.currentVerifyMode === "entrance") {
-        direction = "check-in"
-      } else if (raw.subEventType === 76 || raw.currentVerifyMode === "exit") {
-        direction = "check-out"
-      }
-
-      allEvents.push({
-        employeeNo: raw.employeeNoString,
-        timestamp,
-        direction,
-      })
+      // This single-reader device doesn't encode entry/exit direction, so the
+      // caller derives the day's first punch = check-in, last = check-out.
+      allEvents.push({ employeeNo: raw.employeeNoString, timestamp, direction: "unknown" })
     }
 
     const matched = acsEvent.numOfMatches ?? rawList.length

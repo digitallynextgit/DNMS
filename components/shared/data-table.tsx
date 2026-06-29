@@ -1,5 +1,8 @@
+"use client"
+
 import * as React from "react"
 
+import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 
 export interface DataTableColumn<T> {
@@ -13,6 +16,15 @@ export interface DataTableColumn<T> {
   headClassName?: string
 }
 
+/** Multi-select wiring — pass the result of `useRowSelection(pageIds)`. */
+export interface DataTableSelection {
+  isSelected: (key: string) => boolean
+  toggle: (key: string) => void
+  toggleAll: () => void
+  allSelected: boolean
+  someSelected: boolean
+}
+
 interface DataTableProps<T> {
   columns: DataTableColumn<T>[]
   rows: T[]
@@ -21,13 +33,20 @@ interface DataTableProps<T> {
   /** Min width for horizontal scroll on small screens, e.g. "min-w-[680px]". */
   minWidth?: string
   className?: string
+  /** Render a leading auto-numbered "S.No" column. */
+  showSerial?: boolean
+  /** Offset for the S.No when paginated, e.g. (page - 1) * pageSize. */
+  serialOffset?: number
+  /** Enable multi-select checkboxes (header select-all + per-row). */
+  selection?: DataTableSelection
 }
 
 /**
- * Read-only table with the app's house styling (the `bg-card` bordered panel,
- * `bg-muted/40` header, `divide-y` body, hover rows). Replaces hand-rolled
- * `<table>` shells for plain list tables - columns differ only in their
- * `cell` renderers. (Selection/summary/financial tables stay bespoke.)
+ * Shared table with the app's house styling (bordered `bg-card` panel,
+ * `bg-muted/40` header, `divide-y` body, hover rows). Columns differ only in
+ * their `cell` renderers. Optionally renders a leading **S.No** column
+ * (`showSerial`) and **multi-select** checkboxes (`selection`, paired with
+ * `useRowSelection` + `BulkActionBar`).
  */
 export function DataTable<T>({
   columns,
@@ -36,6 +55,9 @@ export function DataTable<T>({
   onRowClick,
   minWidth,
   className,
+  showSerial,
+  serialOffset = 0,
+  selection,
 }: DataTableProps<T>) {
   const alignClass = (align?: DataTableColumn<T>["align"]) =>
     align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
@@ -46,6 +68,24 @@ export function DataTable<T>({
         <table className={cn("w-full text-sm", minWidth)}>
           <thead>
             <tr className="bg-muted/40 border-b">
+              {selection && (
+                <th className="w-10 px-4 py-3">
+                  <Checkbox
+                    checked={
+                      selection.allSelected
+                        ? true
+                        : selection.someSelected
+                          ? "indeterminate"
+                          : false
+                    }
+                    onCheckedChange={() => selection.toggleAll()}
+                    aria-label="Select all"
+                  />
+                </th>
+              )}
+              {showSerial && (
+                <th className="text-muted-foreground w-12 px-4 py-3 text-left font-medium">S.No</th>
+              )}
               {columns.map((col, i) => (
                 <th
                   key={i}
@@ -61,22 +101,41 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody className="divide-y">
-            {rows.map((row, rowIndex) => (
-              <tr
-                key={rowKey(row)}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={cn(
-                  "hover:bg-muted/20 transition-colors",
-                  onRowClick && "cursor-pointer",
-                )}
-              >
-                {columns.map((col, i) => (
-                  <td key={i} className={cn("px-4 py-3", alignClass(col.align), col.className)}>
-                    {col.cell(row, rowIndex)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {rows.map((row, rowIndex) => {
+              const key = rowKey(row)
+              const selected = selection?.isSelected(key) ?? false
+              return (
+                <tr
+                  key={key}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={cn(
+                    "hover:bg-muted/20 transition-colors",
+                    onRowClick && "cursor-pointer",
+                    selected && "bg-muted/30",
+                  )}
+                >
+                  {selection && (
+                    <td className="w-10 px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selected}
+                        onCheckedChange={() => selection.toggle(key)}
+                        aria-label="Select row"
+                      />
+                    </td>
+                  )}
+                  {showSerial && (
+                    <td className="text-muted-foreground px-4 py-3 tabular-nums">
+                      {serialOffset + rowIndex + 1}
+                    </td>
+                  )}
+                  {columns.map((col, i) => (
+                    <td key={i} className={cn("px-4 py-3", alignClass(col.align), col.className)}>
+                      {col.cell(row, rowIndex)}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

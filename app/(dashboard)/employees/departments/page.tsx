@@ -23,6 +23,8 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { BulkActionBar } from "@/components/shared/bulk-action-bar"
+import { useRowSelection } from "@/hooks/use-row-selection"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -188,6 +190,27 @@ export default function DepartmentsPage() {
 
   const rows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  const selection = useRowSelection(rows.map((d) => d.id))
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkPending, setBulkPending] = useState(false)
+
+  async function handleBulkDeactivate() {
+    setBulkPending(true)
+    try {
+      for (const id of selection.selectedIds) {
+        await patchActive(id, false)
+      }
+      invalidate()
+      selection.clear()
+      setBulkOpen(false)
+      toast.success("Departments deactivated")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to deactivate")
+    } finally {
+      setBulkPending(false)
+    }
+  }
+
   const columns: DataTableColumn<Department>[] = [
     {
       header: "Name",
@@ -298,6 +321,20 @@ export default function DepartmentsPage() {
         className="max-w-sm"
       />
 
+      {canWrite && (
+        <BulkActionBar count={selection.count} onClear={selection.clear}>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setBulkOpen(true)}
+            disabled={bulkPending}
+          >
+            <Power className="mr-1.5 h-3.5 w-3.5" />
+            Deactivate
+          </Button>
+        </BulkActionBar>
+      )}
+
       {isLoading ? (
         <div className="bg-card rounded border">
           <ListSkeleton rows={5} height="h-12" className="p-4" />
@@ -311,7 +348,14 @@ export default function DepartmentsPage() {
           <EmptyState title="No departments match your search." compact />
         </div>
       ) : (
-        <DataTable columns={columns} rows={rows} rowKey={(d) => d.id} />
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(d) => d.id}
+          showSerial
+          serialOffset={(page - 1) * PAGE_SIZE}
+          selection={canWrite ? selection : undefined}
+        />
       )}
 
       <Pagination
@@ -386,6 +430,17 @@ export default function DepartmentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        title={`Deactivate ${selection.count} department${selection.count === 1 ? "" : "s"}?`}
+        description="The selected departments will be deactivated. Employees stay assigned; you can reactivate them later."
+        confirmLabel="Deactivate"
+        variant="destructive"
+        onConfirm={handleBulkDeactivate}
+        isLoading={bulkPending}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

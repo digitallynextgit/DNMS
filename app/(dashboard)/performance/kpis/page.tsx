@@ -22,6 +22,8 @@ import { Pagination } from "@/components/shared/pagination"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { BulkActionBar } from "@/components/shared/bulk-action-bar"
+import { useRowSelection } from "@/hooks/use-row-selection"
 
 const PAGE_SIZE = 10
 
@@ -50,6 +52,10 @@ export default function KpisPage() {
   const total = kpis.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const pageKpis = kpis.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const selection = useRowSelection(pageKpis.map((k) => k.id))
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkPending, setBulkPending] = useState(false)
 
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
@@ -91,6 +97,24 @@ export default function KpisPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   })
+
+  async function handleBulkDelete() {
+    setBulkPending(true)
+    try {
+      for (const id of selection.selectedIds) {
+        const res = await fetch(`/api/performance/kpis/${id}`, { method: "DELETE" })
+        if (!res.ok) throw new Error("Failed to delete")
+      }
+      invalidate()
+      selection.clear()
+      setBulkOpen(false)
+      toast.success("KPIs removed")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete")
+    } finally {
+      setBulkPending(false)
+    }
+  }
 
   const columns: DataTableColumn<Kpi>[] = [
     {
@@ -139,6 +163,18 @@ export default function KpisPage() {
         }
       />
 
+      <BulkActionBar count={selection.count} onClear={selection.clear}>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setBulkOpen(true)}
+          disabled={bulkPending}
+        >
+          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+          Delete
+        </Button>
+      </BulkActionBar>
+
       {isLoading ? (
         <div className="bg-card rounded border">
           <div className="space-y-2 p-4">
@@ -152,7 +188,14 @@ export default function KpisPage() {
           <EmptyState title="No KPIs defined yet." />
         </div>
       ) : (
-        <DataTable columns={columns} rows={pageKpis} rowKey={(k) => k.id} />
+        <DataTable
+          columns={columns}
+          rows={pageKpis}
+          rowKey={(k) => k.id}
+          showSerial
+          serialOffset={(page - 1) * PAGE_SIZE}
+          selection={selection}
+        />
       )}
 
       {!isLoading && total > 0 && (
@@ -215,6 +258,17 @@ export default function KpisPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        title={`Delete ${selection.count} KPI${selection.count === 1 ? "" : "s"}?`}
+        description="The selected KPIs will be removed from future reviews."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleBulkDelete}
+        isLoading={bulkPending}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

@@ -12,6 +12,8 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { BulkActionBar } from "@/components/shared/bulk-action-bar"
+import { useRowSelection } from "@/hooks/use-row-selection"
 import {
   Dialog,
   DialogContent,
@@ -41,6 +43,8 @@ export default function HolidaysPage() {
   const totalPages = Math.max(1, Math.ceil(holidays.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
   const pagedHolidays = holidays.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const selection = useRowSelection(pagedHolidays.map((h) => h.id))
+  const [bulkOpen, setBulkOpen] = useState(false)
 
   // Reset to the first page whenever the year filter changes.
   function changeYear(next: number) {
@@ -80,6 +84,14 @@ export default function HolidaysPage() {
     setDeleteId(null)
   }
 
+  async function handleBulkDelete() {
+    for (const id of selection.selectedIds) {
+      await deleteHoliday.mutateAsync(id)
+    }
+    selection.clear()
+    setBulkOpen(false)
+  }
+
   type HolidayRow = (typeof holidays)[number]
   const columns: DataTableColumn<HolidayRow>[] = [
     {
@@ -106,7 +118,7 @@ export default function HolidaysPage() {
             holiday.isOptional ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700",
           )}
         >
-          {holiday.isOptional ? "Optional" : "Mandatory"}
+          {holiday.isOptional ? "Floating" : "Fixed"}
         </span>
       ),
     },
@@ -157,6 +169,20 @@ export default function HolidaysPage() {
         </Button>
       </div>
 
+      {canWrite && (
+        <BulkActionBar count={selection.count} onClear={selection.clear}>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setBulkOpen(true)}
+            disabled={deleteHoliday.isPending}
+          >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            Delete
+          </Button>
+        </BulkActionBar>
+      )}
+
       {isLoading ? (
         <ListSkeleton rows={6} height="h-14" />
       ) : holidays.length === 0 ? (
@@ -169,7 +195,14 @@ export default function HolidaysPage() {
           }
         />
       ) : (
-        <DataTable columns={columns} rows={pagedHolidays} rowKey={(holiday) => holiday.id} />
+        <DataTable
+          columns={columns}
+          rows={pagedHolidays}
+          rowKey={(holiday) => holiday.id}
+          showSerial
+          serialOffset={(currentPage - 1) * PAGE_SIZE}
+          selection={canWrite ? selection : undefined}
+        />
       )}
 
       <Pagination
@@ -234,7 +267,8 @@ export default function HolidaysPage() {
                 onCheckedChange={(v) => setIsOptional(!!v)}
               />
               <Label htmlFor="is-optional" className="mb-0 cursor-pointer font-normal">
-                Optional holiday (employee can choose to take it)
+                Floating holiday (employees avail any 3; otherwise it&apos;s a fixed company
+                holiday)
               </Label>
             </div>
 
@@ -258,6 +292,18 @@ export default function HolidaysPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk delete confirmation */}
+      <ConfirmDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        title={`Delete ${selection.count} holiday${selection.count === 1 ? "" : "s"}?`}
+        description="The selected holidays will be permanently deleted. This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleBulkDelete}
+        isLoading={deleteHoliday.isPending}
+      />
 
       {/* Delete confirmation */}
       <ConfirmDialog

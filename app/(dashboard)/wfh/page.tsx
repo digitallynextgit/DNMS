@@ -11,6 +11,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { BulkActionBar } from "@/components/shared/bulk-action-bar"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { useRowSelection } from "@/hooks/use-row-selection"
 import { useMyWfhRequests, useWfhEligibility, useCancelWfh } from "@/features/wfh"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -24,6 +28,89 @@ export default function MyWfhPage() {
 
   const requests = requestsData?.data ?? []
   const pagination = requestsData?.pagination
+  const selection = useRowSelection(requests.map((r) => r.id))
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkPending, setBulkPending] = useState(false)
+
+  const pendingSelectedCount = requests.filter(
+    (r) => selection.isSelected(r.id) && r.status === "PENDING",
+  ).length
+
+  async function handleBulkCancel() {
+    const ids = requests
+      .filter((r) => selection.isSelected(r.id) && r.status === "PENDING")
+      .map((r) => r.id)
+    setBulkPending(true)
+    try {
+      for (const id of ids) {
+        await cancel.mutateAsync(id)
+      }
+      selection.clear()
+      setBulkOpen(false)
+    } finally {
+      setBulkPending(false)
+    }
+  }
+
+  type WfhRow = (typeof requests)[number]
+  const columns: DataTableColumn<WfhRow>[] = [
+    {
+      header: "Date",
+      className: "font-medium whitespace-nowrap",
+      cell: (r) =>
+        new Date(r.date).toLocaleDateString("en-IN", {
+          weekday: "short",
+          day: "2-digit",
+          month: "short",
+        }),
+    },
+    {
+      header: "Reason",
+      className: "text-muted-foreground max-w-[300px] truncate",
+      cell: (r) => r.reason || "-",
+    },
+    {
+      header: "Type",
+      cell: (r) =>
+        r.isEmergency ? (
+          <Badge
+            variant="outline"
+            className="border-red-200 bg-red-50 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"
+          >
+            Emergency
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-xs">Standard</span>
+        ),
+    },
+    {
+      header: "Status",
+      cell: (r) => (
+        <StatusBadge
+          status={r.status}
+          colorMap={LEAVE_STATUS_COLORS}
+          labelMap={LEAVE_STATUS_LABELS}
+        />
+      ),
+    },
+    {
+      header: "Action",
+      align: "right",
+      cell: (r) =>
+        r.status === "PENDING" ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={() => cancel.mutate(r.id)}
+            disabled={cancel.isPending}
+          >
+            <Ban className="mr-1 h-3.5 w-3.5" />
+            Cancel
+          </Button>
+        ) : null,
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -96,77 +183,32 @@ export default function MyWfhPage() {
         <h4 className="text-muted-foreground text-[11px] font-semibold tracking-widest uppercase">
           Request History
         </h4>
+        <BulkActionBar count={selection.count} onClear={selection.clear}>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setBulkOpen(true)}
+            disabled={bulkPending || pendingSelectedCount === 0}
+          >
+            <Ban className="mr-1.5 h-3.5 w-3.5" />
+            Cancel{pendingSelectedCount > 0 ? ` (${pendingSelectedCount})` : ""}
+          </Button>
+        </BulkActionBar>
+
         {reqLoading ? (
           <ListSkeleton rows={3} height="h-14" />
         ) : requests.length === 0 ? (
           <EmptyState icon={Inbox} title="No WFH requests yet." variant="card" />
         ) : (
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 border-border border-b">
-                    <tr className="text-muted-foreground text-left text-xs tracking-wider uppercase">
-                      <th className="px-4 py-2.5 font-medium">Date</th>
-                      <th className="px-4 py-2.5 font-medium">Reason</th>
-                      <th className="px-4 py-2.5 font-medium">Type</th>
-                      <th className="px-4 py-2.5 font-medium">Status</th>
-                      <th className="px-4 py-2.5 text-right font-medium">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-border divide-y">
-                    {requests.map((r) => (
-                      <tr key={r.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-2.5 font-medium whitespace-nowrap">
-                          {new Date(r.date).toLocaleDateString("en-IN", {
-                            weekday: "short",
-                            day: "2-digit",
-                            month: "short",
-                          })}
-                        </td>
-                        <td className="text-muted-foreground max-w-[300px] truncate px-4 py-2.5">
-                          {r.reason || "-"}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          {r.isEmergency ? (
-                            <Badge
-                              variant="outline"
-                              className="border-red-200 bg-red-50 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"
-                            >
-                              Emergency
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">Standard</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <StatusBadge
-                            status={r.status}
-                            colorMap={LEAVE_STATUS_COLORS}
-                            labelMap={LEAVE_STATUS_LABELS}
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 text-right">
-                          {r.status === "PENDING" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => cancel.mutate(r.id)}
-                              disabled={cancel.isPending}
-                            >
-                              <Ban className="mr-1 h-3.5 w-3.5" />
-                              Cancel
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          <DataTable
+            columns={columns}
+            rows={requests}
+            rowKey={(r) => r.id}
+            minWidth="min-w-[620px]"
+            showSerial
+            serialOffset={((pagination?.page ?? 1) - 1) * 10}
+            selection={selection}
+          />
         )}
 
         {pagination && (
@@ -179,6 +221,17 @@ export default function MyWfhPage() {
           />
         )}
       </div>
+
+      <ConfirmDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        title={`Cancel ${pendingSelectedCount} request${pendingSelectedCount === 1 ? "" : "s"}?`}
+        description="The selected pending WFH requests will be cancelled. Non-pending selections are ignored."
+        confirmLabel="Cancel requests"
+        variant="destructive"
+        onConfirm={handleBulkCancel}
+        isLoading={bulkPending}
+      />
     </div>
   )
 }

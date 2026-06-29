@@ -203,7 +203,6 @@ const HRMS_ITEMS: NavItem[] = [
     permission: PERMISSIONS.ATTENDANCE_WRITE,
     children: [
       { label: "Overview", href: "/attendance" },
-      { label: "Imports", href: "/attendance/import" },
       { label: "Devices", href: "/attendance/devices" },
       { label: "Holidays", href: "/attendance/holidays" },
       { label: "Floating Holidays", href: "/attendance/floating-holidays" },

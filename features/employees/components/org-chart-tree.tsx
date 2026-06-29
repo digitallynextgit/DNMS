@@ -1,11 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { ChevronDown, ChevronRight, Users } from "lucide-react"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
-import { employeeSlug } from "@/lib/utils"
 import type { OrgNode } from "@/types"
 
 export interface OrgChartTreeProps {
@@ -18,11 +16,8 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
   const fullName = `${node.firstName} ${node.lastName}`
 
   return (
-    <Link
-      href={`/employees/${employeeSlug(node.employeeNo, node.firstName, node.lastName)}`}
-      className="group flex flex-col items-center gap-1.5"
-    >
-      <div className="bg-card border-border group-hover:border-primary/40 w-36 rounded border px-3 py-2.5 text-center shadow-sm transition-all group-hover:shadow-md">
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="bg-card border-border w-36 rounded border px-3 py-2.5 text-center shadow-sm">
         <div className="mb-1.5 flex justify-center">
           <AvatarDisplay
             src={node.profilePhoto}
@@ -41,7 +36,7 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
           <p className="text-muted-foreground/70 truncate text-[10px]">{node.department.name}</p>
         )}
       </div>
-    </Link>
+    </div>
   )
 }
 

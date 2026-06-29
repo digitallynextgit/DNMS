@@ -1,55 +1,127 @@
 "use client"
 
 import { useState } from "react"
-import { CheckCircle2, XCircle, Clock, Timer, CalendarDays } from "lucide-react"
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Timer,
+  RefreshCw,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
 import { Button } from "@/components/ui/button"
-import { formatDate } from "@/lib/utils"
-import { ATTENDANCE_STATUS_LABELS, ATTENDANCE_STATUS_COLORS } from "@/lib/constants"
-import { StatusBadge } from "@/components/shared/status-badge"
-import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
-import { useMyAttendance } from "@/features/attendance"
+import { useMyAttendanceCalendar, useSyncAttendance } from "@/features/attendance"
+import { AttendanceCalendar } from "@/features/attendance/components/attendance-calendar"
 
-function formatTime(dt: string | null): string {
-  if (!dt) return "-"
-  return new Date(dt).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-}
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+]
 
 export default function MyAttendancePage() {
-  const [page, setPage] = useState(1)
+  const now = new Date()
+  const curY = now.getFullYear()
+  const curM = now.getMonth() + 1 // 1-12
 
-  const { data, isLoading } = useMyAttendance({ days: 30, page, limit: 30 })
+  const [year, setYear] = useState(curY)
+  const [month, setMonth] = useState(curM)
 
-  const logs = data?.data ?? []
-  const pagination = data?.pagination
+  const { data, isLoading } = useMyAttendanceCalendar(year, month)
+  const sync = useSyncAttendance()
 
-  // Summary cards
-  const presentDays = logs.filter((l) => l.status === "PRESENT").length
-  const absentDays = logs.filter((l) => l.status === "ABSENT").length
-  const halfDays = logs.filter((l) => l.status === "HALF_DAY").length
-  // Late-mark tracking disabled for now (do not delete):
-  // const lateDays = logs.filter((l) => l.status === "LATE").length
-  const workingLogs = logs.filter(
-    (l) => l.workHours !== null && l.workHours !== undefined && l.workHours > 0,
-  )
-  const totalHours = workingLogs.reduce((sum, l) => sum + (l.workHours ?? 0), 0)
-  const avgHours =
-    workingLogs.length > 0 ? Math.round((totalHours / workingLogs.length) * 10) / 10 : 0
+  const days = data?.data.days ?? []
+  const firstPunch = data?.data.firstPunchDate ?? null // "YYYY-MM-DD"
+  const firstY = firstPunch ? Number(firstPunch.slice(0, 4)) : null
+  const firstM = firstPunch ? Number(firstPunch.slice(5, 7)) : null
+
+  // Bound navigation: not before the first punch month, not after the current month.
+  const canPrev =
+    firstY !== null && firstM !== null && (year > firstY || (year === firstY && month > firstM))
+  const canNext = year < curY || (year === curY && month < curM)
+
+  function prev() {
+    if (!canPrev) return
+    if (month === 1) {
+      setMonth(12)
+      setYear((y) => y - 1)
+    } else setMonth((m) => m - 1)
+  }
+  function next() {
+    if (!canNext) return
+    if (month === 12) {
+      setMonth(1)
+      setYear((y) => y + 1)
+    } else setMonth((m) => m + 1)
+  }
+
+  // Summary for the SELECTED month.
+  const presentDays = days.filter((d) => d.status === "PRESENT").length
+  const absentDays = days.filter((d) => d.status === "ABSENT").length
+  const halfDays = days.filter((d) => d.status === "HALF_DAY").length
+  const worked = days.filter((d) => d.workHours != null && d.workHours > 0)
+  const totalHours = worked.reduce((sum, d) => sum + (d.workHours ?? 0), 0)
+  const avgHours = worked.length > 0 ? Math.round((totalHours / worked.length) * 10) / 10 : 0
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="My Attendance"
-        description="Your attendance records for the last 30 days"
+        description={`${MONTHS[month - 1]} ${year}`}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => sync.mutate()}
+              disabled={sync.isPending}
+              title="Pull the latest punches from the attendance device"
+            >
+              {sync.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={prev}
+              disabled={!canPrev || isLoading}
+              aria-label="Previous month"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={next}
+              disabled={!canNext || isLoading}
+              aria-label="Next month"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </>
+        }
       />
 
-      {/* Summary cards */}
+      {/* Summary cards (selected month) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Present Days"
@@ -72,14 +144,6 @@ export default function MyAttendancePage() {
           iconColor="text-amber-600"
           iconBg="bg-amber-50"
         />
-        {/* Late-mark tracking disabled for now (do not delete):
-        <StatCard
-          title="Late Days"
-          value={isLoading ? "-" : lateDays}
-          icon={Clock}
-          iconColor="text-orange-600"
-          iconBg="bg-orange-50"
-        /> */}
         <StatCard
           title="Avg Work Hours"
           value={isLoading ? "-" : `${avgHours}h`}
@@ -90,92 +154,13 @@ export default function MyAttendancePage() {
         />
       </div>
 
-      {/* Attendance list */}
+      {/* Calendar (selected month) */}
       {isLoading ? (
-        <ListSkeleton rows={10} height="h-16" />
-      ) : logs.length === 0 ? (
-        <EmptyState
-          variant="card"
-          icon={CalendarDays}
-          title="No attendance records found for the last 30 days."
-        />
+        <div className="bg-card flex h-72 items-center justify-center rounded-lg border">
+          <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+        </div>
       ) : (
-        <div className="bg-card divide-y overflow-hidden rounded border">
-          {logs.map((log) => {
-            return (
-              <div
-                key={log.id}
-                className="hover:bg-muted/20 flex items-center justify-between px-5 py-4 transition-colors"
-              >
-                {/* Date */}
-                <div className="min-w-[110px]">
-                  <p className="text-sm font-medium">{formatDate(log.date, "EEE, dd MMM")}</p>
-                  <p className="text-muted-foreground text-xs">{formatDate(log.date, "yyyy")}</p>
-                </div>
-
-                {/* Check in / out */}
-                <div className="text-muted-foreground flex items-center gap-6 text-sm">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-foreground/60 text-xs font-medium">IN</span>
-                    <span>{formatTime(log.checkIn)}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-foreground/60 text-xs font-medium">OUT</span>
-                    <span>{formatTime(log.checkOut)}</span>
-                  </div>
-                </div>
-
-                {/* Work hours */}
-                <div className="text-muted-foreground min-w-[60px] text-right text-sm">
-                  {log.workHours !== null && log.workHours !== undefined
-                    ? `${log.workHours}h`
-                    : "-"}
-                </div>
-
-                {/* Status */}
-                <StatusBadge
-                  status={log.status}
-                  colorMap={ATTENDANCE_STATUS_COLORS}
-                  labelMap={ATTENDANCE_STATUS_LABELS}
-                />
-
-                {/* Notes */}
-                {log.notes && (
-                  <p className="text-muted-foreground hidden max-w-[140px] truncate text-xs sm:block">
-                    {log.notes}
-                  </p>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-muted-foreground text-sm">
-            Page {pagination.page} of {pagination.totalPages}
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page >= pagination.totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+        <AttendanceCalendar days={days} />
       )}
     </div>
   )
