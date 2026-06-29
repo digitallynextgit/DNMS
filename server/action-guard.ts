@@ -27,6 +27,17 @@ export async function requirePermission(perm: string | string[]): Promise<Sessio
   return session
 }
 
+// Require the user to hold at least one of the given roles (super admin always
+// passes). Use for actions gated by who someone IS rather than a fine-grained
+// permission - e.g. only HR Manager / Admin may edit company-wide leave policy.
+export async function requireAnyRole(roles: string[]): Promise<Session> {
+  const session = await requireSession()
+  const userRoles = session.user.roles ?? []
+  const allowed = isSuperAdmin(session) || roles.some((r) => userRoles.includes(r))
+  if (!allowed) throw new ActionError("Forbidden: insufficient role", 403)
+  return session
+}
+
 // IP / User-Agent for audit logs (routes read these off the request).
 export async function getAuditMeta(): Promise<{ ipAddress?: string; userAgent?: string }> {
   const h = await headers()

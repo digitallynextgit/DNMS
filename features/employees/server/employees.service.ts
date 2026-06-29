@@ -12,6 +12,9 @@ import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
 import { getConfig } from "@/server/app-config"
 import { canAccessEmployee } from "@/lib/permissions"
+// Server-only cross-feature call (not the client barrel): seed leave balances
+// from the policy matrix when a new hire is created.
+import { allocateFromPolicy } from "@/features/leave/server/leave-accrual.service"
 import { encrypt } from "@/lib/encryption"
 import bcrypt from "bcryptjs"
 import { randomInt } from "crypto"
@@ -319,6 +322,14 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         await db.employeeRole.create({
           data: { employeeId: employee.id, roleId: roleToAssign.id },
         })
+      }
+
+      // Seed this year's leave balances from the policy matrix (monthly accrual
+      // pro-rates by join date). Best-effort - must not block employee creation.
+      try {
+        await allocateFromPolicy(employee.id, new Date().getFullYear())
+      } catch (e) {
+        console.error("[createEmployee] leave allocation failed", e)
       }
 
       const meta = await getAuditMeta()

@@ -146,11 +146,12 @@ export function ApplyLeaveForm() {
 
   const sandwichExtra = calendarDays - workingDays
   const totalDays = calendarDays
+  // Availability is what has ACCRUED so far (+ carry), matching the server.
   const available = selectedBalance
-    ? selectedBalance.allocated +
-      selectedBalance.carried -
-      selectedBalance.used -
-      selectedBalance.pending
+    ? (Number(selectedBalance.accrued) || 0) +
+      (Number(selectedBalance.carried) || 0) -
+      (Number(selectedBalance.used) || 0) -
+      (Number(selectedBalance.pending) || 0)
     : null
   // No-quota types (e.g. Leave Without Pay, maxDaysPerYear === 0) aren't balance-
   // limited - mirror the server, which only enforces balance when maxDaysPerYear > 0.

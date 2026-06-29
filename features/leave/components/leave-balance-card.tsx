@@ -9,9 +9,17 @@ interface LeaveBalanceCardProps {
 }
 
 export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
-  const { leaveType, allocated, carried, used, pending } = balance
+  const { leaveType } = balance
+  // Coerce every numeric field - a stale client / older balance row may omit
+  // `accrued`, which would otherwise turn the arithmetic into NaN.
+  const allocated = Number(balance.allocated) || 0
+  const accrued = Number(balance.accrued) || 0
+  const carried = Number(balance.carried) || 0
+  const used = Number(balance.used) || 0
+  const pending = Number(balance.pending) || 0
+  // Annual cap (for context) vs what's actually available now (accrual-gated).
   const total = allocated + carried
-  const available = Math.max(0, total - used - pending)
+  const available = Math.max(0, accrued + carried - used - pending)
   const usedPercent = total > 0 ? Math.min(100, ((used + pending) / total) * 100) : 0
   const availablePercent = total > 0 ? (available / total) * 100 : 100
 
@@ -62,6 +70,13 @@ export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
             style={{ width: `${usedPercent}%` }}
           />
         </div>
+
+        {/* Accrual progress toward the annual entitlement */}
+        {leaveType.accrualMethod !== "UPFRONT" && allocated > 0 && (
+          <p className="text-muted-foreground text-[10px]">
+            Accrued {accrued} of {allocated} {allocated === 1 ? "day" : "days"} this year
+          </p>
+        )}
 
         {/* Breakdown row */}
         <div className="flex items-center justify-between pt-1 text-[11px]">

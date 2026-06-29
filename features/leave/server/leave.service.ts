@@ -2,7 +2,7 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
-import { PERMISSIONS } from "@/lib/constants"
+import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import { sendEmail } from "@/lib/mailer"
 import { createNotification } from "@/lib/notifications"
 import { requireSession, requirePermission } from "@/server/action-guard"
@@ -11,6 +11,7 @@ import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC } from "@/lib/dates"
 import { renderDecisionEmail } from "@/lib/email-layout"
+import { recomputeAccrued } from "./leave-accrual.service"
 
 const REQUEST_INCLUDE = {
   employee: {
@@ -31,6 +32,112 @@ function daysFromToday(date: Date): number {
   const today = startOfDayUTC(new Date())
   const d = startOfDayUTC(date)
   return Math.floor((d.getTime() - today.getTime()) / 86400000)
+}
+
+// ─── Approval routing ─────────────────────────────────────────────────────────
+// Who must approve a request depends on who applied:
+//   employee -> their manager · manager -> HR · HR -> Admin · super_admin -> auto.
+type ApprovalStage = "MANAGER" | "HR" | "ADMIN"
+type ApprovalRoute = {
+  stage: ApprovalStage | null
+  currentApproverId: string | null
+  autoApprove: boolean
+}
+
+async function resolveApprovalRoute(
+  applicantId: string,
+  roles: string[],
+  permissions: string[],
+): Promise<ApprovalRoute> {
+  const has = (r: string) => roles.includes(r)
+  if (has(SYSTEM_ROLES.SUPER_ADMIN))
+    return { stage: null, currentApproverId: null, autoApprove: true }
+  if (has(SYSTEM_ROLES.ADMIN))
+    return { stage: "ADMIN", currentApproverId: null, autoApprove: false }
+  if (has(SYSTEM_ROLES.HR_MANAGER) || has(SYSTEM_ROLES.HR_EMPLOYEE))
+    return { stage: "ADMIN", currentApproverId: null, autoApprove: false }
+  // Manager tier = can approve leave (or has reports). Their own leave goes to HR.
+  if (permissions.includes(PERMISSIONS.LEAVE_APPROVE))
+    return { stage: "HR", currentApproverId: null, autoApprove: false }
+  // Regular employee -> active manager; fall back to HR if none.
+  const emp = await db.employee.findUnique({
+    where: { id: applicantId },
+    select: { manager: { select: { id: true, isActive: true } } },
+  })
+  if (emp?.manager?.isActive)
+    return { stage: "MANAGER", currentApproverId: emp.manager.id, autoApprove: false }
+  return { stage: "HR", currentApproverId: null, autoApprove: false }
+}
+
+/** Can this session act (approve/reject) on a routed request? */
+function canActOnRequest(
+  roles: string[],
+  permissions: string[],
+  request: { approvalStage: string | null; currentApproverId: string | null },
+  userId: string,
+): boolean {
+  if (roles.includes(SYSTEM_ROLES.SUPER_ADMIN) || roles.includes(SYSTEM_ROLES.ADMIN)) return true
+  switch (request.approvalStage) {
+    case "MANAGER":
+      return request.currentApproverId === userId
+    case "HR":
+      return roles.includes(SYSTEM_ROLES.HR_MANAGER) || roles.includes(SYSTEM_ROLES.HR_EMPLOYEE)
+    case "ADMIN":
+      return false // admins handled above
+    default:
+      // Legacy requests with no routing - fall back to the permission.
+      return permissions.includes(PERMISSIONS.LEAVE_APPROVE)
+  }
+}
+
+/** Notify the routed approver(s) on apply (in-app + best-effort email). */
+async function notifyApprovers(
+  route: ApprovalRoute,
+  request: { id: string; startDate: Date; endDate: Date; totalDays: number },
+  applicantName: string,
+  leaveTypeName: string,
+): Promise<void> {
+  let recipients: Array<{ id: string; email: string; firstName: string }> = []
+  if (route.currentApproverId) {
+    const m = await db.employee.findUnique({
+      where: { id: route.currentApproverId },
+      select: { id: true, email: true, firstName: true },
+    })
+    if (m) recipients = [m]
+  } else if (route.stage) {
+    const roleNames = route.stage === "HR" ? [SYSTEM_ROLES.HR_MANAGER] : [SYSTEM_ROLES.ADMIN]
+    recipients = await db.employee.findMany({
+      where: {
+        isActive: true,
+        employeeRoles: { some: { role: { name: { in: roleNames } } } },
+      },
+      select: { id: true, email: true, firstName: true },
+    })
+  }
+
+  const start = new Date(request.startDate).toDateString()
+  const end = new Date(request.endDate).toDateString()
+  const detail = `${applicantName} · ${leaveTypeName} · ${start} – ${end} (${request.totalDays} day${request.totalDays !== 1 ? "s" : ""})`
+
+  for (const r of recipients) {
+    try {
+      await createNotification({
+        employeeId: r.id,
+        title: "Leave approval needed",
+        message: `${detail} is awaiting your approval.`,
+        type: "info",
+        link: "/leave/team",
+      })
+      await sendEmail({
+        to: r.email,
+        subject: "Leave request awaiting your approval",
+        html: `<p>Hi ${r.firstName},</p><p>A leave request needs your review:</p><p><strong>${detail}</strong></p><p>Please review it in DNMS.</p>`,
+        text: `Hi ${r.firstName}, a leave request needs your review: ${detail}. Please review it in DNMS.`,
+      })
+    } catch {
+      // Non-blocking - notifications/email must not fail the request.
+    }
+  }
 }
 
 // ─── Leave types ────────────────────────────────────────────────────────────
@@ -203,7 +310,7 @@ export async function allocateLeave(body: {
     if (!employee) return fail("Employee not found")
     if (!leaveType) return fail("Leave type not found")
 
-    const balance = await db.leaveBalance.upsert({
+    await db.leaveBalance.upsert({
       where: { employeeId_leaveTypeId_year: { employeeId, leaveTypeId, year: Number(year) } },
       update: { allocated: Number(allocated ?? 0), carried: Number(carried ?? 0) },
       create: {
@@ -211,12 +318,19 @@ export async function allocateLeave(body: {
         leaveTypeId,
         year: Number(year),
         allocated: Number(allocated ?? 0),
+        accrued: 0,
         used: 0,
         pending: 0,
         carried: Number(carried ?? 0),
       },
+    })
+    // Recompute accrued from the new allocation so availability reflects it.
+    await recomputeAccrued(employeeId, Number(year))
+    const balance = await db.leaveBalance.findUnique({
+      where: { employeeId_leaveTypeId_year: { employeeId, leaveTypeId, year: Number(year) } },
       include: { leaveType: true },
     })
+    if (!balance) return fail("Failed to allocate leave balance")
 
     await db.auditLog.create({
       data: {
@@ -300,7 +414,20 @@ export async function getTeamLeaveRequests(
     })
     const directReportIds = directReports.map((e) => e.id)
 
-    const where: Record<string, unknown> = { employeeId: { in: directReportIds } }
+    // An approver sees: requests routed directly to them, their direct reports'
+    // requests, and the role queue they own (HR -> HR stage, Admin -> ADMIN stage).
+    const roles = session.user.roles ?? []
+    const orConds: Record<string, unknown>[] = [{ currentApproverId: session.user.id }]
+    if (directReportIds.length) orConds.push({ employeeId: { in: directReportIds } })
+    if (roles.includes(SYSTEM_ROLES.HR_MANAGER) || roles.includes(SYSTEM_ROLES.HR_EMPLOYEE))
+      orConds.push({ approvalStage: "HR" })
+    if (roles.includes(SYSTEM_ROLES.ADMIN) || roles.includes(SYSTEM_ROLES.SUPER_ADMIN))
+      orConds.push({ approvalStage: "ADMIN" })
+
+    const where: Record<string, unknown> = {
+      OR: orConds,
+      NOT: { employeeId: session.user.id }, // never your own request in an approval queue
+    }
     if (filters.status) where.status = filters.status
 
     const [requests, total] = await Promise.all([
@@ -357,8 +484,16 @@ export async function applyLeave(body: {
       select: { probationEndDate: true, confirmationDate: true, dateOfJoining: true },
     })
 
-    if (employee?.probationEndDate && new Date() < new Date(employee.probationEndDate))
-      return fail("Employees are not eligible for leaves during the probation period.")
+    // Paid leave is blocked during probation; unpaid leave (e.g. LWP) is always
+    // available - this is how interns/probationers can still take unpaid time off.
+    if (
+      leaveType.isPaid &&
+      employee?.probationEndDate &&
+      new Date() < new Date(employee.probationEndDate)
+    )
+      return fail(
+        "Paid leave is not available during probation. You may apply for unpaid leave (LWP) instead.",
+      )
 
     let totalDays = isHalfDay ? 0.5 : countCalendarDays(start, end)
     if (leaveType.code === "SHORT") totalDays = 0.5
@@ -499,12 +634,19 @@ export async function applyLeave(body: {
       where: { employeeId_leaveTypeId_year: { employeeId: session.user.id, leaveTypeId, year } },
     })
     if (balance && leaveType.maxDaysPerYear > 0) {
-      const available = balance.allocated + balance.carried - balance.used - balance.pending
+      // Availability is what has ACCRUED so far (+ carry), not the full annual cap.
+      const available = balance.accrued + balance.carried - balance.used - balance.pending
       if (available < totalDays)
         return fail(
-          `Insufficient leave balance. Available: ${available} day(s), Requested: ${totalDays} day(s).`,
+          `Insufficient leave balance. Available so far: ${available} day(s), Requested: ${totalDays} day(s). Leave accrues monthly.`,
         )
     }
+
+    const route = await resolveApprovalRoute(
+      session.user.id,
+      session.user.roles ?? [],
+      session.user.permissions ?? [],
+    )
 
     const result = await db.$transaction(async (tx) => {
       const request = await tx.leaveRequest.create({
@@ -515,7 +657,12 @@ export async function applyLeave(body: {
           endDate: end,
           totalDays,
           reason: reason ? String(reason).trim() : null,
-          status: "PENDING",
+          // super_admin's own leave is auto-granted; everyone else is routed.
+          status: route.autoApprove ? "APPROVED" : "PENDING",
+          approvedAt: route.autoApprove ? new Date() : null,
+          approverId: route.autoApprove ? session.user.id : null,
+          approvalStage: route.autoApprove ? null : route.stage,
+          currentApproverId: route.autoApprove ? null : route.currentApproverId,
           lateNoticePenalty,
         },
         include: {
@@ -527,19 +674,32 @@ export async function applyLeave(body: {
       })
       await tx.leaveBalance.upsert({
         where: { employeeId_leaveTypeId_year: { employeeId: session.user.id, leaveTypeId, year } },
-        update: { pending: { increment: totalDays } },
+        // Auto-approved => straight to used; otherwise hold as pending.
+        update: route.autoApprove
+          ? { used: { increment: totalDays } }
+          : { pending: { increment: totalDays } },
         create: {
           employeeId: session.user.id,
           leaveTypeId,
           year,
           allocated: 0,
-          used: 0,
-          pending: totalDays,
+          accrued: 0,
+          used: route.autoApprove ? totalDays : 0,
+          pending: route.autoApprove ? 0 : totalDays,
           carried: 0,
         },
       })
       return request
     })
+
+    if (!route.autoApprove) {
+      await notifyApprovers(
+        route,
+        result,
+        `${result.employee.firstName} ${result.employee.lastName}`,
+        result.leaveType.name,
+      )
+    }
 
     return ok(serialize({ data: result }))
   })
@@ -562,12 +722,17 @@ export async function updateLeaveRequest(
         `Cannot ${action.toLowerCase()} a request that is already ${request.status.toLowerCase()}`,
       )
 
-    const canApprove = hasPermission(session, PERMISSIONS.LEAVE_APPROVE)
     if (action === "CANCEL") {
       if (request.employeeId !== session.user.id)
         return fail("You can only cancel your own leave requests")
     } else {
-      if (!canApprove) return fail("Forbidden: requires leave:approve permission")
+      const allowed = canActOnRequest(
+        session.user.roles ?? [],
+        session.user.permissions ?? [],
+        request,
+        session.user.id,
+      )
+      if (!allowed) return fail("Forbidden: this request is awaiting a different approver")
       if (action === "REJECT" && !rejectionReason?.trim())
         return fail("Rejection reason is required")
     }
@@ -596,7 +761,13 @@ export async function updateLeaveRequest(
       } else if (action === "APPROVE") {
         updatedReq = await tx.leaveRequest.update({
           where: { id },
-          data: { status: "APPROVED", approverId: session.user.id, approvedAt: new Date() },
+          data: {
+            status: "APPROVED",
+            approverId: session.user.id,
+            approvedAt: new Date(),
+            approvalStage: null,
+            currentApproverId: null,
+          },
           include: REQUEST_INCLUDE,
         })
         await tx.leaveBalance.upsert({
@@ -622,6 +793,8 @@ export async function updateLeaveRequest(
             status: "REJECTED",
             approverId: session.user.id,
             rejectionReason: String(rejectionReason).trim(),
+            approvalStage: null,
+            currentApproverId: null,
           },
           include: REQUEST_INCLUDE,
         })

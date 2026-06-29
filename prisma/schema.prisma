@@ -57,6 +57,21 @@ enum LeaveStatus {
   CANCELLED
 }
 
+// How a leave type's annual entitlement becomes available over the year.
+// MONTHLY = drip 1/12 each month (recomputed, self-healing).
+// UPFRONT = full entitlement available immediately (e.g. Maternity, LWP).
+enum AccrualMethod {
+  MONTHLY
+  UPFRONT
+}
+
+// Which tier currently owns a pending leave request (routed by who applied).
+enum LeaveApprovalStage {
+  MANAGER
+  HR
+  ADMIN
+}
+
 // ── Payroll ───────────────────────────────────────────────────────────────────
 
 enum PayrollStatus {
@@ -357,15 +372,15 @@ model Employee {
   personalPhone String? @map("personal_phone")
 
   // Personal info
-  dateOfBirth  DateTime? @map("date_of_birth") @db.Date
-  gender       Gender?   @map("gender")
-  nationality  String?   @map("nationality")
-  bloodGroup   String?   @map("blood_group")
+  dateOfBirth     DateTime? @map("date_of_birth") @db.Date
+  gender          Gender?   @map("gender")
+  nationality     String?   @map("nationality")
+  bloodGroup      String?   @map("blood_group")
   // profilePhoto holds the displayable URL (a stable /api serve route for B2 photos,
   // or a legacy Supabase URL). profilePhotoKey is the B2 object key, kept so the old
   // file can be deleted when the photo changes or is removed.
-  profilePhoto    String? @map("profile_photo")
-  profilePhotoKey String? @map("profile_photo_key")
+  profilePhoto    String?   @map("profile_photo")
+  profilePhotoKey String?   @map("profile_photo_key")
 
   // Addresses & emergency contact (JSON)
   currentAddress   Json? @map("current_address")
@@ -391,12 +406,12 @@ model Employee {
   lastWorkingDate  DateTime?      @map("last_working_date") @db.Date
 
   // Auth fields
-  passwordHash  String?   @map("password_hash")
-  isActive      Boolean   @default(true) @map("is_active")
-  emailVerified DateTime? @map("email_verified")
+  passwordHash       String?   @map("password_hash")
+  isActive           Boolean   @default(true) @map("is_active")
+  emailVerified      DateTime? @map("email_verified")
   // When true, the employee is forced to the /change-password page on every
   // request until they set a new password (e.g. after an HR-issued password).
-  mustChangePassword Boolean @default(false) @map("must_change_password")
+  mustChangePassword Boolean   @default(false) @map("must_change_password")
 
   // Outbound email: encrypted Gmail App Password (AES-256-GCM, format: iv:tag:ct).
   // Used by sendEmailAs() to send mail from this employee's @digitallynext.com address.
@@ -426,23 +441,24 @@ model Employee {
   auditLogs AuditLog[]
 
   // Documents
-  documents          Document[]         @relation("EmployeeDocuments")
-  employeeDocuments  EmployeeDocument[] @relation("EmployeePersonalDocuments")
-  docRequests        DocumentRequest[]  @relation("DocRequestEmployee")
-  docRequestsMade    DocumentRequest[]  @relation("DocRequestRequester")
+  documents         Document[]         @relation("EmployeeDocuments")
+  employeeDocuments EmployeeDocument[] @relation("EmployeePersonalDocuments")
+  docRequests       DocumentRequest[]  @relation("DocRequestEmployee")
+  docRequestsMade   DocumentRequest[]  @relation("DocRequestRequester")
 
   // Notifications
   notifications Notification[]
 
   // Attendance
-  attendanceLogs            AttendanceLog[]
-  regularizations           AttendanceRegularization[] @relation("RegularizationEmployee")
-  regularizationsReviewed   AttendanceRegularization[] @relation("RegularizationReviewer")
+  attendanceLogs          AttendanceLog[]
+  regularizations         AttendanceRegularization[] @relation("RegularizationEmployee")
+  regularizationsReviewed AttendanceRegularization[] @relation("RegularizationReviewer")
 
   // Leave
-  leaveRequests  LeaveRequest[] @relation("LeaveRequests")
-  leaveApprovals LeaveRequest[] @relation("LeaveApprovals")
-  leaveBalances  LeaveBalance[]
+  leaveRequests         LeaveRequest[] @relation("LeaveRequests")
+  leaveApprovals        LeaveRequest[] @relation("LeaveApprovals")
+  leaveCurrentApprovals LeaveRequest[] @relation("LeaveCurrentApprovals")
+  leaveBalances         LeaveBalance[]
 
   // Payroll
   salaryStructure SalaryStructure?
@@ -456,10 +472,10 @@ model Employee {
   ownedProjects      Project[]       @relation("ProjectOwner")
 
   // Performance
-  selfReviews       PerformanceReview[] @relation("Reviewee")
-  managerReviews    PerformanceReview[] @relation("Reviewer")
-  goals             Goal[]
-  peerFeedbackGiven PeerFeedback[]      @relation("PeerReviewer")
+  selfReviews          PerformanceReview[] @relation("Reviewee")
+  managerReviews       PerformanceReview[] @relation("Reviewer")
+  goals                Goal[]
+  peerFeedbackGiven    PeerFeedback[]      @relation("PeerReviewer")
   evaluations          Evaluation[]        @relation("EvaluationEmployee")
   evaluationsToRate    Evaluation[]        @relation("EvaluationManager")
   evaluationsToControl Evaluation[]        @relation("EvaluationController")
@@ -484,13 +500,13 @@ model Employee {
   resignationsReviewed Resignation[] @relation("ResignationReviewer")
 
   // V2 Project Management
-  managedTeams           ProjectTeam[]       @relation("TeamManager")
-  projectTeamMemberships ProjectTeamMember[] @relation("ProjectTeamMembership")
-  uploadedResources      ProjectResource[]   @relation("ResourceUploader")
-  taskComments           TaskComment[]            @relation("CommentAuthor")
-  projectActivities      ProjectActivity[]        @relation("ActivityActor")
-  projectMessages        ProjectMessage[]         @relation("MessageAuthor")
-  createdPasswords       ProjectPasswordEntry[]   @relation("PasswordCreator")
+  managedTeams           ProjectTeam[]          @relation("TeamManager")
+  projectTeamMemberships ProjectTeamMember[]    @relation("ProjectTeamMembership")
+  uploadedResources      ProjectResource[]      @relation("ResourceUploader")
+  taskComments           TaskComment[]          @relation("CommentAuthor")
+  projectActivities      ProjectActivity[]      @relation("ActivityActor")
+  projectMessages        ProjectMessage[]       @relation("MessageAuthor")
+  createdPasswords       ProjectPasswordEntry[] @relation("PasswordCreator")
 
   @@map("employees")
 }
@@ -827,23 +843,41 @@ model AttendancePolicy {
 // =============================================================================
 
 model LeaveType {
-  id               String   @id @default(uuid()) @map("id")
-  name             String   @unique @map("name")
-  code             String   @unique @map("code")
-  description      String?  @map("description")
-  isPaid           Boolean  @default(true) @map("is_paid")
-  maxDaysPerYear   Int      @default(0) @map("max_days_per_year")
-  carryForward     Boolean  @default(false) @map("carry_forward")
-  maxCarryDays     Int      @default(0) @map("max_carry_days")
-  requiresApproval Boolean  @default(true) @map("requires_approval")
-  isActive         Boolean  @default(true) @map("is_active")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id               String        @id @default(uuid()) @map("id")
+  name             String        @unique @map("name")
+  code             String        @unique @map("code")
+  description      String?       @map("description")
+  isPaid           Boolean       @default(true) @map("is_paid")
+  maxDaysPerYear   Int           @default(0) @map("max_days_per_year")
+  carryForward     Boolean       @default(false) @map("carry_forward")
+  maxCarryDays     Int           @default(0) @map("max_carry_days")
+  requiresApproval Boolean       @default(true) @map("requires_approval")
+  accrualMethod    AccrualMethod @default(MONTHLY) @map("accrual_method")
+  isActive         Boolean       @default(true) @map("is_active")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
 
   leaveBalances LeaveBalance[]
   leaveRequests LeaveRequest[]
+  leavePolicies LeavePolicy[]
 
   @@map("leave_types")
+}
+
+// Entitlement matrix: how many days of a leave type each employment type gets
+// per year. Falls back to LeaveType.maxDaysPerYear when no row exists.
+model LeavePolicy {
+  id             String         @id @default(uuid()) @map("id")
+  employmentType EmploymentType @map("employment_type")
+  leaveTypeId    String         @map("leave_type_id")
+  daysPerYear    Float          @default(0) @map("days_per_year")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([employmentType, leaveTypeId])
+  @@map("leave_policies")
 }
 
 model LeaveBalance {
@@ -852,6 +886,7 @@ model LeaveBalance {
   leaveTypeId String @map("leave_type_id")
   year        Int    @map("year")
   allocated   Float  @default(0) @map("allocated")
+  accrued     Float  @default(0) @map("accrued")
   used        Float  @default(0) @map("used")
   pending     Float  @default(0) @map("pending")
   carried     Float  @default(0) @map("carried")
@@ -864,28 +899,36 @@ model LeaveBalance {
 }
 
 model LeaveRequest {
-  id                String      @id @default(uuid()) @map("id")
-  employeeId        String      @map("employee_id")
-  leaveTypeId       String      @map("leave_type_id")
-  startDate         DateTime    @map("start_date") @db.Date
-  endDate           DateTime    @map("end_date") @db.Date
-  totalDays         Float       @map("total_days")
-  reason            String?     @map("reason")
-  status            LeaveStatus @default(PENDING) @map("status")
-  approverId        String?     @map("approver_id")
-  approvedAt        DateTime?   @map("approved_at")
-  rejectionReason   String?     @map("rejection_reason")
-  lateNoticePenalty Boolean     @default(false) @map("late_notice_penalty")
-  createdAt         DateTime    @default(now()) @map("created_at")
-  updatedAt         DateTime    @updatedAt @map("updated_at")
+  id                String              @id @default(uuid()) @map("id")
+  employeeId        String              @map("employee_id")
+  leaveTypeId       String              @map("leave_type_id")
+  startDate         DateTime            @map("start_date") @db.Date
+  endDate           DateTime            @map("end_date") @db.Date
+  totalDays         Float               @map("total_days")
+  reason            String?             @map("reason")
+  status            LeaveStatus         @default(PENDING) @map("status")
+  approverId        String?             @map("approver_id")
+  approvedAt        DateTime?           @map("approved_at")
+  rejectionReason   String?             @map("rejection_reason")
+  lateNoticePenalty Boolean             @default(false) @map("late_notice_penalty")
+  // Routing: which tier currently owns this request and, for a MANAGER-stage
+  // request, the specific manager who must act. Null currentApproverId means a
+  // role queue (any HR / any Admin, per approvalStage).
+  approvalStage     LeaveApprovalStage? @map("approval_stage")
+  currentApproverId String?             @map("current_approver_id")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
 
-  employee  Employee  @relation("LeaveRequests", fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
-  approver  Employee? @relation("LeaveApprovals", fields: [approverId], references: [id], onDelete: SetNull)
+  employee        Employee  @relation("LeaveRequests", fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType       LeaveType @relation(fields: [leaveTypeId], references: [id])
+  approver        Employee? @relation("LeaveApprovals", fields: [approverId], references: [id], onDelete: SetNull)
+  currentApprover Employee? @relation("LeaveCurrentApprovals", fields: [currentApproverId], references: [id], onDelete: SetNull)
 
   @@index([employeeId])
   @@index([status])
   @@index([startDate, endDate])
+  @@index([currentApproverId])
+  @@index([approvalStage, status])
   @@map("leave_requests")
 }
 
@@ -894,8 +937,8 @@ model LeaveRequest {
 // =============================================================================
 
 model SalaryStructure {
-  id               String   @id @default(uuid()) @map("id")
-  employeeId       String   @unique @map("employee_id")
+  id                 String   @id @default(uuid()) @map("id")
+  employeeId         String   @unique @map("employee_id")
   basicSalary        Float    @map("basic_salary")
   hra                Float    @default(0) @map("hra")
   conveyance         Float    @default(0) @map("conveyance")
@@ -903,12 +946,12 @@ model SalaryStructure {
   telephoneAllowance Float    @default(0) @map("telephone_allowance")
   otherAllowances    Float    @default(0) @map("other_allowances")
   pfEmployee         Float    @default(0) @map("pf_employee")
-  pfEmployer       Float    @default(0) @map("pf_employer")
-  esi              Float    @default(0) @map("esi")
-  tds              Float    @default(0) @map("tds")
-  effectiveFrom    DateTime @map("effective_from") @db.Date
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  pfEmployer         Float    @default(0) @map("pf_employer")
+  esi                Float    @default(0) @map("esi")
+  tds                Float    @default(0) @map("tds")
+  effectiveFrom      DateTime @map("effective_from") @db.Date
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   employee       Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   payrollRecords PayrollRecord[]
@@ -968,31 +1011,31 @@ model PayrollRecord {
 // =============================================================================
 
 model Project {
-  id              String        @id @default(uuid()) @map("id")
-  name            String        @map("name")
-  description     String?       @map("description") @db.Text
-  code            String        @unique @map("code")
-  status          ProjectStatus @default(PLANNING) @map("status")
-  priority        TaskPriority  @default(MEDIUM) @map("priority")
-  ownerId         String        @map("owner_id")
-  currentPhaseId  String?       @map("current_phase_id")
-  startDate       DateTime?     @map("start_date") @db.Date              // "Onboarding Date" in UI
-  endDate         DateTime?     @map("end_date") @db.Date                // deprecated - kept for back-compat
-  budget          Float?        @map("budget")
-  isArchived      Boolean       @default(false) @map("is_archived")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id             String        @id @default(uuid()) @map("id")
+  name           String        @map("name")
+  description    String?       @map("description") @db.Text
+  code           String        @unique @map("code")
+  status         ProjectStatus @default(PLANNING) @map("status")
+  priority       TaskPriority  @default(MEDIUM) @map("priority")
+  ownerId        String        @map("owner_id")
+  currentPhaseId String?       @map("current_phase_id")
+  startDate      DateTime?     @map("start_date") @db.Date // "Onboarding Date" in UI
+  endDate        DateTime?     @map("end_date") @db.Date // deprecated - kept for back-compat
+  budget         Float?        @map("budget")
+  isArchived     Boolean       @default(false) @map("is_archived")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
 
-  owner        Employee            @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  currentPhase ProjectPhase?       @relation(fields: [currentPhaseId], references: [id], onDelete: SetNull)
-  members      ProjectMember[]                                            // legacy - kept for migration safety
-  teams        ProjectTeam[]                                              // v2 - primary structure
-  tasks        ProjectTask[]
-  resources    ProjectResource[]
-  timesheets   Timesheet[]
-  activities       ProjectActivity[]
-  messages         ProjectMessage[]
-  passwordEntries  ProjectPasswordEntry[]
+  owner           Employee               @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  currentPhase    ProjectPhase?          @relation(fields: [currentPhaseId], references: [id], onDelete: SetNull)
+  members         ProjectMember[] // legacy - kept for migration safety
+  teams           ProjectTeam[] // v2 - primary structure
+  tasks           ProjectTask[]
+  resources       ProjectResource[]
+  timesheets      Timesheet[]
+  activities      ProjectActivity[]
+  messages        ProjectMessage[]
+  passwordEntries ProjectPasswordEntry[]
 
   @@index([status])
   @@index([ownerId])
@@ -1023,14 +1066,14 @@ model ProjectPhase {
 model ProjectTeam {
   id          String   @id @default(uuid()) @map("id")
   projectId   String   @map("project_id")
-  name        String   @map("name")                                          // ad-hoc, e.g. "Web Development"
+  name        String   @map("name") // ad-hoc, e.g. "Web Development"
   description String?  @map("description")
-  managerId   String?  @map("manager_id")                                    // nullable when team is empty
+  managerId   String?  @map("manager_id") // nullable when team is empty
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  project   Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  manager   Employee?            @relation("TeamManager", fields: [managerId], references: [id], onDelete: SetNull)
+  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  manager   Employee?           @relation("TeamManager", fields: [managerId], references: [id], onDelete: SetNull)
   members   ProjectTeamMember[]
   tasks     ProjectTask[]
   resources ProjectResource[]
@@ -1043,7 +1086,7 @@ model ProjectTeam {
 model ProjectTeamMember {
   id         String   @id @default(uuid()) @map("id")
   teamId     String   @map("team_id")
-  projectId  String   @map("project_id")                                     // denormalised to enforce 1 team per project per employee
+  projectId  String   @map("project_id") // denormalised to enforce 1 team per project per employee
   employeeId String   @map("employee_id")
   joinedAt   DateTime @default(now()) @map("joined_at")
 
@@ -1051,7 +1094,7 @@ model ProjectTeamMember {
   employee Employee    @relation("ProjectTeamMembership", fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, employeeId])
-  @@unique([projectId, employeeId])                                          // one team per project per employee
+  @@unique([projectId, employeeId]) // one team per project per employee
   @@index([teamId])
   @@index([employeeId])
   @@map("project_team_members")
@@ -1068,12 +1111,12 @@ enum ResourceCategory {
 model ProjectResource {
   id           String           @id @default(uuid()) @map("id")
   projectId    String           @map("project_id")
-  teamId       String?          @map("team_id")                              // null = project-level
+  teamId       String?          @map("team_id") // null = project-level
   category     ResourceCategory @default(OTHER) @map("category")
   fileName     String           @map("file_name")
   fileSize     Int              @map("file_size")
   mimeType     String           @map("mime_type")
-  objectKey    String           @unique @map("object_key")                   // B2 object key
+  objectKey    String           @unique @map("object_key") // B2 object key
   description  String?          @map("description")
   uploadedById String           @map("uploaded_by_id")
   createdAt    DateTime         @default(now()) @map("created_at")
@@ -1109,26 +1152,26 @@ model ProjectMember {
 }
 
 model ProjectTask {
-  id               String              @id @default(uuid()) @map("id")
-  projectId        String              @map("project_id")
-  teamId           String?             @map("team_id")                       // v2 - null only for legacy tasks
-  title            String              @map("title")
-  description      String?             @map("description") @db.Text
-  status           TaskStatus          @default(TODO) @map("status")
-  priority         TaskPriority        @default(MEDIUM) @map("priority")
-  assigneeId       String?             @map("assignee_id")
-  creatorId        String              @map("creator_id")
-  startDate        DateTime?           @map("start_date") @db.Date
-  dueDate          DateTime?           @map("due_date") @db.Date
-  completedAt      DateTime?           @map("completed_at")
-  estimatedHours   Float?              @map("estimated_hours")
-  loggedHours      Float               @default(0) @map("logged_hours")
-  tags             String[]            @map("tags")
-  approvalStatus   TaskApprovalStatus  @default(APPROVED) @map("approval_status")
-  isManagerCreated Boolean             @default(true) @map("is_manager_created")
-  rejectionReason  String?             @map("rejection_reason")
-  createdAt        DateTime            @default(now()) @map("created_at")
-  updatedAt        DateTime            @updatedAt @map("updated_at")
+  id               String             @id @default(uuid()) @map("id")
+  projectId        String             @map("project_id")
+  teamId           String?            @map("team_id") // v2 - null only for legacy tasks
+  title            String             @map("title")
+  description      String?            @map("description") @db.Text
+  status           TaskStatus         @default(TODO) @map("status")
+  priority         TaskPriority       @default(MEDIUM) @map("priority")
+  assigneeId       String?            @map("assignee_id")
+  creatorId        String             @map("creator_id")
+  startDate        DateTime?          @map("start_date") @db.Date
+  dueDate          DateTime?          @map("due_date") @db.Date
+  completedAt      DateTime?          @map("completed_at")
+  estimatedHours   Float?             @map("estimated_hours")
+  loggedHours      Float              @default(0) @map("logged_hours")
+  tags             String[]           @map("tags")
+  approvalStatus   TaskApprovalStatus @default(APPROVED) @map("approval_status")
+  isManagerCreated Boolean            @default(true) @map("is_manager_created")
+  rejectionReason  String?            @map("rejection_reason")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
 
   isMilestone Boolean @default(false) @map("is_milestone")
 

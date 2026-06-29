@@ -17,6 +17,7 @@ export interface LeaveType {
   carryForward: boolean
   maxCarryDays: number
   requiresApproval: boolean
+  accrualMethod?: "MONTHLY" | "UPFRONT"
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -28,6 +29,7 @@ export interface LeaveBalance {
   leaveTypeId: string
   year: number
   allocated: number
+  accrued: number
   used: number
   pending: number
   carried: number

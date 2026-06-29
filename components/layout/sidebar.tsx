@@ -146,7 +146,7 @@ function NavBadge({
 const EMPLOYEE_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "My Attendance", href: "/attendance/me", icon: Clock },
-  { label: "My Leaves", href: "/leave", icon: CalendarDays },
+  { label: "My Leave", href: "/leave", icon: CalendarDays },
   { label: "My Payslips", href: "/payroll/me", icon: DollarSign },
   { label: "My Performance", href: "/performance/me", icon: Star },
   { label: "Work From Home", href: "/wfh", icon: Laptop },
@@ -214,9 +214,10 @@ const HRMS_ITEMS: NavItem[] = [
     icon: CalendarDays,
     permission: PERMISSIONS.LEAVE_APPROVE,
     children: [
-      { label: "Team Leaves", href: "/leave/team" },
+      { label: "Team Leave", href: "/leave/team" },
       { label: "Leave Calendar", href: "/leave/calendar" },
       { label: "Leave Types", href: "/leave/types" },
+      { label: "Leave Policy", href: "/leave/policy" },
     ],
   },
   {
