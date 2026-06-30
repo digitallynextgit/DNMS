@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { Badge } from "@/components/ui/badge"
@@ -21,7 +22,7 @@ import { Check, X, AlertTriangle, Inbox } from "lucide-react"
 
 export default function TeamWfhPage() {
   const [tab, setTab] = useState<"PENDING" | "ALL">("PENDING")
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
   const [rejectingId, setRejectingId] = useState<string | null>(null)
 
   const { data, isLoading } = useWfhRequests({

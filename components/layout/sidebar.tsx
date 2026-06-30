@@ -29,6 +29,7 @@ import {
   ListChecks,
   UserMinus,
   Plug,
+  PartyPopper,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -150,6 +151,7 @@ const EMPLOYEE_ITEMS: NavItem[] = [
   { label: "My Payslips", href: "/payroll/me", icon: DollarSign },
   { label: "My Performance", href: "/performance/me", icon: Star },
   { label: "Work From Home", href: "/wfh", icon: Laptop },
+  { label: "Holiday Calendar", href: "/holiday-calendar", icon: PartyPopper },
   { label: "Notifications", href: "/notifications", icon: Bell, badge: "unread-notifications" },
 ]
 
@@ -203,12 +205,15 @@ const HRMS_ITEMS: NavItem[] = [
     icon: Clock,
     permission: PERMISSIONS.ATTENDANCE_WRITE,
     children: [
-      { label: "Overview", href: "/attendance" },
+      { label: "Attendance Directory", href: "/attendance/attendance-directory" },
       { label: "Devices", href: "/attendance/devices" },
-      { label: "Holidays", href: "/attendance/holidays" },
-      { label: "Floating Holidays", href: "/attendance/floating-holidays" },
-      { label: "Regularization", href: "/attendance/regularizations" },
     ],
+  },
+  {
+    label: "Holiday Calendar",
+    href: "/holidays",
+    icon: PartyPopper,
+    permission: PERMISSIONS.ATTENDANCE_WRITE,
   },
   {
     label: "Leave",
@@ -232,7 +237,7 @@ const HRMS_ITEMS: NavItem[] = [
     icon: DollarSign,
     permission: PERMISSIONS.PAYROLL_WRITE,
     children: [
-      { label: "Overview", href: "/payroll" },
+      { label: "Payroll Directory", href: "/payroll/payroll-directory" },
       { label: "Salary Structures", href: "/payroll/salary-structures" },
     ],
   },

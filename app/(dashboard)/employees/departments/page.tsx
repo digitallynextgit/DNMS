@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Plus, Loader2, Pencil, Power, Trash2 } from "lucide-react"
@@ -94,7 +95,7 @@ export default function DepartmentsPage() {
   const [code, setCode] = useState("")
   const [description, setDescription] = useState("")
   const [search, setSearch] = useState("")
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
   const [deleteTarget, setDeleteTarget] = useState<Department | null>(null)
 
   const { data, isLoading } = useQuery({

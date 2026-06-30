@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -61,7 +62,7 @@ const PAGE_SIZE = 10
 
 export default function MyTasksPage() {
   const [statusFilter, setStatusFilter] = useState("all")
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
   const [viewMode, setViewMode] = useViewMode("my-tasks")
   const qc = useQueryClient()
 

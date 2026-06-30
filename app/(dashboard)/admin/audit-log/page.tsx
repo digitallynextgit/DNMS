@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { toast } from "sonner"
 import { Search, RefreshCw } from "lucide-react"
 import { format } from "date-fns"
@@ -85,7 +86,7 @@ export default function AuditLogPage() {
   const [actionFilter, setActionFilter] = useState<string>("")
   const [dateFrom, setDateFrom] = useState<string>("")
   const [dateTo, setDateTo] = useState<string>("")
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
 
   // -----------------------------------------------------------------------
   // Fetch entries

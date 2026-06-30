@@ -132,19 +132,39 @@ export const POST = withAuth(
         )
       }
 
-      // Pay model: a flat 1/30 of the monthly salary per day (fixed 30-day
-      // divisor), paid across the actual calendar days of the month minus unpaid
-      // days. So a 31-day month pays salary×31/30, a 28-day month salary×28/30,
-      // and one unpaid day docks exactly salary/30.
-      const daysInMonth = new Date(yearNum, monthNum, 0).getDate()
+      // Pay model: daily rate = monthly salary ÷ 30 (fixed divisor). An employee
+      // earns one day's pay for every calendar day they're credited - weekends and
+      // company holidays are paid, and each WORKING day is paid only when they were
+      // present (or on approved PAID leave). A working day with no punch and no paid
+      // leave is an unpaid absence and docks salary/30. Days before joining aren't
+      // paid; future days of an in-progress month are assumed present.
+      // So a fully-present 31-day month pays salary×31/30, a 28-day month ×28/30,
+      // and three absences dock salary×3/30.
+      const daysInMonth = new Date(Date.UTC(yearNum, monthNum, 0)).getUTCDate()
       const STANDARD_MONTH_DAYS = 30
 
-      // Month boundaries for attendance and leave queries
-      const monthStart = new Date(yearNum, monthNum - 1, 1)
-      const monthEnd = new Date(yearNum, monthNum, 0, 23, 59, 59, 999)
+      // UTC month boundaries (attendance/holiday/leave dates are stored at UTC midnight).
+      const monthStart = new Date(Date.UTC(yearNum, monthNum - 1, 1))
+      const monthEnd = new Date(Date.UTC(yearNum, monthNum - 1, daysInMonth, 23, 59, 59, 999))
+      const ymd = (d: Date) => d.toISOString().slice(0, 10)
+      const monthEndYmd = ymd(monthEnd)
+      const todayYmd = new Date().toISOString().slice(0, 10)
+
+      // Company holidays (office closed → paid days off). Optional/floating holidays
+      // stay normal working days.
+      const monthHolidays = await db.holiday.findMany({
+        where: { date: { gte: monthStart, lte: monthEnd }, isOptional: false },
+        select: { date: true },
+      })
+      const holidaySet = new Set(monthHolidays.map((h) => ymd(h.date)))
+      const isOffDay = (date: Date) => {
+        const dow = date.getUTCDay()
+        return dow === 0 || dow === 6 || holidaySet.has(ymd(date))
+      }
 
       const created: string[] = []
       const skipped: string[] = []
+      const notEmployed: string[] = []
       const errors: string[] = []
 
       for (const employee of employees) {
@@ -167,59 +187,99 @@ export const POST = withAuth(
 
           const ss = employee.salaryStructure!
 
-          // Fetch attendance logs for this employee in this month
-          const attendanceLogs = await db.attendanceLog.findMany({
-            where: {
-              employeeId: employee.id,
-              date: { gte: monthStart, lte: monthEnd },
-            },
-          })
+          // Not employed for any day of this month yet → no payslip.
+          const joiningYmd = employee.dateOfJoining ? ymd(employee.dateOfJoining) : null
+          if (joiningYmd && joiningYmd > monthEndYmd) {
+            notEmployed.push(employee.id)
+            continue
+          }
 
-          // Fetch approved leaves for this employee in this month
+          // Attendance punches keyed by day.
+          const attendanceLogs = await db.attendanceLog.findMany({
+            where: { employeeId: employee.id, date: { gte: monthStart, lte: monthEnd } },
+            select: { date: true, status: true },
+          })
+          const attByDay = new Map<string, string>()
+          for (const log of attendanceLogs) attByDay.set(ymd(log.date), log.status)
+
+          // Approved leaves → per-working-day paid / unpaid sets.
           const approvedLeaves = await db.leaveRequest.findMany({
             where: {
               employeeId: employee.id,
               status: "APPROVED",
-              OR: [{ startDate: { lte: monthEnd }, endDate: { gte: monthStart } }],
+              startDate: { lte: monthEnd },
+              endDate: { gte: monthStart },
             },
-            include: { leaveType: { select: { code: true } } },
+            include: { leaveType: { select: { isPaid: true } } },
           })
-
-          // Count approved leave days that fall in this month. LWP (unpaid) is
-          // tracked separately so it never counts as a paid/earned day.
-          let leaveDaysInMonth = 0
-          let lwpDays = 0
+          const paidLeave = new Set<string>()
+          const unpaidLeave = new Set<string>()
           for (const leave of approvedLeaves) {
-            const leaveStart = leave.startDate > monthStart ? leave.startDate : monthStart
-            const leaveEnd = leave.endDate < monthEnd ? leave.endDate : monthEnd
-            // Count business days in this range
-            const start = new Date(leaveStart)
-            const end = new Date(leaveEnd)
-            const curr = new Date(start)
-            let days = 0
-            while (curr <= end) {
-              const day = curr.getDay()
-              if (day !== 0 && day !== 6) days++
-              curr.setDate(curr.getDate() + 1)
+            const start = leave.startDate > monthStart ? leave.startDate : monthStart
+            const end = leave.endDate < monthEnd ? leave.endDate : monthEnd
+            const cur = new Date(
+              Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()),
+            )
+            const endDay = new Date(
+              Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()),
+            )
+            while (cur <= endDay) {
+              if (!isOffDay(cur)) (leave.leaveType.isPaid ? paidLeave : unpaidLeave).add(ymd(cur))
+              cur.setUTCDate(cur.getUTCDate() + 1)
             }
-            if (leave.leaveType.code === "LWP") lwpDays += days
-            else leaveDaysInMonth += days
           }
 
-          // ── Unpaid (loss-of-pay) days ──────────────────────────────────────
-          // Each unpaid day docks a flat 1/30 of the monthly salary. Unpaid =
-          // LWP + absences NOT covered by approved paid leave (half-day = 0.5).
-          // Approved PAID leave is fully paid. No attendance data → only LWP docks.
-          let lopDays = lwpDays
-          if (attendanceLogs.length > 0) {
-            const absentDays = attendanceLogs.filter((l) => l.status === "ABSENT").length
-            const halfDays = attendanceLogs.filter((l) => l.status === "HALF_DAY").length
-            lopDays += absentDays + 0.5 * halfDays
-          }
-          lopDays = Math.min(lopDays, daysInMonth)
+          // Approved floating holidays → paid days off for this employee.
+          const floatingOff = new Set<string>()
+          const floating = await db.floatingHolidaySelection.findMany({
+            where: {
+              employeeId: employee.id,
+              status: "APPROVED",
+              holiday: { date: { gte: monthStart, lte: monthEnd } },
+            },
+            select: { holiday: { select: { date: true } } },
+          })
+          for (const f of floating) floatingOff.add(ymd(f.holiday.date))
 
-          // Pay = (monthly salary ÷ 30) × (calendar days in month − unpaid days).
-          const payableDays = Math.max(0, daysInMonth - lopDays)
+          // ── Walk every calendar day and credit pay from attendance ──────────
+          // Off days (weekend/holiday) are paid. Working days are paid only when
+          // the employee was present / on paid leave; an absence (no punch, no paid
+          // leave) or unpaid leave docks salary/30. Half-days pay 0.5.
+          let payableDays = 0 // days credited (drives the proration ratio)
+          let lopDays = 0 // unpaid days, for the record
+          let leaveDaysInMonth = 0 // paid-leave days, for the record
+          for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(Date.UTC(yearNum, monthNum - 1, d))
+            const key = ymd(date)
+            if (joiningYmd && key < joiningYmd) continue // before joining → unpaid, not employed
+            if (isOffDay(date) || floatingOff.has(key)) {
+              payableDays += 1 // weekend / holiday / approved floating holiday → paid
+              continue
+            }
+            if (key > todayYmd) {
+              payableDays += 1 // future working day of an in-progress month → assumed present
+              continue
+            }
+            const att = attByDay.get(key)
+            if (att === "PRESENT" || att === "LATE") {
+              payableDays += 1
+            } else if (att === "HALF_DAY") {
+              payableDays += 0.5
+              lopDays += 0.5
+            } else if (att === "ABSENT") {
+              lopDays += 1
+            } else if (paidLeave.has(key)) {
+              payableDays += 1
+              leaveDaysInMonth += 1
+            } else {
+              // No punch and no paid leave (incl. unpaid leave) → unpaid absence.
+              lopDays += 1
+            }
+          }
+          payableDays = Math.round(payableDays * 100) / 100
+          lopDays = Math.round(lopDays * 100) / 100
+
+          // Daily rate = salary ÷ 30; pay = rate × credited days.
           const ratio = payableDays / STANDARD_MONTH_DAYS
 
           // Scale earnings proportionally
@@ -299,11 +359,13 @@ export const POST = withAuth(
         }
       }
 
+      const notEmployedNote = notEmployed.length ? `, ${notEmployed.length} not yet joined` : ""
       return NextResponse.json(
         {
-          message: `Payroll generated: ${created.length} created, ${skipped.length} skipped (already exist), ${errors.length} errors`,
+          message: `Payroll generated: ${created.length} created, ${skipped.length} skipped (already exist)${notEmployedNote}, ${errors.length} errors`,
           created: created.length,
           skipped: skipped.length,
+          notEmployed: notEmployed.length,
           errors: errors.length,
         },
         { status: 201 },

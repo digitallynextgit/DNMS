@@ -3,7 +3,7 @@
 import { useState } from "react"
 import {
   CheckCircle2,
-  XCircle,
+  AlertTriangle,
   Clock,
   Timer,
   RefreshCw,
@@ -71,7 +71,7 @@ export default function MyAttendancePage() {
 
   // Summary for the SELECTED month.
   const presentDays = days.filter((d) => d.status === "PRESENT").length
-  const absentDays = days.filter((d) => d.status === "ABSENT").length
+  const missingPunchDays = days.filter((d) => d.status === "MISSING_PUNCH").length
   const halfDays = days.filter((d) => d.status === "HALF_DAY").length
   const worked = days.filter((d) => d.workHours != null && d.workHours > 0)
   const totalHours = worked.reduce((sum, d) => sum + (d.workHours ?? 0), 0)
@@ -132,11 +132,11 @@ export default function MyAttendancePage() {
           iconBg="bg-green-50"
         />
         <StatCard
-          title="Absent Days"
-          value={isLoading ? "-" : absentDays}
-          icon={XCircle}
-          iconColor="text-red-600"
-          iconBg="bg-red-50"
+          title="Missing Punch"
+          value={isLoading ? "-" : missingPunchDays}
+          icon={AlertTriangle}
+          iconColor="text-purple-600"
+          iconBg="bg-purple-50"
         />
         <StatCard
           title="Half Days"

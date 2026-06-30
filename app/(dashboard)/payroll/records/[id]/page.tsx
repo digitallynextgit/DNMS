@@ -61,7 +61,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
       <div className="flex flex-col items-center gap-4 py-20">
         <p className="text-muted-foreground">Payroll record not found.</p>
         <Button variant="outline" asChild>
-          <Link href="/payroll">
+          <Link href="/payroll/payroll-directory">
             <ChevronLeft className="mr-1 h-4 w-4" /> Back to Payroll
           </Link>
         </Button>
@@ -89,7 +89,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
               <Download className="h-4 w-4" /> Download PDF
             </Button>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/payroll" className="flex items-center gap-1.5">
+              <Link href="/payroll/payroll-directory" className="flex items-center gap-1.5">
                 <ChevronLeft className="h-4 w-4" /> Back
               </Link>
             </Button>

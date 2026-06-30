@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import Link from "next/link"
 import { Plus, Trash2, Inbox } from "lucide-react"
 
@@ -178,7 +179,7 @@ function NewEvaluationDialog() {
 export default function EvaluationsPage() {
   const { can } = usePermissions()
   const canReview = can(PERMISSIONS.PERFORMANCE_REVIEW)
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
   const { data, isLoading } = useEvaluations({ page, limit: 10 })
   const del = useDeleteEvaluation()
   const [deleteTarget, setDeleteTarget] = useState<Evaluation | null>(null)

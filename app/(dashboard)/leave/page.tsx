@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,7 @@ import { Plus } from "lucide-react"
 export default function LeaveDashboardPage() {
   const { data: session } = useSession()
   const currentYear = new Date().getFullYear()
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
 
   const { data: balancesData, isLoading: balancesLoading } = useLeaveBalances(
     undefined,

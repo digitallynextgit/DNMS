@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Check, UserMinus, X } from "lucide-react"
@@ -21,7 +22,7 @@ import { cn, getAvatarColor, formatDate } from "@/lib/utils"
 
 export default function ResignationsPage() {
   const router = useRouter()
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
   const { data, isLoading } = useResignationsToReview({ page, limit: 10 })
   const reviewMut = useReviewResignation()
 

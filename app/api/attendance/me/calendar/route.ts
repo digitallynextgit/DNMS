@@ -4,12 +4,23 @@ import { withSession } from "@/server/api-handler"
 import type { Session } from "next-auth"
 
 // Per-day attendance calendar for the signed-in employee. Combines attendance
-// logs + company holidays + approved leaves + weekends into one status per day.
-//   PRESENT / HALF_DAY  → from the attendance log (with check-in/out)
-//   HOLIDAY / LEAVE     → company holiday or approved leave (yellow)
-//   WEEKEND             → Sat/Sun (grey)
-//   ABSENT             → a past working day with no presence (red)
-//   UPCOMING           → today onward with no record yet (blank)
+// logs + company holidays + approved leaves + WFH + weekends into one status/day.
+//   PRESENT        → both punches present (green)
+//   HALF_DAY       → present but < a full day (orange)
+//   MISSING_PUNCH  → only one punch (forgot to punch in OR out) - purple
+//   LEAVE          → approved leave (red)
+//   WFH            → approved work-from-home (yellow)
+//   HOLIDAY        → company holiday (blue) · WEEKEND → Sat/Sun (grey)
+//   UPCOMING/NONE  → future / before-start / a past working day with no record (blank)
+// This is an office where everyone attends, so there is no "absent" state.
+
+// A lone punch before this IST hour reads as a forgotten check-OUT (i.e. the punch
+// is the morning check-in); at/after it, the punch reads as a forgotten check-IN.
+const SINGLE_PUNCH_SPLIT_IST_HOUR = 14
+
+function istHour(d: Date): number {
+  return Math.floor(((d.getUTCHours() * 60 + d.getUTCMinutes() + 330) % 1440) / 60)
+}
 
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -34,7 +45,7 @@ export const GET = withSession(
       const todayStr = ymd(new Date())
       const employeeId = session.user.id
 
-      const [logs, fixedHolidays, floatingSelections, leaves] = await Promise.all([
+      const [logs, fixedHolidays, floatingSelections, leaves, wfh] = await Promise.all([
         db.attendanceLog.findMany({
           where: { employeeId, date: { gte: monthStart, lte: monthEnd } },
           select: { date: true, status: true, checkIn: true, checkOut: true, workHours: true },
@@ -63,6 +74,10 @@ export const GET = withSession(
           },
           select: { startDate: true, endDate: true, leaveType: { select: { name: true } } },
         }),
+        db.wfhRequest.findMany({
+          where: { employeeId, status: "APPROVED", date: { gte: monthStart, lte: monthEnd } },
+          select: { date: true },
+        }),
       ])
 
       const logByDay = new Map(logs.map((l) => [ymd(l.date), l]))
@@ -79,6 +94,7 @@ export const GET = withSession(
           cursor.setUTCDate(cursor.getUTCDate() + 1)
         }
       }
+      const wfhByDay = new Set(wfh.map((w) => ymd(w.date)))
 
       // The employee's first-ever punch: don't show anything before they started
       // using the machine (e.g. someone who joined in Feb stays blank for Jan).
@@ -98,34 +114,58 @@ export const GET = withSession(
         const future = ds > todayStr
         const beforeStart = !firstStr || ds < firstStr
         const log = logByDay.get(ds)
-        const cameIn = !!log?.checkIn && (log.status === "PRESENT" || log.status === "LATE")
+        const hasIn = !!log?.checkIn
+        const hasOut = !!log?.checkOut
         const isHalf = log?.status === "HALF_DAY"
 
-        let status: "PRESENT" | "HALF_DAY" | "ABSENT" | "WEEKEND" | "HOLIDAY" | "LEAVE" | "UPCOMING"
+        let status:
+          | "PRESENT"
+          | "HALF_DAY"
+          | "MISSING_PUNCH"
+          | "WEEKEND"
+          | "HOLIDAY"
+          | "LEAVE"
+          | "WFH"
+          | "UPCOMING"
+          | "NONE"
         let label: string | null = null
         let checkIn: string | null = null
         let checkOut: string | null = null
         let workHours: number | null = null
 
-        if (cameIn || isHalf) {
-          // Actual presence is ground truth.
+        if (hasIn && hasOut) {
+          // Both punches → real presence (half-day when short of a full day).
           status = isHalf ? "HALF_DAY" : "PRESENT"
-          checkIn = log?.checkIn ? log.checkIn.toISOString() : null
-          checkOut = log?.checkOut ? log.checkOut.toISOString() : null
+          checkIn = log!.checkIn!.toISOString()
+          checkOut = log!.checkOut!.toISOString()
           workHours = log?.workHours ?? null
-        } else if (beforeStart || future) {
-          // Before the employee started punching, or a future date → blank.
-          status = "UPCOMING"
+        } else if (hasIn !== hasOut) {
+          // Exactly one punch → forgot to punch in OR out. Infer which side from
+          // the time of day and show only the punch we have.
+          status = "MISSING_PUNCH"
+          const only = (log!.checkIn ?? log!.checkOut)!
+          if (istHour(only) < SINGLE_PUNCH_SPLIT_IST_HOUR) {
+            checkIn = only.toISOString() // morning punch → forgot the evening check-out
+          } else {
+            checkOut = only.toISOString() // evening punch → forgot the morning check-in
+          }
+        } else if (beforeStart) {
+          status = "UPCOMING" // before they started punching → blank
         } else if (holidayByDay.has(ds)) {
           status = "HOLIDAY"
           label = holidayByDay.get(ds) ?? null
         } else if (leaveByDay.has(ds)) {
           status = "LEAVE"
           label = leaveByDay.get(ds) ?? null
+        } else if (wfhByDay.has(ds)) {
+          status = "WFH"
+          label = "Work from home"
         } else if (isWeekend) {
           status = "WEEKEND"
+        } else if (future) {
+          status = "UPCOMING" // future working day → blank
         } else {
-          status = "ABSENT"
+          status = "NONE" // past working day with no record (office → not flagged absent)
         }
 
         days.push({ date: ds, day, dow, status, label, checkIn, checkOut, workHours })

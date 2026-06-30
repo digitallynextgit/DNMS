@@ -1,24 +1,20 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Input } from "@/components/ui/input"
+import { useState, useEffect, useRef } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { apiFetch } from "@/lib/api-fetch"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { FormDialog } from "@/components/shared/form-dialog"
-import { ATTENDANCE_STATUS_LABELS } from "@/lib/constants"
+import { DateField } from "@/components/shared/date-field"
+import { TimeField } from "@/components/shared/time-field"
 import {
   useCreateAttendanceLog,
   useUpdateAttendanceLog,
 } from "@/features/attendance/hooks/use-attendance"
 import type { AttendanceLog } from "@/features/attendance/hooks/use-attendance"
 import { EmployeeCombobox } from "@/features/employees"
+import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
 interface ManualAttendanceDialogProps {
@@ -27,22 +23,60 @@ interface ManualAttendanceDialogProps {
   editLog?: AttendanceLog | null
 }
 
-function calcWorkHoursPreview(checkIn: string, checkOut: string): string {
-  if (!checkIn || !checkOut) return ""
-  const [inH, inM] = checkIn.split(":").map(Number)
-  const [outH, outM] = checkOut.split(":").map(Number)
-  const totalInMins = inH * 60 + inM
-  const totalOutMins = outH * 60 + outM
-  const diffMins = totalOutMins - totalInMins
-  if (diffMins <= 0) return ""
-  const hours = Math.floor(diffMins / 60)
-  const mins = diffMins % 60
-  return `${hours}h ${mins > 0 ? `${mins}m` : ""}`.trim()
+// HH:MM string of a stored UTC datetime, shown in the viewer's local time.
+function toLocalTime(iso: string | null): string {
+  if (!iso) return ""
+  const d = new Date(iso)
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
 }
 
-// Build a full ISO datetime string for today's date combined with HH:mm time string
-function buildDatetime(date: string, time: string): string {
-  return `${date}T${time}:00.000Z`
+// Existing attendance row for an employee on a given day (so HR corrects rather
+// than re-enters). Returns null when there's no record yet.
+async function fetchDayLog(employeeId: string, date: string): Promise<AttendanceLog | null> {
+  const params = new URLSearchParams({ employeeId, dateFrom: date, dateTo: date, limit: "1" })
+  const body = await apiFetch<{ data: AttendanceLog[] }>(`/api/attendance?${params.toString()}`)
+  return body.data?.[0] ?? null
+}
+
+// Combine the picked date + "HH:MM" local time into a UTC ISO string.
+function buildDatetime(date: string, time: string): string | null {
+  if (!time) return null
+  const [h, m] = time.split(":").map(Number)
+  const [y, mo, d] = date.split("-").map(Number)
+  return new Date(y, mo - 1, d, h, m, 0, 0).toISOString()
+}
+
+function minutesBetween(checkIn: string, checkOut: string): number {
+  const [ih, im] = checkIn.split(":").map(Number)
+  const [oh, om] = checkOut.split(":").map(Number)
+  return oh * 60 + om - (ih * 60 + im)
+}
+
+// Live preview of the status the server will derive from the punches.
+function previewStatus(checkIn: string, checkOut: string): { label: string; cls: string } | null {
+  const green = "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300"
+  const orange = "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
+  const purple = "bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300"
+  const red = "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300"
+
+  if (!checkIn && !checkOut) return null
+  if (checkIn && checkOut) {
+    const mins = minutesBetween(checkIn, checkOut)
+    if (mins <= 0) return { label: "Check-out is before check-in", cls: red }
+    const hours = mins / 60
+    if (hours >= 4 && hours < 8) return { label: "Half day", cls: orange }
+    return { label: "Present", cls: green }
+  }
+  return { label: "Missing punch", cls: purple }
+}
+
+function workHoursPreview(checkIn: string, checkOut: string): string {
+  if (!checkIn || !checkOut) return ""
+  const mins = minutesBetween(checkIn, checkOut)
+  if (mins <= 0) return ""
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return `${h}h${m > 0 ? ` ${m}m` : ""}`
 }
 
 export function ManualAttendanceDialog({
@@ -56,44 +90,65 @@ export function ManualAttendanceDialog({
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"))
   const [checkIn, setCheckIn] = useState("")
   const [checkOut, setCheckOut] = useState("")
-  const [status, setStatus] = useState("PRESENT")
   const [notes, setNotes] = useState("")
 
   const createLog = useCreateAttendanceLog()
   const updateLog = useUpdateAttendanceLog()
   const isPending = createLog.isPending || updateLog.isPending
 
-  // Populate form when editing
+  // Tracks which (employee, date) we've already prefilled, so editing the times
+  // doesn't get clobbered on re-render.
+  const prefilledKey = useRef("")
+
   useEffect(() => {
     if (editLog) {
       setEmployeeId(editLog.employeeId)
       setDate(format(new Date(editLog.date), "yyyy-MM-dd"))
-      setCheckIn(editLog.checkIn ? new Date(editLog.checkIn).toISOString().slice(11, 16) : "")
-      setCheckOut(editLog.checkOut ? new Date(editLog.checkOut).toISOString().slice(11, 16) : "")
-      setStatus(editLog.status)
+      setCheckIn(toLocalTime(editLog.checkIn))
+      setCheckOut(toLocalTime(editLog.checkOut))
       setNotes(editLog.notes ?? "")
     } else {
       setEmployeeId("")
       setDate(format(new Date(), "yyyy-MM-dd"))
       setCheckIn("")
       setCheckOut("")
-      setStatus("PRESENT")
       setNotes("")
+      prefilledKey.current = ""
     }
   }, [editLog, open])
 
-  const workHoursPreview = calcWorkHoursPreview(checkIn, checkOut)
+  // When HR picks an employee + date, pull any existing punches for that day and
+  // prefill them (so they correct what's there instead of starting blank).
+  const { data: dayLog } = useQuery({
+    queryKey: ["attendance-day", employeeId, date],
+    queryFn: () => fetchDayLog(employeeId, date),
+    enabled: open && !isEdit && !!employeeId && !!date,
+    staleTime: 0,
+  })
+
+  useEffect(() => {
+    if (isEdit || !open || !employeeId || !date || dayLog === undefined) return
+    const key = `${employeeId}|${date}`
+    if (prefilledKey.current === key) return
+    prefilledKey.current = key
+    setCheckIn(toLocalTime(dayLog?.checkIn ?? null))
+    setCheckOut(toLocalTime(dayLog?.checkOut ?? null))
+    setNotes(dayLog?.notes ?? "")
+  }, [dayLog, employeeId, date, isEdit, open])
+
+  const status = previewStatus(checkIn, checkOut)
+  const hours = workHoursPreview(checkIn, checkOut)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
+    // No explicit status - the server derives it from the punch times.
     const payload: Record<string, unknown> = {
       employeeId,
       date,
-      status,
       notes: notes || null,
-      checkIn: checkIn ? buildDatetime(date, checkIn) : null,
-      checkOut: checkOut ? buildDatetime(date, checkOut) : null,
+      checkIn: buildDatetime(date, checkIn),
+      checkOut: buildDatetime(date, checkOut),
     }
 
     if (isEdit && editLog) {
@@ -101,7 +156,6 @@ export function ManualAttendanceDialog({
     } else {
       await createLog.mutateAsync(payload)
     }
-
     onOpenChange(false)
   }
 
@@ -109,18 +163,17 @@ export function ManualAttendanceDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={isEdit ? "Edit Attendance Record" : "Add Manual Attendance"}
+      title="Correct Punch"
       isEdit={isEdit}
       isPending={isPending}
-      submitDisabled={(!isEdit && !employeeId) || !date}
-      submitLabel={isEdit ? "Save Changes" : "Add Record"}
+      submitDisabled={(!isEdit && !employeeId) || !date || (!checkIn && !checkOut)}
+      submitLabel={isEdit ? "Save Changes" : "Apply"}
       onSubmit={handleSubmit}
-      contentClassName="sm:max-w-[500px]"
+      contentClassName="sm:max-w-[480px]"
     >
-      {/* Employee select */}
       {!isEdit && (
         <div className="space-y-2">
-          <Label htmlFor="employee">Employee</Label>
+          <Label>Employee</Label>
           <EmployeeCombobox
             value={employeeId || undefined}
             onChange={(id) => setEmployeeId(id ?? "")}
@@ -130,66 +183,35 @@ export function ManualAttendanceDialog({
         </div>
       )}
 
-      {/* Date */}
       <div className="space-y-2">
-        <Label htmlFor="date">Date</Label>
-        <Input
-          id="date"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          required
-          disabled={isEdit}
-        />
+        <Label>Date</Label>
+        <DateField value={date} onChange={setDate} endMonth={new Date()} modal />
       </div>
 
-      {/* Check in / check out */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="check-in">Check In</Label>
-          <Input
-            id="check-in"
-            type="time"
-            value={checkIn}
-            onChange={(e) => setCheckIn(e.target.value)}
-          />
+          <Label>Check In</Label>
+          <TimeField value={checkIn} onChange={setCheckIn} modal />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="check-out">Check Out</Label>
-          <Input
-            id="check-out"
-            type="time"
-            value={checkOut}
-            onChange={(e) => setCheckOut(e.target.value)}
-          />
+          <Label>Check Out</Label>
+          <TimeField value={checkOut} onChange={setCheckOut} modal />
         </div>
       </div>
 
-      {/* Work hours preview */}
-      {workHoursPreview && (
-        <p className="text-muted-foreground text-sm">
-          Work hours: <span className="text-foreground font-medium">{workHoursPreview}</span>
-        </p>
+      {/* Auto-derived status + hours preview. */}
+      {status && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Status:</span>
+          <span
+            className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", status.cls)}
+          >
+            {status.label}
+          </span>
+          {hours && <span className="text-muted-foreground">· {hours}</span>}
+        </div>
       )}
 
-      {/* Status */}
-      <div className="space-y-2">
-        <Label htmlFor="status">Status</Label>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger id="status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(ATTENDANCE_STATUS_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Notes */}
       <div className="space-y-2">
         <Label htmlFor="notes">Notes</Label>
         <Textarea

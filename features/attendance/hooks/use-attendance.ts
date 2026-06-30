@@ -106,11 +106,13 @@ interface PaginatedResponse<T> {
 export type CalendarDayStatus =
   | "PRESENT"
   | "HALF_DAY"
-  | "ABSENT"
+  | "MISSING_PUNCH"
   | "WEEKEND"
   | "HOLIDAY"
   | "LEAVE"
+  | "WFH"
   | "UPCOMING"
+  | "NONE"
 
 export interface CalendarDay {
   date: string
@@ -260,6 +262,53 @@ async function deleteHoliday(id: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/api/attendance/holidays/${id}`, { method: "DELETE" })
 }
 
+// ─── Directory (one row per employee for a date range) ──────────────────────────
+
+export interface AttendanceDirectoryRow {
+  employeeId: string
+  firstName: string
+  lastName: string
+  employeeNo: string
+  profilePhoto: string | null
+  department: string | null
+  /** Single-day snapshot (when from === to). */
+  checkIn: string | null
+  checkOut: string | null
+  workHours: number | null
+  status: "PRESENT" | "HALF_DAY" | "MISSING_PUNCH" | "ABSENT"
+  /** Range aggregates. */
+  presentDays: number
+  halfDays: number
+  missingDays: number
+  absentDays: number
+  avgHours: number
+}
+
+export interface AttendanceDirectory {
+  isSingleDay: boolean
+  from: string
+  to: string
+  summary: { totalEmployees: number; present: number; halfDay: number; notPresent: number }
+  rows: AttendanceDirectoryRow[]
+}
+
+async function fetchAttendanceDirectory(from: string, to: string): Promise<AttendanceDirectory> {
+  const params = new URLSearchParams({ from, to })
+  const res = await apiFetch<{ data: AttendanceDirectory }>(
+    `/api/attendance/directory?${params.toString()}`,
+  )
+  return res.data
+}
+
+export function useAttendanceDirectory(from: string, to: string) {
+  return useQuery({
+    queryKey: ["attendance-directory", from, to],
+    queryFn: () => fetchAttendanceDirectory(from, to),
+    staleTime: 30_000,
+    enabled: !!from && !!to,
+  })
+}
+
 // ─── Hooks ─────────────────────────────────────────────────────────────────────
 
 export function useAttendanceLogs(filters: AttendanceFilters = {}) {
@@ -327,7 +376,14 @@ export function useCreateAttendanceLog() {
   return useMutation(
     mutationWithToast(qc, {
       mutationFn: createAttendanceLog,
-      invalidate: [["attendance-logs"], ["attendance-summary"]],
+      invalidate: [
+        ["attendance-logs"],
+        ["attendance-directory"],
+        ["attendance-day"],
+        ["my-attendance"],
+        ["my-attendance-calendar"],
+        ["attendance-summary"],
+      ],
       success: "Attendance record created successfully",
     }),
   )
@@ -339,7 +395,14 @@ export function useUpdateAttendanceLog() {
   return useMutation(
     mutationWithToast(qc, {
       mutationFn: updateAttendanceLog,
-      invalidate: [["attendance-logs"], ["my-attendance"], ["attendance-summary"]],
+      invalidate: [
+        ["attendance-logs"],
+        ["attendance-directory"],
+        ["attendance-day"],
+        ["my-attendance"],
+        ["my-attendance-calendar"],
+        ["attendance-summary"],
+      ],
       success: "Attendance record updated successfully",
     }),
   )

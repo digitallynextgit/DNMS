@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Plus, Loader2, Trash2 } from "lucide-react"
@@ -48,7 +49,7 @@ export default function KpisPage() {
 
   // Client-side pagination over the full KPI list (slot 10); the API/shape is
   // unchanged because this list is also consumed elsewhere.
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
   const total = kpis.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const pageKpis = kpis.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)

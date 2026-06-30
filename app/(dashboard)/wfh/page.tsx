@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import Link from "next/link"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
@@ -21,7 +22,7 @@ import { cn } from "@/lib/utils"
 import { Plus, Home, AlertTriangle, Ban, Inbox } from "lucide-react"
 
 export default function MyWfhPage() {
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
   const { data: eligibility, isLoading: eligLoading } = useWfhEligibility()
   const { data: requestsData, isLoading: reqLoading } = useMyWfhRequests({ page, limit: 10 })
   const cancel = useCancelWfh()

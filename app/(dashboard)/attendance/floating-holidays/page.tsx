@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { CalendarDays, Check } from "lucide-react"
@@ -62,7 +63,7 @@ async function deselectHoliday(holidayId: string): Promise<unknown> {
 export default function FloatingHolidaysPage() {
   const queryClient = useQueryClient()
   const [year, setYear] = useState(CURRENT_YEAR)
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
 
   // Reset to the first page whenever the year filter changes.
   function changeYear(next: number) {

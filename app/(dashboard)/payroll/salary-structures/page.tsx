@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Plus, Pencil, Trash2 } from "lucide-react"
@@ -47,7 +48,7 @@ export default function SalaryStructuresPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editData, setEditData] = useState<SalaryStructure | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
 
   const { data, isLoading } = useSalaryStructures()
   const deleteMutation = useDeleteSalaryStructure()

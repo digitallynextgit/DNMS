@@ -830,18 +830,30 @@ model Resignation {
 // =============================================================================
 
 model FloatingHolidaySelection {
-  id         String      @id @default(uuid()) @map("id")
-  employeeId String      @map("employee_id")
-  holidayId  String      @map("holiday_id")
-  year       Int         @map("year")
-  status     LeaveStatus @default(PENDING) @map("status")
-  createdAt  DateTime    @default(now()) @map("created_at")
+  id                String      @id @default(uuid()) @map("id")
+  employeeId        String      @map("employee_id")
+  holidayId         String      @map("holiday_id")
+  year              Int         @map("year")
+  status            LeaveStatus @default(PENDING) @map("status")
+  reason            String?     @map("reason")
+  // Approval routing: manager review is the first step (recorded but NOT final -
+  // HR can still approve a manager-rejected request); HR approval is the last call.
+  managerDecision   String?     @map("manager_decision") // "APPROVED" | "REJECTED"
+  managerApproverId String?     @map("manager_approver_id")
+  managerApprovedAt DateTime?   @map("manager_approved_at")
+  hrApproverId      String?     @map("hr_approver_id")
+  hrApprovedAt      DateTime?   @map("hr_approved_at")
+  rejectionReason   String?     @map("rejection_reason")
+  reviewedAt        DateTime?   @map("reviewed_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   holiday  Holiday  @relation(fields: [holidayId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, holidayId, year])
   @@index([employeeId, year])
+  @@index([status])
   @@map("floating_holiday_selections")
 }
 

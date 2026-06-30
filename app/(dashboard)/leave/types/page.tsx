@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { PageHeader } from "@/components/shared/page-header"
 import { LeaveTypeForm } from "@/features/leave"
 import { Button } from "@/components/ui/button"
@@ -39,7 +40,7 @@ export default function LeaveTypesPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingType, setEditingType] = useState<LeaveType | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
 
   // useLeaveTypes only returns active types; we need all for admin
   // We'll show based on what the API returns

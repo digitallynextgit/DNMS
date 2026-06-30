@@ -263,7 +263,7 @@ export function EmployeeDashboard() {
               Upcoming Holidays
             </CardTitle>
             <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-xs">
-              <Link href="/attendance/holidays">
+              <Link href="/holiday-calendar">
                 View all <ArrowRight className="h-3 w-3" />
               </Link>
             </Button>

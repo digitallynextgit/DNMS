@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Plus, Loader2, Target, Pencil, Trash2 } from "lucide-react"
@@ -103,7 +104,7 @@ export default function GoalsPage() {
   const qc = useQueryClient()
   const currentYear = new Date().getFullYear()
   const [year, setYear] = useState(currentYear)
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
 
   const { data, isLoading } = useQuery({
     queryKey: ["goals", year],

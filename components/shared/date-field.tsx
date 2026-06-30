@@ -36,6 +36,7 @@ export function DateField({
   startMonth,
   endMonth,
   disabled,
+  modal,
 }: {
   value?: string
   onChange: (v: string) => void
@@ -43,10 +44,12 @@ export function DateField({
   startMonth?: Date
   endMonth?: Date
   disabled?: (date: Date) => boolean
+  /** Set when rendered inside a Dialog so the popover layers above it. */
+  modal?: boolean
 }) {
   const [open, setOpen] = useState(false)
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={modal}>
       <PopoverTrigger asChild>
         <Button
           type="button"

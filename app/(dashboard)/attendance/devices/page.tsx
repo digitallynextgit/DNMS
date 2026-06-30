@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { Plus, RefreshCw, Pencil, Trash2, Wifi, WifiOff, Loader2, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
@@ -32,7 +33,7 @@ export default function DevicesPage() {
 
   // Client-side pagination (devices is a small, full-list config resource).
   const PAGE_SIZE = 10
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
   const totalPages = Math.max(1, Math.ceil(devices.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
   const pagedDevices = devices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)

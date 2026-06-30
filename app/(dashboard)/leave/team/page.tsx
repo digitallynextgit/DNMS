@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useSession } from "next-auth/react"
 import { PageHeader } from "@/components/shared/page-header"
 import { LeaveRequestTable } from "@/features/leave"
@@ -31,7 +32,7 @@ export default function TeamLeavePage() {
   const [leaveTypeId, setLeaveTypeId] = useState("all")
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
 
   const { data: typesData } = useLeaveTypes()
   const leaveTypes = typesData?.data ?? []

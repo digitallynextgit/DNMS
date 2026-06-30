@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useRouter } from "next/navigation"
 import { CheckCircle, Info, AlertCircle, CheckCheck } from "lucide-react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
@@ -53,7 +54,7 @@ const LIMIT = 10
 export default function NotificationsPage() {
   const router = useRouter()
   const qc = useQueryClient()
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
 
   const { data, isLoading } = useQuery<NotificationsResponse>({
     queryKey: ["notifications", page],

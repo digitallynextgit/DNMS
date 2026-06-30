@@ -1243,7 +1243,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">- None —</SelectItem>
+                  <SelectItem value="none">- None -</SelectItem>
                   {jobRoleList
                     .filter((r) => r.isActive)
                     .map((r) => (

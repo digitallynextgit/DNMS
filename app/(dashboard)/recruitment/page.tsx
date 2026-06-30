@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Plus, Loader2, Briefcase, Users, ExternalLink, Sparkles } from "lucide-react"
@@ -115,7 +116,7 @@ export default function RecruitmentPage() {
   const qc = useQueryClient()
 
   const [statusFilter, setStatusFilter] = useState<string>("")
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
   const { data: jobsData, isLoading } = useQuery({
     queryKey: ["jobs", statusFilter],
     queryFn: () => fetchJobs(statusFilter || undefined),

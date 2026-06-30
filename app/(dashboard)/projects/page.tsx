@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import Link from "next/link"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
@@ -98,7 +99,7 @@ export default function ProjectsPage() {
   const [editing, setEditing] = useState<Project | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<Project | null>(null)
   const [viewMode, setViewMode] = useViewMode("projects:list")
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
 
   // Client-side pagination applies only to the flat list (card/table) views.
   // The kanban board groups by status and is intentionally left unpaginated.

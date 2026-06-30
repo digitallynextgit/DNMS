@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { Upload } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
@@ -26,7 +27,7 @@ export default function CompanyDocumentsPage() {
 
   const [uploadOpen, setUploadOpen] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>("")
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
 
   function handleCategoryChange(val: string) {
     setSelectedCategory(val)

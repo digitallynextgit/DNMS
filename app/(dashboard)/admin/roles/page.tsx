@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useMemo, useState, useCallback } from "react"
+import { useUrlPage } from "@/hooks/use-url-state"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { Plus, Pencil, Trash2, ShieldCheck } from "lucide-react"
@@ -62,7 +63,7 @@ export default function RolesPage() {
   const [loading, setLoading] = useState(true)
 
   // Client-side pagination over the full reused /api/roles list.
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useUrlPage()
   const totalPages = Math.max(1, Math.ceil(roles.length / PAGE_SIZE))
   const pagedRoles = useMemo(
     () => roles.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),

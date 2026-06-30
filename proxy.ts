@@ -84,6 +84,7 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   [/^\/leave\/apply(\/|$)/, null],
   [/^\/wfh\/apply(\/|$)/, null],
   [/^\/employees\/org-chart(\/|$)/, null],
+  [/^\/holiday-calendar(\/|$)/, null],
   [/^\/leave$/, null],
   [/^\/wfh$/, null],
 
@@ -95,6 +96,9 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
 
   // --- Attendance (HR) ---------------------------------------------------
   [/^\/attendance(\/|$)/, "attendance:write"],
+
+  // --- Holidays (HR management; employees use /holiday-calendar) ---------
+  [/^\/holidays(\/|$)/, "attendance:write"],
 
   // --- Leave (HR) --------------------------------------------------------
   [/^\/leave\/(team|calendar|types)(\/|$)/, "leave:approve"],
