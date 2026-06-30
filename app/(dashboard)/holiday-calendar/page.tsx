@@ -246,10 +246,19 @@ export default function EmployeeHolidayCalendarPage() {
                 const h = holidayByDay.get(`${year}-${pad(calMonth + 1)}-${pad(day)}`)
                 const dow = new Date(Date.UTC(year, calMonth, day)).getUTCDay()
                 const weekend = dow === 0 || dow === 6
+                // A floating holiday this employee applied for and HR approved is
+                // a confirmed day off - show it green, distinct from an un-availed
+                // floating option (amber).
+                const approved =
+                  !!h && h.isOptional && selByHoliday.get(h.id)?.status === "APPROVED"
                 return (
                   <div
                     key={day}
-                    title={h ? `${h.name}${h.isOptional ? " (Floating)" : ""}` : undefined}
+                    title={
+                      h
+                        ? `${h.name}${approved ? " - approved floating holiday" : h.isOptional ? " (Floating)" : ""}`
+                        : undefined
+                    }
                     className={cn(
                       "flex min-h-[72px] flex-col rounded-md p-1.5",
                       h
@@ -261,7 +270,10 @@ export default function EmployeeHolidayCalendarPage() {
                           : "border-border border",
                     )}
                   >
-                    <span className="text-xs font-semibold">{day}</span>
+                    <span className="flex items-center gap-1 text-xs font-semibold">
+                      {day}
+                      {approved && <Check className="h-3 w-3" />}
+                    </span>
                     {h && (
                       <span className="mt-auto line-clamp-2 text-[10px] leading-tight font-medium">
                         {h.name}
@@ -279,6 +291,10 @@ export default function EmployeeHolidayCalendarPage() {
               <span className="flex items-center gap-1.5">
                 <span className="h-3 w-3 rounded-sm bg-amber-100 dark:bg-amber-950/40" />
                 <span className="text-muted-foreground">Floating holiday</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Check className="h-3 w-3" />
+                <span className="text-muted-foreground">Approved floating holiday</span>
               </span>
             </div>
           </div>
