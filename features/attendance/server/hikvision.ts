@@ -259,6 +259,7 @@ export async function fetchAttendanceEvents(
       "POST",
       "/ISAPI/AccessControl/AcsEvent?format=json",
       searchCondition,
+      20000, // event queries can be slow with many results - give the device time
     )
 
     if (!result.ok) {
@@ -292,10 +293,13 @@ export async function fetchAttendanceEvents(
     const rawList: HikvisionAcsEvent[] = acsEvent.InfoList ?? []
 
     for (const raw of rawList) {
-      // Only person-identified access grants (minor 75) carry employeeNoString +
-      // time; door/alarm events (minor 21-24, major 2) have neither, so skip them.
+      // Keep only person-identified punches (those carrying employeeNoString +
+      // time); door/alarm/system events lack these and are skipped. This holds
+      // for any auth method (face/card/fingerprint), so we don't filter by minor.
       if (!raw.employeeNoString || !raw.time) continue
 
+      // The device sends an offset (e.g. "...+05:30"), so this resolves to the
+      // correct instant; the app then renders it back in local time.
       const timestamp = new Date(raw.time)
       if (isNaN(timestamp.getTime())) continue
 
@@ -304,11 +308,17 @@ export async function fetchAttendanceEvents(
       allEvents.push({ employeeNo: raw.employeeNoString, timestamp, direction: "unknown" })
     }
 
-    const matched = acsEvent.numOfMatches ?? rawList.length
-    const total = acsEvent.totalMatches ?? matched
-
-    position += matched
-    if (position >= total || rawList.length === 0) break
+    // The device pages results in chunks SMALLER than maxResults (e.g. 30/page)
+    // and signals that more remain via responseStatusStrg="MORE" and/or
+    // totalMatches. Keep paging while either says so - a `rawList.length <
+    // maxResults` check would stop after the first short page and silently drop
+    // later punches (heavy punchers have many events per range).
+    const numThisPage = acsEvent.numOfMatches ?? rawList.length
+    position += numThisPage
+    const hasMore =
+      acsEvent.responseStatusStrg === "MORE" ||
+      (acsEvent.totalMatches !== undefined && position < acsEvent.totalMatches)
+    if (!hasMore || rawList.length === 0) break
   }
 
   return { events: allEvents }

@@ -2,8 +2,8 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
-import { PERMISSIONS } from "@/lib/constants"
-import { createNotification } from "@/lib/notifications"
+import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
+import { createNotification, notifyApprovers } from "@/lib/notifications"
 import { sendEmail } from "@/lib/mailer"
 import { requireSession } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
@@ -23,6 +23,16 @@ function getEmployeeTier(probationEndDate: Date | null, confirmationDate: Date |
   if (now < sixMonthsAfter) return 2
   return 3
 }
+
+const WFH_INCLUDE = {
+  employee: { select: EMPLOYEE_SUMMARY_SELECT },
+  managerApprover: { select: { id: true, firstName: true, lastName: true } },
+  hrApprover: { select: { id: true, firstName: true, lastName: true } },
+} as const
+
+// HR/admin roles whose decision is FINAL on a WFH request. A manager's call is
+// advisory (mirrors leave / floating-holiday requests).
+const HR_ROLE_NAMES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
 
 export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
@@ -229,6 +239,14 @@ export async function applyWfh(body: {
       },
     })
 
+    // Route to the employee's manager (advisory) + HR (final), like leave.
+    await notifyApprovers({
+      requesterId: session.user.id,
+      title: "WFH request",
+      message: `${request.employee.firstName} ${request.employee.lastName} requested Work From Home on ${wfhDate.toDateString()}.`,
+      link: "/wfh",
+    })
+
     return ok(serialize({ data: request, tier }))
   })
 }
@@ -237,21 +255,21 @@ export async function updateWfhRequest(
   id: string,
   action: "CANCEL" | "APPROVE" | "REJECT",
   rejectionReason?: string,
-  approverRole?: "MANAGER" | "HR",
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
     if (!action || !["CANCEL", "APPROVE", "REJECT"].includes(action))
       return fail("Action must be one of: CANCEL, APPROVE, REJECT")
 
-    const request = await db.wfhRequest.findUnique({ where: { id } })
+    const request = await db.wfhRequest.findUnique({
+      where: { id },
+      include: { employee: { select: { managerId: true, firstName: true, email: true } } },
+    })
     if (!request) return fail("WFH request not found")
     if (request.status !== "PENDING")
       return fail(
         `Cannot ${action.toLowerCase()} a request that is already ${request.status.toLowerCase()}`,
       )
-
-    const canApprove = hasPermission(session, PERMISSIONS.WFH_APPROVE)
 
     if (action === "CANCEL") {
       if (request.employeeId !== session.user.id)
@@ -260,97 +278,148 @@ export async function updateWfhRequest(
       return ok(serialize({ data: updated }))
     }
 
-    if (!canApprove) return fail("Forbidden: requires wfh:approve permission")
+    // HR (final) or the employee's own manager (advisory) may act. A manager's
+    // decision is recorded but keeps the request PENDING; HR makes the final call
+    // and can approve even over a manager's rejection.
+    const roles = session.user.roles ?? []
+    const isHr = roles.some((r) => HR_ROLE_NAMES.includes(r))
+    const isManager = request.employee.managerId === session.user.id
+    if (!isHr && !isManager) return fail("You can only act on your own team's WFH requests.")
     if (action === "REJECT" && !rejectionReason?.trim()) return fail("Rejection reason is required")
+    const reason = rejectionReason?.trim()
 
-    const role: "MANAGER" | "HR" = approverRole === "HR" ? "HR" : "MANAGER"
-
-    let updated
-    if (action === "APPROVE") {
-      const setMgr =
-        role === "MANAGER"
-          ? { managerApproverId: session.user.id, managerApprovedAt: new Date() }
-          : {}
-      const setHr = role === "HR" ? { hrApproverId: session.user.id, hrApprovedAt: new Date() } : {}
-
-      const afterStamp = await db.wfhRequest.update({
-        where: { id },
-        data: { ...setMgr, ...setHr },
-      })
-
-      const isFullyApproved = afterStamp.isEmergency
-        ? !!afterStamp.managerApproverId && !!afterStamp.hrApproverId
-        : !!afterStamp.managerApproverId
-
-      if (isFullyApproved) {
-        updated = await db.wfhRequest.update({
+    const updated = isHr
+      ? await db.wfhRequest.update({
           where: { id },
-          data: { status: "APPROVED" },
-          include: {
-            employee: {
-              select: { id: true, firstName: true, lastName: true, email: true, employeeNo: true },
-            },
-            managerApprover: { select: { id: true, firstName: true, lastName: true } },
-            hrApprover: { select: { id: true, firstName: true, lastName: true } },
-          },
+          data:
+            action === "APPROVE"
+              ? { status: "APPROVED", hrApproverId: session.user.id, hrApprovedAt: new Date() }
+              : { status: "REJECTED", rejectionReason: reason, hrApproverId: session.user.id },
+          include: WFH_INCLUDE,
         })
-      } else {
-        updated = afterStamp
-      }
-    } else {
-      updated = await db.wfhRequest.update({
-        where: { id },
-        data: {
-          status: "REJECTED",
-          rejectionReason: String(rejectionReason).trim(),
-          ...(role === "MANAGER" && { managerApproverId: session.user.id }),
-          ...(role === "HR" && { hrApproverId: session.user.id }),
-        },
-        include: {
-          employee: {
-            select: { id: true, firstName: true, lastName: true, email: true, employeeNo: true },
-          },
-        },
-      })
-    }
+      : await db.wfhRequest.update({
+          where: { id },
+          // Manager review is advisory - stays PENDING for HR's final call.
+          data:
+            action === "APPROVE"
+              ? {
+                  managerDecision: "APPROVED",
+                  managerApproverId: session.user.id,
+                  managerApprovedAt: new Date(),
+                }
+              : {
+                  managerDecision: "REJECTED",
+                  managerApproverId: session.user.id,
+                  rejectionReason: reason,
+                },
+          include: WFH_INCLUDE,
+        })
 
-    if (updated.status === "APPROVED" || updated.status === "REJECTED") {
-      try {
-        const emp = await db.employee.findUnique({
-          where: { id: request.employeeId },
-          select: { firstName: true, email: true },
+    const dateStr = new Date(request.date).toDateString()
+    try {
+      if (updated.status === "APPROVED" || updated.status === "REJECTED") {
+        const approved = updated.status === "APPROVED"
+        await createNotification({
+          employeeId: request.employeeId,
+          title: approved ? "WFH Approved" : "WFH Rejected",
+          message: approved
+            ? `Your Work From Home request for ${dateStr} has been approved.`
+            : `Your Work From Home request for ${dateStr} was rejected.${reason ? ` Reason: ${reason}` : ""}`,
+          type: approved ? "success" : "error",
+          link: "/wfh",
         })
-        if (emp) {
-          const dateStr = new Date(request.date).toDateString()
-          const approved = updated.status === "APPROVED"
-          await createNotification({
-            employeeId: request.employeeId,
-            title: approved ? "WFH Approved" : "WFH Rejected",
-            message: approved
-              ? `Your Work From Home request for ${dateStr} has been approved.`
-              : `Your Work From Home request for ${dateStr} was rejected.${rejectionReason ? ` Reason: ${rejectionReason}` : ""}`,
-            type: approved ? "success" : "error",
-            link: "/wfh",
-          })
+        if (request.employee.email) {
           const email = renderDecisionEmail({
             kind: "WFH request",
             approved,
-            firstName: emp.firstName,
+            firstName: request.employee.firstName,
             detailLine: `Work From Home · ${dateStr}`,
-            reason: !approved && rejectionReason ? rejectionReason : null,
+            reason: !approved && reason ? reason : null,
           })
           await sendEmail({
-            to: emp.email,
+            to: request.employee.email,
             subject: email.subject,
             html: email.html,
             text: email.text,
           })
         }
-      } catch {
-        // Non-blocking
+      } else {
+        // Manager decided; HR still has the final call.
+        const approved = updated.managerDecision === "APPROVED"
+        await createNotification({
+          employeeId: request.employeeId,
+          title: approved ? "WFH - manager approved" : "WFH - manager declined",
+          message: approved
+            ? `Your Work From Home request for ${dateStr} was approved by your manager and is awaiting HR's final call.`
+            : `Your manager declined your Work From Home request for ${dateStr} - it's awaiting HR's final call.`,
+          type: "info",
+          link: "/wfh",
+        })
       }
+    } catch {
+      // Non-blocking
     }
 
     return ok(serialize({ data: updated }))
+  })
+}
+
+/**
+ * WFH requests inbox.
+ *   scope "team" - the current user's direct reports' requests (the manager tab
+ *     on the My WFH page; advisory). isApprover = the user manages someone.
+ *   scope "all"  - every employee's requests for HR / admin / wfh:approve (the
+ *     HR Work From Home section; final decision).
+ * Returns `isApprover` so the caller can show the surface only when applicable.
+ */
+export async function getWfhInbox(
+  scope: "team" | "all",
+  filters: { status?: string; page?: number; limit?: number } = {},
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const session = await requireSession()
+    const roles = session.user.roles ?? []
+    const { page, limit, skip, take } = resolvePagination(filters, 10)
+    const where: Record<string, unknown> = {}
+    if (filters.status) where.status = filters.status
+
+    let isApprover: boolean
+    if (scope === "all") {
+      isApprover =
+        roles.some((r) => HR_ROLE_NAMES.includes(r)) ||
+        hasPermission(session, PERMISSIONS.WFH_APPROVE)
+    } else {
+      const reports = await db.employee.findMany({
+        where: { managerId: session.user.id, isActive: true },
+        select: { id: true },
+      })
+      isApprover = reports.length > 0
+      where.employeeId = { in: reports.map((r) => r.id) }
+    }
+
+    if (!isApprover) {
+      return ok(
+        serialize({
+          data: { requests: [], isApprover: false, pagination: paginationMeta(0, page, limit) },
+        }),
+      )
+    }
+
+    const [requests, total] = await Promise.all([
+      db.wfhRequest.findMany({
+        where,
+        include: WFH_INCLUDE,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+      db.wfhRequest.count({ where }),
+    ])
+
+    return ok(
+      serialize({
+        data: { requests, isApprover: true, pagination: paginationMeta(total, page, limit) },
+      }),
+    )
   })
 }

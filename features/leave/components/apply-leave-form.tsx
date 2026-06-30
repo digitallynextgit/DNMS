@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
@@ -14,7 +13,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { useLeaveTypes, useLeaveBalances, useApplyLeave } from "@/features/leave/hooks/use-leave"
+import {
+  useEligibleLeaveTypes,
+  useLeaveBalances,
+  useApplyLeave,
+} from "@/features/leave/hooks/use-leave"
+import { DateField, parseDateString } from "@/components/shared/date-field"
 import { cn } from "@/lib/utils"
 import { CalendarDays, Info, AlertTriangle, Clock } from "lucide-react"
 
@@ -44,69 +48,6 @@ function countWorkingDays(start: Date, end: Date): number {
   return count
 }
 
-function daysFromToday(dateStr: string): number {
-  if (!dateStr) return 999
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const d = new Date(dateStr)
-  d.setHours(0, 0, 0, 0)
-  return Math.floor((d.getTime() - today.getTime()) / 86400000)
-}
-
-const POLICY_NOTES: Record<string, { notice: string; rules: string[] }> = {
-  CL: {
-    notice: "Requires 2 days advance notice. Late notice = double salary deduction.",
-    rules: [
-      "Max 2 days per month",
-      "Can be combined with Sick Leave but NOT with Earned Leave",
-      "Lapses on Dec 31 - no carry-forward or encashment",
-    ],
-  },
-  SL: {
-    notice: "SL > 2 days requires a medical certificate from a registered practitioner.",
-    rules: [
-      "Can be combined with CL but NOT with EL",
-      "Minimum half-day per application",
-      "Lapses at year end - no carry-forward",
-    ],
-  },
-  EL: {
-    notice: "Requires 60 days advance notice.",
-    rules: [
-      "Minimum 3 days, maximum 7 days per application",
-      "7 days in H1 (Jan–Jun) and 7 days in H2 (Jul–Dec)",
-      "Cannot be combined with CL or SL",
-      "Max 22 days carry-forward accumulation",
-      "Eligible only after completing probation + 6 months",
-    ],
-  },
-  PL: {
-    notice: "For special personal events only.",
-    rules: [
-      "Applicable for: birthday (self/spouse/children), marriage, anniversary, bereavement",
-      "Cannot be accumulated or encashed",
-    ],
-  },
-  LWP: {
-    notice: "Requires 2 days advance notice. Late notice = double salary deduction.",
-    rules: [
-      "Only for extraordinary circumstances when all balances are exhausted",
-      "Salary deduction = monthly salary ÷ month days × leave days",
-    ],
-  },
-  ML: {
-    notice: "Available only after 2 years of continuous service.",
-    rules: ["Cannot be encashed or carried forward"],
-  },
-  SHORT: {
-    notice: "Each Short Leave = 2 hours (arrive late or leave early) = 0.5 day.",
-    rules: [
-      "Maximum 2 Short Leaves per month",
-      "3rd onwards treated as half-day Leave Without Pay",
-    ],
-  },
-}
-
 export function ApplyLeaveForm() {
   const router = useRouter()
   const applyLeave = useApplyLeave()
@@ -117,7 +58,7 @@ export function ApplyLeaveForm() {
   const [reason, setReason] = useState("")
   const [isHalfDay, setIsHalfDay] = useState(false)
 
-  const { data: typesData, isLoading: typesLoading } = useLeaveTypes()
+  const { data: typesData, isLoading: typesLoading } = useEligibleLeaveTypes()
   const { data: balancesData } = useLeaveBalances()
 
   const leaveTypes = typesData?.data ?? []
@@ -129,8 +70,6 @@ export function ApplyLeaveForm() {
     () => balances.find((b) => b.leaveTypeId === leaveTypeId && b.year === currentYear),
     [balances, leaveTypeId, currentYear],
   )
-
-  const policyNote = selectedType ? POLICY_NOTES[selectedType.code] : null
 
   const calendarDays = useMemo(() => {
     if (!startDate || !endDate) return 0
@@ -153,30 +92,22 @@ export function ApplyLeaveForm() {
       (Number(selectedBalance.used) || 0) -
       (Number(selectedBalance.pending) || 0)
     : null
-  // No-quota types (e.g. Leave Without Pay, maxDaysPerYear === 0) aren't balance-
-  // limited - mirror the server, which only enforces balance when maxDaysPerYear > 0.
   const isQuotaType = (selectedType?.maxDaysPerYear ?? 0) > 0
   const hasInsufficientBalance =
     isQuotaType && available !== null && totalDays > 0 && available < totalDays
 
-  // Notice warnings
-  const advanceDays = startDate ? daysFromToday(startDate) : 999
-  const lateNoticeCL = selectedType?.code === "CL" && advanceDays < 2
-  const lateNoticeLWP = selectedType?.code === "LWP" && advanceDays < 2
-  const lateNoticeEL = selectedType?.code === "EL" && advanceDays < 60
-
-  const today = new Date().toISOString().split("T")[0]
+  const todayStart = new Date(new Date().setHours(0, 0, 0, 0))
   const isShortLeave = selectedType?.code === "SHORT"
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!leaveTypeId || !startDate) return
+    if (!leaveTypeId || !startDate || !reason.trim()) return
 
     await applyLeave.mutateAsync({
       leaveTypeId,
       startDate,
       endDate: isShortLeave ? startDate : endDate,
-      reason: reason.trim() || undefined,
+      reason: reason.trim(),
       isHalfDay: isHalfDay || isShortLeave,
     })
 
@@ -184,7 +115,7 @@ export function ApplyLeaveForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-xl space-y-6">
+    <form onSubmit={handleSubmit} className="w-full space-y-6">
       {/* Leave Type */}
       <div className="space-y-2">
         <Label htmlFor="leave-type">Leave Type</Label>
@@ -209,8 +140,8 @@ export function ApplyLeaveForm() {
           </SelectContent>
         </Select>
 
-        {/* Balance info */}
-        {leaveTypeId && (
+        {/* Available balance - only shown when a balance exists for this type. */}
+        {leaveTypeId && selectedBalance && (
           <div
             className={cn(
               "flex items-start gap-2 rounded border px-3 py-2 text-sm",
@@ -220,33 +151,12 @@ export function ApplyLeaveForm() {
             )}
           >
             <Info className="mt-0.5 h-4 w-4 shrink-0" />
-            {selectedBalance ? (
-              <span>
-                Available balance: <strong>{Math.max(0, available ?? 0)} day(s)</strong>
-                {selectedBalance.carried > 0 && (
-                  <> · includes {selectedBalance.carried} carried forward</>
-                )}
-              </span>
-            ) : (
-              <span>
-                No balance record found for {currentYear}. Your request will still be submitted.
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Policy notes */}
-        {policyNote && (
-          <div className="space-y-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs dark:border-amber-800 dark:bg-amber-950/20">
-            <p className="flex items-center gap-1.5 font-medium text-amber-800 dark:text-amber-300">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              {policyNote.notice}
-            </p>
-            <ul className="list-inside list-disc space-y-0.5 text-amber-700 dark:text-amber-400">
-              {policyNote.rules.map((rule, i) => (
-                <li key={i}>{rule}</li>
-              ))}
-            </ul>
+            <span>
+              Available balance: <strong>{Math.max(0, available ?? 0)} day(s)</strong>
+              {selectedBalance.carried > 0 && (
+                <> · includes {selectedBalance.carried} carried forward</>
+              )}
+            </span>
           </div>
         )}
       </div>
@@ -255,41 +165,32 @@ export function ApplyLeaveForm() {
       {!isShortLeave ? (
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="start-date">Start Date</Label>
-            <Input
-              id="start-date"
-              type="date"
-              min={today}
+            <Label>Start Date</Label>
+            <DateField
               value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value)
-                if (endDate && e.target.value > endDate) setEndDate(e.target.value)
+              onChange={(v) => {
+                setStartDate(v)
+                if (endDate && v && v > endDate) setEndDate(v)
               }}
-              required
+              disabled={(date) => date < todayStart}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="end-date">End Date</Label>
-            <Input
-              id="end-date"
-              type="date"
-              min={startDate || today}
+            <Label>End Date</Label>
+            <DateField
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              required
+              onChange={setEndDate}
+              disabled={(date) => date < (parseDateString(startDate) ?? todayStart)}
             />
           </div>
         </div>
       ) : (
         <div className="space-y-2">
-          <Label htmlFor="start-date">Date</Label>
-          <Input
-            id="start-date"
-            type="date"
-            min={today}
+          <Label>Date</Label>
+          <DateField
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            required
+            onChange={setStartDate}
+            disabled={(date) => date < todayStart}
           />
         </div>
       )}
@@ -343,36 +244,10 @@ export function ApplyLeaveForm() {
         </Card>
       )}
 
-      {/* Late notice warnings */}
-      {(lateNoticeCL || lateNoticeLWP) && (
-        <div className="flex items-start gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/20 dark:text-red-400">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            <strong>Late notice:</strong> You are applying with less than 2 days advance notice. As
-            per company policy, a double salary deduction will apply for this leave.
-          </span>
-        </div>
-      )}
-
-      {lateNoticeEL && (
-        <div className="flex items-start gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/20 dark:text-red-400">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            <strong>Insufficient notice:</strong> Earned Leave requires 60 days advance notice. This
-            request will be rejected.
-          </span>
-        </div>
-      )}
-
-      {/* Reason */}
+      {/* Reason (required) */}
       <div className="space-y-2">
         <Label htmlFor="reason">
-          Reason{" "}
-          {["EL", "CL", "SL"].includes(selectedType?.code ?? "") ? (
-            <span className="text-destructive text-xs">*</span>
-          ) : (
-            <span className="text-muted-foreground font-normal">(optional)</span>
-          )}
+          Reason <span className="text-destructive text-xs">*</span>
         </Label>
         <Textarea
           id="reason"
@@ -387,11 +262,20 @@ export function ApplyLeaveForm() {
           onChange={(e) => setReason(e.target.value)}
           rows={3}
           className="resize-none"
+          required
         />
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-end gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.push("/leave")}
+          disabled={applyLeave.isPending}
+        >
+          Cancel
+        </Button>
         <Button
           type="submit"
           disabled={
@@ -401,24 +285,11 @@ export function ApplyLeaveForm() {
             (!isShortLeave && !endDate) ||
             totalDays === 0 ||
             hasInsufficientBalance ||
-            lateNoticeEL
+            !reason.trim()
           }
         >
           {applyLeave.isPending ? "Submitting..." : "Submit Leave Request"}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/leave")}
-          disabled={applyLeave.isPending}
-        >
-          Cancel
-        </Button>
-        {lateNoticeCL && (
-          <p className="text-muted-foreground text-xs">
-            Double deduction will be flagged for payroll.
-          </p>
-        )}
       </div>
     </form>
   )

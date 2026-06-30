@@ -30,7 +30,12 @@ interface AttendanceTableProps {
 
 function formatTime(dt: string | null): string {
   if (!dt) return "-"
-  return new Date(dt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+  return new Date(dt).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  })
 }
 
 export function AttendanceTable({

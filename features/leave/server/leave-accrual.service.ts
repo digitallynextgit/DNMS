@@ -23,8 +23,10 @@ import { ok, runAction, serialize, type ActionResult } from "@/server/action-res
 //     This is the idempotent, self-healing monthly job; it never touches
 //     `allocated`, so HR overrides survive.
 //
-// Accrual respects a per-type START date: most types accrue from joining, but
-// Earned Leave (EL) only begins after probation + 6 months (existing policy).
+// Accrual starts once probation is COMPLETED (no leave accrues during probation).
+// All paid types - including Earned Leave - begin accruing right at probation end,
+// whether probation is 3 or 6 months. Contract staff accrue after 6 months service.
+// Accrued days are rounded to the nearest half-day (the smallest takeable unit).
 // =============================================================================
 
 type EmployeeAccrualInfo = {
@@ -50,8 +52,8 @@ function probationCompletion(emp: EmployeeAccrualInfo): Date | null {
   return null
 }
 
-/** When a given leave type starts accruing for an employee. */
-function accrualStartDate(typeCode: string, emp: EmployeeAccrualInfo): Date | null {
+/** When leave starts accruing for an employee (no accrual during probation). */
+function accrualStartDate(emp: EmployeeAccrualInfo): Date | null {
   // Contract staff: paid leave only after 6 months of service (then 1/month).
   if (emp.employmentType === "CONTRACT") {
     if (!emp.dateOfJoining) return null
@@ -59,16 +61,11 @@ function accrualStartDate(typeCode: string, emp: EmployeeAccrualInfo): Date | nu
     d.setMonth(d.getMonth() + 6)
     return d
   }
-  // Everyone else: leave only accrues once probation is COMPLETED.
+  // Everyone else: leave accrues once probation is COMPLETED - including Earned
+  // Leave, which now starts right at probation end (3- or 6-month probation
+  // alike), not a further 6 months later.
   const completion = probationCompletion(emp)
-  if (!completion) return emp.dateOfJoining
-  if (typeCode === "EL") {
-    // Earned Leave begins a further 6 months after probation completion.
-    const eligible = new Date(completion)
-    eligible.setMonth(eligible.getMonth() + 6)
-    return eligible
-  }
-  return completion
+  return completion ?? emp.dateOfJoining
 }
 
 /** Completed accrual months for `year` given the date accrual starts. */
@@ -87,12 +84,17 @@ export function monthsAccrued(year: number, startDate: Date | null): number {
   return Math.max(0, Math.min(12, endMonth - startMonth + 1))
 }
 
+/** Round to the nearest half-day - the smallest unit an employee can take. */
+function roundToHalf(n: number): number {
+  return Math.round(n * 2) / 2
+}
+
 /** Days that should have accrued given the entitlement, method and elapsed months. */
 function accruedTarget(accrualMethod: string, allocated: number, months: number): number {
   if (allocated <= 0) return 0
   if (accrualMethod === "UPFRONT") return allocated
   const rate = allocated / 12
-  return Math.min(allocated, Math.round(rate * months * 100) / 100)
+  return Math.min(allocated, roundToHalf(rate * months))
 }
 
 function entitlementFor(
@@ -116,6 +118,7 @@ export async function allocateFromPolicy(employeeId: string, year: number): Prom
       dateOfJoining: true,
       confirmationDate: true,
       probationMonths: true,
+      gender: true,
     },
   })
   if (!employee) return 0
@@ -123,25 +126,34 @@ export async function allocateFromPolicy(employeeId: string, year: number): Prom
   const [types, policies] = await Promise.all([
     db.leaveType.findMany({
       where: { isActive: true },
-      select: { id: true, code: true, maxDaysPerYear: true, accrualMethod: true },
+      select: { id: true, code: true, maxDaysPerYear: true, accrualMethod: true, isPaid: true },
     }),
     db.leavePolicy.findMany({ where: { employmentType: employee.employmentType } }),
   ])
   const policyMap = new Map(policies.map((p) => [p.leaveTypeId, p.daysPerYear]))
 
+  // No paid leave accrues until accrual begins (probation completed; contract
+  // staff after 6 months). While accrual hasn't started, the employee is "on
+  // probation" and only unpaid leave (e.g. LWP) applies.
+  const start = accrualStartDate(employee)
+  const onProbation = !!start && new Date() < start
+  const months = monthsAccrued(year, start)
+
   let count = 0
   for (const type of types) {
     const entitlement = entitlementFor(type, policyMap)
-    if (entitlement <= 0) {
-      // No entitlement for this employment type (e.g. interns get 0 paid leave) -
-      // clear any previously-allocated balance so it doesn't linger.
-      await db.leaveBalance.updateMany({
+    // Maternity Leave is granted to female employees only.
+    const maternityBlocked = type.code === "ML" && employee.gender !== "FEMALE"
+    // Paid leave is not granted during probation - only unpaid leave.
+    const paidBlockedOnProbation = type.isPaid && onProbation
+    if (entitlement <= 0 || maternityBlocked || paidBlockedOnProbation) {
+      // Not granted (interns get 0 paid leave; maternity for a non-female; any
+      // paid leave during probation) - remove any lingering balance row.
+      await db.leaveBalance.deleteMany({
         where: { employeeId, leaveTypeId: type.id, year },
-        data: { allocated: 0, accrued: 0 },
       })
       continue
     }
-    const months = monthsAccrued(year, accrualStartDate(type.code, employee))
     const accrued = accruedTarget(type.accrualMethod, entitlement, months)
     await db.leaveBalance.upsert({
       where: { employeeId_leaveTypeId_year: { employeeId, leaveTypeId: type.id, year } },
@@ -173,18 +185,32 @@ export async function recomputeAccrued(employeeId: string, year: number): Promis
       dateOfJoining: true,
       confirmationDate: true,
       probationMonths: true,
+      gender: true,
     },
   })
   if (!employee) return 0
 
   const balances = await db.leaveBalance.findMany({
     where: { employeeId, year },
-    include: { leaveType: { select: { accrualMethod: true, code: true } } },
+    include: { leaveType: { select: { accrualMethod: true, code: true, isPaid: true } } },
   })
+
+  const start = accrualStartDate(employee)
+  const onProbation = !!start && new Date() < start
+  const months = monthsAccrued(year, start)
 
   let count = 0
   for (const b of balances) {
-    const months = monthsAccrued(year, accrualStartDate(b.leaveType.code, employee))
+    // Drop balances that shouldn't exist: maternity for a non-female, or any
+    // paid leave while still on probation (only unpaid leave applies then).
+    if (
+      (b.leaveType.code === "ML" && employee.gender !== "FEMALE") ||
+      (b.leaveType.isPaid && onProbation)
+    ) {
+      await db.leaveBalance.delete({ where: { id: b.id } })
+      count++
+      continue
+    }
     const target = accruedTarget(b.leaveType.accrualMethod, b.allocated, months)
     const accrued = Math.max(target, b.used)
     if (accrued !== b.accrued) {

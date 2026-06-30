@@ -30,7 +30,14 @@ function cellStyle(status: CalendarDayStatus): string {
 
 function fmtTime(t: string | null): string {
   if (!t) return "--:--"
-  return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+  // Always render in IST (the device/office timezone), independent of the
+  // viewer's browser timezone.
+  return new Date(t).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  })
 }
 
 function LegendItem({ className, label }: { className: string; label: string }) {

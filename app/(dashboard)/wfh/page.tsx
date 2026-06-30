@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useUrlPage } from "@/hooks/use-url-state"
+import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
 import Link from "next/link"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
@@ -16,17 +17,27 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { useRowSelection } from "@/hooks/use-row-selection"
-import { useMyWfhRequests, useWfhEligibility, useCancelWfh } from "@/features/wfh"
+import {
+  useMyWfhRequests,
+  useWfhEligibility,
+  useCancelWfh,
+  useWfhInbox,
+  WfhRequestsInbox,
+} from "@/features/wfh"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { Plus, Home, AlertTriangle, Ban, Inbox } from "lucide-react"
 
 export default function MyWfhPage() {
   const [page, setPage] = useUrlPage()
+  const [tab, setTab] = useUrlState("tab", "my-wfh")
   const { data: eligibility, isLoading: eligLoading } = useWfhEligibility()
   const { data: requestsData, isLoading: reqLoading } = useMyWfhRequests({ page, limit: 10 })
+  // Lightweight call: does this person manage anyone? (drives the team tab)
+  const { data: inbox } = useWfhInbox("team", { limit: 1 })
   const cancel = useCancelWfh()
 
+  const isManager = inbox?.isApprover ?? false
   const requests = requestsData?.data ?? []
   const pagination = requestsData?.pagination
   const selection = useRowSelection(requests.map((r) => r.id))
@@ -113,22 +124,18 @@ export default function MyWfhPage() {
     },
   ]
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Work From Home"
-        description="Apply for and track your WFH requests."
-        actions={
-          <Button asChild>
-            <Link href="/wfh/apply" className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Apply WFH
-            </Link>
-          </Button>
-        }
-      />
+  const applyButton = (
+    <Button asChild>
+      <Link href="/wfh/apply" className="flex items-center gap-2">
+        <Plus className="h-4 w-4" />
+        Apply WFH
+      </Link>
+    </Button>
+  )
 
-      {/* Eligibility card */}
+  // "My WFH" view: eligibility + the employee's own request history.
+  const myWfh = (
+    <>
       {eligLoading ? (
         <Skeleton className="h-24 rounded" />
       ) : eligibility ? (
@@ -179,7 +186,6 @@ export default function MyWfhPage() {
         </Card>
       ) : null}
 
-      {/* Requests list */}
       <div className="space-y-3">
         <h4 className="text-muted-foreground text-[11px] font-semibold tracking-widest uppercase">
           Request History
@@ -233,6 +239,49 @@ export default function MyWfhPage() {
         onConfirm={handleBulkCancel}
         isLoading={bulkPending}
       />
+    </>
+  )
+
+  // Non-managers: plain My WFH view (no tabs). HR uses the WFH section.
+  if (!isManager) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Work From Home"
+          description="Apply for and track your WFH requests."
+          actions={applyButton}
+        />
+        {myWfh}
+      </div>
+    )
+  }
+
+  // Managers / HR: "My WFH" + "WFH Requests" (their team / all) tabs.
+  return (
+    <div className="space-y-6">
+      <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+        <PageHeader
+          title="Work From Home"
+          description="Your WFH, and the WFH requests awaiting your decision."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <TabsList>
+                <TabsTrigger value="my-wfh">My WFH</TabsTrigger>
+                <TabsTrigger value="requests">WFH Requests</TabsTrigger>
+              </TabsList>
+              {applyButton}
+            </div>
+          }
+        />
+
+        <TabsContent value="my-wfh" className="space-y-6">
+          {myWfh}
+        </TabsContent>
+
+        <TabsContent value="requests">
+          <WfhRequestsInbox scope="team" />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

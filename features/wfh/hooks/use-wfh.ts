@@ -38,11 +38,19 @@ export interface WfhRequest {
   hrApproverId: string | null
   hrApprovedAt: string | null
   rejectionReason: string | null
+  /** The reporting manager's advisory call; HR makes the final decision. */
+  managerDecision: "APPROVED" | "REJECTED" | null
   createdAt: string
   updatedAt: string
   employee: WfhEmployeeSnippet
   managerApprover: { id: string; firstName: string; lastName: string } | null
   hrApprover: { id: string; firstName: string; lastName: string } | null
+}
+
+export interface WfhInbox {
+  requests: WfhRequest[]
+  isApprover: boolean
+  pagination: { total: number; page: number; limit: number; totalPages: number }
 }
 
 interface PaginatedResponse<T> {
@@ -99,20 +107,30 @@ async function patchWfh({
   id,
   action,
   rejectionReason,
-  approverRole,
 }: {
   id: string
   action: "CANCEL" | "APPROVE" | "REJECT"
   rejectionReason?: string
-  approverRole?: "MANAGER" | "HR"
 }): Promise<{ data: WfhRequest }> {
   return (
     await apiFetch<{ data: { data: WfhRequest } }>(`/api/wfh/requests/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, rejectionReason, approverRole }),
+      body: JSON.stringify({ action, rejectionReason }),
     })
   ).data
+}
+
+async function fetchWfhInbox(
+  scope: "team" | "all",
+  filters: { status?: string; page?: number; limit?: number },
+): Promise<WfhInbox> {
+  const params = new URLSearchParams({ scope })
+  if (filters.status) params.set("status", filters.status)
+  if (filters.page != null) params.set("page", String(filters.page))
+  if (filters.limit != null) params.set("limit", String(filters.limit))
+  return (await apiFetch<{ data: { data: WfhInbox } }>(`/api/wfh/my-team?${params.toString()}`))
+    .data.data
 }
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -133,6 +151,18 @@ export function useWfhRequests(filters: WfhFilters = {}) {
   return useQuery({
     queryKey: ["wfh-requests", filters],
     queryFn: () => fetchWfhRequests(filters),
+    staleTime: 30_000,
+  })
+}
+
+/** Approver inbox. scope "team" = a manager's direct reports; "all" = HR view. */
+export function useWfhInbox(
+  scope: "team" | "all" = "team",
+  filters: { status?: string; page?: number; limit?: number } = {},
+) {
+  return useQuery({
+    queryKey: ["wfh-inbox", scope, filters],
+    queryFn: () => fetchWfhInbox(scope, filters),
     staleTime: 30_000,
   })
 }
@@ -170,7 +200,7 @@ export function useApproveWfh() {
   return useMutation(
     mutationWithToast(qc, {
       mutationFn: (id: string) => patchWfh({ id, action: "APPROVE" }),
-      invalidate: [["wfh-requests"]],
+      invalidate: [["wfh-requests"], ["wfh-inbox"], ["my-wfh-requests"]],
       success: "WFH request approved",
       onError: (err) => {
         toast.error(err.message)
@@ -185,7 +215,7 @@ export function useRejectWfh() {
     mutationWithToast(qc, {
       mutationFn: ({ id, rejectionReason }: { id: string; rejectionReason: string }) =>
         patchWfh({ id, action: "REJECT", rejectionReason }),
-      invalidate: [["wfh-requests"]],
+      invalidate: [["wfh-requests"], ["wfh-inbox"], ["my-wfh-requests"]],
       success: "WFH request rejected",
       onError: (err) => {
         toast.error(err.message)

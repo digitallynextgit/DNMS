@@ -15,7 +15,7 @@ import { renderDecisionEmail } from "@/lib/email-layout"
 import { recomputeAccrued } from "./leave-accrual.service"
 // Canonical probation rule (pure helpers) - keep leave eligibility in lockstep
 // with how the rest of the app decides who is on probation.
-import { isOnProbation, getProbationEndDate } from "@/features/employees/probation"
+import { isOnProbation } from "@/features/employees/probation"
 
 const REQUEST_INCLUDE = {
   employee: {
@@ -30,12 +30,6 @@ function countCalendarDays(start: Date, end: Date): number {
   const s = startOfDayUTC(start)
   const e = startOfDayUTC(end)
   return Math.round((e.getTime() - s.getTime()) / 86400000) + 1
-}
-
-function daysFromToday(date: Date): number {
-  const today = startOfDayUTC(new Date())
-  const d = startOfDayUTC(date)
-  return Math.floor((d.getTime() - today.getTime()) / 86400000)
 }
 
 // ─── Approval routing ─────────────────────────────────────────────────────────
@@ -54,26 +48,33 @@ async function resolveApprovalRoute(
   permissions: string[],
 ): Promise<ApprovalRoute> {
   const has = (r: string) => roles.includes(r)
+  // admin_ self-grants; admin and HR escalate their own leave to the Admin tier.
   if (has(SYSTEM_ROLES.ADMIN_)) return { stage: null, currentApproverId: null, autoApprove: true }
   if (has(SYSTEM_ROLES.ADMIN))
     return { stage: "ADMIN", currentApproverId: null, autoApprove: false }
   if (has(SYSTEM_ROLES.HR_MANAGER) || has(SYSTEM_ROLES.HR_EMPLOYEE))
     return { stage: "ADMIN", currentApproverId: null, autoApprove: false }
-  // Manager tier = can approve leave (or has reports). Their own leave goes to HR.
+  // Everyone else: HR makes the FINAL call (stage "HR"). A manager applying for
+  // their own leave has no advisory reviewer; a regular employee with an active
+  // manager gets that manager as an advisory reviewer (currentApproverId) whose
+  // decision HR can still override - mirroring floating-holiday requests.
   if (permissions.includes(PERMISSIONS.LEAVE_APPROVE))
     return { stage: "HR", currentApproverId: null, autoApprove: false }
-  // Regular employee -> active manager; fall back to HR if none.
   const emp = await db.employee.findUnique({
     where: { id: applicantId },
     select: { manager: { select: { id: true, isActive: true } } },
   })
-  if (emp?.manager?.isActive)
-    return { stage: "MANAGER", currentApproverId: emp.manager.id, autoApprove: false }
-  return { stage: "HR", currentApproverId: null, autoApprove: false }
+  const advisoryManagerId = emp?.manager?.isActive ? emp.manager.id : null
+  return { stage: "HR", currentApproverId: advisoryManagerId, autoApprove: false }
 }
 
-/** Can this session act (approve/reject) on a routed request? */
-function canActOnRequest(
+/**
+ * Whether the session can make the FINAL decision on a request (sets it
+ * APPROVED/REJECTED). HR owns the "HR" stage; Admin owns "ADMIN" and any stage.
+ * The legacy "MANAGER" stage and un-routed requests keep their old single-
+ * approver behaviour so any in-flight requests still resolve.
+ */
+function canFinalizeRequest(
   roles: string[],
   permissions: string[],
   request: { approvalStage: string | null; currentApproverId: string | null },
@@ -81,16 +82,33 @@ function canActOnRequest(
 ): boolean {
   if (roles.includes(SYSTEM_ROLES.ADMIN_) || roles.includes(SYSTEM_ROLES.ADMIN)) return true
   switch (request.approvalStage) {
-    case "MANAGER":
-      return request.currentApproverId === userId
     case "HR":
       return roles.includes(SYSTEM_ROLES.HR_MANAGER) || roles.includes(SYSTEM_ROLES.HR_EMPLOYEE)
     case "ADMIN":
       return false // admins handled above
+    case "MANAGER":
+      return request.currentApproverId === userId // legacy single-approver
     default:
-      // Legacy requests with no routing - fall back to the permission.
       return permissions.includes(PERMISSIONS.LEAVE_APPROVE)
   }
+}
+
+/**
+ * Whether the session is the advisory reporting manager for a request still
+ * awaiting HR's final call. Their decision is recorded but non-final - HR can
+ * approve even over a manager's rejection (mirrors floating-holiday requests).
+ */
+function canAdviseRequest(
+  roles: string[],
+  request: { approvalStage: string | null; currentApproverId: string | null },
+  userId: string,
+): boolean {
+  const isHrOrAdmin =
+    roles.includes(SYSTEM_ROLES.ADMIN_) ||
+    roles.includes(SYSTEM_ROLES.ADMIN) ||
+    roles.includes(SYSTEM_ROLES.HR_MANAGER) ||
+    roles.includes(SYSTEM_ROLES.HR_EMPLOYEE)
+  return !isHrOrAdmin && request.approvalStage === "HR" && request.currentApproverId === userId
 }
 
 /** Notify the routed approver(s) on apply (in-app + best-effort email). */
@@ -100,23 +118,29 @@ async function notifyApprovers(
   applicantName: string,
   leaveTypeName: string,
 ): Promise<void> {
-  let recipients: Array<{ id: string; email: string; firstName: string }> = []
+  // Notify BOTH the advisory reporting manager (if any) AND the role queue that
+  // makes the final call (HR or Admin), deduped - so a regular employee's
+  // request reaches their manager and HR at the same time.
+  const byId = new Map<string, { id: string; email: string; firstName: string }>()
   if (route.currentApproverId) {
     const m = await db.employee.findUnique({
       where: { id: route.currentApproverId },
       select: { id: true, email: true, firstName: true },
     })
-    if (m) recipients = [m]
-  } else if (route.stage) {
+    if (m) byId.set(m.id, m)
+  }
+  if (route.stage) {
     const roleNames = route.stage === "HR" ? [SYSTEM_ROLES.HR_MANAGER] : [SYSTEM_ROLES.ADMIN]
-    recipients = await db.employee.findMany({
+    const staff = await db.employee.findMany({
       where: {
         isActive: true,
         employeeRoles: { some: { role: { name: { in: roleNames } } } },
       },
       select: { id: true, email: true, firstName: true },
     })
+    for (const s of staff) byId.set(s.id, s)
   }
+  const recipients = Array.from(byId.values())
 
   const start = new Date(request.startDate).toDateString()
   const end = new Date(request.endDate).toDateString()
@@ -129,7 +153,7 @@ async function notifyApprovers(
         title: "Leave approval needed",
         message: `${detail} is awaiting your approval.`,
         type: "info",
-        link: "/leave/team",
+        link: "/leave/leave-directory",
       })
       await sendEmail({
         to: r.email,
@@ -152,6 +176,34 @@ export async function getLeaveTypes(): Promise<ActionResult<unknown>> {
       orderBy: { name: "asc" },
     })
     return ok(serialize({ data: types }))
+  })
+}
+
+// Leave types the CURRENT user may actually apply for - same gates as applyLeave:
+// during probation only unpaid leave is available, and Maternity is female-only.
+export async function getEligibleLeaveTypes(): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const session = await requireSession()
+    const [types, employee] = await Promise.all([
+      db.leaveType.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
+      db.employee.findUnique({
+        where: { id: session.user.id },
+        select: {
+          onProbation: true,
+          probationMonths: true,
+          dateOfJoining: true,
+          confirmationDate: true,
+          gender: true,
+        },
+      }),
+    ])
+    const onProbation = employee ? isOnProbation(employee) : false
+    const eligible = types.filter((t) => {
+      if (t.code === "ML") return employee?.gender === "FEMALE" // maternity: women only
+      if (t.isPaid && onProbation) return false // no paid leave during probation
+      return true
+    })
+    return ok(serialize({ data: eligible }))
   })
 }
 
@@ -449,6 +501,65 @@ export async function getTeamLeaveRequests(
   })
 }
 
+/**
+ * The logged-in user's team leave requests - their direct reports' requests.
+ * Available to any manager identified by the reporting relationship (NOT a
+ * permission), so a line manager without leave:approve still sees their team.
+ * Returns `isManager` so the My Leave page shows the tab only when the person
+ * actually manages someone. Their decision here is advisory; HR makes the final
+ * call (see updateLeaveRequest).
+ */
+export async function getMyTeamLeaveRequests(
+  filters: { status?: string; page?: number; limit?: number } = {},
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const session = await requireSession()
+    const reports = await db.employee.findMany({
+      where: { managerId: session.user.id, isActive: true },
+      select: { id: true },
+    })
+    const reportIds = reports.map((r) => r.id)
+    const { page, limit, skip, take } = resolvePagination(filters, 10)
+
+    if (reportIds.length === 0) {
+      return ok(
+        serialize({
+          data: { requests: [], isManager: false, pagination: paginationMeta(0, page, limit) },
+        }),
+      )
+    }
+
+    const where: Record<string, unknown> = { employeeId: { in: reportIds } }
+    if (filters.status) where.status = filters.status
+
+    const [requests, total] = await Promise.all([
+      db.leaveRequest.findMany({
+        where,
+        include: {
+          employee: {
+            select: {
+              ...EMPLOYEE_SUMMARY_SELECT,
+              department: { select: { id: true, name: true } },
+            },
+          },
+          leaveType: { select: { id: true, name: true, code: true, isPaid: true } },
+          approver: { select: { id: true, firstName: true, lastName: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+      db.leaveRequest.count({ where }),
+    ])
+
+    return ok(
+      serialize({
+        data: { requests, isManager: true, pagination: paginationMeta(total, page, limit) },
+      }),
+    )
+  })
+}
+
 export async function applyLeave(body: {
   leaveTypeId: string
   startDate: string
@@ -477,6 +588,7 @@ export async function applyLeave(body: {
         probationMonths: true,
         dateOfJoining: true,
         confirmationDate: true,
+        gender: true,
       },
     })
 
@@ -491,35 +603,21 @@ export async function applyLeave(body: {
     if (leaveType.code === "SHORT") totalDays = 0.5
     if (totalDays === 0) return fail("Selected date range results in zero leave days")
 
-    if (leaveType.code === "EL") {
-      // EL unlocks 6 months after probation completion (confirmation date if
-      // recorded, else joining + probationMonths) - matches the accrual engine.
-      const probationEnd = employee
-        ? (employee.confirmationDate ?? getProbationEndDate(employee))
-        : null
-      if (probationEnd) {
-        const eligibleFrom = new Date(probationEnd)
-        eligibleFrom.setMonth(eligibleFrom.getMonth() + 6)
-        if (new Date() < eligibleFrom)
-          return fail(
-            "Earned Leave is available only after completing probation period plus 6 months.",
-          )
+    // EL no longer has an extra post-probation wait - being paid leave, it is
+    // already blocked during probation above and becomes available right at
+    // probation end (matching the accrual engine).
+
+    if (leaveType.code === "ML") {
+      // Maternity Leave: female employees only, after 2 years of service.
+      if (employee?.gender !== "FEMALE")
+        return fail("Maternity Leave is available to female employees only.")
+      if (employee.dateOfJoining) {
+        const twoYearsAfter = new Date(employee.dateOfJoining)
+        twoYearsAfter.setFullYear(twoYearsAfter.getFullYear() + 2)
+        if (new Date() < twoYearsAfter)
+          return fail("Maternity Leave is only available after completing 2 years of service.")
       }
     }
-
-    if (leaveType.code === "ML" && employee?.dateOfJoining) {
-      const twoYearsAfter = new Date(employee.dateOfJoining)
-      twoYearsAfter.setFullYear(twoYearsAfter.getFullYear() + 2)
-      if (new Date() < twoYearsAfter)
-        return fail("Maternity Leave is only available after completing 2 years of service.")
-    }
-
-    let lateNoticePenalty = false
-    if ((leaveType.code === "CL" || leaveType.code === "LWP") && daysFromToday(start) < 2)
-      lateNoticePenalty = true
-
-    if (leaveType.code === "EL" && daysFromToday(start) < 60)
-      return fail("Earned Leave requires at least 60 days advance notice. Please plan ahead.")
 
     if (leaveType.code === "EL") {
       if (totalDays < 3)
@@ -659,7 +757,6 @@ export async function applyLeave(body: {
           approverId: route.autoApprove ? session.user.id : null,
           approvalStage: route.autoApprove ? null : route.stage,
           currentApproverId: route.autoApprove ? null : route.currentApproverId,
-          lateNoticePenalty,
         },
         include: {
           employee: {
@@ -718,17 +815,17 @@ export async function updateLeaveRequest(
         `Cannot ${action.toLowerCase()} a request that is already ${request.status.toLowerCase()}`,
       )
 
+    const roles = session.user.roles ?? []
+    const permissions = session.user.permissions ?? []
+    const isFinalizer = canFinalizeRequest(roles, permissions, request, session.user.id)
+    const isAdvisor = canAdviseRequest(roles, request, session.user.id)
+
     if (action === "CANCEL") {
       if (request.employeeId !== session.user.id)
         return fail("You can only cancel your own leave requests")
     } else {
-      const allowed = canActOnRequest(
-        session.user.roles ?? [],
-        session.user.permissions ?? [],
-        request,
-        session.user.id,
-      )
-      if (!allowed) return fail("Forbidden: this request is awaiting a different approver")
+      if (!isFinalizer && !isAdvisor)
+        return fail("Forbidden: this request is awaiting a different approver")
       if (action === "REJECT" && !rejectionReason?.trim())
         return fail("Rejection reason is required")
     }
@@ -753,6 +850,18 @@ export async function updateLeaveRequest(
         await tx.leaveBalance.updateMany({
           where: { employeeId: request.employeeId, leaveTypeId: request.leaveTypeId, year },
           data: { pending: { decrement: request.totalDays } },
+        })
+      } else if (!isFinalizer && isAdvisor) {
+        // Advisory reporting-manager decision - recorded, but the request stays
+        // PENDING so HR can still make (or override) the final call. The balance
+        // is untouched (it remains held as pending until HR finalises).
+        updatedReq = await tx.leaveRequest.update({
+          where: { id },
+          data:
+            action === "APPROVE"
+              ? { managerDecision: "APPROVED" }
+              : { managerDecision: "REJECTED", rejectionReason: String(rejectionReason).trim() },
+          include: REQUEST_INCLUDE,
         })
       } else if (action === "APPROVE") {
         updatedReq = await tx.leaveRequest.update({
@@ -812,32 +921,46 @@ export async function updateLeaveRequest(
         select: { name: true },
       })
       if (emp && action !== "CANCEL") {
-        const isApproved = action === "APPROVE"
-        const startDate = new Date(request.startDate).toDateString()
-        await createNotification({
-          employeeId: request.employeeId,
-          title: isApproved ? "Leave Approved" : "Leave Rejected",
-          message: isApproved
-            ? `Your ${leaveType?.name ?? "leave"} request from ${startDate} has been approved.`
-            : `Your ${leaveType?.name ?? "leave"} request from ${startDate} was rejected. ${rejectionReason ? `Reason: ${rejectionReason}` : ""}`,
-          type: isApproved ? "success" : "error",
-          link: "/leave",
-        })
-        const endDate = new Date(request.endDate).toDateString()
-        const detailLine = `${leaveType?.name ?? "Leave"} · ${startDate} – ${endDate} (${request.totalDays} day${request.totalDays !== 1 ? "s" : ""})`
-        const email = renderDecisionEmail({
-          kind: "Leave request",
-          approved: isApproved,
-          firstName: emp.firstName,
-          detailLine,
-          reason: !isApproved && rejectionReason ? rejectionReason : null,
-        })
-        await sendEmail({
-          to: emp.email,
-          subject: email.subject,
-          html: email.html,
-          text: email.text,
-        })
+        if (!isFinalizer && isAdvisor) {
+          // Advisory manager decision - the request still needs HR's final call.
+          const approved = action === "APPROVE"
+          await createNotification({
+            employeeId: request.employeeId,
+            title: approved ? "Leave - manager approved" : "Leave - manager declined",
+            message: approved
+              ? `Your ${leaveType?.name ?? "leave"} request was approved by your manager and is awaiting HR's final approval.`
+              : `Your manager declined your ${leaveType?.name ?? "leave"} request - it is awaiting HR's final call.`,
+            type: "info",
+            link: "/leave",
+          })
+        } else {
+          const isApproved = action === "APPROVE"
+          const startDate = new Date(request.startDate).toDateString()
+          await createNotification({
+            employeeId: request.employeeId,
+            title: isApproved ? "Leave Approved" : "Leave Rejected",
+            message: isApproved
+              ? `Your ${leaveType?.name ?? "leave"} request from ${startDate} has been approved.`
+              : `Your ${leaveType?.name ?? "leave"} request from ${startDate} was rejected. ${rejectionReason ? `Reason: ${rejectionReason}` : ""}`,
+            type: isApproved ? "success" : "error",
+            link: "/leave",
+          })
+          const endDate = new Date(request.endDate).toDateString()
+          const detailLine = `${leaveType?.name ?? "Leave"} · ${startDate} – ${endDate} (${request.totalDays} day${request.totalDays !== 1 ? "s" : ""})`
+          const email = renderDecisionEmail({
+            kind: "Leave request",
+            approved: isApproved,
+            firstName: emp.firstName,
+            detailLine,
+            reason: !isApproved && rejectionReason ? rejectionReason : null,
+          })
+          await sendEmail({
+            to: emp.email,
+            subject: email.subject,
+            html: email.html,
+            text: email.text,
+          })
+        }
       }
     } catch {
       // Non-blocking - don't fail the request if email fails

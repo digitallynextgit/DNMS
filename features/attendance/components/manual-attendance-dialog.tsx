@@ -23,11 +23,15 @@ interface ManualAttendanceDialogProps {
   editLog?: AttendanceLog | null
 }
 
-// HH:MM string of a stored UTC datetime, shown in the viewer's local time.
+// HH:MM of a stored UTC datetime, shown in IST (the office/device timezone).
 function toLocalTime(iso: string | null): string {
   if (!iso) return ""
-  const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  })
 }
 
 // Existing attendance row for an employee on a given day (so HR corrects rather
@@ -38,12 +42,11 @@ async function fetchDayLog(employeeId: string, date: string): Promise<Attendance
   return body.data?.[0] ?? null
 }
 
-// Combine the picked date + "HH:MM" local time into a UTC ISO string.
+// Combine the picked date + "HH:MM" IST time into a UTC ISO string. The entered
+// time is interpreted as IST (the office timezone), not the browser's.
 function buildDatetime(date: string, time: string): string | null {
   if (!time) return null
-  const [h, m] = time.split(":").map(Number)
-  const [y, mo, d] = date.split("-").map(Number)
-  return new Date(y, mo - 1, d, h, m, 0, 0).toISOString()
+  return new Date(`${date}T${time}:00.000+05:30`).toISOString()
 }
 
 function minutesBetween(checkIn: string, checkOut: string): number {

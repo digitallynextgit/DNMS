@@ -57,6 +57,8 @@ export interface LeaveRequest {
   approverId: string | null
   approvedAt: string | null
   rejectionReason: string | null
+  /** The reporting manager's advisory call; HR makes the final decision. */
+  managerDecision: "APPROVED" | "REJECTED" | null
   createdAt: string
   updatedAt: string
   employee: LeaveRequestEmployee
@@ -90,6 +92,10 @@ interface PaginatedResponse<T> {
 // this helper's declared return type, so we read one `.data` hop to get P.
 async function fetchLeaveTypes(): Promise<{ data: LeaveType[] }> {
   return (await apiFetch<{ data: { data: LeaveType[] } }>("/api/leave/types")).data
+}
+
+async function fetchEligibleLeaveTypes(): Promise<{ data: LeaveType[] }> {
+  return (await apiFetch<{ data: { data: LeaveType[] } }>("/api/leave/types/eligible")).data
 }
 
 async function createLeaveType(body: Partial<LeaveType>): Promise<{ data: LeaveType }> {
@@ -172,6 +178,27 @@ async function fetchLeaveRequests(
   ).data
 }
 
+export interface MyTeamLeave {
+  requests: LeaveRequest[]
+  isManager: boolean
+  pagination: { total: number; page: number; limit: number; totalPages: number }
+}
+
+async function fetchMyTeamLeave(filters: {
+  status?: string
+  page?: number
+  limit?: number
+}): Promise<MyTeamLeave> {
+  const params = new URLSearchParams()
+  if (filters.status) params.set("status", filters.status)
+  if (filters.page !== undefined) params.set("page", String(filters.page))
+  if (filters.limit !== undefined) params.set("limit", String(filters.limit))
+  const qs = params.toString()
+  return (
+    await apiFetch<{ data: { data: MyTeamLeave } }>(`/api/leave/my-team${qs ? `?${qs}` : ""}`)
+  ).data.data
+}
+
 async function fetchTeamLeaveRequests(filters: {
   status?: string
   page?: number
@@ -251,6 +278,15 @@ export function useLeaveTypes() {
   })
 }
 
+/** Only the leave types the current user can actually apply for (apply form). */
+export function useEligibleLeaveTypes() {
+  return useQuery({
+    queryKey: ["leave-types", "eligible"],
+    queryFn: fetchEligibleLeaveTypes,
+    staleTime: 60_000,
+  })
+}
+
 export function useLeaveBalances(employeeId?: string, year?: number) {
   return useQuery({
     queryKey: ["leave-balances", employeeId, year],
@@ -281,6 +317,17 @@ export function useTeamLeaveRequests(
   return useQuery({
     queryKey: ["team-leave-requests", filters],
     queryFn: () => fetchTeamLeaveRequests(filters),
+    staleTime: 30_000,
+  })
+}
+
+/** The current user's direct reports' leave requests (manager view on My Leave). */
+export function useMyTeamLeaveRequests(
+  filters: { status?: string; page?: number; limit?: number } = {},
+) {
+  return useQuery({
+    queryKey: ["my-team-leave-requests", filters],
+    queryFn: () => fetchMyTeamLeave(filters),
     staleTime: 30_000,
   })
 }
@@ -323,7 +370,12 @@ export function useApproveLeave() {
   return useMutation(
     mutationWithToast(queryClient, {
       mutationFn: approveLeave,
-      invalidate: [["leave-requests"], ["team-leave-requests"], ["leave-balances"]],
+      invalidate: [
+        ["leave-requests"],
+        ["team-leave-requests"],
+        ["my-team-leave-requests"],
+        ["leave-balances"],
+      ],
       success: "Leave request approved",
       onError: (error) => {
         toast.error(error.message || "Failed to approve leave request")
@@ -338,7 +390,12 @@ export function useRejectLeave() {
   return useMutation(
     mutationWithToast(queryClient, {
       mutationFn: rejectLeave,
-      invalidate: [["leave-requests"], ["team-leave-requests"], ["leave-balances"]],
+      invalidate: [
+        ["leave-requests"],
+        ["team-leave-requests"],
+        ["my-team-leave-requests"],
+        ["leave-balances"],
+      ],
       success: "Leave request rejected",
       onError: (error) => {
         toast.error(error.message || "Failed to reject leave request")

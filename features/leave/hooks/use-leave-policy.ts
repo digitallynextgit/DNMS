@@ -34,7 +34,10 @@ export interface PolicyEntry {
 export function useLeavePolicies() {
   return useQuery({
     queryKey: ["leave-policies"],
-    queryFn: async () => (await apiFetch<{ data: LeavePolicyData }>("/api/leave/policies")).data,
+    // The route returns the standard envelope wrapping a `serialize({ data })`
+    // payload, so the matrix sits two `data` levels deep ({ data: { data: … } }).
+    queryFn: async () =>
+      (await apiFetch<{ data: { data: LeavePolicyData } }>("/api/leave/policies")).data.data,
   })
 }
 

@@ -3,3 +3,4 @@
 // NOTE: server-only modules (server/*.service-style, emails, IO clients) are
 // intentionally NOT re-exported here - API routes import those directly.
 export * from "./hooks/use-wfh"
+export * from "./components/wfh-requests-inbox"

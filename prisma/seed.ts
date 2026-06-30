@@ -1723,84 +1723,14 @@ async function main() {
   console.log(`  ✓ Created ${leaveTypeRecords.length} leave types`)
 
   // ===========================================================================
-  // STEP 10 - Leave balances for all employees (current year)
+  // STEP 10 - Leave balances
   // ===========================================================================
-  console.log("Step 10: Creating leave balances...")
-
-  const currentYear = new Date().getFullYear()
-  const allEmployeeIds = createdEmployees.map((e) => e.id)
-
-  const leaveBalanceData: Array<{
-    employeeId: string
-    leaveTypeId: string
-    year: number
-    allocated: number
-    used: number
-    pending: number
-    carried: number
-  }> = []
-
-  for (const empId of allEmployeeIds) {
-    leaveBalanceData.push(
-      {
-        employeeId: empId,
-        leaveTypeId: leaveTypeMap.get("CL")!,
-        year: currentYear,
-        allocated: 7,
-        used: 1,
-        pending: 0,
-        carried: 0,
-      },
-      {
-        employeeId: empId,
-        leaveTypeId: leaveTypeMap.get("SL")!,
-        year: currentYear,
-        allocated: 7,
-        used: 1,
-        pending: 0,
-        carried: 0,
-      },
-      {
-        employeeId: empId,
-        leaveTypeId: leaveTypeMap.get("EL")!,
-        year: currentYear,
-        allocated: 14,
-        used: 3,
-        pending: 0,
-        carried: 2,
-      },
-      {
-        employeeId: empId,
-        leaveTypeId: leaveTypeMap.get("PL")!,
-        year: currentYear,
-        allocated: 2,
-        used: 0,
-        pending: 0,
-        carried: 0,
-      },
-      {
-        employeeId: empId,
-        leaveTypeId: leaveTypeMap.get("LWP")!,
-        year: currentYear,
-        allocated: 0,
-        used: 0,
-        pending: 0,
-        carried: 0,
-      },
-      {
-        employeeId: empId,
-        leaveTypeId: leaveTypeMap.get("ML")!,
-        year: currentYear,
-        allocated: 90,
-        used: 0,
-        pending: 0,
-        carried: 0,
-      },
-    )
-  }
-
-  await safeCreateMany(prisma.leaveBalance, leaveBalanceData)
-  console.log(`  ✓ Created ${leaveBalanceData.length} leave balances`)
+  // Balances are NOT hardcoded here. They are derived from the LeavePolicy matrix
+  // by allocateFromPolicy() - which prorates accrual by probation/joining date,
+  // rounds to the nearest half-day, and grants Maternity to female employees only.
+  // Populate them with the HR "Re-sync balances" action (Leave -> Policy); it also
+  // happens on employee create and the monthly accrual cron.
+  console.log("Step 10: Leave balances are derived from policy (run Re-sync to populate).")
 
   // ===========================================================================
   // STEP 11 - Salary structures

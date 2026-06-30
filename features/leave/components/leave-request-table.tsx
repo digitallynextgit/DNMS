@@ -131,6 +131,27 @@ export function LeaveRequestTable({
         </>
       ),
     },
+    // The reporting manager's advisory call (HR still makes the final decision).
+    // Only meaningful in the approver/directory view.
+    ...(showEmployee
+      ? [
+          {
+            header: "Manager",
+            cell: (request: LeaveRequest) =>
+              request.managerDecision === "APPROVED" ? (
+                <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950/40 dark:text-green-300">
+                  Approved
+                </span>
+              ) : request.managerDecision === "REJECTED" ? (
+                <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                  Rejected
+                </span>
+              ) : (
+                <span className="text-muted-foreground/50 text-xs">-</span>
+              ),
+          },
+        ]
+      : []),
     {
       header: "Status",
       cell: (request) => (

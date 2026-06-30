@@ -220,17 +220,16 @@ const HRMS_ITEMS: NavItem[] = [
     icon: CalendarDays,
     permission: PERMISSIONS.LEAVE_APPROVE,
     children: [
-      { label: "Team Leave", href: "/leave/team" },
-      { label: "Leave Calendar", href: "/leave/calendar" },
+      { label: "Leave Directory", href: "/leave/leave-directory" },
       { label: "Leave Types", href: "/leave/types" },
       { label: "Leave Policy", href: "/leave/policy" },
     ],
   },
   {
     label: "Work From Home",
+    href: "/wfh/requests",
     icon: Laptop,
     permission: PERMISSIONS.WFH_APPROVE,
-    children: [{ label: "Team WFH", href: "/wfh/team" }],
   },
   {
     label: "Payroll",

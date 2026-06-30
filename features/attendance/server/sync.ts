@@ -23,24 +23,17 @@ export class DeviceUnreachableError extends Error {
 // A never-synced employee is backfilled from their joining date. The device only
 // retains a finite event buffer, so this just caps how far back we ever ask.
 const MAX_BACKFILL_DAYS = 730
-// Long backfills are split into sub-ranges so one request never blows past the
-// device's per-query page cap (~2500 events) or its socket timeout.
-const CHUNK_DAYS = 31
-
-function utcMidnight(d: Date): Date {
-  const x = new Date(d)
-  x.setUTCHours(0, 0, 0, 0)
-  return x
-}
-
-function todayUtc(): Date {
-  return utcMidnight(new Date())
-}
+// History is pulled in small windows, most-recent first, so the latest days are
+// always captured even if an older window fails or the device is slow/flaky.
+const BATCH_DAYS = 15
+// The device clock is IST; days/times are grouped and stored in IST so the app
+// shows the same local time the device displayed.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
 
 export interface EmployeeSyncResult {
   employeeNo: string
   name?: string
-  /** "full" = whole history backfilled, "incremental" = last day → today, "skipped" = no code. */
+  /** "full" = whole history backfilled, "incremental" = today + yesterday, "skipped" = no code. */
   mode: "full" | "incremental" | "skipped"
   from: string | null
   to: string | null
@@ -57,63 +50,54 @@ interface SyncEmployee {
   dateOfJoining?: Date | null
 }
 
-/** Split [start, end] into ≤ CHUNK_DAYS UTC day-aligned sub-ranges. */
-function dateChunks(start: Date, end: Date): Array<[Date, Date]> {
-  const chunks: Array<[Date, Date]> = []
-  let cur = utcMidnight(start)
-  const last = utcMidnight(end)
-  while (cur <= last) {
-    const chunkEnd = new Date(cur)
-    chunkEnd.setUTCDate(chunkEnd.getUTCDate() + CHUNK_DAYS - 1)
-    const realEnd = chunkEnd > last ? last : chunkEnd
-    const s = utcMidnight(cur)
-    const e = new Date(realEnd)
-    e.setUTCHours(23, 59, 59, 999)
-    chunks.push([s, e])
-    cur = new Date(realEnd)
-    cur.setUTCDate(cur.getUTCDate() + 1)
-    cur.setUTCHours(0, 0, 0, 0)
-  }
-  return chunks
+// ─── IST date helpers ───────────────────────────────────────────────────────
+// We work in IST "YYYY-MM-DD" day strings so a punch lands on the calendar day
+// the employee actually punched (the device is IST), not a UTC-shifted day.
+
+/** The IST calendar day (YYYY-MM-DD) for an instant. */
+function istDayStr(d: Date): string {
+  return new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10)
+}
+/** Today's IST day (YYYY-MM-DD). */
+function istTodayStr(): string {
+  return istDayStr(new Date())
+}
+/** The UTC instant at the start (00:00:00 IST) of an IST day. */
+function istDayStartUtc(dayStr: string): Date {
+  return new Date(`${dayStr}T00:00:00.000+05:30`)
+}
+/** The UTC instant at the end (23:59:59 IST) of an IST day. */
+function istDayEndUtc(dayStr: string): Date {
+  return new Date(`${dayStr}T23:59:59.999+05:30`)
+}
+/** Shift a YYYY-MM-DD day string by `n` days. */
+function addDaysStr(dayStr: string, n: number): string {
+  const d = new Date(`${dayStr}T00:00:00.000Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
 }
 
 /**
- * First day to (re-)pull for one employee:
- *  - existing data → their last recorded day (re-pulls it to catch a check-out
- *    that landed after the previous sync, plus everything since). [incremental]
- *  - no data, or `forceFull` → from their joining date, capped at the device's
- *    retention window. [full]
+ * Upsert one attendance row for an employee + IST day from that day's punches.
+ * The day's FIRST punch is the check-in and the LAST is the check-out.
+ *
+ * A manually corrected record (isManual) is NEVER overwritten - HR's "Correct
+ * Punch" edits always win over the device sync.
  */
-async function resolveStart(
-  emp: SyncEmployee,
-  forceFull: boolean,
-): Promise<{ start: Date; mode: "full" | "incremental" }> {
-  const floor = todayUtc()
-  floor.setUTCDate(floor.getUTCDate() - MAX_BACKFILL_DAYS)
-  const fullStart = () => {
-    const join = emp.dateOfJoining ? utcMidnight(emp.dateOfJoining) : null
-    return join && join > floor ? join : floor
-  }
-
-  if (forceFull) return { start: fullStart(), mode: "full" }
-
-  const last = await db.attendanceLog.findFirst({
-    where: { employeeId: emp.id },
-    orderBy: { date: "desc" },
-    select: { date: true },
-  })
-  if (last) return { start: utcMidnight(last.date), mode: "incremental" }
-  return { start: fullStart(), mode: "full" }
-}
-
-/** Upsert one attendance row for an employee+day from that day's punches. */
 async function upsertDay(
   employeeId: string,
   deviceId: string,
-  dateStr: string,
+  istDay: string,
   punches: Date[],
-): Promise<void> {
-  const date = new Date(`${dateStr}T00:00:00.000Z`)
+): Promise<"written" | "skipped"> {
+  const date = new Date(`${istDay}T00:00:00.000Z`)
+
+  const existing = await db.attendanceLog.findUnique({
+    where: { employeeId_date: { employeeId, date } },
+    select: { isManual: true },
+  })
+  if (existing?.isManual) return "skipped" // don't clobber a manual correction
+
   punches.sort((a, b) => a.getTime() - b.getTime())
   const checkIn = punches[0]
   const checkOut = punches.length > 1 ? punches[punches.length - 1] : null
@@ -148,14 +132,71 @@ async function upsertDay(
       notes: "Synced from device",
     },
   })
+  return "written"
 }
 
 /**
- * Pull ONE employee's punches from a device and upsert one row per day they
- * punched. Matches the device's `employeeNoString` against the employee's device
- * id AND HR code, and filters client-side too, so it's correct whether or not the
- * device honors the server-side person filter. Weekends/holidays/absences are not
- * written - only real punch days. Assumes connectivity was already probed.
+ * Sync ONE inclusive IST day-range [fromDay, toDay] for an employee: fetch all of
+ * their punches in that window, group by IST day, and upsert one row per day.
+ * Captures every punch (any auth method, paginated), so heavy punchers (a dozen+
+ * a day) are fully recorded. Returns how many days were written + any device error.
+ */
+async function syncRange(
+  emp: SyncEmployee,
+  deviceId: string,
+  config: DeviceConfig,
+  codes: string[],
+  codeSet: Set<string>,
+  fromDay: string,
+  toDay: string,
+): Promise<{ synced: number; error?: string }> {
+  const start = istDayStartUtc(fromDay)
+  const end = istDayEndUtc(toDay)
+
+  const punchesByDay = new Map<string, Date[]>()
+  const seen = new Set<string>()
+  const errors: string[] = []
+
+  for (const code of codes) {
+    // major=5 (access control), minor=0 (all sub-types) so every punch is
+    // captured no matter the auth method (face/card/fingerprint).
+    const { events, error } = await fetchAttendanceEvents(config, start, end, 5, 0, code)
+    if (error) errors.push(error)
+    for (const ev of events) {
+      if (!codeSet.has(ev.employeeNo)) continue
+      const day = istDayStr(ev.timestamp)
+      if (day < fromDay || day > toDay) continue // only days inside this window
+      const key = `${ev.employeeNo}|${ev.timestamp.getTime()}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      const arr = punchesByDay.get(day)
+      if (arr) arr.push(ev.timestamp)
+      else punchesByDay.set(day, [ev.timestamp])
+    }
+  }
+
+  let synced = 0
+  for (const [day, punches] of punchesByDay) {
+    try {
+      if ((await upsertDay(emp.id, deviceId, day, punches)) === "written") synced++
+    } catch (e) {
+      errors.push(`${day}: ${String(e)}`)
+    }
+  }
+  return { synced, error: errors.length ? errors.join("; ") : undefined }
+}
+
+/**
+ * Pull ONE employee's punches from a device into the DB.
+ *
+ *  - Full backfill (first sync, or `opts.full`): walk BACKWARD from today in
+ *    15-day windows down to their joining date (capped at the device's retention
+ *    window). The most recent window syncs first; if a window fails, we stop
+ *    walking further back so a flaky older request can't lose today's data.
+ *  - Incremental (the Refresh button / cron): just today + yesterday.
+ *
+ * Days are grouped in IST; the day's first punch = check-in, last = check-out.
+ * Assumes connectivity was already probed.
  */
 export async function syncEmployeeAttendance(
   deviceId: string,
@@ -176,59 +217,64 @@ export async function syncEmployeeAttendance(
       error: "No biometric code (device ID / employee code) set",
     }
   }
-
-  const { start, mode } = await resolveStart(emp, !!opts.full)
-  const end = todayUtc()
-  end.setUTCHours(23, 59, 59, 999)
   const codeSet = new Set(codes)
+  const today = istTodayStr()
 
-  // Collect punches grouped by day, deduped by (code, timestamp) across the
-  // employee's code(s) and the monthly chunks.
-  const punchesByDay = new Map<string, Date[]>()
-  const seen = new Set<string>()
-  const errors: string[] = []
+  // First-ever sync (no rows yet) always does a full backfill.
+  const hasData = await db.attendanceLog.findFirst({
+    where: { employeeId: emp.id },
+    select: { id: true },
+  })
+  const doFull = !!opts.full || !hasData
 
-  for (const [chunkStart, chunkEnd] of dateChunks(start, end)) {
-    for (const code of codes) {
-      // major=5, minor=75 → person access-grants (the real punches) only.
-      const { events, error } = await fetchAttendanceEvents(
-        config,
-        chunkStart,
-        chunkEnd,
-        5,
-        75,
-        code,
-      )
-      if (error) errors.push(error)
-      for (const ev of events) {
-        if (!codeSet.has(ev.employeeNo)) continue
-        const dedupeKey = `${ev.employeeNo}|${ev.timestamp.getTime()}`
-        if (seen.has(dedupeKey)) continue
-        seen.add(dedupeKey)
-        const day = ev.timestamp.toISOString().slice(0, 10)
-        const arr = punchesByDay.get(day)
-        if (arr) arr.push(ev.timestamp)
-        else punchesByDay.set(day, [ev.timestamp])
-      }
+  if (!doFull) {
+    // Incremental: today + yesterday only.
+    const from = addDaysStr(today, -1)
+    const res = await syncRange(emp, deviceId, config, codes, codeSet, from, today)
+    return {
+      employeeNo: emp.employeeNo,
+      name,
+      mode: "incremental",
+      from,
+      to: today,
+      synced: res.synced,
+      error: res.error,
     }
   }
 
+  // Full backfill: walk backward in 15-day windows to the joining-date floor.
+  const floorMs = Date.now() - MAX_BACKFILL_DAYS * 86_400_000
+  const retentionFloor = istDayStr(new Date(floorMs))
+  const joinDay = emp.dateOfJoining ? istDayStr(emp.dateOfJoining) : null
+  const floor = joinDay && joinDay > retentionFloor ? joinDay : retentionFloor
+
   let synced = 0
-  for (const [day, punches] of punchesByDay) {
-    try {
-      await upsertDay(emp.id, deviceId, day, punches)
-      synced++
-    } catch (e) {
-      errors.push(`${day}: ${String(e)}`)
+  const errors: string[] = []
+  let batchEnd = today
+  let earliest = today
+
+  while (batchEnd >= floor) {
+    const batchStart =
+      addDaysStr(batchEnd, -(BATCH_DAYS - 1)) < floor
+        ? floor
+        : addDaysStr(batchEnd, -(BATCH_DAYS - 1))
+    earliest = batchStart
+    const res = await syncRange(emp, deviceId, config, codes, codeSet, batchStart, batchEnd)
+    synced += res.synced
+    if (res.error) {
+      // Stop walking further back so an older flaky window can't block the rest.
+      errors.push(`${batchStart}..${batchEnd}: ${res.error}`)
+      break
     }
+    batchEnd = addDaysStr(batchStart, -1)
   }
 
   return {
     employeeNo: emp.employeeNo,
     name,
-    mode,
-    from: start.toISOString().slice(0, 10),
-    to: end.toISOString().slice(0, 10),
+    mode: "full",
+    from: earliest,
+    to: today,
     synced,
     error: errors.length ? errors.join("; ") : undefined,
   }
@@ -237,9 +283,8 @@ export async function syncEmployeeAttendance(
 /**
  * Smart sync for one device: probe connectivity once, then for every active
  * employee (excluding the hidden watch account) pull either their full history
- * (never synced) or just last-recorded-day → today. Pass `onlyEmployeeNo` to
- * target one person and `full` to force a complete re-backfill.
- * Throws DeviceUnreachableError when the device can't be reached.
+ * (never synced / `full`) or just today + yesterday. Pass `onlyEmployeeNo` to
+ * target one person. Throws DeviceUnreachableError when the device can't be reached.
  */
 export async function syncDeviceSmart(
   deviceId: string,

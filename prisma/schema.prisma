@@ -763,6 +763,9 @@ model WfhRequest {
   reason            String?     @map("reason")
   status            LeaveStatus @default(PENDING) @map("status")
   isEmergency       Boolean     @default(false) @map("is_emergency") // tier 1/2 emergency override
+  // The reporting manager's advisory call ("APPROVED" | "REJECTED"); HR makes the
+  // final decision and can override it (mirrors leave / floating-holiday requests).
+  managerDecision   String?     @map("manager_decision")
   managerApproverId String?     @map("manager_approver_id")
   managerApprovedAt DateTime?   @map("manager_approved_at")
   hrApproverId      String?     @map("hr_approver_id")
@@ -944,6 +947,9 @@ model LeaveRequest {
   approverId        String?             @map("approver_id")
   approvedAt        DateTime?           @map("approved_at")
   rejectionReason   String?             @map("rejection_reason")
+  // The reporting manager's advisory call ("APPROVED" | "REJECTED"); HR makes
+  // the final decision and can override it (mirrors floating-holiday requests).
+  managerDecision   String?             @map("manager_decision")
   lateNoticePenalty Boolean             @default(false) @map("late_notice_penalty")
   // Routing: which tier currently owns this request and, for a MANAGER-stage
   // request, the specific manager who must act. Null currentApproverId means a

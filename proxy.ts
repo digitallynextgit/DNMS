@@ -101,10 +101,10 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   [/^\/holidays(\/|$)/, "attendance:write"],
 
   // --- Leave (HR) --------------------------------------------------------
-  [/^\/leave\/(team|calendar|types)(\/|$)/, "leave:approve"],
+  [/^\/leave\/(team|types|leave-directory)(\/|$)/, "leave:approve"],
 
   // --- Work From Home (HR) ----------------------------------------------
-  [/^\/wfh\/team(\/|$)/, "wfh:approve"],
+  [/^\/wfh\/requests(\/|$)/, "wfh:approve"],
 
   // --- Payroll (HR) ------------------------------------------------------
   [/^\/payroll(\/|$)/, "payroll:write"],
