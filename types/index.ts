@@ -30,6 +30,8 @@ export interface OrgNode {
   employeeNo: string
   designation: { title: string } | null
   department: { name: string } | null
+  /** The employee's system role display name (e.g. "Employee", "HR Manager"). */
+  role: string | null
   profilePhoto: string | null
   children: OrgNode[]
 }

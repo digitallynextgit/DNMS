@@ -35,6 +35,11 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
         {node.department?.name && (
           <p className="text-muted-foreground/70 truncate text-[10px]">{node.department.name}</p>
         )}
+        {node.role && (
+          <span className="bg-muted text-muted-foreground mt-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-medium">
+            {node.role}
+          </span>
+        )}
       </div>
     </div>
   )

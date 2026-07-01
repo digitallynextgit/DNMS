@@ -19,14 +19,12 @@ import {
   Clock,
   CalendarDays,
   DollarSign,
-  HelpCircle,
   FolderKanban,
   Star,
   Briefcase,
   BarChart3,
   Laptop,
   Network,
-  ListChecks,
   UserMinus,
   Plug,
   PartyPopper,
@@ -159,23 +157,6 @@ const EMPLOYEE_ITEMS: NavItem[] = [
 const COMPANY_ITEMS: NavItem[] = [
   { label: "Documents", href: "/documents", icon: FileText },
   { label: "Organisation Chart", href: "/employees/org-chart", icon: Network },
-  { label: "Help & Guide", href: "/docs", icon: HelpCircle },
-]
-
-// ── Project: personal project workspace. Shown to anyone with project access. ─
-const PROJECT_ITEMS: NavItem[] = [
-  {
-    label: "My Projects",
-    href: "/projects",
-    icon: FolderKanban,
-    permission: PERMISSIONS.PROJECT_READ,
-  },
-  {
-    label: "My Tasks",
-    href: "/projects/my-tasks",
-    icon: ListChecks,
-    permission: PERMISSIONS.PROJECT_READ,
-  },
 ]
 
 // ── HRMS: only privileged roles. Gated by manage-level permissions
@@ -577,13 +558,6 @@ export function Sidebar({ session }: { session: Session }) {
           permissions={permissions}
           roles={roles}
           first={isAdmin_}
-        />
-        <SidebarSection
-          label="Project"
-          items={PROJECT_ITEMS}
-          isCollapsed={isCollapsed}
-          permissions={permissions}
-          roles={roles}
         />
         <SidebarSection
           label="Admin"

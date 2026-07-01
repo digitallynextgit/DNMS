@@ -621,6 +621,7 @@ function buildOrgTree(
     designation: { title: string } | null
     department: { name: string } | null
     profilePhoto: string | null
+    employeeRoles: Array<{ role: { name: string; displayName: string | null } }>
   }>,
   managerId: string | null,
 ): OrgNode[] {
@@ -633,6 +634,7 @@ function buildOrgTree(
       employeeNo: e.employeeNo,
       designation: e.designation,
       department: e.department,
+      role: e.employeeRoles[0]?.role.displayName ?? e.employeeRoles[0]?.role.name ?? null,
       profilePhoto: e.profilePhoto,
       children: buildOrgTree(employees, e.id),
     }))
@@ -654,6 +656,7 @@ export async function getOrgChart(): Promise<ActionResult<{ data: OrgNode[] }>> 
         managerId: true,
         designation: { select: { title: true } },
         department: { select: { name: true } },
+        employeeRoles: { select: { role: { select: { name: true, displayName: true } } } },
       },
     })
     return ok({ data: buildOrgTree(employees, null) })
