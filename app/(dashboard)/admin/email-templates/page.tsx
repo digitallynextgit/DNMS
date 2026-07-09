@@ -106,8 +106,8 @@ export default function EmailTemplatesPage() {
 
   // Keep the current page in range when the list size changes (e.g. after a delete).
   React.useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    if (!isLoading && page > totalPages) setPage(totalPages)
+  }, [page, totalPages, isLoading])
 
   return (
     <div className="flex flex-col gap-6">

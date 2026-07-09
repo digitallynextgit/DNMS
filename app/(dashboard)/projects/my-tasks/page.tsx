@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
+import { useUpdateEffect } from "@/hooks/use-update-effect"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -83,8 +84,9 @@ export default function MyTasksPage() {
     return (data?.data ?? []).filter((t) => statusFilter === "all" || t.status === statusFilter)
   }, [data, statusFilter])
 
-  // Reset to the first page whenever the status filter changes.
-  useEffect(() => {
+  // Reset to the first page whenever the status filter changes (skips mount so a
+  // deep-linked ?page=N survives first render).
+  useUpdateEffect(() => {
     setPage(1)
   }, [statusFilter])
 
@@ -93,8 +95,8 @@ export default function MyTasksPage() {
 
   // Clamp the page if the filtered list shrinks below the current page.
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    if (!isLoading && page > totalPages) setPage(totalPages)
+  }, [page, totalPages, isLoading])
 
   // Only the current page of tasks is rendered (table rows / grouped cards).
   const pageTasks = useMemo(() => {

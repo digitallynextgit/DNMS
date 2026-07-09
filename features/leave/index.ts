@@ -4,6 +4,7 @@
 // intentionally NOT re-exported here - API routes import those directly.
 export * from "./components/apply-leave-form"
 export * from "./components/leave-balance-card"
+export * from "./components/leave-balance-directory"
 export * from "./components/leave-policy-matrix"
 export * from "./components/leave-request-table"
 export * from "./components/leave-type-form"

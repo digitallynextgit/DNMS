@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useDebounce } from "@/hooks/use-debounce"
 import { apiFetch } from "@/lib/api-fetch"
@@ -195,6 +195,9 @@ export function useEmployees(filters: EmployeeFilters = {}) {
     queryKey: ["employees", filters],
     queryFn: () => fetchEmployees(filters),
     staleTime: 30_000,
+    // Keep the previous page's rows on screen while the next page loads, so the
+    // list (and its pagination control) never collapses mid-transition.
+    placeholderData: keepPreviousData,
   })
 }
 

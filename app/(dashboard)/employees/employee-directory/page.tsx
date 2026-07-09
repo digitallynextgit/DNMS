@@ -18,6 +18,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { useRowSelection } from "@/hooks/use-row-selection"
+import { useUpdateEffect } from "@/hooks/use-update-effect"
 import { EmployeeCard } from "@/features/employees"
 import { EmployeeFilters } from "@/features/employees"
 import { apiFetch } from "@/lib/api-fetch"
@@ -55,61 +56,58 @@ export default function EmployeesPage() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
 
-  // ── URL-synced filters ────────────────────────────────────────────────────
-  const [search, setSearchRaw] = useState(searchParams.get("search") ?? "")
-  const [departmentId, setDepartmentId] = useState(searchParams.get("departmentId") ?? "")
-  // Default to active employees (all departments). The URL param still wins so
-  // shared/bookmarked filtered links keep working.
-  const [status, setStatus] = useState(searchParams.get("status") ?? "ACTIVE")
-  const [page, setPage] = useState(Number(searchParams.get("page") ?? "1"))
+  // ── URL-driven filters + pagination ───────────────────────────────────────
+  // The URL query string is the single source of truth: department, status, and
+  // page all live in `?…=` params, so the view survives refresh, deep-linking,
+  // and browser back/forward. `setParams` is the only writer to the URL.
+  const departmentId = searchParams.get("departmentId") ?? ""
+  // Default to active employees; the URL param still wins for shared links.
+  const status = searchParams.get("status") ?? "ACTIVE"
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1"))
 
+  // The search box needs immediate local state for responsive typing; its
+  // debounced value is what gets written to the URL (and drives the query).
+  const [search, setSearch] = useState(searchParams.get("search") ?? "")
   const debouncedSearch = useDebounce(search, 350)
 
-  // Sync URL helper
-  const pushFilters = useCallback(
-    (overrides: Record<string, string>) => {
-      const params = new URLSearchParams()
-      const merged = {
-        search: debouncedSearch,
-        departmentId,
-        status,
-        page: String(page),
-        ...overrides,
+  const setParams = useCallback(
+    (updates: Record<string, string>) => {
+      const params = new URLSearchParams(searchParams.toString())
+      for (const [key, value] of Object.entries(updates)) {
+        // Drop default values so a pristine view keeps a clean URL.
+        const isDefault =
+          value === "" ||
+          (key === "status" && value === "ACTIVE") ||
+          (key === "page" && value === "1")
+        if (isDefault) params.delete(key)
+        else params.set(key, value)
       }
-      Object.entries(merged).forEach(([k, v]) => {
-        if (v && v !== "1") params.set(k, v)
-        else if (v === "1" && k === "page") {
-          // skip page=1
-        } else if (v) params.set(k, v)
-      })
-      router.replace(`${pathname}?${params.toString()}`)
+      const qs = params.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     },
-    [debouncedSearch, departmentId, status, page, router, pathname],
+    [searchParams, router, pathname],
   )
 
-  function handleSearchChange(v: string) {
-    setSearchRaw(v)
-    setPage(1)
-  }
+  const setPage = useCallback((p: number) => setParams({ page: String(p) }), [setParams])
+
+  // Push the debounced search term to the URL, resetting to page 1. Skips the
+  // initial mount so a deep-linked ?page=N isn't wiped on first render.
+  useUpdateEffect(() => {
+    setParams({ search: debouncedSearch, page: "1" })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch])
 
   function handleDepartmentChange(v: string) {
-    setDepartmentId(v)
-    setPage(1)
-    pushFilters({ departmentId: v, page: "1" })
+    setParams({ departmentId: v, page: "1" })
   }
 
   function handleStatusChange(v: string) {
-    setStatus(v)
-    setPage(1)
-    pushFilters({ status: v, page: "1" })
+    setParams({ status: v, page: "1" })
   }
 
   function handleClearFilters() {
-    setSearchRaw("")
-    setDepartmentId("")
-    setStatus("")
-    setPage(1)
-    router.replace(pathname)
+    setSearch("")
+    router.replace(pathname, { scroll: false })
   }
 
   // ── Data ──────────────────────────────────────────────────────────────────
@@ -210,7 +208,7 @@ export default function EmployeesPage() {
         <div className="min-w-0 flex-1">
           <EmployeeFilters
             search={search}
-            onSearchChange={handleSearchChange}
+            onSearchChange={setSearch}
             departmentId={departmentId}
             onDepartmentChange={handleDepartmentChange}
             status={status}

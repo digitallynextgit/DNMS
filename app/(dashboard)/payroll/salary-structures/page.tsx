@@ -67,8 +67,8 @@ export default function SalaryStructuresPage() {
 
   // Keep the current page in range as the list shrinks (e.g. after a delete).
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    if (!isLoading && page > totalPages) setPage(totalPages)
+  }, [page, totalPages, isLoading])
 
   function handleAdd() {
     setEditData(null)

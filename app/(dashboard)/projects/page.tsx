@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
+import { useUpdateEffect } from "@/hooks/use-update-effect"
 import Link from "next/link"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
@@ -107,15 +108,16 @@ export default function ProjectsPage() {
   const total = projects.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  // Reset to page 1 when switching views or when the project list changes size.
-  useEffect(() => {
+  // Reset to page 1 when switching views. Skips mount so a deep-linked ?page=N
+  // isn't clobbered on first render.
+  useUpdateEffect(() => {
     setPage(1)
   }, [viewMode])
 
   // Clamp the page if the list shrinks below the current page.
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    if (!isLoading && page > totalPages) setPage(totalPages)
+  }, [page, totalPages, isLoading])
 
   // Current page of projects (flat slice), then regrouped by status for the
   // card/table section rendering.

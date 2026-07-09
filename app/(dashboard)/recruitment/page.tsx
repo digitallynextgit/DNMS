@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useUpdateEffect } from "@/hooks/use-update-effect"
 import { useUrlPage } from "@/hooks/use-url-state"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -134,15 +135,16 @@ export default function RecruitmentPage() {
     [jobs, page],
   )
 
-  // Reset to page 1 whenever the status filter changes.
-  useEffect(() => {
+  // Reset to page 1 whenever the status filter changes (skips mount so a
+  // deep-linked ?page=N survives first render).
+  useUpdateEffect(() => {
     setPage(1)
   }, [statusFilter])
 
   // Clamp the page if the underlying list shrinks (e.g. after a delete).
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    if (!isLoading && page > totalPages) setPage(totalPages)
+  }, [page, totalPages, isLoading])
 
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)

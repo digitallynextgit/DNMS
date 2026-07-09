@@ -32,6 +32,27 @@ function countCalendarDays(start: Date, end: Date): number {
   return Math.round((e.getTime() - s.getTime()) / 86400000) + 1
 }
 
+// Probation completion (confirmed early → recorded date; else joining + months).
+// Mirrors the accrual engine so leave eligibility stays in lockstep.
+function probationDone(e: {
+  confirmationDate: Date | null
+  dateOfJoining: Date | null
+  probationMonths: number
+}): Date | null {
+  if (e.confirmationDate) return e.confirmationDate
+  if (e.dateOfJoining) {
+    const d = new Date(e.dateOfJoining)
+    d.setMonth(d.getMonth() + (e.probationMonths || 6))
+    return d
+  }
+  return null
+}
+function addMonths(d: Date, n: number): Date {
+  const x = new Date(d)
+  x.setMonth(x.getMonth() + n)
+  return x
+}
+
 // ─── Approval routing ─────────────────────────────────────────────────────────
 // Who must approve a request depends on who applied:
 //   employee -> their manager · manager -> HR · HR -> Admin · admin_ -> auto.
@@ -336,6 +357,45 @@ export async function getLeaveBalances(
   })
 }
 
+// HR view: every active employee with their leave balances by type for a year.
+// Gated by leave:approve. Excludes the hidden admin_ watch account, like the
+// rest of the app.
+export async function getAllLeaveBalances(year?: number): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    await requirePermission(PERMISSIONS.LEAVE_APPROVE)
+    const resolvedYear = year ?? new Date().getFullYear()
+
+    const employees = await db.employee.findMany({
+      where: {
+        isActive: true,
+        status: "ACTIVE",
+        // Admins (and the hidden admin_ watch account) don't take leave - hide them.
+        NOT: {
+          employeeRoles: {
+            some: { role: { name: { in: [SYSTEM_ROLES.ADMIN_, SYSTEM_ROLES.ADMIN] } } },
+          },
+        },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        employeeNo: true,
+        profilePhoto: true,
+        department: { select: { id: true, name: true } },
+        leaveBalances: {
+          where: { year: resolvedYear },
+          include: { leaveType: true },
+          orderBy: { leaveType: { name: "asc" } },
+        },
+      },
+      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+    })
+
+    return ok(serialize({ data: employees, year: resolvedYear }))
+  })
+}
+
 export async function allocateLeave(body: {
   employeeId: string
   leaveTypeId: string
@@ -599,9 +659,29 @@ export async function applyLeave(body: {
         "Paid leave is not available during probation. You may apply for unpaid leave (LWP) instead.",
       )
 
+    // No leave during the notice period (after an accepted resignation). Any
+    // exception is at management's discretion, handled offline by HR.
+    const acceptedResignation = await db.resignation.findFirst({
+      where: { employeeId: session.user.id, status: "APPROVED" },
+      select: { id: true },
+    })
+    if (acceptedResignation)
+      return fail(
+        "You can't apply for leave during your notice period. Any exception is at management's discretion - please contact HR.",
+      )
+
     let totalDays = isHalfDay ? 0.5 : countCalendarDays(start, end)
     if (leaveType.code === "SHORT") totalDays = 0.5
     if (totalDays === 0) return fail("Selected date range results in zero leave days")
+
+    // #2 Advance-notice windows: EL 60 days (else not approved), CL/LWP 2 days.
+    const noticeDays = Math.floor(
+      (start.getTime() - startOfDayUTC(new Date()).getTime()) / 86_400_000,
+    )
+    if (leaveType.code === "EL" && noticeDays < 60)
+      return fail("Earned Leave must be applied at least 60 days in advance.")
+    if ((leaveType.code === "CL" || leaveType.code === "LWP") && noticeDays < 2)
+      return fail(`${leaveType.name} must be applied at least 2 days in advance.`)
 
     // EL no longer has an extra post-probation wait - being paid leave, it is
     // already blocked during probation above and becomes available right at
@@ -623,6 +703,32 @@ export async function applyLeave(body: {
       if (totalDays < 3)
         return fail("Earned Leave requires a minimum of 3 consecutive days per application.")
       if (totalDays > 7) return fail("Earned Leave allows a maximum of 7 days per application.")
+      // #1 Eligible only after probation is COMPLETED plus 6 months of service.
+      const done = employee ? probationDone(employee) : null
+      const elEligibleFrom = done ? addMonths(done, 6) : null
+      if (elEligibleFrom && new Date() < elEligibleFrom)
+        return fail(
+          "Earned Leave is available only after completing probation plus 6 months of service.",
+        )
+      // #3 Half-year cap: max 7 EL in Jan–Jun and 7 in Jul–Dec.
+      const y = start.getUTCFullYear()
+      const firstHalf = start.getUTCMonth() < 6
+      const halfStart = new Date(Date.UTC(y, firstHalf ? 0 : 6, 1))
+      const halfEnd = new Date(Date.UTC(y, firstHalf ? 5 : 11, firstHalf ? 30 : 31))
+      const elInHalf = await db.leaveRequest.findMany({
+        where: {
+          employeeId: session.user.id,
+          leaveTypeId,
+          status: { in: ["PENDING", "APPROVED"] },
+          startDate: { gte: halfStart, lte: halfEnd },
+        },
+        select: { totalDays: true },
+      })
+      const usedThisHalf = elInHalf.reduce((s, r) => s + r.totalDays, 0)
+      if (usedThisHalf + totalDays > 7)
+        return fail(
+          `Earned Leave is capped at 7 days per half-year (${firstHalf ? "Jan–Jun" : "Jul–Dec"}). You've already used/pending ${usedThisHalf} day(s) this half.`,
+        )
     }
 
     if (leaveType.code === "CL") {

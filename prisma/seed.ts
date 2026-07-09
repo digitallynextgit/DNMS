@@ -1641,6 +1641,7 @@ async function main() {
       maxDaysPerYear: 7,
       carryForward: false,
       maxCarryDays: 0,
+      accrualMethod: "UPFRONT",
       requiresApproval: true,
     },
     // SL: 7 days prorata, no carry, SL>2 days needs medical certificate
@@ -1653,6 +1654,7 @@ async function main() {
       maxDaysPerYear: 7,
       carryForward: false,
       maxCarryDays: 0,
+      accrualMethod: "UPFRONT",
       requiresApproval: false,
     },
     // EL: 14 days, 1.16/month accrual, max 22 carry, eligibility: probation + 6 months, 60-day advance notice, min 3 max 7 at a time

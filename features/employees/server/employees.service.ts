@@ -400,6 +400,18 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
     }
 
     const updateData: Record<string, unknown> = {}
+    // Employee code is editable; a changed value must stay unique across the table.
+    if (data.employeeNo !== undefined) {
+      const nextNo = data.employeeNo.trim()
+      if (nextNo && nextNo !== before.employeeNo) {
+        const dupe = await db.employee.findUnique({
+          where: { employeeNo: nextNo },
+          select: { id: true },
+        })
+        if (dupe) return fail("An employee with this code already exists")
+        updateData.employeeNo = nextNo
+      }
+    }
     if (data.firstName !== undefined) updateData.firstName = data.firstName
     if (data.lastName !== undefined) updateData.lastName = data.lastName
     if (data.email !== undefined) updateData.email = data.email

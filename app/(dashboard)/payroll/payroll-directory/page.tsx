@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
+import { useUpdateEffect } from "@/hooks/use-update-effect"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Users, TrendingUp, DollarSign, Play, Trash2, Eye, ChevronDown } from "lucide-react"
@@ -65,7 +66,7 @@ export default function PayrollPage() {
 
   // Server-side pagination: reset to the first page whenever a filter changes.
   // SearchInput debounces `employeeSearch` internally before it reaches state.
-  useEffect(() => {
+  useUpdateEffect(() => {
     setPage(1)
   }, [month, year, status, employeeSearch])
 

@@ -295,6 +295,36 @@ export function useLeaveBalances(employeeId?: string, year?: number) {
   })
 }
 
+// ─── HR: every employee's balances by type (Leave Directory → Balances) ─────────
+export interface EmployeeLeaveBalances {
+  id: string
+  firstName: string
+  lastName: string
+  employeeNo: string
+  profilePhoto: string | null
+  department: { id: string; name: string } | null
+  leaveBalances: LeaveBalance[]
+}
+
+async function fetchLeaveBalanceDirectory(
+  year?: number,
+): Promise<{ data: EmployeeLeaveBalances[]; year: number }> {
+  const qs = year ? `?year=${year}` : ""
+  return (
+    await apiFetch<{ data: { data: EmployeeLeaveBalances[]; year: number } }>(
+      `/api/leave/balances/directory${qs}`,
+    )
+  ).data
+}
+
+export function useLeaveBalanceDirectory(year?: number) {
+  return useQuery({
+    queryKey: ["leave-balance-directory", year],
+    queryFn: () => fetchLeaveBalanceDirectory(year),
+    staleTime: 30_000,
+  })
+}
+
 export function useLeaveRequests(filters: LeaveRequestFilters = {}) {
   return useQuery({
     queryKey: ["leave-requests", filters],

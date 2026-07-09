@@ -72,8 +72,8 @@ export default function RolesPage() {
 
   // Keep the current page in range when the list size changes (e.g. after a delete).
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    if (!loading && page > totalPages) setPage(totalPages)
+  }, [page, totalPages, loading])
 
   // Sheet (create/edit) state
   const [sheetOpen, setSheetOpen] = useState(false)

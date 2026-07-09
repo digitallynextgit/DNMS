@@ -25,6 +25,7 @@ import {
   BarChart3,
   Laptop,
   Network,
+  ListChecks,
   UserMinus,
   Plug,
   PartyPopper,
@@ -159,6 +160,22 @@ const COMPANY_ITEMS: NavItem[] = [
   { label: "Organisation Chart", href: "/employees/org-chart", icon: Network },
 ]
 
+// ── Project: personal project workspace. Shown to anyone with project access. ─
+const PROJECT_ITEMS: NavItem[] = [
+  {
+    label: "My Projects",
+    href: "/projects",
+    icon: FolderKanban,
+    permission: PERMISSIONS.PROJECT_READ,
+  },
+  {
+    label: "My Tasks",
+    href: "/projects/my-tasks",
+    icon: ListChecks,
+    permission: PERMISSIONS.PROJECT_READ,
+  },
+]
+
 // ── HRMS: only privileged roles. Gated by manage-level permissions
 //    (WRITE/APPROVE/REVIEW) so regular employees never see these groups; they
 //    use the flat Employee links above instead. ──────────────────────────────
@@ -202,8 +219,7 @@ const HRMS_ITEMS: NavItem[] = [
     permission: PERMISSIONS.LEAVE_APPROVE,
     children: [
       { label: "Leave Directory", href: "/leave/leave-directory" },
-      { label: "Leave Types", href: "/leave/types" },
-      { label: "Leave Policy", href: "/leave/policy" },
+      { label: "Leave Types & Policy", href: "/leave/types" },
     ],
   },
   {
@@ -558,6 +574,13 @@ export function Sidebar({ session }: { session: Session }) {
           permissions={permissions}
           roles={roles}
           first={isAdmin_}
+        />
+        <SidebarSection
+          label="Project"
+          items={PROJECT_ITEMS}
+          isCollapsed={isCollapsed}
+          permissions={permissions}
+          roles={roles}
         />
         <SidebarSection
           label="Admin"

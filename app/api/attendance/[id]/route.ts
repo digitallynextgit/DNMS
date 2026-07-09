@@ -93,6 +93,11 @@ export const PATCH = withAuth(
         })
       }
 
+      // Any HR edit is a manual correction: flag it so a later device sync never
+      // overwrites it (upsertDay skips rows where isManual is true).
+      updateData.isManual = true
+      updateData.source = "manual"
+
       const updated = await db.attendanceLog.update({
         where: { id },
         data: updateData,

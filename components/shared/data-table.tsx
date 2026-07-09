@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
+import { Pagination } from "@/components/shared/pagination"
 import { cn } from "@/lib/utils"
 
 export interface DataTableColumn<T> {
@@ -39,6 +40,15 @@ interface DataTableProps<T> {
   serialOffset?: number
   /** Enable multi-select checkboxes (header select-all + per-row). */
   selection?: DataTableSelection
+  /** Optional pagination bar rendered directly below the table. Pair `serialOffset`
+   *  with `(page - 1) * pageSize` so the S.No stays continuous across pages. */
+  pagination?: {
+    page: number
+    totalPages: number
+    total: number
+    onPageChange: (page: number) => void
+    itemLabel?: string
+  }
 }
 
 /**
@@ -58,11 +68,12 @@ export function DataTable<T>({
   showSerial,
   serialOffset = 0,
   selection,
+  pagination,
 }: DataTableProps<T>) {
   const alignClass = (align?: DataTableColumn<T>["align"]) =>
     align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
 
-  return (
+  const table = (
     <div className={cn("bg-card rounded border", className)}>
       <div className={cn(minWidth && "overflow-x-auto")}>
         <table className={cn("w-full text-sm", minWidth)}>
@@ -139,6 +150,23 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
+    </div>
+  )
+
+  if (!pagination) return table
+
+  return (
+    <div className="space-y-4">
+      {table}
+      {pagination.total > 0 && (
+        <Pagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          onPageChange={pagination.onPageChange}
+          itemLabel={pagination.itemLabel}
+        />
+      )}
     </div>
   )
 }

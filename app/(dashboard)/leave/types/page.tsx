@@ -1,18 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import { useUrlPage } from "@/hooks/use-url-state"
+import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
 import { PageHeader } from "@/components/shared/page-header"
-import { LeaveTypeForm } from "@/features/leave"
+import {
+  LeaveTypeForm,
+  LeavePolicyMatrix,
+  LeavePolicyActions,
+  useLeavePolicyEditor,
+} from "@/features/leave"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
@@ -20,8 +19,8 @@ import { useLeaveTypes, useDeleteLeaveType, useUpdateLeaveType } from "@/feature
 import type { LeaveType } from "@/features/leave"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { usePermissions } from "@/features/admin"
-import { PERMISSIONS } from "@/lib/constants"
-import { Plus, MoreHorizontal, Pencil, ToggleLeft, ToggleRight, Trash2 } from "lucide-react"
+import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
+import { Plus, Pencil, ToggleLeft, ToggleRight, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination } from "@/components/shared/pagination"
 import { useRowSelection } from "@/hooks/use-row-selection"
@@ -29,9 +28,18 @@ import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 
 const PAGE_SIZE = 10
 
-export default function LeaveTypesPage() {
-  const { can } = usePermissions()
-  const canManage = can(PERMISSIONS.LEAVE_APPROVE)
+export default function LeaveTypesAndPolicyPage() {
+  const { can, roles, isAdmin_ } = usePermissions()
+  // Types: any leave manager. Policy (company-wide allocations): HR Manager / Admin.
+  const canManageTypes = can(PERMISSIONS.LEAVE_APPROVE)
+  const canManagePolicy =
+    isAdmin_ || roles.includes(SYSTEM_ROLES.HR_MANAGER) || roles.includes(SYSTEM_ROLES.ADMIN)
+
+  const [tab, setTab] = useUrlState("tab", canManageTypes ? "types" : "policy")
+
+  // Shared policy-grid editing state, so its Save / Re-sync buttons can live in
+  // the page header next to the tabs.
+  const policyEditor = useLeavePolicyEditor(canManagePolicy)
 
   const { data, isLoading } = useLeaveTypes()
   const deleteLeaveType = useDeleteLeaveType()
@@ -42,12 +50,9 @@ export default function LeaveTypesPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [page, setPage] = useUrlPage()
 
-  // useLeaveTypes only returns active types; we need all for admin
-  // We'll show based on what the API returns
+  // useLeaveTypes returns the full list; paginate locally (it's reused as a
+  // dropdown/lookup elsewhere so the API stays unpaginated).
   const leaveTypes = data?.data ?? []
-
-  // Client-side pagination (getLeaveTypes is reused as a dropdown/lookup elsewhere,
-  // so we fetch the full list and paginate locally).
   const total = leaveTypes.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
@@ -66,10 +71,7 @@ export default function LeaveTypesPage() {
   }
 
   async function handleToggleActive(type: LeaveType) {
-    await updateLeaveType.mutateAsync({
-      id: type.id,
-      body: { isActive: !type.isActive },
-    })
+    await updateLeaveType.mutateAsync({ id: type.id, body: { isActive: !type.isActive } })
   }
 
   async function handleDelete() {
@@ -86,11 +88,11 @@ export default function LeaveTypesPage() {
     setBulkOpen(false)
   }
 
-  if (!canManage) {
+  if (!canManageTypes && !canManagePolicy) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <p className="text-muted-foreground text-sm">
-          You do not have permission to manage leave types.
+          You do not have permission to manage leave types or policy.
         </p>
       </div>
     )
@@ -171,105 +173,117 @@ export default function LeaveTypesPage() {
       header: "Actions",
       align: "right",
       cell: (type) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">Actions</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              className="flex cursor-pointer items-center gap-2"
-              onClick={() => openEdit(type)}
-            >
-              <Pencil className="h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="flex cursor-pointer items-center gap-2"
-              onClick={() => handleToggleActive(type)}
-            >
-              {type.isActive ? (
-                <>
-                  <ToggleLeft className="h-4 w-4" />
-                  Deactivate
-                </>
-              ) : (
-                <>
-                  <ToggleRight className="h-4 w-4" />
-                  Activate
-                </>
-              )}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive flex cursor-pointer items-center gap-2"
-              onClick={() => setDeleteId(type.id)}
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => openEdit(type)}
+            title="Edit"
+          >
+            <Pencil className="h-4 w-4" />
+            <span className="sr-only">Edit</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => handleToggleActive(type)}
+            title={type.isActive ? "Deactivate" : "Activate"}
+          >
+            {type.isActive ? (
+              <ToggleLeft className="h-4 w-4" />
+            ) : (
+              <ToggleRight className="h-4 w-4" />
+            )}
+            <span className="sr-only">{type.isActive ? "Deactivate" : "Activate"}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:text-destructive h-8 w-8"
+            onClick={() => setDeleteId(type.id)}
+            title="Delete"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="sr-only">Delete</span>
+          </Button>
+        </div>
       ),
     },
   ]
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Leave Types"
-        description="Manage leave types available to employees."
-        actions={
-          <Button onClick={openCreate} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            New Leave Type
-          </Button>
-        }
-      />
-
-      <BulkActionBar count={selection.count} onClear={selection.clear}>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => setBulkOpen(true)}
-          disabled={deleteLeaveType.isPending}
-        >
-          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-          Deactivate
-        </Button>
-      </BulkActionBar>
-
-      {/* Table */}
-      {isLoading ? (
-        <ListSkeleton rows={5} height="h-14" />
-      ) : leaveTypes.length === 0 ? (
-        <EmptyState
-          variant="card"
-          title="No leave types configured yet."
-          action={{ label: "Create First Leave Type", onClick: openCreate }}
+      <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+        <PageHeader
+          title="Leave Types & Policy"
+          description="Configure leave types and set how many days each employment type gets per year."
+          actions={
+            <div className="flex items-center gap-2">
+              <TabsList>
+                {canManageTypes && <TabsTrigger value="types">Types</TabsTrigger>}
+                {canManagePolicy && <TabsTrigger value="policy">Policy</TabsTrigger>}
+              </TabsList>
+              {tab === "types" && canManageTypes && (
+                <Button onClick={openCreate} className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  New Leave Type
+                </Button>
+              )}
+              {tab === "policy" && canManagePolicy && <LeavePolicyActions editor={policyEditor} />}
+            </div>
+          }
         />
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={pagedTypes}
-          rowKey={(type) => type.id}
-          showSerial
-          serialOffset={(currentPage - 1) * PAGE_SIZE}
-          selection={selection}
-        />
-      )}
 
-      {!isLoading && total > 0 && (
-        <Pagination
-          page={currentPage}
-          totalPages={totalPages}
-          total={total}
-          onPageChange={setPage}
-          itemLabel="leave type"
-        />
-      )}
+        {canManageTypes && (
+          <TabsContent value="types" className="space-y-6">
+            <BulkActionBar count={selection.count} onClear={selection.clear}>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setBulkOpen(true)}
+                disabled={deleteLeaveType.isPending}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Deactivate
+              </Button>
+            </BulkActionBar>
+
+            {isLoading ? (
+              <ListSkeleton rows={5} height="h-14" />
+            ) : leaveTypes.length === 0 ? (
+              <EmptyState
+                variant="card"
+                title="No leave types configured yet."
+                action={{ label: "Create First Leave Type", onClick: openCreate }}
+              />
+            ) : (
+              <DataTable
+                columns={columns}
+                rows={pagedTypes}
+                rowKey={(type) => type.id}
+                showSerial
+                serialOffset={(currentPage - 1) * PAGE_SIZE}
+                selection={selection}
+                pagination={{
+                  page: currentPage,
+                  totalPages,
+                  total,
+                  onPageChange: setPage,
+                  itemLabel: "leave type",
+                }}
+              />
+            )}
+          </TabsContent>
+        )}
+
+        {canManagePolicy && (
+          <TabsContent value="policy">
+            <LeavePolicyMatrix editor={policyEditor} />
+          </TabsContent>
+        )}
+      </Tabs>
 
       <LeaveTypeForm open={formOpen} onOpenChange={setFormOpen} leaveType={editingType} />
 

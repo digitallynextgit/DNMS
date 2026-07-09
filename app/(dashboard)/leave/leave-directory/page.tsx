@@ -23,8 +23,10 @@ import {
 } from "@/components/ui/select"
 import {
   LeaveRequestTable,
+  LeaveBalanceDirectory,
   useLeaveRequests,
   useLeaveTypes,
+  useLeaveBalanceDirectory,
   type LeaveRequest,
 } from "@/features/leave"
 import { usePermissions } from "@/features/admin"
@@ -53,6 +55,7 @@ export default function LeaveDirectoryPage() {
 
   // The "On Leave" tab is just approved requests; "Requests" honours the status filter.
   const onLeave = tab === "on-leave"
+  const balancesTab = tab === "balances"
   const filters = {
     status: onLeave ? "APPROVED" : status === "all" ? undefined : status,
     leaveTypeId: leaveTypeId === "all" ? undefined : leaveTypeId,
@@ -64,6 +67,28 @@ export default function LeaveDirectoryPage() {
   const { data, isLoading } = useLeaveRequests(filters)
   const requests = data?.data ?? []
   const pagination = data?.pagination
+
+  // Balances tab: every employee's leave balances by type for the selected year.
+  const [balanceYear, setBalanceYear] = useState(() => new Date().getFullYear())
+  // Year range: from 2026 (system launch - no leave data before it) through next
+  // year. e.g. in 2026 → [2026, 2027]; in 2029 → [2026, 2027, 2028, 2029, 2030].
+  const LEAVE_START_YEAR = 2026
+  const balanceYearEnd = Math.max(LEAVE_START_YEAR, new Date().getFullYear() + 1)
+  const balanceYearOptions = Array.from(
+    { length: balanceYearEnd - LEAVE_START_YEAR + 1 },
+    (_, i) => LEAVE_START_YEAR + i,
+  )
+  const { data: balanceData, isLoading: balancesLoading } = useLeaveBalanceDirectory(balanceYear)
+  const balanceEmployees = balanceData?.data ?? []
+  const filteredBalances = employeeSearch
+    ? balanceEmployees.filter((e) => {
+        const q = employeeSearch.toLowerCase()
+        return (
+          `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+          e.employeeNo.toLowerCase().includes(q)
+        )
+      })
+    : balanceEmployees
 
   // Client-side name search over the current page (the API filters by id).
   const filtered = employeeSearch
@@ -85,8 +110,9 @@ export default function LeaveDirectoryPage() {
     setTo("")
     setPage(1)
   }
-  const hasFilters =
-    !!employeeSearch || leaveTypeId !== "all" || (!onLeave && status !== "all") || !!from || !!to
+  const hasFilters = balancesTab
+    ? !!employeeSearch
+    : !!employeeSearch || leaveTypeId !== "all" || (!onLeave && status !== "all") || !!from || !!to
 
   if (!can(PERMISSIONS.LEAVE_APPROVE)) {
     return (
@@ -168,6 +194,7 @@ export default function LeaveDirectoryPage() {
             <TabsList>
               <TabsTrigger value="requests">Requests</TabsTrigger>
               <TabsTrigger value="on-leave">On Leave</TabsTrigger>
+              <TabsTrigger value="balances">Balances</TabsTrigger>
             </TabsList>
           }
         />
@@ -182,70 +209,91 @@ export default function LeaveDirectoryPage() {
             />
           </div>
 
-          <Select
-            value={leaveTypeId}
-            onValueChange={(v) => {
-              setLeaveTypeId(v)
-              resetPage()
-            }}
-          >
-            <SelectTrigger className="w-[170px]">
-              <SelectValue placeholder="Leave type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              {leaveTypes.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {!onLeave && (
-            <Select
-              value={status}
-              onValueChange={(v) => {
-                setStatus(v)
-                resetPage()
-              }}
-            >
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Status" />
+          {/* Year picker applies to the Balances tab only. */}
+          {balancesTab && (
+            <Select value={String(balanceYear)} onValueChange={(v) => setBalanceYear(Number(v))}>
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="APPROVED">Approved</SelectItem>
-                <SelectItem value="REJECTED">Rejected</SelectItem>
-                <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                {balanceYearOptions.map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    {y}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           )}
 
-          <div className="flex items-center gap-2">
-            <div className="w-[150px]">
-              <DateField
-                value={from}
-                onChange={(v) => {
-                  setFrom(v)
+          {/* Type / status / date apply to the Requests & On Leave tabs only. */}
+          {!balancesTab && (
+            <>
+              <Select
+                value={leaveTypeId}
+                onValueChange={(v) => {
+                  setLeaveTypeId(v)
                   resetPage()
                 }}
-                placeholder="From"
-              />
-            </div>
-            <span className="text-muted-foreground text-sm">-</span>
-            <div className="w-[150px]">
-              <DateField
-                value={to}
-                onChange={(v) => {
-                  setTo(v)
-                  resetPage()
-                }}
-                placeholder="To"
-              />
-            </div>
-          </div>
+              >
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue placeholder="Leave type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  {leaveTypes.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {!onLeave && (
+                <Select
+                  value={status}
+                  onValueChange={(v) => {
+                    setStatus(v)
+                    resetPage()
+                  }}
+                >
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="APPROVED">Approved</SelectItem>
+                    <SelectItem value="REJECTED">Rejected</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+
+              <div className="flex items-center gap-2">
+                <div className="w-[150px]">
+                  <DateField
+                    value={from}
+                    onChange={(v) => {
+                      setFrom(v)
+                      resetPage()
+                    }}
+                    placeholder="From"
+                  />
+                </div>
+                <span className="text-muted-foreground text-sm">-</span>
+                <div className="w-[150px]">
+                  <DateField
+                    value={to}
+                    onChange={(v) => {
+                      setTo(v)
+                      resetPage()
+                    }}
+                    placeholder="To"
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
           {hasFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
@@ -301,6 +349,18 @@ export default function LeaveDirectoryPage() {
               onPageChange={setPage}
               itemLabel="record"
             />
+          )}
+        </TabsContent>
+
+        <TabsContent value="balances" className="space-y-3">
+          {balancesLoading ? (
+            <ListSkeleton rows={6} height="h-14" />
+          ) : filteredBalances.length === 0 ? (
+            <EmptyState compact title="No employees match your search." />
+          ) : (
+            <>
+              <LeaveBalanceDirectory employees={filteredBalances} leaveTypes={leaveTypes} />
+            </>
           )}
         </TabsContent>
       </Tabs>

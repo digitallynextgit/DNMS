@@ -29,6 +29,14 @@ import { ok, runAction, serialize, type ActionResult } from "@/server/action-res
 // Accrued days are rounded to the nearest half-day (the smallest takeable unit).
 // =============================================================================
 
+// Admins (and the hidden admin_ watch account) don't take leave, so they're
+// excluded from allocation, monthly accrual, and rollover - no balances are
+// ever created for them.
+const LEAVE_EXEMPT_ROLES = [SYSTEM_ROLES.ADMIN_, SYSTEM_ROLES.ADMIN]
+const NOT_LEAVE_EXEMPT = {
+  NOT: { employeeRoles: { some: { role: { name: { in: LEAVE_EXEMPT_ROLES } } } } },
+}
+
 type EmployeeAccrualInfo = {
   employmentType: string
   dateOfJoining: Date | null
@@ -89,12 +97,44 @@ function roundToHalf(n: number): number {
   return Math.round(n * 2) / 2
 }
 
-/** Days that should have accrued given the entitlement, method and elapsed months. */
-function accruedTarget(accrualMethod: string, allocated: number, months: number): number {
-  if (allocated <= 0) return 0
+function addMonths(d: Date, n: number): Date {
+  const x = new Date(d)
+  x.setMonth(x.getMonth() + n)
+  return x
+}
+
+/**
+ * Eligible months in `year` = from accrual start to year-end (Dec). Used to
+ * PRORATE the annual entitlement for someone eligible only part of the year, e.g.
+ * probation ending 01 Jun → eligible Jun–Dec = 7 months → 7/12 of the entitlement.
+ * Confirmed for the whole year → 12.
+ */
+export function eligibleMonthsInYear(year: number, startDate: Date | null): number {
+  let startMonth = 1
+  if (startDate) {
+    const sy = startDate.getFullYear()
+    if (sy > year) return 0 // becomes eligible only after this year
+    if (sy === year) startMonth = startDate.getMonth() + 1
+  }
+  return Math.max(0, Math.min(12, 12 - startMonth + 1))
+}
+
+/**
+ * Days that should have accrued so far: the (already prorated) annual allocation
+ * spread evenly over the months the employee is eligible this year. Upfront types
+ * make the whole allocation available at once; monthly types release
+ * allocated / eligibleMonths per elapsed month, capped at the allocation.
+ */
+function accruedTarget(
+  accrualMethod: string,
+  allocated: number,
+  eligibleMonths: number,
+  monthsElapsed: number,
+): number {
+  if (allocated <= 0 || eligibleMonths <= 0) return 0
   if (accrualMethod === "UPFRONT") return allocated
-  const rate = allocated / 12
-  return Math.min(allocated, roundToHalf(rate * months))
+  const rate = allocated / eligibleMonths
+  return Math.min(allocated, roundToHalf(rate * monthsElapsed))
 }
 
 function entitlementFor(
@@ -137,32 +177,40 @@ export async function allocateFromPolicy(employeeId: string, year: number): Prom
   // probation" and only unpaid leave (e.g. LWP) applies.
   const start = accrualStartDate(employee)
   const onProbation = !!start && new Date() < start
-  const months = monthsAccrued(year, start)
+  // Earned Leave unlocks only 6 months AFTER probation ends (policy G).
+  const elStart = start ? addMonths(start, 6) : null
 
   let count = 0
   for (const type of types) {
     const entitlement = entitlementFor(type, policyMap)
+    // EL accrues from probation + 6 months; every other type from probation end.
+    const typeStart = type.code === "EL" ? elStart : start
+    const eligibleMonths = eligibleMonthsInYear(year, typeStart)
+    const monthsElapsed = monthsAccrued(year, typeStart)
+    // Prorate the annual entitlement to the months the employee is eligible this
+    // year (probation ending 01 Jun → 7/12; confirmed all year → full).
+    const allocated = roundToHalf((entitlement / 12) * eligibleMonths)
     // Maternity Leave is granted to female employees only.
     const maternityBlocked = type.code === "ML" && employee.gender !== "FEMALE"
     // Paid leave is not granted during probation - only unpaid leave.
     const paidBlockedOnProbation = type.isPaid && onProbation
-    if (entitlement <= 0 || maternityBlocked || paidBlockedOnProbation) {
-      // Not granted (interns get 0 paid leave; maternity for a non-female; any
-      // paid leave during probation) - remove any lingering balance row.
+    if (allocated <= 0 || maternityBlocked || paidBlockedOnProbation) {
+      // Not granted (0 entitlement / not yet eligible this year; maternity for a
+      // non-female; any paid leave during probation) - remove any lingering row.
       await db.leaveBalance.deleteMany({
         where: { employeeId, leaveTypeId: type.id, year },
       })
       continue
     }
-    const accrued = accruedTarget(type.accrualMethod, entitlement, months)
+    const accrued = accruedTarget(type.accrualMethod, allocated, eligibleMonths, monthsElapsed)
     await db.leaveBalance.upsert({
       where: { employeeId_leaveTypeId_year: { employeeId, leaveTypeId: type.id, year } },
-      update: { allocated: entitlement, accrued },
+      update: { allocated, accrued },
       create: {
         employeeId,
         leaveTypeId: type.id,
         year,
-        allocated: entitlement,
+        allocated,
         accrued,
         used: 0,
         pending: 0,
@@ -197,7 +245,7 @@ export async function recomputeAccrued(employeeId: string, year: number): Promis
 
   const start = accrualStartDate(employee)
   const onProbation = !!start && new Date() < start
-  const months = monthsAccrued(year, start)
+  const elStart = start ? addMonths(start, 6) : null
 
   let count = 0
   for (const b of balances) {
@@ -211,7 +259,15 @@ export async function recomputeAccrued(employeeId: string, year: number): Promis
       count++
       continue
     }
-    const target = accruedTarget(b.leaveType.accrualMethod, b.allocated, months)
+    const typeStart = b.leaveType.code === "EL" ? elStart : start
+    const eligibleMonths = eligibleMonthsInYear(year, typeStart)
+    const monthsElapsed = monthsAccrued(year, typeStart)
+    const target = accruedTarget(
+      b.leaveType.accrualMethod,
+      b.allocated,
+      eligibleMonths,
+      monthsElapsed,
+    )
     const accrued = Math.max(target, b.used)
     if (accrued !== b.accrued) {
       await db.leaveBalance.update({ where: { id: b.id }, data: { accrued } })
@@ -226,7 +282,7 @@ export async function runMonthlyAccrual(
   year: number,
 ): Promise<{ employees: number; updated: number }> {
   const employees = await db.employee.findMany({
-    where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] } },
+    where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] }, ...NOT_LEAVE_EXEMPT },
     select: { id: true },
   })
   let updated = 0
@@ -240,7 +296,7 @@ export async function rolloverYear(
 ): Promise<{ employees: number; carried: number }> {
   const fromYear = toYear - 1
   const employees = await db.employee.findMany({
-    where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] } },
+    where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] }, ...NOT_LEAVE_EXEMPT },
     select: { id: true },
   })
 
@@ -273,7 +329,7 @@ export async function resyncLeaveBalances(year?: number): Promise<ActionResult<u
     const session = await requireAnyRole([SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN])
     const resolvedYear = year ?? new Date().getFullYear()
     const employees = await db.employee.findMany({
-      where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] } },
+      where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] }, ...NOT_LEAVE_EXEMPT },
       select: { id: true },
     })
     let balances = 0
