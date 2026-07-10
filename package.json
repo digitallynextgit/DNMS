@@ -17,6 +17,7 @@
     "db:restore": "tsx prisma/seed-snapshot.ts",
     "db:restore:check": "tsx prisma/seed-snapshot.ts --dry-run",
     "db:studio": "prisma studio",
+    "export:punches": "tsx scripts/export-hikvision-punches.ts",
     "setup": "pnpm prisma migrate dev && pnpm prisma db seed"
   },
   "prisma": {
