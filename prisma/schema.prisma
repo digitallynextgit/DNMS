@@ -113,24 +113,6 @@ enum MemberRole {
   VIEWER
 }
 
-// ── Performance ───────────────────────────────────────────────────────────────
-
-enum ReviewStatus {
-  PENDING
-  DRAFT
-  SELF_REVIEW
-  MANAGER_REVIEW
-  COMPLETED
-  CANCELLED
-}
-
-enum GoalStatus {
-  NOT_STARTED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
-
 // ── Recruitment ───────────────────────────────────────────────────────────────
 
 enum JobStatus {
@@ -494,13 +476,10 @@ model Employee {
   ownedProjects      Project[]       @relation("ProjectOwner")
 
   // Performance
-  selfReviews          PerformanceReview[] @relation("Reviewee")
-  managerReviews       PerformanceReview[] @relation("Reviewer")
-  goals                Goal[]
-  peerFeedbackGiven    PeerFeedback[]      @relation("PeerReviewer")
-  evaluations          Evaluation[]        @relation("EvaluationEmployee")
-  evaluationsToRate    Evaluation[]        @relation("EvaluationManager")
-  evaluationsToControl Evaluation[]        @relation("EvaluationController")
+  perfKpis             PerfKpi[]    @relation("EmployeePerfKpis")
+  evaluations          Evaluation[] @relation("EvaluationEmployee")
+  evaluationsToRate    Evaluation[] @relation("EvaluationManager")
+  evaluationsToControl Evaluation[] @relation("EvaluationController")
 
   // Recruitment
   jobPostings JobPosting[] @relation("PostingCreator")
@@ -1335,136 +1314,47 @@ model Timesheet {
 }
 
 // =============================================================================
-// PERFORMANCE EVALUATION (M6)
+// PERFORMANCE EVALUATION (self + manager weighted scorecard)
+//
+// Each employee has a reusable PROFILE of KPIs/parameters, split by:
+//   • evaluator: SELF | MANAGER  (the two sides can list different items)
+//   • section:   A (Role Performance, 60%) | B (Workplace Discipline, 40%)
+// Weights are auto equal-split within each section (see features/performance/
+// evaluation.ts). Creating an evaluation SNAPSHOTS the profile into
+// self_criteria / manager_criteria as JSON: [{ id, section, label, weight }].
+// Ratings are JSON maps { [criterionId]: 1..5 }.
 // =============================================================================
 
-model ReviewCycle {
-  id        String   @id @default(uuid()) @map("id")
-  name      String   @map("name")
-  year      Int      @map("year")
-  quarter   Int?     @map("quarter")
-  startDate DateTime @map("start_date") @db.Date
-  endDate   DateTime @map("end_date") @db.Date
-  isActive  Boolean  @default(true) @map("is_active")
-  isClosed  Boolean  @default(false) @map("is_closed")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  reviews PerformanceReview[]
-
-  @@map("review_cycles")
-}
-
-model PerformanceReview {
-  id              String       @id @default(uuid()) @map("id")
-  cycleId         String       @map("cycle_id")
-  revieweeId      String       @map("reviewee_id")
-  reviewerId      String?      @map("reviewer_id")
-  status          ReviewStatus @default(PENDING) @map("status")
-  selfRating      Float?       @map("self_rating")
-  selfComments    String?      @map("self_comments") @db.Text
-  achievements    String?      @map("achievements") @db.Text
-  improvements    String?      @map("improvements") @db.Text
-  managerRating   Float?       @map("manager_rating")
-  managerComments String?      @map("manager_comments") @db.Text
-  taskScore       Float?       @map("task_score")
-  kpiScores       Json?        @map("kpi_scores")
-  finalRating     Float?       @map("final_rating")
-  submittedAt     DateTime?    @map("submitted_at")
-  completedAt     DateTime?    @map("completed_at")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
-
-  cycle         ReviewCycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  reviewee      Employee       @relation("Reviewee", fields: [revieweeId], references: [id], onDelete: Cascade)
-  reviewer      Employee?      @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
-  peerFeedbacks PeerFeedback[]
-
-  @@unique([cycleId, revieweeId])
-  @@index([status])
-  @@map("performance_reviews")
-}
-
-// Org-wide KPI definitions used to score performance reviews.
-model Kpi {
+// Reusable per-employee KPI / parameter definition (the "profile").
+model PerfKpi {
   id          String   @id @default(uuid()) @map("id")
-  name        String   @map("name")
-  description String?  @map("description")
-  weight      Int      @default(1) @map("weight")
-  isActive    Boolean  @default(true) @map("is_active")
+  employeeId  String   @map("employee_id")
+  evaluator   String   @map("evaluator") // "SELF" | "MANAGER"
+  section     String   @map("section") // "A" | "B"
+  label       String   @map("label")
+  description String?  @map("description") @db.Text
+  order       Int      @default(0) @map("order")
   createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  @@map("kpis")
-}
-
-// 360 / peer feedback attached to a performance review.
-model PeerFeedback {
-  id         String   @id @default(uuid()) @map("id")
-  reviewId   String   @map("review_id")
-  reviewerId String   @map("reviewer_id")
-  rating     Float?   @map("rating")
-  comment    String?  @map("comment") @db.Text
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  review   PerformanceReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  reviewer Employee          @relation("PeerReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
-
-  @@unique([reviewId, reviewerId])
-  @@map("peer_feedback")
-}
-
-model Goal {
-  id          String     @id @default(uuid()) @map("id")
-  employeeId  String     @map("employee_id")
-  title       String     @map("title")
-  description String?    @map("description") @db.Text
-  targetDate  DateTime?  @map("target_date") @db.Date
-  progress    Int        @default(0) @map("progress")
-  status      GoalStatus @default(NOT_STARTED) @map("status")
-  year        Int        @map("year")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee @relation("EmployeePerfKpis", fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
-  @@map("goals")
-}
-
-// =============================================================================
-// PERFORMANCE EVALUATION (15-day self + manager weighted scorecard)
-// criteria/ratings are stored as JSON for flexibility:
-//   criteria: [{ id, section: "A"|"B", label, weight }]  (weights sum to 100)
-//   *Ratings: { [criterionId]: 1..5 }
-// =============================================================================
-
-model EvaluationTemplate {
-  id            String   @id @default(uuid()) @map("id")
-  name          String   @map("name")
-  sectionALabel String   @default("Role Performance (KRA & KPI)") @map("section_a_label")
-  sectionBLabel String   @default("Workplace Discipline & Execution Effectiveness") @map("section_b_label")
-  criteria      Json     @map("criteria")
-  isActive      Boolean  @default(true) @map("is_active")
-  createdById   String?  @map("created_by_id")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  evaluations Evaluation[]
-
-  @@map("evaluation_templates")
+  @@map("perf_kpis")
 }
 
 model Evaluation {
-  id            String    @id @default(uuid()) @map("id")
-  templateId    String?   @map("template_id")
-  criteria      Json      @map("criteria") // snapshot at creation time
-  sectionALabel String    @map("section_a_label")
-  sectionBLabel String    @map("section_b_label")
-  employeeId    String    @map("employee_id")
-  managerId     String?   @map("manager_id")
-  periodLabel   String    @map("period_label")
-  periodStart   DateTime? @map("period_start") @db.Date
-  periodEnd     DateTime? @map("period_end") @db.Date
-  dueDate       DateTime? @map("due_date") @db.Date
+  id              String    @id @default(uuid()) @map("id")
+  selfCriteria    Json      @map("self_criteria") // snapshot at creation time
+  managerCriteria Json      @map("manager_criteria") // snapshot at creation time
+  sectionALabel   String    @map("section_a_label")
+  sectionBLabel   String    @map("section_b_label")
+  employeeId      String    @map("employee_id")
+  managerId       String?   @map("manager_id")
+  periodLabel     String    @map("period_label")
+  periodStart     DateTime? @map("period_start") @db.Date
+  periodEnd       DateTime? @map("period_end") @db.Date
+  dueDate         DateTime? @map("due_date") @db.Date
 
   // PENDING → SELF_DONE / MANAGER_DONE → COMPLETED (both submitted)
   status String @default("PENDING") @map("status")
@@ -1489,10 +1379,9 @@ model Evaluation {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  template   EvaluationTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  employee   Employee            @relation("EvaluationEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
-  manager    Employee?           @relation("EvaluationManager", fields: [managerId], references: [id], onDelete: SetNull)
-  controller Employee?           @relation("EvaluationController", fields: [controllerId], references: [id], onDelete: SetNull)
+  employee   Employee  @relation("EvaluationEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  manager    Employee? @relation("EvaluationManager", fields: [managerId], references: [id], onDelete: SetNull)
+  controller Employee? @relation("EvaluationController", fields: [controllerId], references: [id], onDelete: SetNull)
 
   @@index([employeeId])
   @@index([managerId])

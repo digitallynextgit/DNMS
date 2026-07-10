@@ -1,18 +1,45 @@
 // =============================================================================
-// Performance-evaluation scoring (the BFG/Digitally Next 15-day scorecard).
-// Each criterion has a weight (percentage points); the six weights of a section
-// sum to that section's share, and all weights together sum to 100.
-// A reviewer rates each criterion 1..5; weighted points = weight × (rating ÷ 5).
-// Section A total + Section B total = final score out of 100.
+// Performance-evaluation scoring (the Digitally Next / BFG scorecard).
+//
+// Two evaluators fill the same scorecard independently:
+//   • the employee (SELF) and the reviewing manager (MANAGER).
+// Each side has its OWN list of KPIs/parameters (they can differ per person),
+// split into two sections:
+//   • Section A - Role Performance (KRA & KPI)         → 60% of the score
+//   • Section B - Workplace Discipline & Execution      → 40% of the score
+// Weights are auto equal-split inside each section (A = 60/countA per KPI,
+// B = 40/countB per parameter), so 6 KPIs = 10% each, 5 parameters = 8% each -
+// exactly like the source sheet.
+//
+// A reviewer rates each item 1..5; weighted points = weight × (rating ÷ 5).
+// Section A points + Section B points = that side's score out of 100.
+// The OFFICIAL final score is the MANAGER's weighted total; the employee's
+// self-score is shown alongside for comparison only.
 // =============================================================================
 
 export type EvalSection = "A" | "B"
+export type EvalEvaluator = "SELF" | "MANAGER"
 
+/** A single scored line (snapshotted onto an evaluation with its weight). */
 export interface EvalCriterion {
   id: string
   section: EvalSection
   label: string
-  weight: number
+  weight: number // percentage points (auto equal-split within the section)
+  description?: string | null
+}
+
+/** A KPI/parameter as stored on an employee's reusable profile (no weight). */
+export interface PerfKpiInput {
+  section: EvalSection
+  evaluator: EvalEvaluator
+  label: string
+  description?: string | null
+}
+
+export interface PerfKpiItem extends PerfKpiInput {
+  id: string
+  order: number
 }
 
 export type EvalRatings = Record<string, number> // criterionId -> 1..5
@@ -25,25 +52,100 @@ export const RATING_LABELS = [
   "Outstanding",
 ] as const
 
+export const SECTION_A_WEIGHT = 60
+export const SECTION_B_WEIGHT = 40
+export const sectionWeight = (s: EvalSection) => (s === "A" ? SECTION_A_WEIGHT : SECTION_B_WEIGHT)
+
 export const DEFAULT_SECTION_A_LABEL = "Role Performance (KRA & KPI)"
 export const DEFAULT_SECTION_B_LABEL = "Workplace Discipline & Execution Effectiveness"
 
-// The exact scorecard from the provided sheet: Section A = 60% (6×8.5 + 1×9),
-// Section B = 40% (5×8). Total weight = 100.
-export const DEFAULT_EVALUATION_CRITERIA: EvalCriterion[] = [
-  { id: "a1", section: "A", label: "Project Delivery Efficiency", weight: 8.5 },
-  { id: "a2", section: "A", label: "Technical Quality Score", weight: 8.5 },
-  { id: "a3", section: "A", label: "Team Collaboration", weight: 8.5 },
-  { id: "a4", section: "A", label: "Rework and Corrections", weight: 8.5 },
-  { id: "a5", section: "A", label: "Learning and Adaption", weight: 8.5 },
-  { id: "a6", section: "A", label: "Market Response Metrics", weight: 8.5 },
-  { id: "a7", section: "A", label: "AI Utilization in Work Processes", weight: 9 },
-  { id: "b1", section: "B", label: "Task Closure & Accountability", weight: 8 },
-  { id: "b2", section: "B", label: "Proactive Work Communication", weight: 8 },
-  { id: "b3", section: "B", label: "Adaptability & Improvement Orientation", weight: 8 },
-  { id: "b4", section: "B", label: "Situational Handling & Solution Orientation", weight: 8 },
-  { id: "b5", section: "B", label: "Workplace timings and Professional conduct", weight: 8 },
+// The starter scorecard from the provided sheet. Manager Section A KPIs differ
+// from the employee's self KPIs; Section B parameters match on both sides.
+// HR tweaks these per employee - this is only the "Load defaults" seed.
+export const DEFAULT_KPI_PROFILE: PerfKpiInput[] = [
+  // ── Manager - Section A (Role Performance / KRA & KPI) ──
+  { evaluator: "MANAGER", section: "A", label: "Project Delivery Efficiency" },
+  { evaluator: "MANAGER", section: "A", label: "Technical Quality Score" },
+  { evaluator: "MANAGER", section: "A", label: "Client Feedback & Collaboration" },
+  { evaluator: "MANAGER", section: "A", label: "Team Mentorship & Contribution" },
+  { evaluator: "MANAGER", section: "A", label: "Cost and Resource Alignment" },
+  { evaluator: "MANAGER", section: "A", label: "Market Response Metrics" },
+  // ── Manager - Section B (Workplace Discipline & Execution) ──
+  { evaluator: "MANAGER", section: "B", label: "Task Closure & Accountability" },
+  { evaluator: "MANAGER", section: "B", label: "Proactive Work Communication" },
+  { evaluator: "MANAGER", section: "B", label: "Adaptability & Improvement Orientation" },
+  { evaluator: "MANAGER", section: "B", label: "Situational Handling & Solution Orientation" },
+  { evaluator: "MANAGER", section: "B", label: "Workplace timings and Professional conduct" },
+  // ── Self - Section A (Role Performance / KRA & KPI) ──
+  { evaluator: "SELF", section: "A", label: "Timeliness of task and module deliveries" },
+  {
+    evaluator: "SELF",
+    section: "A",
+    label: "Functional accuracy and stability of implementations",
+  },
+  { evaluator: "SELF", section: "A", label: "Adherence to design, brand, and platform guidelines" },
+  { evaluator: "SELF", section: "A", label: "Rework, bug recurrence, and revision frequency" },
+  {
+    evaluator: "SELF",
+    section: "A",
+    label: "Website performance, responsiveness, and compatibility",
+  },
+  {
+    evaluator: "SELF",
+    section: "A",
+    label: "Innovation contribution through research or suggestions",
+  },
+  // ── Self - Section B (Workplace Discipline & Execution) ──
+  { evaluator: "SELF", section: "B", label: "Task Closure & Accountability" },
+  { evaluator: "SELF", section: "B", label: "Proactive Work Communication" },
+  { evaluator: "SELF", section: "B", label: "Adaptability & Improvement Orientation" },
+  { evaluator: "SELF", section: "B", label: "Situational Handling & Solution Orientation" },
+  { evaluator: "SELF", section: "B", label: "Workplace timings and Professional conduct" },
 ]
+
+const round1 = (n: number) => Math.round(n * 10) / 10
+
+/**
+ * Turn one evaluator's profile items into weighted criteria for a scorecard.
+ * Weights are equal-split within each section (A → 60, B → 40).
+ */
+export function buildCriteria(
+  items: Array<{ id: string; section: EvalSection; label: string; description?: string | null }>,
+  evaluator?: EvalEvaluator,
+  filter?: (i: { section: EvalSection }) => boolean,
+): EvalCriterion[] {
+  void evaluator
+  const chosen = filter ? items.filter(filter) : items
+  const countA = chosen.filter((i) => i.section === "A").length
+  const countB = chosen.filter((i) => i.section === "B").length
+  return chosen.map((i) => ({
+    id: i.id,
+    section: i.section,
+    label: i.label,
+    description: i.description ?? null,
+    weight:
+      i.section === "A"
+        ? countA > 0
+          ? SECTION_A_WEIGHT / countA
+          : 0
+        : countB > 0
+          ? SECTION_B_WEIGHT / countB
+          : 0,
+  }))
+}
+
+/** Build both sides' criteria from a flat list of profile items (with ids). */
+export function buildSidedCriteria(items: PerfKpiItem[]): {
+  selfCriteria: EvalCriterion[]
+  managerCriteria: EvalCriterion[]
+} {
+  const self = items.filter((i) => i.evaluator === "SELF")
+  const manager = items.filter((i) => i.evaluator === "MANAGER")
+  return {
+    selfCriteria: buildCriteria(self),
+    managerCriteria: buildCriteria(manager),
+  }
+}
 
 export interface EvalScore {
   sectionA: number
@@ -52,8 +154,6 @@ export interface EvalScore {
   perCriterion: Record<string, number> // weighted points per criterion
   maxTotal: number
 }
-
-const round1 = (n: number) => Math.round(n * 10) / 10
 
 /** Weighted score from one reviewer's ratings: Σ weight × (rating ÷ 5). */
 export function scoreEvaluation(
@@ -89,26 +189,4 @@ export function isRatingComplete(
 ): boolean {
   const r = ratings ?? {}
   return criteria.length > 0 && criteria.every((c) => Number(r[c.id]) >= 1 && Number(r[c.id]) <= 5)
-}
-
-/** Validate a criteria set: weights must total ~100 and each section non-empty. */
-export function validateCriteria(criteria: EvalCriterion[]): {
-  ok: boolean
-  totalWeight: number
-  reason?: string
-} {
-  if (!Array.isArray(criteria) || criteria.length === 0)
-    return { ok: false, totalWeight: 0, reason: "At least one criterion is required" }
-  for (const c of criteria) {
-    if (!c.label?.trim())
-      return { ok: false, totalWeight: 0, reason: "Every criterion needs a label" }
-    if (c.section !== "A" && c.section !== "B")
-      return { ok: false, totalWeight: 0, reason: "Criterion section must be A or B" }
-    if (!(Number(c.weight) > 0))
-      return { ok: false, totalWeight: 0, reason: "Weights must be positive" }
-  }
-  const totalWeight = round1(criteria.reduce((s, c) => s + (Number(c.weight) || 0), 0))
-  if (Math.abs(totalWeight - 100) > 0.5)
-    return { ok: false, totalWeight, reason: `Weights must total 100% (currently ${totalWeight}%)` }
-  return { ok: true, totalWeight }
 }

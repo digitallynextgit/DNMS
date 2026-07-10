@@ -200,7 +200,7 @@ export default function EvaluationsPage() {
         <div className="flex items-center gap-2">
           {canReview && (
             <Button asChild variant="outline" size="sm">
-              <Link href="/performance/evaluations/template">Edit Template</Link>
+              <Link href="/performance/kpi-profiles">KPI Profiles</Link>
             </Button>
           )}
           {canReview && <NewEvaluationDialog />}

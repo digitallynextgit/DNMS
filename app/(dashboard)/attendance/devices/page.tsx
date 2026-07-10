@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
-import { Plus, RefreshCw, Pencil, Trash2, Wifi, WifiOff, Loader2, Zap } from "lucide-react"
+import { Plus, RefreshCw, Pencil, Trash2, Wifi, WifiOff, Loader2, Zap, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
@@ -12,7 +12,7 @@ import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { useRowSelection } from "@/hooks/use-row-selection"
-import { DeviceFormDialog } from "@/features/attendance"
+import { DeviceFormDialog, EmployeeSyncPanel } from "@/features/attendance"
 import { useDevices, useDeleteDevice, useSyncDevice, useTestDevice } from "@/features/attendance"
 import type { HikvisionDevice } from "@/features/attendance"
 import { usePermissions } from "@/features/admin"
@@ -45,6 +45,7 @@ export default function DevicesPage() {
   const [bulkOpen, setBulkOpen] = useState(false)
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [testingId, setTestingId] = useState<string | null>(null)
+  const [fullSyncId, setFullSyncId] = useState<string | null>(null)
 
   function handleEdit(device: HikvisionDevice) {
     setEditDevice(device)
@@ -55,6 +56,18 @@ export default function DevicesPage() {
     setSyncingId(id)
     try {
       await syncDevice.mutateAsync(id)
+    } finally {
+      setSyncingId(null)
+    }
+  }
+
+  // Full re-sync: rebuild every day from the device (from each employee's joining
+  // date), overwriting device rows. Fixes historical data captured wrong before
+  // a sync-logic fix; HR manual corrections are always preserved.
+  async function handleFullSync(id: string) {
+    setSyncingId(id)
+    try {
+      await syncDevice.mutateAsync({ id, full: true })
     } finally {
       setSyncingId(null)
     }
@@ -166,6 +179,16 @@ export default function DevicesPage() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
+                  onClick={() => setFullSyncId(device.id)}
+                  disabled={syncingId === device.id || !device.isActive}
+                  title="Full re-sync (rebuild all history from device)"
+                >
+                  <History className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
                   onClick={() => handleEdit(device)}
                   title="Edit device"
                 >
@@ -263,6 +286,13 @@ export default function DevicesPage() {
         itemLabel="device"
       />
 
+      {/* Per-employee sync + attendance summary */}
+      {canWrite && devices.length > 0 && (
+        <EmployeeSyncPanel
+          devices={devices.map((d) => ({ id: d.id, name: d.name, isActive: d.isActive }))}
+        />
+      )}
+
       {/* Add / Edit dialog */}
       <DeviceFormDialog
         open={formOpen}
@@ -295,6 +325,22 @@ export default function DevicesPage() {
         variant="destructive"
         onConfirm={handleConfirmDelete}
         isLoading={deleteDevice.isPending}
+      />
+
+      {/* Full re-sync confirmation */}
+      <ConfirmDialog
+        open={!!fullSyncId}
+        onOpenChange={(open) => !open && setFullSyncId(null)}
+        title="Full re-sync from device?"
+        description="Rebuilds attendance for every active employee from the device, back to their joining date. Device-synced rows are overwritten with the device's data (fixing any wrong days); HR manual corrections are always kept. Must run on the office network, and may take a while."
+        confirmLabel="Full re-sync"
+        isLoading={syncDevice.isPending}
+        onConfirm={async () => {
+          const id = fullSyncId
+          if (!id) return
+          setFullSyncId(null)
+          await handleFullSync(id)
+        }}
       />
     </div>
   )

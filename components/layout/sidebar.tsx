@@ -242,10 +242,8 @@ const HRMS_ITEMS: NavItem[] = [
     icon: Star,
     permission: PERMISSIONS.PERFORMANCE_REVIEW,
     children: [
-      { label: "Reviews", href: "/performance" },
       { label: "Evaluations", href: "/performance/evaluations" },
-      { label: "Goals", href: "/performance/goals" },
-      { label: "KPIs", href: "/performance/kpis" },
+      { label: "KPI Profiles", href: "/performance/kpi-profiles" },
     ],
   },
   {

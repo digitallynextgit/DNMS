@@ -7,6 +7,7 @@ export * from "./components/attendance-table"
 export * from "./components/device-form-dialog"
 export * from "./components/manual-attendance-dialog"
 export * from "./components/floating-requests-inbox"
+export * from "./components/employee-sync-panel"
 export * from "./hooks/use-attendance"
 export * from "./attendance"
 

@@ -39,9 +39,8 @@ async function main() {
   await prisma.interview.deleteMany()
   await prisma.applicant.deleteMany()
   await prisma.jobPosting.deleteMany()
-  await prisma.goal.deleteMany()
-  await prisma.performanceReview.deleteMany()
-  await prisma.reviewCycle.deleteMany()
+  await prisma.perfKpi.deleteMany()
+  await prisma.evaluation.deleteMany()
   await prisma.timesheet.deleteMany()
   await prisma.projectResource.deleteMany()
   await prisma.projectTask.deleteMany()
@@ -2484,119 +2483,6 @@ async function main() {
   ])
 
   console.log("  ✓ Created 3 projects, 7 teams, sample tasks & 2 resources")
-
-  // ===========================================================================
-  // STEP 14 - Performance Review Cycle + Goals
-  // ===========================================================================
-  console.log("Step 14: Creating performance review cycle & goals...")
-
-  const cycle = await prisma.reviewCycle.create({
-    data: {
-      name: "Annual Review 2025-2026",
-      year: 2026,
-      quarter: null,
-      startDate: new Date("2026-03-01"),
-      endDate: new Date("2026-04-30"),
-      isActive: true,
-    },
-  })
-
-  // Create reviews for all employees
-  const allEmployees = createdEmployees
-  for (const emp of allEmployees) {
-    const manager = employeesData.find((e) => e.employeeNo === emp.employeeNo)
-    let managerId: string | null = null
-    if (manager?.managerEmployeeNo) {
-      managerId = employeeNoToId.get(manager.managerEmployeeNo) ?? null
-    }
-
-    await prisma.performanceReview.create({
-      data: {
-        cycleId: cycle.id,
-        revieweeId: emp.id,
-        reviewerId: managerId,
-        status: "PENDING",
-      },
-    })
-  }
-
-  // Add a couple of completed reviews for demo
-  const review1 = await prisma.performanceReview.findFirst({
-    where: { revieweeId: shaileshId, cycleId: cycle.id },
-  })
-  if (review1) {
-    await prisma.performanceReview.update({
-      where: { id: review1.id },
-      data: {
-        status: "COMPLETED",
-        selfRating: 4,
-        selfComments:
-          "I successfully delivered all assigned projects on time and mentored 2 junior developers.",
-        achievements: "Led migration to new CI/CD pipeline, reduced deployment time by 60%.",
-        improvements: "Want to improve my presentation skills and stakeholder communication.",
-        managerRating: 4.5,
-        managerComments: "Exceptional performance. Consistently goes above and beyond.",
-        finalRating: 4.2,
-        submittedAt: new Date("2026-03-20"),
-        completedAt: new Date("2026-04-05"),
-      },
-    })
-  }
-
-  // Goals
-  await safeCreateMany(prisma.goal, [
-    {
-      employeeId: shaileshId,
-      title: "Complete advanced content editing certification",
-      description: "Finish the professional video editing course by Q3 2026",
-      progress: 60,
-      status: "IN_PROGRESS",
-      year: 2026,
-      targetDate: new Date("2026-09-30"),
-    },
-    {
-      employeeId: shaileshId,
-      title: "Mentor 2 new team members",
-      progress: 100,
-      status: "COMPLETED",
-      year: 2026,
-    },
-    {
-      employeeId: shaileshId,
-      title: "Improve delivery turnaround time by 15%",
-      progress: 20,
-      status: "IN_PROGRESS",
-      year: 2026,
-      targetDate: new Date("2026-12-31"),
-    },
-    {
-      employeeId: vivekId,
-      title: "Build a strong content portfolio",
-      description: "Create and publish 20 content pieces across channels",
-      progress: 35,
-      status: "IN_PROGRESS",
-      year: 2026,
-      targetDate: new Date("2026-06-30"),
-    },
-    {
-      employeeId: vivekId,
-      title: "Complete digital marketing certification",
-      progress: 0,
-      status: "NOT_STARTED",
-      year: 2026,
-      targetDate: new Date("2026-12-31"),
-    },
-    {
-      employeeId: rupamId,
-      title: "Streamline employee onboarding process",
-      progress: 80,
-      status: "IN_PROGRESS",
-      year: 2026,
-      targetDate: new Date("2026-04-30"),
-    },
-  ])
-
-  console.log("  ✓ Created 1 review cycle, reviews for all employees, 6 goals")
 
   // ===========================================================================
   // STEP 15 - Job Postings & Applicants

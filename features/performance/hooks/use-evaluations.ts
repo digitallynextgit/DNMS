@@ -1,10 +1,9 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
-import type { EvalCriterion } from "@/features/performance/evaluation"
+import type { EvalCriterion, EvalEvaluator, EvalSection } from "@/features/performance/evaluation"
 
 export interface EvalPerson {
   id: string
@@ -12,12 +11,13 @@ export interface EvalPerson {
   lastName: string
   employeeNo: string
   profilePhoto: string | null
+  designation?: { title: string } | null
 }
 
 export interface Evaluation {
   id: string
-  templateId: string | null
-  criteria: EvalCriterion[]
+  selfCriteria: EvalCriterion[]
+  managerCriteria: EvalCriterion[]
   sectionALabel: string
   sectionBLabel: string
   employeeId: string
@@ -51,15 +51,6 @@ export interface PaginationMeta {
   page: number
   limit: number
   totalPages: number
-}
-
-export interface EvalTemplate {
-  id: string
-  name: string
-  sectionALabel: string
-  sectionBLabel: string
-  criteria: EvalCriterion[]
-  isActive: boolean
 }
 
 // ─── Evaluations ──────────────────────────────────────────────────────────────
@@ -144,40 +135,67 @@ export function useDeleteEvaluation() {
   )
 }
 
-// ─── Templates ────────────────────────────────────────────────────────────────
+// ─── KPI / parameter profiles (per employee, reused each cycle) ────────────────
 
-export function useEvalTemplates() {
+export interface PerfKpiRow {
+  id: string
+  evaluator: EvalEvaluator
+  section: EvalSection
+  label: string
+  description: string | null
+  order: number
+}
+
+export interface PerfKpiDraft {
+  evaluator: EvalEvaluator
+  section: EvalSection
+  label: string
+  description?: string | null
+}
+
+export interface PerfKpiProfileRow {
+  id: string
+  employeeNo: string
+  firstName: string | null
+  lastName: string | null
+  profilePhoto: string | null
+  designation: string | null
+  department: string | null
+  managerCount: number
+  selfCount: number
+  configured: boolean
+}
+
+export function usePerfKpiProfiles() {
   return useQuery({
-    queryKey: ["eval-templates"],
-    queryFn: (): Promise<{
-      data: EvalTemplate[]
-      defaults: { criteria: EvalCriterion[]; sectionALabel: string; sectionBLabel: string }
-    }> => apiFetch("/api/performance/eval-templates"),
+    queryKey: ["perf-kpi-profiles"],
+    queryFn: (): Promise<{ data: PerfKpiProfileRow[] }> =>
+      apiFetch(`/api/performance/kpi-profiles`),
+    staleTime: 30_000,
   })
 }
 
-export function useSaveEvalTemplate() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async ({
-      id,
-      ...body
-    }: {
-      id?: string
-      name: string
-      criteria: EvalCriterion[]
-      sectionALabel?: string
-      sectionBLabel?: string
-    }) =>
-      apiFetch(id ? `/api/performance/eval-templates/${id}` : "/api/performance/eval-templates", {
-        method: id ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["eval-templates"] })
-      toast.success("Template saved")
-    },
-    onError: (e: Error) => toast.error(e.message),
+export function usePerfKpiProfile(employeeId: string | null) {
+  return useQuery({
+    queryKey: ["perf-kpi-profile", employeeId],
+    enabled: !!employeeId,
+    queryFn: (): Promise<{ data: { employee: EvalPerson; items: PerfKpiRow[] } }> =>
+      apiFetch(`/api/performance/kpi-profiles/${employeeId}`),
   })
+}
+
+export function useSavePerfKpiProfile(employeeId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (items: PerfKpiDraft[]) =>
+        apiFetch(`/api/performance/kpi-profiles/${employeeId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items }),
+        }),
+      invalidate: [["perf-kpi-profile", employeeId], ["perf-kpi-profiles"]],
+      success: "KPI profile saved",
+    }),
+  )
 }

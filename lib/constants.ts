@@ -429,38 +429,6 @@ export const TASK_PRIORITY_COLORS: Record<string, string> = {
   URGENT: "bg-red-500/10 text-red-600 dark:text-red-400",
 }
 
-export const REVIEW_STATUS_LABELS: Record<string, string> = {
-  PENDING: "Pending",
-  DRAFT: "Draft",
-  SELF_REVIEW: "Self Review",
-  MANAGER_REVIEW: "Manager Review",
-  COMPLETED: "Completed",
-  CANCELLED: "Cancelled",
-}
-
-export const REVIEW_STATUS_COLORS: Record<string, string> = {
-  PENDING: "bg-muted text-muted-foreground",
-  DRAFT: "bg-muted text-muted-foreground",
-  SELF_REVIEW: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  MANAGER_REVIEW: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  COMPLETED: "bg-green-500/10 text-green-600 dark:text-green-400",
-  CANCELLED: "bg-red-500/10 text-red-600 dark:text-red-400",
-}
-
-export const GOAL_STATUS_LABELS: Record<string, string> = {
-  NOT_STARTED: "Not Started",
-  IN_PROGRESS: "In Progress",
-  COMPLETED: "Completed",
-  CANCELLED: "Cancelled",
-}
-
-export const GOAL_STATUS_COLORS: Record<string, string> = {
-  NOT_STARTED: "bg-muted text-muted-foreground",
-  IN_PROGRESS: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  COMPLETED: "bg-green-500/10 text-green-600 dark:text-green-400",
-  CANCELLED: "bg-red-500/10 text-red-600 dark:text-red-400",
-}
-
 export const JOB_STATUS_LABELS: Record<string, string> = {
   DRAFT: "Draft",
   OPEN: "Open",

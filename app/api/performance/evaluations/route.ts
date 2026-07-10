@@ -5,11 +5,8 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
 import { createNotification } from "@/lib/notifications"
-import {
-  DEFAULT_EVALUATION_CRITERIA,
-  DEFAULT_SECTION_A_LABEL,
-  DEFAULT_SECTION_B_LABEL,
-} from "@/features/performance/evaluation"
+import { DEFAULT_SECTION_A_LABEL, DEFAULT_SECTION_B_LABEL } from "@/features/performance/evaluation"
+import { buildEvaluationCriteria } from "@/features/performance/server/evaluation.service"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
@@ -81,16 +78,8 @@ export const POST = withSession(
       const body = await req.json().catch(() => null)
       if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
 
-      const {
-        employeeId,
-        managerId,
-        controllerId,
-        periodLabel,
-        periodStart,
-        periodEnd,
-        dueDate,
-        templateId,
-      } = body
+      const { employeeId, managerId, controllerId, periodLabel, periodStart, periodEnd, dueDate } =
+        body
       if (!employeeId || !periodLabel?.trim()) {
         return NextResponse.json(
           { error: "employeeId and periodLabel are required" },
@@ -104,22 +93,16 @@ export const POST = withSession(
       })
       if (!employee) return NextResponse.json({ error: "Employee not found" }, { status: 404 })
 
-      // Resolve the criteria snapshot: explicit template → active template → defaults.
-      const template = templateId
-        ? await db.evaluationTemplate.findUnique({ where: { id: templateId } })
-        : await db.evaluationTemplate.findFirst({ where: { isActive: true } })
-
-      const criteria = template?.criteria ?? DEFAULT_EVALUATION_CRITERIA
-      const sectionALabel = template?.sectionALabel ?? DEFAULT_SECTION_A_LABEL
-      const sectionBLabel = template?.sectionBLabel ?? DEFAULT_SECTION_B_LABEL
+      // Snapshot the employee's KPI/parameter profile (self + manager sides).
+      const { selfCriteria, managerCriteria } = await buildEvaluationCriteria(employeeId)
       const resolvedManagerId = managerId || employee.managerId || null
 
       const evaluation = await db.evaluation.create({
         data: {
-          templateId: template?.id ?? null,
-          criteria: criteria as object,
-          sectionALabel,
-          sectionBLabel,
+          selfCriteria: selfCriteria as object,
+          managerCriteria: managerCriteria as object,
+          sectionALabel: DEFAULT_SECTION_A_LABEL,
+          sectionBLabel: DEFAULT_SECTION_B_LABEL,
           employeeId,
           managerId: resolvedManagerId,
           controllerId: controllerId || null,

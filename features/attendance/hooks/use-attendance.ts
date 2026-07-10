@@ -238,10 +238,18 @@ async function deleteDevice(id: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/api/attendance/devices/${id}`, { method: "DELETE" })
 }
 
-async function syncDevice(id: string): Promise<{ message: string; synced: number }> {
-  return apiFetch<{ message: string; synced: number }>(`/api/attendance/devices/${id}/sync`, {
-    method: "POST",
-  })
+async function syncDevice(
+  arg: string | { id: string; full?: boolean; employeeNo?: string },
+): Promise<{ message: string; synced: number }> {
+  const { id, full, employeeNo } = typeof arg === "string" ? { id: arg } : arg
+  const qs = new URLSearchParams()
+  if (full) qs.set("full", "1")
+  if (employeeNo) qs.set("employeeNo", employeeNo)
+  const q = qs.toString()
+  return apiFetch<{ message: string; synced: number }>(
+    `/api/attendance/devices/${id}/sync${q ? `?${q}` : ""}`,
+    { method: "POST" },
+  )
 }
 
 async function fetchHolidays(year?: number): Promise<{ data: Holiday[] }> {
@@ -498,11 +506,36 @@ export function useSyncDevice() {
       queryClient.invalidateQueries({ queryKey: ["attendance-devices"] })
       queryClient.invalidateQueries({ queryKey: ["attendance-logs"] })
       queryClient.invalidateQueries({ queryKey: ["attendance-summary"] })
+      queryClient.invalidateQueries({ queryKey: ["employee-sync-summary"] })
       toast.success(data.message || `Synced ${data.synced} records`)
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to sync device")
     },
+  })
+}
+
+export interface EmployeeSyncSummary {
+  id: string
+  employeeNo: string
+  deviceId: string | null
+  firstName: string | null
+  lastName: string | null
+  profilePhoto: string | null
+  designation: string | null
+  hasCode: boolean
+  totalDays: number
+  presentDays: number
+  halfDays: number
+  lastPunchDate: string | null
+}
+
+export function useEmployeeSyncSummary() {
+  return useQuery({
+    queryKey: ["employee-sync-summary"],
+    queryFn: (): Promise<{ data: EmployeeSyncSummary[] }> =>
+      apiFetch("/api/attendance/employees/summary"),
+    staleTime: 30_000,
   })
 }
 

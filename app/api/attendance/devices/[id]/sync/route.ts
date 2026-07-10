@@ -44,7 +44,11 @@ export const POST = withAuth(
         )
       }
 
-      await db.hikvisionDevice.update({ where: { id }, data: { lastSyncAt: new Date() } })
+      // Only a whole-device sync advances lastSyncAt - a single-employee sync
+      // must not make the next incremental sync think everyone is up to date.
+      if (!onlyEmployeeNo) {
+        await db.hikvisionDevice.update({ where: { id }, data: { lastSyncAt: new Date() } })
+      }
 
       return NextResponse.json({
         message: `Sync complete. ${result.totalSynced} records processed.`,

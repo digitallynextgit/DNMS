@@ -1,36 +1,3 @@
-// =============================================================================
-// Export every employee's raw Hikvision punch-ins to a CSV grid.
-//
-// Run with:  pnpm tsx scripts/export-hikvision-punches.ts
-//        or: pnpm export:punches
-//
-// Optional overrides (defaults are 2026-01-01 -> today, IST):
-//   pnpm tsx scripts/export-hikvision-punches.ts --from=2026-03-01 --to=2026-03-31
-//
-// Output: scripts/output/employee-punch-ins_<from>_to_<to>.csv (gitignored - it
-// contains real attendance data, so it's never meant to be committed; only this
-// script is).
-//
-// Columns: Sno, Employee Name, then one column per calendar day in the range.
-// Each day's cell lists EVERY punch that employee made that day (not just
-// first/last), "; "-joined in HH:mm:ss IST - e.g. a day with 7 punches shows
-// all 7. Empty cell = no punch that day.
-//
-// This talks directly to the Hikvision device(s) over ISAPI (same client as
-// features/attendance/server/hikvision.ts) - it does NOT read the app's
-// AttendanceLog table, because that table only stores the day's first/last
-// punch as checkIn/checkOut, not every individual punch. Run this from the
-// office LAN; the device is on-prem and unreachable remotely.
-//
-// Handles device-code reuse: a biometric/employee code can end up shared by
-// two Employee rows over time (e.g. a departed employee's device code gets
-// reassigned to a new hire on a small on-prem setup). Punches for a shared
-// code are attributed by whose employment window (dateOfJoining..lastWorking/
-// resignationDate) actually contains the punch's day, instead of just handing
-// every punch under that code to whichever employee happens to be queried
-// last - see resolveEmployeeForPunch().
-// =============================================================================
-
 import "dotenv/config"
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"

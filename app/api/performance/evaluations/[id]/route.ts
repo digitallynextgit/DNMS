@@ -108,7 +108,10 @@ export const PATCH = withSession(
         )
       }
 
-      const criteria = ev.criteria as unknown as EvalCriterion[]
+      // Each side is scored against its own snapshotted criteria list.
+      const managerCriteria = ev.managerCriteria as unknown as EvalCriterion[]
+      const criteria =
+        role === "SELF" ? (ev.selfCriteria as unknown as EvalCriterion[]) : managerCriteria
       if (!isRatingComplete(criteria, ratings)) {
         return NextResponse.json(
           { error: "Please rate every criterion (1–5) before submitting." },
@@ -126,7 +129,7 @@ export const PATCH = withSession(
         data.managerRatings = ratings
         data.managerComment = comment?.trim() || null
         data.managerSubmittedAt = now
-        data.finalScore = scoreEvaluation(criteria, ratings).total
+        data.finalScore = scoreEvaluation(managerCriteria, ratings).total
       } else {
         // CONTROLLER - recorded alongside; doesn't drive status or final score.
         data.controllerRatings = ratings

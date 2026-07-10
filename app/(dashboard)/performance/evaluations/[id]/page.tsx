@@ -11,14 +11,17 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { useEvaluation, useSubmitEvaluation } from "@/features/performance"
 import {
+  useEvaluation,
+  useSubmitEvaluation,
   scoreEvaluation,
   isRatingComplete,
   RATING_LABELS,
+  performanceAction,
   type EvalCriterion,
 } from "@/features/performance"
-import { performanceAction } from "@/features/performance"
+
+type Side = "SELF" | "MANAGER" | "CONTROLLER"
 
 const TONE: Record<string, string> = {
   red: "border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300",
@@ -27,6 +30,12 @@ const TONE: Record<string, string> = {
   blue: "border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-300",
   green:
     "border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300",
+}
+
+const SIDE_LABEL: Record<Side, string> = {
+  SELF: "Self-evaluation",
+  MANAGER: "Manager review",
+  CONTROLLER: "Project controller review",
 }
 
 function Rating({
@@ -70,8 +79,8 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
   const ev = data?.data
   const viewerRole = data?.viewerRole
 
-  // Which column the viewer fills, and whether they've already submitted it.
-  const editableSide: "SELF" | "MANAGER" | "CONTROLLER" | null =
+  // Which side the viewer fills.
+  const editableSide: Side | null =
     viewerRole === "EMPLOYEE"
       ? "SELF"
       : viewerRole === "CONTROLLER"
@@ -79,6 +88,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
         : viewerRole === "MANAGER" || viewerRole === "HR"
           ? "MANAGER"
           : null
+
   const submittedAt =
     editableSide === "SELF"
       ? ev?.selfSubmittedAt
@@ -90,17 +100,11 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
   const canEdit = !!editableSide && !submittedAt
   const hasController = !!ev?.controllerId
 
-  const sideLabel: Record<string, string> = {
-    SELF: "self-evaluation",
-    MANAGER: "manager review",
-    CONTROLLER: "project controller review",
-  }
-
   const [ratings, setRatings] = useState<Record<string, number>>({})
   const [comment, setComment] = useState("")
 
   useEffect(() => {
-    if (!ev) return
+    if (!ev || !editableSide) return
     const map =
       editableSide === "SELF"
         ? ev.selfRatings
@@ -117,24 +121,24 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
     setComment(cmt ?? "")
   }, [ev, editableSide])
 
-  const criteria = (ev?.criteria ?? []) as EvalCriterion[]
-  const sectionA = criteria.filter((c) => c.section === "A")
-  const sectionB = criteria.filter((c) => c.section === "B")
+  const selfCriteria = (ev?.selfCriteria ?? []) as EvalCriterion[]
+  const managerCriteria = (ev?.managerCriteria ?? []) as EvalCriterion[]
 
-  // Live final = manager ratings (the official score). While a manager edits, preview their draft.
-  const managerRatings = canEdit && editableSide === "MANAGER" ? ratings : ev?.managerRatings
+  // Live final = manager ratings (official). Preview a manager's draft as they edit.
+  const managerRatingsLive =
+    canEdit && editableSide === "MANAGER" ? ratings : (ev?.managerRatings ?? undefined)
   const managerScore = useMemo(
-    () => scoreEvaluation(criteria, managerRatings),
-    [criteria, managerRatings],
+    () => scoreEvaluation(managerCriteria, managerRatingsLive),
+    [managerCriteria, managerRatingsLive],
   )
-  const verdict =
-    ev?.managerSubmittedAt || (canEdit && editableSide === "MANAGER")
-      ? performanceAction(managerScore.total)
-      : null
+  const managerShown = !!ev?.managerSubmittedAt || (canEdit && editableSide === "MANAGER")
+  const verdict = managerShown ? performanceAction(managerScore.total) : null
+
+  const editableCriteria = editableSide === "SELF" ? selfCriteria : managerCriteria
 
   function handleSubmit() {
     if (!editableSide) return
-    submit.mutate({ role: editableSide, ratings, comment })
+    submit.mutate({ role: editableSide, ratings, comment }, { onSuccess: () => undefined })
   }
 
   if (isLoading) return <Skeleton className="h-96 rounded" />
@@ -145,67 +149,98 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
       </p>
     )
 
-  const renderSide = (side: "SELF" | "MANAGER" | "CONTROLLER", c: EvalCriterion) => {
+  const SidePanel = ({
+    side,
+    title,
+    criteria,
+    storedRatings,
+    accent,
+  }: {
+    side: Side
+    title: string
+    criteria: EvalCriterion[]
+    storedRatings: Record<string, number> | null
+    accent: string
+  }) => {
     const isEditableHere = canEdit && editableSide === side
-    const storedMap =
-      side === "SELF"
-        ? ev.selfRatings
-        : side === "CONTROLLER"
-          ? ev.controllerRatings
-          : ev.managerRatings
-    const value = isEditableHere ? ratings[c.id] : storedMap?.[c.id]
-    return (
-      <Rating
-        value={value}
-        editable={isEditableHere}
-        onChange={(n) => setRatings((r) => ({ ...r, [c.id]: n }))}
-      />
-    )
-  }
+    const effective = isEditableHere ? ratings : (storedRatings ?? {})
+    const hidden = !isEditableHere && !storedRatings // e.g. employee before manager submits
+    const score = scoreEvaluation(criteria, effective)
+    const sectionA = criteria.filter((c) => c.section === "A")
+    const sectionB = criteria.filter((c) => c.section === "B")
 
-  const Section = ({ label, items }: { label: string; items: EvalCriterion[] }) => {
-    const weight = items.reduce((s, c) => s + c.weight, 0)
-    const secScore = scoreEvaluation(items, managerRatings).total
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center justify-between text-sm">
+    const Section = ({ label, items }: { label: string; items: EvalCriterion[] }) => {
+      if (items.length === 0) return null
+      const weight = Math.round(items.reduce((s, c) => s + c.weight, 0))
+      const sub = scoreEvaluation(items, effective).total
+      return (
+        <div>
+          <div className="text-muted-foreground flex items-center justify-between px-4 py-2 text-xs font-medium">
             <span>
-              {label === "A" ? ev.sectionALabel : ev.sectionBLabel}
-              <span className="text-muted-foreground ml-2 font-normal">({weight}%)</span>
+              {label === "A" ? ev.sectionALabel : ev.sectionBLabel}{" "}
+              <span className="text-muted-foreground/70">({weight}%)</span>
             </span>
-            <span className="text-muted-foreground text-xs font-normal">
-              Manager: <span className="text-foreground font-semibold">{secScore}</span> / {weight}
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-b text-left text-xs">
-                <th className="px-4 py-2 font-medium">Criterion</th>
-                <th className="px-2 py-2 text-center font-medium">Wt%</th>
-                <th className="px-4 py-2 font-medium">Self</th>
-                <th className="px-4 py-2 font-medium">Manager</th>
-                {hasController && <th className="px-4 py-2 font-medium">Controller</th>}
-                <th className="px-2 py-2 text-right font-medium">Pts</th>
-              </tr>
-            </thead>
+            {!hidden && (
+              <span>
+                <span className="text-foreground font-semibold">{sub}</span> / {weight}
+              </span>
+            )}
+          </div>
+          <table className="w-full text-sm">
             <tbody className="divide-y">
               {items.map((c) => (
                 <tr key={c.id}>
-                  <td className="px-4 py-2.5">{c.label}</td>
-                  <td className="text-muted-foreground px-2 py-2.5 text-center">{c.weight}</td>
-                  <td className="px-4 py-2.5">{renderSide("SELF", c)}</td>
-                  <td className="px-4 py-2.5">{renderSide("MANAGER", c)}</td>
-                  {hasController && <td className="px-4 py-2.5">{renderSide("CONTROLLER", c)}</td>}
-                  <td className="px-2 py-2.5 text-right font-medium tabular-nums">
-                    {managerScore.perCriterion[c.id] ?? "-"}
+                  <td className="px-4 py-2.5 align-middle">
+                    <p className="leading-tight">{c.label}</p>
+                    <p className="text-muted-foreground text-[11px]">{Math.round(c.weight)}%</p>
+                  </td>
+                  <td className="px-2 py-2.5 text-right align-middle">
+                    <div className="flex justify-end">
+                      <Rating
+                        value={effective[c.id]}
+                        editable={isEditableHere}
+                        onChange={(n) => setRatings((r) => ({ ...r, [c.id]: n }))}
+                      />
+                    </div>
+                  </td>
+                  <td className="text-muted-foreground w-10 px-2 py-2.5 text-right align-middle tabular-nums">
+                    {hidden ? "-" : (score.perCriterion[c.id] ?? "-")}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )
+    }
+
+    return (
+      <Card className="overflow-hidden">
+        <CardHeader className={cn("border-b py-3", accent)}>
+          <CardTitle className="flex items-center justify-between text-sm">
+            <span>{title}</span>
+            <span className="text-xs font-normal">
+              {hidden ? (
+                <span className="text-muted-foreground">Awaiting submission</span>
+              ) : (
+                <>
+                  Total <span className="text-foreground font-bold">{score.total}</span> / 100
+                </>
+              )}
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {hidden ? (
+            <p className="text-muted-foreground px-4 py-8 text-center text-xs">
+              Not submitted yet.
+            </p>
+          ) : (
+            <div className="divide-y">
+              <Section label="A" items={sectionA} />
+              <Section label="B" items={sectionB} />
+            </div>
+          )}
         </CardContent>
       </Card>
     )
@@ -247,9 +282,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
               <div className="text-right">
                 <p className="text-muted-foreground text-sm">Final Score</p>
                 <p className="text-2xl font-bold">
-                  {ev.managerSubmittedAt || (canEdit && editableSide === "MANAGER")
-                    ? `${managerScore.total}`
-                    : "-"}
+                  {managerShown ? `${managerScore.total}` : "-"}
                   <span className="text-muted-foreground text-base font-normal"> / 100</span>
                 </p>
               </div>
@@ -262,15 +295,38 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
           </CardContent>
         </Card>
 
-        <Section label="A" items={sectionA} />
-        <Section label="B" items={sectionB} />
+        <div className={cn("grid gap-6", hasController ? "lg:grid-cols-3" : "lg:grid-cols-2")}>
+          <SidePanel
+            side="MANAGER"
+            title="Manager Evaluation"
+            criteria={managerCriteria}
+            storedRatings={ev.managerRatings}
+            accent="bg-blue-50/60 dark:bg-blue-950/20"
+          />
+          <SidePanel
+            side="SELF"
+            title="Self-Evaluation"
+            criteria={selfCriteria}
+            storedRatings={ev.selfRatings}
+            accent="bg-emerald-50/60 dark:bg-emerald-950/20"
+          />
+          {hasController && (
+            <SidePanel
+              side="CONTROLLER"
+              title="Project Controller"
+              criteria={managerCriteria}
+              storedRatings={ev.controllerRatings}
+              accent="bg-amber-50/60 dark:bg-amber-950/20"
+            />
+          )}
+        </div>
       </div>
 
       {/* Comments + submit for the viewer's side (not part of the printed PDF) */}
       {editableSide && (
         <Card className="no-print">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm capitalize">{sideLabel[editableSide]} comments</CardTitle>
+            <CardTitle className="text-sm">{SIDE_LABEL[editableSide]} comments</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <Textarea
@@ -290,21 +346,19 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
             />
             {canEdit ? (
               <div className="flex items-center justify-end gap-3">
-                {!isRatingComplete(criteria, ratings) && (
-                  <span className="text-muted-foreground text-xs">
-                    Rate every criterion to submit
-                  </span>
+                {!isRatingComplete(editableCriteria, ratings) && (
+                  <span className="text-muted-foreground text-xs">Rate every item to submit</span>
                 )}
                 <Button
                   onClick={handleSubmit}
-                  disabled={submit.isPending || !isRatingComplete(criteria, ratings)}
+                  disabled={submit.isPending || !isRatingComplete(editableCriteria, ratings)}
                 >
-                  {submit.isPending ? "Submitting…" : `Submit ${sideLabel[editableSide]}`}
+                  {submit.isPending ? "Submitting…" : `Submit ${SIDE_LABEL[editableSide]}`}
                 </Button>
               </div>
             ) : (
               <p className="text-muted-foreground text-xs">
-                You&apos;ve already submitted your {sideLabel[editableSide]}.
+                You&apos;ve already submitted your {SIDE_LABEL[editableSide].toLowerCase()}.
               </p>
             )}
           </CardContent>

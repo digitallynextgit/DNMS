@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
-import {
-  DEFAULT_EVALUATION_CRITERIA,
-  DEFAULT_SECTION_A_LABEL,
-  DEFAULT_SECTION_B_LABEL,
-} from "@/features/performance/evaluation"
+import { DEFAULT_SECTION_A_LABEL, DEFAULT_SECTION_B_LABEL } from "@/features/performance/evaluation"
+import { buildEvaluationCriteria } from "@/features/performance/server/evaluation.service"
 import { HIDDEN_ROLES } from "@/lib/constants"
 
 // Auto-create the current period's performance evaluations for every active
@@ -24,11 +21,6 @@ export async function GET(req: NextRequest) {
     const monthShort = now.toLocaleString("en-US", { month: "short" })
     const yy = String(now.getFullYear()).slice(-2)
     const periodLabel = `${monthShort} ${day <= 15 ? "1–15" : "16–EOM"} '${yy}`
-
-    const template = await db.evaluationTemplate.findFirst({ where: { isActive: true } })
-    const criteria = template?.criteria ?? DEFAULT_EVALUATION_CRITERIA
-    const sectionALabel = template?.sectionALabel ?? DEFAULT_SECTION_A_LABEL
-    const sectionBLabel = template?.sectionBLabel ?? DEFAULT_SECTION_B_LABEL
 
     // Active employees, excluding the invisible admin_ account.
     const employees = await db.employee.findMany({
@@ -52,12 +44,13 @@ export async function GET(req: NextRequest) {
         continue
       }
 
+      const { selfCriteria, managerCriteria } = await buildEvaluationCriteria(emp.id)
       const ev = await db.evaluation.create({
         data: {
-          templateId: template?.id ?? null,
-          criteria: criteria as object,
-          sectionALabel,
-          sectionBLabel,
+          selfCriteria: selfCriteria as object,
+          managerCriteria: managerCriteria as object,
+          sectionALabel: DEFAULT_SECTION_A_LABEL,
+          sectionBLabel: DEFAULT_SECTION_B_LABEL,
           employeeId: emp.id,
           managerId: emp.managerId,
           periodLabel,
