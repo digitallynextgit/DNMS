@@ -280,7 +280,10 @@ export function EditPersonalInfo({ emp }: { emp: EmployeeDetail }) {
             </Select>
           </Field>
           <Field label="Nationality" required>
-            <Select value={form.nationality || undefined} onValueChange={(v) => set("nationality", v)}>
+            <Select
+              value={form.nationality || undefined}
+              onValueChange={(v) => set("nationality", v)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select nationality" />
               </SelectTrigger>
@@ -294,7 +297,10 @@ export function EditPersonalInfo({ emp }: { emp: EmployeeDetail }) {
             </Select>
           </Field>
           <Field label="Blood Group">
-            <Select value={form.bloodGroup || undefined} onValueChange={(v) => set("bloodGroup", v)}>
+            <Select
+              value={form.bloodGroup || undefined}
+              onValueChange={(v) => set("bloodGroup", v)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select blood group" />
               </SelectTrigger>
@@ -446,7 +452,9 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
             >
               <SelectTrigger>
                 <SelectValue
-                  placeholder={form.departmentId ? "Select job role (optional)" : "Pick a department first"}
+                  placeholder={
+                    form.departmentId ? "Select job role (optional)" : "Pick a department first"
+                  }
                 />
               </SelectTrigger>
               <SelectContent>

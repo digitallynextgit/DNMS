@@ -39,6 +39,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# generated script output - can contain real employee attendance data (PII)
+/scripts/output/
+
 # Claude Code
 .claude/
 completed_tasks.txt
