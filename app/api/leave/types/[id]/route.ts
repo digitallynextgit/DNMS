@@ -9,10 +9,12 @@ export const PATCH = withErrorHandler(async (req: NextRequest, ctx: { params: { 
   return respond(await updateLeaveType(id, body))
 })
 
-// DELETE /api/leave/types/[id] - deactivate a leave type.
+// DELETE /api/leave/types/[id] - deactivate a leave type, or permanently delete
+// it with ?permanent=1.
 export const DELETE = withErrorHandler(
-  async (_req: NextRequest, ctx: { params: { id: string } }) => {
+  async (req: NextRequest, ctx: { params: { id: string } }) => {
     const { id } = ctx.params
-    return respond(await deleteLeaveType(id))
+    const permanent = req.nextUrl.searchParams.get("permanent") === "1"
+    return respond(await deleteLeaveType(id, permanent))
   },
 )

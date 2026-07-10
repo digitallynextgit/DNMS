@@ -357,6 +357,31 @@ export function useMyAttendanceCalendar(year: number, month: number) {
   })
 }
 
+// HR: a specific employee's calendar (opened from the attendance directory).
+async function fetchEmployeeCalendar(
+  employeeId: string,
+  year: number,
+  month: number,
+): Promise<{ data: AttendanceCalendarMonth }> {
+  const mm = String(month).padStart(2, "0")
+  return apiFetch<{ data: AttendanceCalendarMonth }>(
+    `/api/attendance/directory/${employeeId}/calendar?month=${year}-${mm}`,
+  )
+}
+
+export function useEmployeeAttendanceCalendar(
+  employeeId: string | undefined,
+  year: number,
+  month: number,
+) {
+  return useQuery({
+    queryKey: ["employee-attendance-calendar", employeeId, year, month],
+    queryFn: () => fetchEmployeeCalendar(employeeId!, year, month),
+    enabled: !!employeeId,
+    staleTime: 30_000,
+  })
+}
+
 export function useAttendanceSummary(
   employeeId: string | null | undefined,
   month: number,

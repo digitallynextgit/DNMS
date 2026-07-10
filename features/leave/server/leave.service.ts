@@ -313,11 +313,43 @@ export async function updateLeaveType(
   })
 }
 
-export async function deleteLeaveType(id: string): Promise<ActionResult<{ message: string }>> {
+export async function deleteLeaveType(
+  id: string,
+  permanent = false,
+): Promise<ActionResult<{ message: string }>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.LEAVE_APPROVE)
     const existing = await db.leaveType.findUnique({ where: { id } })
     if (!existing) return fail("Leave type not found")
+
+    if (permanent) {
+      // Permanent (hard) delete is far more destructive than deactivation, so it's
+      // restricted to HR Managers and Admins - other leave:approve holders can only
+      // deactivate.
+      const roles = session.user.roles ?? []
+      const canHardDelete =
+        roles.includes(SYSTEM_ROLES.ADMIN_) ||
+        roles.includes(SYSTEM_ROLES.ADMIN) ||
+        roles.includes(SYSTEM_ROLES.HR_MANAGER)
+      if (!canHardDelete)
+        return fail(
+          "Only HR Managers and Admins can permanently delete a leave type. You can deactivate it instead.",
+        )
+      // Remove the type and everything tied to it. Balances & policy rows cascade
+      // on delete; leave requests are Restrict-guarded, so clear them first.
+      await db.$transaction([
+        db.leaveRequest.deleteMany({ where: { leaveTypeId: id } }),
+        db.leaveType.delete({ where: { id } }),
+      ])
+      await createAuditLog(session, {
+        action: "HARD_DELETE",
+        module: "leave",
+        entityType: "LeaveType",
+        entityId: id,
+        changes: { name: existing.name, code: existing.code, permanent: true },
+      })
+      return ok({ message: "Leave type permanently deleted" })
+    }
 
     await db.leaveType.update({ where: { id }, data: { isActive: false } })
     await createAuditLog(session, {
@@ -349,7 +381,9 @@ export async function getLeaveBalances(
     }
 
     const balances = await db.leaveBalance.findMany({
-      where: { employeeId: targetId, year: resolvedYear },
+      // Only surface balances for still-active leave types; a deleted/deactivated
+      // type (e.g. Maternity) must disappear from the employee's view.
+      where: { employeeId: targetId, year: resolvedYear, leaveType: { isActive: true } },
       include: { leaveType: true },
       orderBy: { leaveType: { name: "asc" } },
     })
@@ -384,7 +418,7 @@ export async function getAllLeaveBalances(year?: number): Promise<ActionResult<u
         profilePhoto: true,
         department: { select: { id: true, name: true } },
         leaveBalances: {
-          where: { year: resolvedYear },
+          where: { year: resolvedYear, leaveType: { isActive: true } },
           include: { leaveType: true },
           orderBy: { leaveType: { name: "asc" } },
         },

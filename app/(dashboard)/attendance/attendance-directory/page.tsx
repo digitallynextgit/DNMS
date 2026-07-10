@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { Pencil, Users, UserCheck, UserX, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -18,7 +19,7 @@ import { ManualAttendanceDialog } from "@/features/attendance"
 import { useAttendanceDirectory, type AttendanceDirectoryRow } from "@/features/attendance"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
-import { cn, formatWorkHours } from "@/lib/utils"
+import { cn, formatWorkHours, employeeSlug } from "@/lib/utils"
 import { format } from "date-fns"
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -89,7 +90,10 @@ export default function AttendanceDirectoryPage() {
   const employeeCol: DataTableColumn<AttendanceDirectoryRow> = {
     header: "Employee",
     cell: (r) => (
-      <div className="flex items-center gap-2.5">
+      <Link
+        href={`/attendance/attendance-directory/${employeeSlug(r.employeeNo, r.firstName, r.lastName)}`}
+        className="group flex items-center gap-2.5"
+      >
         <AvatarDisplay
           src={r.profilePhoto}
           firstName={r.firstName}
@@ -97,7 +101,7 @@ export default function AttendanceDirectoryPage() {
           size="sm"
         />
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">
+          <p className="truncate text-sm font-medium underline-offset-4 group-hover:underline">
             {r.firstName} {r.lastName}
           </p>
           <p className="text-muted-foreground truncate text-xs">
@@ -105,7 +109,7 @@ export default function AttendanceDirectoryPage() {
             {r.department ? ` · ${r.department}` : ""}
           </p>
         </div>
-      </div>
+      </Link>
     ),
   }
 

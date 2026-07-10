@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { DeleteDialog } from "@/components/shared/delete-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { useLeaveTypes, useDeleteLeaveType, useUpdateLeaveType } from "@/features/leave"
@@ -74,15 +75,15 @@ export default function LeaveTypesAndPolicyPage() {
     await updateLeaveType.mutateAsync({ id: type.id, body: { isActive: !type.isActive } })
   }
 
-  async function handleDelete() {
+  async function handleDelete(permanent: boolean) {
     if (!deleteId) return
-    await deleteLeaveType.mutateAsync(deleteId)
+    await deleteLeaveType.mutateAsync({ id: deleteId, permanent })
     setDeleteId(null)
   }
 
   async function handleBulkDeactivate() {
     for (const id of selection.selectedIds) {
-      await deleteLeaveType.mutateAsync(id)
+      await deleteLeaveType.mutateAsync({ id })
     }
     selection.clear()
     setBulkOpen(false)
@@ -287,13 +288,12 @@ export default function LeaveTypesAndPolicyPage() {
 
       <LeaveTypeForm open={formOpen} onOpenChange={setFormOpen} leaveType={editingType} />
 
-      <ConfirmDialog
+      <DeleteDialog
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
-        title="Deactivate Leave Type"
-        description="This will deactivate the leave type and hide it from employees. Existing leave requests and balances will not be affected."
-        confirmLabel="Deactivate"
-        variant="destructive"
+        title="Delete leave type"
+        description="Deactivating hides it from employees but keeps its data (recoverable). Permanent delete removes the type and its balances, policy rows and requests for good."
+        canPermanent={canManagePolicy}
         onConfirm={handleDelete}
         isLoading={deleteLeaveType.isPending}
       />

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
-import { Plus, Pencil, Trash2, Download, UserCheck, UserX } from "lucide-react"
+import { Plus, Eye, Trash2, Download, UserCheck, UserX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { PageHeader } from "@/components/shared/page-header"
@@ -381,24 +381,23 @@ export default function EmployeesPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {/* View profile - same destination as clicking the name. */}
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-foreground h-8 w-8"
+                          title="View"
+                        >
+                          <Link
+                            href={`/employees/${employeeSlug(emp.employeeNo, emp.firstName, emp.lastName)}`}
+                            aria-label={`View ${fullName}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </Button>
                         {isActive ? (
                           <>
-                            {can(PERMISSIONS.EMPLOYEE_WRITE) && (
-                              <Button
-                                asChild
-                                variant="ghost"
-                                size="icon"
-                                className="text-muted-foreground hover:text-foreground h-8 w-8"
-                                title="Edit"
-                              >
-                                <Link
-                                  href={`/employees/${emp.id}/edit`}
-                                  aria-label={`Edit ${fullName}`}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Link>
-                              </Button>
-                            )}
                             {can(PERMISSIONS.EMPLOYEE_DELETE) && (
                               <Button
                                 variant="ghost"

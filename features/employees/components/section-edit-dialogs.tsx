@@ -30,6 +30,7 @@ import {
   useDesignations,
   type EmployeeDetail,
 } from "@/features/employees/hooks/use-employees"
+import { useJobRoles } from "@/features/employees/hooks/use-job-roles"
 import { EMPLOYMENT_TYPE_LABELS, EMPLOYEE_STATUS_LABELS } from "@/lib/constants"
 import { PROBATION_MONTHS_OPTIONS } from "@/features/employees/probation"
 
@@ -119,6 +120,34 @@ const GENDER_OPTIONS = [
   { value: "PREFER_NOT_TO_SAY", label: "Prefer not to say" },
 ]
 
+// Kept in step with the create form's option sets so viewing/editing matches.
+const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+const WORK_LOCATIONS = ["Remote", "Office", "Hybrid"]
+const NATIONALITIES = [
+  "Indian",
+  "American",
+  "Australian",
+  "Bangladeshi",
+  "British",
+  "Canadian",
+  "Chinese",
+  "French",
+  "German",
+  "Irish",
+  "Japanese",
+  "Malaysian",
+  "Nepalese",
+  "New Zealander",
+  "Pakistani",
+  "Russian",
+  "Singaporean",
+  "South African",
+  "Spanish",
+  "Sri Lankan",
+  "Other",
+]
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 // ─── Personal Information ───────────────────────────────────────────────────────
 
 export function EditPersonalInfo({ emp }: { emp: EmployeeDetail }) {
@@ -160,6 +189,14 @@ export function EditPersonalInfo({ emp }: { emp: EmployeeDetail }) {
     ])
     if (missing) {
       toast.error(`${missing} is required`)
+      return
+    }
+    if (!EMAIL_RE.test(form.email.trim())) {
+      toast.error("Enter a valid work email")
+      return
+    }
+    if (!EMAIL_RE.test(form.personalEmail.trim())) {
+      toast.error("Enter a valid personal email")
       return
     }
     const body: Record<string, unknown> = {
@@ -243,10 +280,32 @@ export function EditPersonalInfo({ emp }: { emp: EmployeeDetail }) {
             </Select>
           </Field>
           <Field label="Nationality" required>
-            <Input value={form.nationality} onChange={(e) => set("nationality", e.target.value)} />
+            <Select value={form.nationality || undefined} onValueChange={(v) => set("nationality", v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select nationality" />
+              </SelectTrigger>
+              <SelectContent>
+                {NATIONALITIES.map((n) => (
+                  <SelectItem key={n} value={n}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
           <Field label="Blood Group">
-            <Input value={form.bloodGroup} onChange={(e) => set("bloodGroup", e.target.value)} />
+            <Select value={form.bloodGroup || undefined} onValueChange={(v) => set("bloodGroup", v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select blood group" />
+              </SelectTrigger>
+              <SelectContent>
+                {BLOOD_GROUPS.map((bg) => (
+                  <SelectItem key={bg} value={bg}>
+                    {bg}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
         </div>
       </SectionDialog>
@@ -265,11 +324,16 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
   const designations = desigData?.data ?? []
 
   const [form, setForm] = useState(() => buildEmployment(emp))
+  // Job roles are scoped to the selected department (mirrors the create form).
+  const { data: jobRolesData } = useJobRoles({ departmentId: form.departmentId || undefined })
+  const jobRoles = jobRolesData ?? []
 
   function buildEmployment(e: EmployeeDetail) {
     return {
+      employeeNo: e.employeeNo ?? "",
       departmentId: e.department?.id ?? "",
       designationId: e.designation?.id ?? "",
+      jobRoleId: e.jobRole?.id ?? "",
       managerId: e.manager?.id ?? "",
       employmentType: e.employmentType ?? "FULL_TIME",
       status: e.status ?? "ACTIVE",
@@ -287,12 +351,14 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
   }
 
   function save() {
+    if (!form.employeeNo.trim()) return toast.error("Employee code is required")
     if (!form.departmentId) return toast.error("Department is required")
     if (!form.designationId) return toast.error("Designation is required")
     if (!form.dateOfJoining) return toast.error("Date of joining is required")
     if (!form.workLocation.trim()) return toast.error("Work location is required")
 
     const body: Record<string, unknown> = {
+      employeeNo: form.employeeNo.trim(),
       employmentType: form.employmentType,
       status: form.status,
       workLocation: form.workLocation.trim(),
@@ -300,6 +366,8 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
       deviceId: form.deviceId.trim(),
       onProbation: form.onProbation,
       probationMonths: Number(form.probationMonths),
+      // Job role is optional; "" clears it. Send it explicitly so a change sticks.
+      jobRoleId: form.jobRoleId,
     }
     // uuid fields: only send when set (the schema rejects empty strings).
     if (form.departmentId) body.departmentId = form.departmentId
@@ -329,10 +397,17 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
         saving={mut.isPending}
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Employee Code" required>
+            <Input
+              value={form.employeeNo}
+              onChange={(e) => setForm((f) => ({ ...f, employeeNo: e.target.value }))}
+              placeholder="e.g. 132"
+            />
+          </Field>
           <Field label="Department" required>
             <Select
               value={form.departmentId || undefined}
-              onValueChange={(v) => setForm((f) => ({ ...f, departmentId: v }))}
+              onValueChange={(v) => setForm((f) => ({ ...f, departmentId: v, jobRoleId: "" }))}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select department" />
@@ -360,6 +435,29 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
                     {d.title}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Job Role">
+            <Select
+              value={form.jobRoleId || "none"}
+              onValueChange={(v) => setForm((f) => ({ ...f, jobRoleId: v === "none" ? "" : v }))}
+              disabled={!form.departmentId}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={form.departmentId ? "Select job role (optional)" : "Pick a department first"}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">- None -</SelectItem>
+                {jobRoles
+                  .filter((r) => r.isActive)
+                  .map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </Field>
@@ -411,10 +509,21 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
             </Select>
           </Field>
           <Field label="Work Location" required>
-            <Input
-              value={form.workLocation}
-              onChange={(e) => setForm((f) => ({ ...f, workLocation: e.target.value }))}
-            />
+            <Select
+              value={form.workLocation || undefined}
+              onValueChange={(v) => setForm((f) => ({ ...f, workLocation: v }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select work location" />
+              </SelectTrigger>
+              <SelectContent>
+                {WORK_LOCATIONS.map((w) => (
+                  <SelectItem key={w} value={w}>
+                    {w}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
           <Field label="Date of Joining" required>
             <DateField

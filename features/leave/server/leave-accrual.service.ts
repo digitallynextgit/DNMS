@@ -341,6 +341,6 @@ export async function resyncLeaveBalances(year?: number): Promise<ActionResult<u
       entityType: "LeaveBalance",
       changes: { year: resolvedYear, employees: employees.length, balances },
     })
-    return ok(serialize({ data: { year: resolvedYear, employees: employees.length, balances } }))
+    return ok(serialize({ year: resolvedYear, employees: employees.length, balances }))
   })
 }

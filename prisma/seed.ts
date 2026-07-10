@@ -149,6 +149,10 @@ async function main() {
         "analytics:read",
         "email_template:read",
         "email_template:write",
+        "project:read",
+        "project:write",
+        "project:delete",
+        "audit:read",
       ],
     },
     {

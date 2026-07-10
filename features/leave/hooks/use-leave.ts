@@ -124,9 +124,18 @@ async function updateLeaveType({
   ).data
 }
 
-async function deleteLeaveType(id: string): Promise<{ message: string }> {
+async function deleteLeaveType({
+  id,
+  permanent,
+}: {
+  id: string
+  permanent?: boolean
+}): Promise<{ message: string }> {
+  const qs = permanent ? "?permanent=1" : ""
   return (
-    await apiFetch<{ data: { message: string } }>(`/api/leave/types/${id}`, { method: "DELETE" })
+    await apiFetch<{ data: { message: string } }>(`/api/leave/types/${id}${qs}`, {
+      method: "DELETE",
+    })
   ).data
 }
 
@@ -470,10 +479,10 @@ export function useDeleteLeaveType() {
   return useMutation(
     mutationWithToast(queryClient, {
       mutationFn: deleteLeaveType,
-      invalidate: [["leave-types"]],
-      success: "Leave type deactivated successfully",
+      invalidate: [["leave-types"], ["leave-balances"], ["leave-balance-directory"]],
+      success: (d) => d.message,
       onError: (error) => {
-        toast.error(error.message || "Failed to deactivate leave type")
+        toast.error(error.message || "Failed to delete leave type")
       },
     }),
   )
