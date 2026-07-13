@@ -1037,7 +1037,6 @@ model Project {
   status         ProjectStatus @default(PLANNING) @map("status")
   priority       TaskPriority  @default(MEDIUM) @map("priority")
   ownerId        String        @map("owner_id")
-  currentPhaseId String?       @map("current_phase_id")
   startDate      DateTime?     @map("start_date") @db.Date // "Onboarding Date" in UI
   endDate        DateTime?     @map("end_date") @db.Date // deprecated - kept for back-compat
   budget         Float?        @map("budget")
@@ -1046,7 +1045,6 @@ model Project {
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
   owner           Employee               @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  currentPhase    ProjectPhase?          @relation(fields: [currentPhaseId], references: [id], onDelete: SetNull)
   members         ProjectMember[] // legacy - kept for migration safety
   teams           ProjectTeam[] // v2 - primary structure
   tasks           ProjectTask[]
@@ -1058,27 +1056,7 @@ model Project {
 
   @@index([status])
   @@index([ownerId])
-  @@index([currentPhaseId])
   @@map("projects")
-}
-
-// Global, admin-managed list of project phases (e.g. Initiation, Planning, Executing, …)
-// Supports exactly 2 levels: top-level phases and their sub-phases (parentId = null means top-level).
-model ProjectPhase {
-  id           String   @id @default(uuid()) @map("id")
-  name         String   @map("name")
-  description  String?  @map("description")
-  displayOrder Int      @default(0) @map("display_order")
-  isActive     Boolean  @default(true) @map("is_active")
-  parentId     String?  @map("parent_id")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  parent   ProjectPhase?  @relation("PhaseParent", fields: [parentId], references: [id], onDelete: SetNull)
-  children ProjectPhase[] @relation("PhaseParent")
-  projects Project[]
-
-  @@map("project_phases")
 }
 
 // ─── V2: Project Teams ────────────────────────────────────────────────────────

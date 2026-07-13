@@ -278,7 +278,7 @@ export default function EmployeeHolidayCalendarPage() {
                           : undefined
                     }
                     className={cn(
-                      "flex min-h-[72px] flex-col rounded-md p-1.5",
+                      "flex min-h-18 flex-col rounded-md p-1.5",
                       isBirthday
                         ? "bg-rose-100 text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200"
                         : h

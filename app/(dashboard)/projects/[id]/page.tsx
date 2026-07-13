@@ -3,8 +3,6 @@
 import { useState } from "react"
 import { useParams } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
 import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,16 +11,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useProject, useProjectTeams } from "@/features/projects"
 import { usePermissions } from "@/features/admin"
 import {
@@ -35,14 +23,12 @@ import {
 import { cn, formatDate } from "@/lib/utils"
 import {
   ChevronLeft,
-  ChevronDown,
   Calendar,
   Users,
   FolderKanban,
   FileText,
   Layers,
   Pencil,
-  GitBranch,
   Activity,
   MessageSquare,
   KeyRound,
@@ -54,37 +40,6 @@ import { ActivityTab } from "@/features/projects"
 import { MessagesTab } from "@/features/projects"
 import { PasswordsTab } from "@/features/projects"
 import { ProjectFormDialog } from "@/features/projects"
-
-interface SubPhase {
-  id: string
-  name: string
-  displayOrder: number
-  isActive: boolean
-  parentId: string
-}
-interface Phase {
-  id: string
-  name: string
-  displayOrder: number
-  isActive: boolean
-  parentId: null
-  children: SubPhase[]
-}
-async function fetchPhases(): Promise<{ data: Phase[] }> {
-  const res = await fetch("/api/project-phases")
-  if (!res.ok) throw new Error()
-  return res.json()
-}
-
-function getPhaseLabel(phaseId: string | null | undefined, phases: Phase[]): string {
-  if (!phaseId) return ""
-  for (const p of phases) {
-    if (p.id === phaseId) return p.name
-    const child = p.children.find((c) => c.id === phaseId)
-    if (child) return `${p.name} › ${child.name}`
-  }
-  return ""
-}
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -101,30 +56,6 @@ export default function ProjectDetailPage() {
   const teams = teamsData?.data ?? []
 
   const [editOpen, setEditOpen] = useState(false)
-
-  const qc = useQueryClient()
-  const { data: phasesData } = useQuery({ queryKey: ["project-phases"], queryFn: fetchPhases })
-  const phases = (phasesData?.data ?? []).filter((p) => p.isActive)
-
-  const changePhase = useMutation({
-    mutationFn: async (phaseId: string) => {
-      const res = await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPhaseId: phaseId || null }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to update phase" }))
-        throw new Error(err.error?.message || "Failed to update phase")
-      }
-      return res.json()
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["project", projectId] })
-      toast.success("Phase updated")
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
 
   if (isLoading) {
     return (
@@ -226,78 +157,6 @@ export default function ProjectDetailPage() {
               Resources
             </TabsTrigger>
           </TabsList>
-
-          {/* Phase cascading dropdown - right of tabs */}
-          <div className="flex items-center gap-2">
-            <GitBranch className="text-muted-foreground h-3.5 w-3.5" />
-            <span className="text-muted-foreground text-xs">Phase:</span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild disabled={!canManage}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 max-w-56 min-w-36 justify-between gap-2 px-3 text-sm font-normal"
-                >
-                  <span className="truncate">
-                    {project.currentPhase?.id ? (
-                      getPhaseLabel(project.currentPhase.id, phases)
-                    ) : (
-                      <span className="text-muted-foreground">
-                        {phases.length === 0 ? "No phases" : "Select phase"}
-                      </span>
-                    )}
-                  </span>
-                  <ChevronDown className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem
-                  className="text-muted-foreground text-sm"
-                  onClick={() => changePhase.mutate("")}
-                >
-                  - None -
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {phases.map((p) =>
-                  p.children.filter((c) => c.isActive).length > 0 ? (
-                    <DropdownMenuSub key={p.id}>
-                      <DropdownMenuSubTrigger className="text-sm font-medium">
-                        {p.name}
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="w-48">
-                        <DropdownMenuItem
-                          className="text-muted-foreground text-sm italic"
-                          onClick={() => changePhase.mutate(p.id)}
-                        >
-                          {p.name} (general)
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {p.children
-                          .filter((c) => c.isActive)
-                          .map((c) => (
-                            <DropdownMenuItem
-                              key={c.id}
-                              className="text-sm"
-                              onClick={() => changePhase.mutate(c.id)}
-                            >
-                              {c.name}
-                            </DropdownMenuItem>
-                          ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  ) : (
-                    <DropdownMenuItem
-                      key={p.id}
-                      className="text-sm font-medium"
-                      onClick={() => changePhase.mutate(p.id)}
-                    >
-                      {p.name}
-                    </DropdownMenuItem>
-                  ),
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
         </div>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -353,7 +212,6 @@ export default function ProjectDetailPage() {
                   value={project.startDate ? formatDate(project.startDate) : "-"}
                   icon={Calendar}
                 />
-                <Field label="Phase" value={project.currentPhase?.name ?? "-"} icon={GitBranch} />
               </div>
             </CardContent>
           </Card>

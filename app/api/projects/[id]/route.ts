@@ -12,7 +12,6 @@ export const GET = withSession(
         where: { id: ctx.params.id },
         include: {
           owner: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
-          currentPhase: { select: { id: true, name: true, displayOrder: true } },
           teams: {
             include: {
               manager: {
@@ -68,7 +67,6 @@ export const PATCH = withAuth(
         budget,
         isArchived,
         accountManagerId,
-        currentPhaseId,
       } = body
 
       // Validate new Account Manager if provided
@@ -85,12 +83,6 @@ export const PATCH = withAuth(
           )
       }
 
-      // Validate phase if provided
-      if (currentPhaseId) {
-        const phase = await db.projectPhase.findUnique({ where: { id: currentPhaseId } })
-        if (!phase) return NextResponse.json({ error: "Phase not found" }, { status: 422 })
-      }
-
       const project = await db.project.update({
         where: { id: ctx.params.id },
         data: {
@@ -102,7 +94,6 @@ export const PATCH = withAuth(
           ...(budget !== undefined && { budget: budget ? parseFloat(budget) : null }),
           ...(isArchived !== undefined && { isArchived }),
           ...(accountManagerId !== undefined && { ownerId: accountManagerId }),
-          ...(currentPhaseId !== undefined && { currentPhaseId: currentPhaseId || null }),
         },
       })
 
@@ -120,7 +111,6 @@ export const PATCH = withAuth(
           budget,
           accountManagerId,
           isArchived,
-          currentPhaseId,
         } as object,
       })
 

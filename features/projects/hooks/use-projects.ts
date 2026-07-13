@@ -18,8 +18,6 @@ export interface ProjectListItem {
   endDate: string | null
   budget: number | null
   owner: { id: string; firstName: string; lastName: string; profilePhoto?: string | null }
-  currentPhase?: { id: string; name: string; displayOrder: number } | null
-  currentPhaseId?: string | null
   members: {
     employee: { id: string; firstName: string; lastName: string; profilePhoto: string | null }
   }[]

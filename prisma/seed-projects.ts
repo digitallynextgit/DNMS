@@ -30,42 +30,9 @@ async function main() {
   await prisma.projectTask.deleteMany()
   await prisma.projectTeamMember.deleteMany()
   await prisma.projectTeam.deleteMany()
-  await prisma.projectPhase.deleteMany()
   await prisma.projectMember.deleteMany()
   await prisma.project.deleteMany()
   console.log("  ✓ Cleared existing project data")
-
-  // ── Project phases ───────────────────────────────────────────────────────
-  await safeCreateMany(prisma.projectPhase, [
-    {
-      name: "Initiation",
-      description: "Define the project, identify stakeholders, set initial scope",
-      displayOrder: 1,
-    },
-    {
-      name: "Planning",
-      description: "Detailed plan, timeline, resource allocation",
-      displayOrder: 2,
-    },
-    { name: "Executing", description: "Active delivery of project work", displayOrder: 3 },
-    {
-      name: "Monitoring & Controlling",
-      description: "Track progress, manage changes, quality control",
-      displayOrder: 4,
-    },
-    {
-      name: "Closure",
-      description: "Final delivery, retrospective, handover, archival",
-      displayOrder: 5,
-    },
-  ])
-  const initiationPhase = await prisma.projectPhase.findFirst({
-    where: { name: "Initiation", parentId: null },
-  })
-  const executingPhase = await prisma.projectPhase.findFirst({
-    where: { name: "Executing", parentId: null },
-  })
-  console.log("  ✓ Created 5 project phases")
 
   // ── Load employee IDs by employeeNo ─────────────────────────────────────
   const employees = await prisma.employee.findMany({
@@ -159,7 +126,6 @@ async function main() {
         "Complete redesign and rebuild of Acme's marketing website with new branding, content, and SEO foundation.",
       status: "ACTIVE",
       priority: "HIGH",
-      currentPhaseId: executingPhase?.id ?? null,
       startDate: new Date("2026-04-01"),
       endDate: new Date("2026-07-31"),
       budget: 850000,
@@ -300,7 +266,6 @@ async function main() {
       endDate: new Date("2026-06-30"),
       budget: 500000,
       ownerId: rupamId,
-      currentPhaseId: executingPhase?.id ?? null,
     },
   })
 
@@ -369,7 +334,6 @@ async function main() {
       endDate: new Date("2026-08-31"),
       budget: 200000,
       ownerId: adminId,
-      currentPhaseId: initiationPhase?.id ?? null,
     },
   })
 

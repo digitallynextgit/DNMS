@@ -280,12 +280,6 @@ const ADMIN_ITEMS: NavItem[] = [
     permission: PERMISSIONS.EMAIL_TEMPLATE_READ,
   },
   {
-    label: "Project Settings",
-    href: "/admin/project-settings",
-    icon: FolderKanban,
-    permission: PERMISSIONS.PROJECT_WRITE,
-  },
-  {
     label: "Integrations",
     href: "/admin/integrations",
     icon: Plug,

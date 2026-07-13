@@ -86,7 +86,6 @@ export const POST = withAuth(
         startDate,
         budget,
         accountManagerId,
-        currentPhaseId,
       } = body
 
       // Validate Account Manager (formerly "owner") - falls back to creator if not supplied
@@ -129,7 +128,6 @@ export const POST = withAuth(
           status: status ?? "PLANNING",
           priority: priority ?? "MEDIUM",
           ownerId,
-          currentPhaseId: currentPhaseId || null,
           startDate: startDate ? new Date(startDate) : null,
           budget: budget ? parseFloat(budget) : null,
         },

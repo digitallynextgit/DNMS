@@ -26,7 +26,6 @@ export const SNAPSHOT_TABLES = [
   "email_templates",
   "qr_sessions",
   "verification_tokens",
-  "project_phases", // defer: parent_id
   "departments", // defer: head_id, parent_id
   "employees", // defer: manager_id, dotted_manager_id
   "accounts",
@@ -68,7 +67,6 @@ export type SnapshotTable = (typeof SNAPSHOT_TABLES)[number]
 
 // Self-referential / circular foreign keys (snake_case) patched in a 2nd pass.
 export const DEFERRED_FIELDS: Record<string, string[]> = {
-  project_phases: ["parent_id"],
   departments: ["head_id", "parent_id"],
   employees: ["manager_id", "dotted_manager_id"],
 }
