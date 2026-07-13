@@ -54,7 +54,6 @@ export const RATING_LABELS = [
 
 export const SECTION_A_WEIGHT = 60
 export const SECTION_B_WEIGHT = 40
-export const sectionWeight = (s: EvalSection) => (s === "A" ? SECTION_A_WEIGHT : SECTION_B_WEIGHT)
 
 export const DEFAULT_SECTION_A_LABEL = "Role Performance (KRA & KPI)"
 export const DEFAULT_SECTION_B_LABEL = "Workplace Discipline & Execution Effectiveness"
@@ -132,19 +131,6 @@ export function buildCriteria(
           ? SECTION_B_WEIGHT / countB
           : 0,
   }))
-}
-
-/** Build both sides' criteria from a flat list of profile items (with ids). */
-export function buildSidedCriteria(items: PerfKpiItem[]): {
-  selfCriteria: EvalCriterion[]
-  managerCriteria: EvalCriterion[]
-} {
-  const self = items.filter((i) => i.evaluator === "SELF")
-  const manager = items.filter((i) => i.evaluator === "MANAGER")
-  return {
-    selfCriteria: buildCriteria(self),
-    managerCriteria: buildCriteria(manager),
-  }
 }
 
 export interface EvalScore {

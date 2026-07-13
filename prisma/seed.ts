@@ -1660,16 +1660,16 @@ async function main() {
       accrualMethod: "UPFRONT",
       requiresApproval: false,
     },
-    // EL: 14 days, 1.16/month accrual, max 22 carry, eligibility: probation + 6 months, 60-day advance notice, min 3 max 7 at a time
+    // EL: 14 days, eligibility: probation + 6 months, 60-day advance notice, min 3 max 7 at a time, no carry-forward
     {
       name: "Earned Leave",
       code: "EL",
       description:
-        "1.16 days earned per month. Requires 60 days advance notice. Min 3 days, max 7 days at a time. Max carry-forward 22 days. 7 days each in H1 (Jan–Jun) and H2 (Jul–Dec).",
+        "Available 6 months after probation ends. Requires 60 days advance notice. Min 3 days, max 7 days at a time. 7 days each in H1 (Jan–Jun) and H2 (Jul–Dec). No carry-forward.",
       isPaid: true,
       maxDaysPerYear: 14,
-      carryForward: true,
-      maxCarryDays: 22,
+      carryForward: false,
+      maxCarryDays: 0,
       requiresApproval: true,
     },
     // PL: 2 days, after probation, for special events, no carry

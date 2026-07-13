@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { notifyApprovers } from "@/lib/notifications"
-import { SYSTEM_ROLES } from "@/lib/constants"
+import { SYSTEM_ROLES, HIDDEN_ROLES } from "@/lib/constants"
 import type { Session } from "next-auth"
 
 // Each employee may avail this many floating (optional) holidays per year.
@@ -26,7 +26,7 @@ export const GET = withSession(
 
       const isHr = (session.user.roles ?? []).some((r) => HR_ROLES.includes(r))
 
-      const [optionalHolidays, selections, reportsCount] = await Promise.all([
+      const [optionalHolidays, selections, reportsCount, birthdayEmployees] = await Promise.all([
         db.holiday.findMany({
           where: {
             isOptional: true,
@@ -49,9 +49,28 @@ export const GET = withSession(
         }),
         // Does this person manage anyone? (drives the approver inbox tab)
         isHr ? Promise.resolve(0) : db.employee.count({ where: { managerId: session.user.id } }),
+        // Everyone's birthday (a paid day off for each person) - shown on the
+        // calendar as a team birthday view. Excludes the hidden watch account.
+        db.employee.findMany({
+          where: {
+            isActive: true,
+            status: { in: ["ACTIVE", "ON_LEAVE"] },
+            dateOfBirth: { not: null },
+            NOT: { employeeRoles: { some: { role: { name: { in: [...HIDDEN_ROLES] } } } } },
+          },
+          select: { firstName: true, lastName: true, dateOfBirth: true },
+        }),
       ])
 
       const used = selections.filter((s) => ACTIVE.includes(s.status as "PENDING" | "APPROVED"))
+
+      const pad2 = (n: number) => String(n).padStart(2, "0")
+      const birthdays = birthdayEmployees
+        .filter((e) => e.dateOfBirth)
+        .map((e) => ({
+          date: `${year}-${pad2(e.dateOfBirth!.getUTCMonth() + 1)}-${pad2(e.dateOfBirth!.getUTCDate())}`,
+          name: `${e.firstName} ${e.lastName ?? ""}`.trim(),
+        }))
 
       return NextResponse.json({
         data: {
@@ -60,6 +79,7 @@ export const GET = withSession(
           remaining: Math.max(0, FLOATING_HOLIDAY_LIMIT - used.length),
           optionalHolidays,
           selections,
+          birthdays,
           // True for HR or anyone who manages at least one employee.
           isApprover: isHr || reportsCount > 0,
         },

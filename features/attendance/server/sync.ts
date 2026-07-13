@@ -279,6 +279,7 @@ export async function syncDeviceSmart(
   // Walk backward from today to globalFloor in short windows (most-recent first),
   // so the latest days are always captured even if an older window fails.
   const deviceErrors: string[] = []
+  let consecutiveFailures = 0
   let batchEnd = today
   while (batchEnd >= globalFloor) {
     const batchStart =
@@ -288,19 +289,36 @@ export async function syncDeviceSmart(
 
     // major=5 (access control), minor=0 (all sub-types) so every punch is
     // captured regardless of auth method (face/card/fingerprint). No person
-    // filter: pull everyone in the window and match client-side.
-    const { events, error } = await fetchAttendanceEvents(
-      config,
-      istDayStartUtc(batchStart),
-      istDayEndUtc(batchEnd),
-      5,
-      0,
-    )
-    if (error) {
-      // Stop walking further back so an older flaky window can't block the rest.
-      deviceErrors.push(`${batchStart}..${batchEnd}: ${error}`)
-      break
+    // filter: pull everyone in the window and match client-side. Retry a couple
+    // of times before giving up on the window - the device can drop the odd
+    // request mid-run even though it's reachable.
+    let events: Awaited<ReturnType<typeof fetchAttendanceEvents>>["events"] = []
+    let error: string | undefined
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await fetchAttendanceEvents(
+        config,
+        istDayStartUtc(batchStart),
+        istDayEndUtc(batchEnd),
+        5,
+        0,
+      )
+      if (!res.error) {
+        events = res.events
+        error = undefined
+        break
+      }
+      error = res.error
     }
+    if (error) {
+      // Don't abandon everything older on a single flaky window - record it and
+      // keep walking back (so e.g. a hiccup near April can't drop March). Only
+      // bail once several windows in a row fail, i.e. the device really went down.
+      deviceErrors.push(`${batchStart}..${batchEnd}: ${error}`)
+      if (++consecutiveFailures >= 3) break
+      batchEnd = addDaysStr(batchStart, -1)
+      continue
+    }
+    consecutiveFailures = 0
     if (events.length >= WARN_EVENT_THRESHOLD) {
       console.warn(
         `[attendance sync] ${events.length} events in one window (${batchStart}..${batchEnd}) - ` +

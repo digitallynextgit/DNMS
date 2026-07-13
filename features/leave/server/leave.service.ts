@@ -205,25 +205,24 @@ export async function getLeaveTypes(): Promise<ActionResult<unknown>> {
 export async function getEligibleLeaveTypes(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
-    const [types, employee] = await Promise.all([
+    const year = new Date().getFullYear()
+    const [types, balances] = await Promise.all([
       db.leaveType.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-      db.employee.findUnique({
-        where: { id: session.user.id },
-        select: {
-          onProbation: true,
-          probationMonths: true,
-          dateOfJoining: true,
-          confirmationDate: true,
-          gender: true,
-        },
+      db.leaveBalance.findMany({
+        where: { employeeId: session.user.id, year },
+        select: { leaveTypeId: true, allocated: true },
       }),
     ])
-    const onProbation = employee ? isOnProbation(employee) : false
-    const eligible = types.filter((t) => {
-      if (t.code === "ML") return employee?.gender === "FEMALE" // maternity: women only
-      if (t.isPaid && onProbation) return false // no paid leave during probation
-      return true
-    })
+    // A PAID leave type is applicable only when the employee actually has an
+    // allocation for it this year. The accrual engine already encodes every rule
+    // (probation, intern/contract policy, ML gender, prorated entitlement), so a
+    // positive `allocated` is the single source of truth - no separate probation
+    // flag to drift out of sync. Unpaid types (e.g. LWP) are always available, so
+    // interns/probationers can still take unpaid time off.
+    const entitled = new Set(
+      balances.filter((b) => Number(b.allocated) > 0).map((b) => b.leaveTypeId),
+    )
+    const eligible = types.filter((t) => (t.isPaid ? entitled.has(t.id) : true))
     return ok(serialize({ data: eligible }))
   })
 }
@@ -867,12 +866,20 @@ export async function applyLeave(body: {
     const balance = await db.leaveBalance.findUnique({
       where: { employeeId_leaveTypeId_year: { employeeId: session.user.id, leaveTypeId, year } },
     })
-    if (balance && leaveType.maxDaysPerYear > 0) {
+    if (leaveType.isPaid && leaveType.maxDaysPerYear > 0) {
+      // Paid, quota-based leave needs an allocation. No balance (or a zero
+      // allocation) means the employee isn't entitled to it this year - e.g.
+      // interns, or anyone still on probation. The balance is the source of
+      // truth, so this can't be bypassed by a stale probation flag.
+      if (!balance || balance.allocated <= 0)
+        return fail(
+          `You don't have any ${leaveType.name} allocated this year. You may apply for unpaid leave (LWP) instead.`,
+        )
       // Availability is what has ACCRUED so far (+ carry), not the full annual cap.
       const available = balance.accrued + balance.carried - balance.used - balance.pending
       if (available < totalDays)
         return fail(
-          `Insufficient leave balance. Available so far: ${available} day(s), Requested: ${totalDays} day(s). Leave accrues monthly.`,
+          `Insufficient leave balance. Available: ${available} day(s), Requested: ${totalDays} day(s).`,
         )
     }
 

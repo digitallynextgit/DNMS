@@ -93,6 +93,17 @@ export const GET = withAuth(
       })
       const firstStr = firstPunch ? ymd(firstPunch.date) : null
 
+      // An employee's birthday is a paid day off (their choice to come in or
+      // not) - shown as a holiday when they don't punch.
+      const employee = await db.employee.findUnique({
+        where: { id: employeeId },
+        select: { dateOfBirth: true },
+      })
+      const dob = employee?.dateOfBirth
+      const birthdayStr = dob
+        ? `${year}-${String(dob.getUTCMonth() + 1).padStart(2, "0")}-${String(dob.getUTCDate()).padStart(2, "0")}`
+        : null
+
       const days = []
       for (let day = 1; day <= daysInMonth; day++) {
         const d = new Date(Date.UTC(year, month0, day))
@@ -136,6 +147,9 @@ export const GET = withAuth(
           }
         } else if (beforeStart) {
           status = "UPCOMING"
+        } else if (birthdayStr && ds === birthdayStr) {
+          status = "HOLIDAY" // birthday → paid day off
+          label = "Birthday 🎂"
         } else if (holidayByDay.has(ds)) {
           status = "HOLIDAY"
           label = holidayByDay.get(ds) ?? null

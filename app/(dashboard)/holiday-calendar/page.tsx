@@ -59,6 +59,7 @@ interface FloatingData {
   remaining: number
   optionalHolidays: FloatingHoliday[]
   selections: FloatingSelection[]
+  birthdays: { date: string; name: string }[]
   isApprover: boolean
 }
 
@@ -146,6 +147,13 @@ export default function EmployeeHolidayCalendarPage() {
   years.sort((a, b) => a - b)
 
   const holidayByDay = new Map(holidays.map((h) => [h.date.slice(0, 10), h]))
+  // date -> list of employees whose birthday falls that day (a team view).
+  const birthdaysByDay = new Map<string, string[]>()
+  for (const b of fd?.birthdays ?? []) {
+    const arr = birthdaysByDay.get(b.date)
+    if (arr) arr.push(b.name)
+    else birthdaysByDay.set(b.date, [b.name])
+  }
   const firstDow = new Date(Date.UTC(year, calMonth, 1)).getUTCDay()
   const daysInMonth = new Date(Date.UTC(year, calMonth + 1, 0)).getUTCDate()
 
@@ -243,7 +251,15 @@ export default function EmployeeHolidayCalendarPage() {
               ))}
               {Array.from({ length: daysInMonth }).map((_, i) => {
                 const day = i + 1
-                const h = holidayByDay.get(`${year}-${pad(calMonth + 1)}-${pad(day)}`)
+                const dateStr = `${year}-${pad(calMonth + 1)}-${pad(day)}`
+                const h = holidayByDay.get(dateStr)
+                const bdayNames = birthdaysByDay.get(dateStr)
+                const isBirthday = !!bdayNames?.length
+                const bdayLabel = bdayNames
+                  ? bdayNames.length === 1
+                    ? `🎂 ${bdayNames[0].split(" ")[0]}`
+                    : `🎂 ${bdayNames.length} birthdays`
+                  : ""
                 const dow = new Date(Date.UTC(year, calMonth, day)).getUTCDay()
                 const weekend = dow === 0 || dow === 6
                 // A floating holiday this employee applied for and HR approved is
@@ -255,28 +271,32 @@ export default function EmployeeHolidayCalendarPage() {
                   <div
                     key={day}
                     title={
-                      h
-                        ? `${h.name}${approved ? " - approved floating holiday" : h.isOptional ? " (Floating)" : ""}`
-                        : undefined
+                      isBirthday
+                        ? `Birthday: ${bdayNames!.join(", ")}`
+                        : h
+                          ? `${h.name}${approved ? " - approved floating holiday" : h.isOptional ? " (Floating)" : ""}`
+                          : undefined
                     }
                     className={cn(
                       "flex min-h-[72px] flex-col rounded-md p-1.5",
-                      h
-                        ? h.isOptional
-                          ? "bg-amber-100 text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200"
-                          : "bg-blue-100 text-blue-900 ring-1 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-200"
-                        : weekend
-                          ? "bg-muted text-muted-foreground"
-                          : "border-border border",
+                      isBirthday
+                        ? "bg-rose-100 text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200"
+                        : h
+                          ? h.isOptional
+                            ? "bg-amber-100 text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200"
+                            : "bg-blue-100 text-blue-900 ring-1 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-200"
+                          : weekend
+                            ? "bg-muted text-muted-foreground"
+                            : "border-border border",
                     )}
                   >
                     <span className="flex items-center gap-1 text-xs font-semibold">
                       {day}
                       {approved && <Check className="h-3 w-3" />}
                     </span>
-                    {h && (
+                    {(isBirthday || h) && (
                       <span className="mt-auto line-clamp-2 text-[10px] leading-tight font-medium">
-                        {h.name}
+                        {isBirthday ? bdayLabel : h?.name}
                       </span>
                     )}
                   </div>
@@ -291,6 +311,10 @@ export default function EmployeeHolidayCalendarPage() {
               <span className="flex items-center gap-1.5">
                 <span className="h-3 w-3 rounded-sm bg-amber-100 dark:bg-amber-950/40" />
                 <span className="text-muted-foreground">Floating holiday</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded-sm bg-rose-100 dark:bg-rose-950/40" />
+                <span className="text-muted-foreground">Birthday</span>
               </span>
               <span className="flex items-center gap-1.5">
                 <Check className="h-3 w-3" />

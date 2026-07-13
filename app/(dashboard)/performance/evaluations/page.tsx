@@ -188,24 +188,24 @@ export default function EvaluationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <PageHeader
-          title="Performance Evaluations"
-          description={
-            canReview
-              ? "Create and track 15-day self + manager scorecards."
-              : "Your performance evaluations to complete and review."
-          }
-        />
-        <div className="flex items-center gap-2">
-          {canReview && (
-            <Button asChild variant="outline" size="sm">
-              <Link href="/performance/kpi-profiles">KPI Profiles</Link>
-            </Button>
-          )}
-          {canReview && <NewEvaluationDialog />}
-        </div>
-      </div>
+      <PageHeader
+        title="Performance Evaluations"
+        description={
+          canReview
+            ? "Create and track self + manager scorecards."
+            : "Your performance evaluations to complete and review."
+        }
+        actions={
+          canReview ? (
+            <div className="flex items-center gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href="/performance/kpi-profiles">KPI Profiles</Link>
+              </Button>
+              <NewEvaluationDialog />
+            </div>
+          ) : undefined
+        }
+      />
 
       {isLoading ? (
         <Card>

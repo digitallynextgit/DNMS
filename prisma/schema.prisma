@@ -868,7 +868,7 @@ model LeaveType {
   carryForward     Boolean       @default(false) @map("carry_forward")
   maxCarryDays     Int           @default(0) @map("max_carry_days")
   requiresApproval Boolean       @default(true) @map("requires_approval")
-  accrualMethod    AccrualMethod @default(MONTHLY) @map("accrual_method")
+  accrualMethod    AccrualMethod @default(UPFRONT) @map("accrual_method")
   isActive         Boolean       @default(true) @map("is_active")
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")

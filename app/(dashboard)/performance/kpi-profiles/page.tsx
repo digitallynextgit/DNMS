@@ -8,7 +8,6 @@ import {
   Trash2,
   Save,
   Sparkles,
-  Info,
   Search,
   ArrowLeft,
   ChevronRight,
@@ -22,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import {
@@ -123,20 +123,13 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
-          <Info className="h-3.5 w-3.5" />
-          Weights auto-split equally: Section A = {SECTION_A_WEIGHT}% across its KPIs, Section B ={" "}
-          {SECTION_B_WEIGHT}% across its parameters.
-        </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={loadDefaults}>
-            <Sparkles className="h-4 w-4" /> Load sheet defaults
-          </Button>
-          <Button size="sm" className="gap-1.5" onClick={handleSave} disabled={save.isPending}>
-            <Save className="h-4 w-4" /> {save.isPending ? "Saving…" : "Save profile"}
-          </Button>
-        </div>
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={loadDefaults}>
+          <Sparkles className="h-4 w-4" /> Load sheet defaults
+        </Button>
+        <Button size="sm" className="gap-1.5" onClick={handleSave} disabled={save.isPending}>
+          <Save className="h-4 w-4" /> {save.isPending ? "Saving…" : "Save profile"}
+        </Button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -230,6 +223,7 @@ function StatusBadge({ configured }: { configured: boolean }) {
 function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void }) {
   const { data, isLoading } = usePerfKpiProfiles()
   const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
 
   const rows = data?.data ?? []
   const q = search.trim().toLowerCase()
@@ -240,24 +234,77 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
           .includes(q),
       )
     : rows
-  const configuredCount = rows.filter((r) => r.configured).length
+
+  const PAGE_SIZE = 10
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
+  const columns: DataTableColumn<PerfKpiProfileRow>[] = [
+    {
+      header: "Employee",
+      cell: (r) => (
+        <div className="flex items-center gap-2.5">
+          <AvatarDisplay
+            src={r.profilePhoto}
+            firstName={r.firstName ?? ""}
+            lastName={r.lastName ?? ""}
+            size="sm"
+          />
+          <div className="min-w-0">
+            <p className="truncate font-medium">
+              {r.firstName} {r.lastName}
+            </p>
+            <p className="text-muted-foreground truncate text-xs">
+              {r.employeeNo}
+              {r.designation ? ` · ${r.designation}` : ""}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: "Department",
+      cell: (r) => <span className="text-muted-foreground">{r.department ?? "-"}</span>,
+    },
+    {
+      header: "Manager KPIs",
+      align: "center",
+      className: "tabular-nums",
+      cell: (r) => r.managerCount || <span className="text-muted-foreground">-</span>,
+    },
+    {
+      header: "Self KPIs",
+      align: "center",
+      className: "tabular-nums",
+      cell: (r) => r.selfCount || <span className="text-muted-foreground">-</span>,
+    },
+    { header: "Status", cell: (r) => <StatusBadge configured={r.configured} /> },
+    {
+      header: "",
+      align: "right",
+      cell: (r) => (
+        <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+          {r.configured ? "Edit" : "Set up"}
+          <ChevronRight className="h-4 w-4" />
+        </span>
+      ),
+    },
+  ]
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-muted-foreground text-sm">
-          <span className="text-foreground font-semibold">{configuredCount}</span> of {rows.length}{" "}
-          configured · the rest use the standard sheet defaults until set.
-        </p>
-        <div className="relative max-w-xs flex-1">
-          <Search className="text-muted-foreground absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
-          <Input
-            placeholder="Search employee…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-9 pl-8"
-          />
-        </div>
+      <div className="relative max-w-xs">
+        <Search className="text-muted-foreground absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
+        <Input
+          placeholder="Search employee…"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setPage(1)
+          }}
+          className="h-9 pl-8"
+        />
       </div>
 
       {isLoading ? (
@@ -265,67 +312,22 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
       ) : filtered.length === 0 ? (
         <EmptyState variant="card" title="No employees found." />
       ) : (
-        <Card>
-          <CardContent className="overflow-x-auto p-0">
-            <table className="w-full min-w-[680px] text-sm">
-              <thead className="bg-muted/40 border-b">
-                <tr className="text-muted-foreground text-left text-xs">
-                  <th className="px-4 py-2.5 font-medium">Employee</th>
-                  <th className="px-3 py-2.5 font-medium">Department</th>
-                  <th className="px-3 py-2.5 text-center font-medium">Manager KPIs</th>
-                  <th className="px-3 py-2.5 text-center font-medium">Self KPIs</th>
-                  <th className="px-3 py-2.5 font-medium">Status</th>
-                  <th className="px-4 py-2.5"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filtered.map((r) => (
-                  <tr
-                    key={r.id}
-                    onClick={() => onSelect(r)}
-                    className="hover:bg-muted/30 cursor-pointer transition-colors"
-                  >
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <AvatarDisplay
-                          src={r.profilePhoto}
-                          firstName={r.firstName ?? ""}
-                          lastName={r.lastName ?? ""}
-                          size="sm"
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">
-                            {r.firstName} {r.lastName}
-                          </p>
-                          <p className="text-muted-foreground truncate text-xs">
-                            {r.employeeNo}
-                            {r.designation ? ` · ${r.designation}` : ""}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2.5">{r.department ?? "-"}</td>
-                    <td className="px-3 py-2.5 text-center tabular-nums">
-                      {r.managerCount || <span className="text-muted-foreground">-</span>}
-                    </td>
-                    <td className="px-3 py-2.5 text-center tabular-nums">
-                      {r.selfCount || <span className="text-muted-foreground">-</span>}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <StatusBadge configured={r.configured} />
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
-                        {r.configured ? "Edit" : "Set up"}
-                        <ChevronRight className="h-4 w-4" />
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+        <DataTable
+          columns={columns}
+          rows={paged}
+          rowKey={(r) => r.id}
+          onRowClick={onSelect}
+          showSerial
+          serialOffset={(currentPage - 1) * PAGE_SIZE}
+          minWidth="min-w-[680px]"
+          pagination={{
+            page: currentPage,
+            totalPages,
+            total: filtered.length,
+            onPageChange: setPage,
+            itemLabel: "employee",
+          }}
+        />
       )}
     </div>
   )
