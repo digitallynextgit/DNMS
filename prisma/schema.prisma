@@ -474,6 +474,7 @@ model Employee {
   createdTasks       ProjectTask[]   @relation("TaskCreator")
   timesheets         Timesheet[]
   ownedProjects      Project[]       @relation("ProjectOwner")
+  brandAssets        BrandAsset[]    @relation("BrandAssetUploader")
 
   // Performance
   perfKpis             PerfKpi[]    @relation("EmployeePerfKpis")
@@ -1037,6 +1038,10 @@ model Project {
   status         ProjectStatus @default(PLANNING) @map("status")
   priority       TaskPriority  @default(MEDIUM) @map("priority")
   ownerId        String        @map("owner_id")
+  // DEPRECATED: the phase feature was removed from the app; this column is kept
+  // only so the shared DB stays compatible with the currently-deployed build.
+  // Safe to drop once the phase-removal code is deployed everywhere.
+  currentPhaseId String?       @map("current_phase_id")
   startDate      DateTime?     @map("start_date") @db.Date // "Onboarding Date" in UI
   endDate        DateTime?     @map("end_date") @db.Date // deprecated - kept for back-compat
   budget         Float?        @map("budget")
@@ -1045,6 +1050,7 @@ model Project {
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
   owner           Employee               @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  currentPhase    ProjectPhase?          @relation(fields: [currentPhaseId], references: [id], onDelete: SetNull)
   members         ProjectMember[] // legacy - kept for migration safety
   teams           ProjectTeam[] // v2 - primary structure
   tasks           ProjectTask[]
@@ -1053,10 +1059,91 @@ model Project {
   activities      ProjectActivity[]
   messages        ProjectMessage[]
   passwordEntries ProjectPasswordEntry[]
+  brand           ProjectBrand?
+  brandAssets     BrandAsset[]
+  contentCalendar ContentCalendarEntry[]
 
   @@index([status])
   @@index([ownerId])
   @@map("projects")
+}
+
+// DEPRECATED (kept for deploy-compat, see Project.currentPhaseId).
+model ProjectPhase {
+  id           String   @id @default(uuid()) @map("id")
+  name         String   @map("name")
+  description  String?  @map("description")
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  parentId     String?  @map("parent_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  parent   ProjectPhase?  @relation("PhaseParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children ProjectPhase[] @relation("PhaseParent")
+  projects Project[]
+
+  @@map("project_phases")
+}
+
+// ─── Brand / Strategy workspace (per project) ─────────────────────────────────
+// Holds the brand strategy for a project: brief, digital objectives, the
+// manifestation plan (4 themes), overview doc, and brand guidelines. The JSON
+// columns store the semi-structured parts (see features/projects/brand.ts).
+model ProjectBrand {
+  id            String   @id @default(uuid()) @map("id")
+  projectId     String   @unique @map("project_id")
+  brief         String?  @map("brief") @db.Text // brand brief (from client)
+  overview      String?  @map("overview") @db.Text // brand overview / research doc
+  objectives    Json?    @map("objectives") // digital objective targets
+  manifestation Json?    @map("manifestation") // the 4 manifestation themes
+  guidelines    Json?    @map("guidelines") // colors, fonts, logos notes, ui/ux
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_brands")
+}
+
+// Uploaded brand files (brief document, logo images) stored in B2.
+model BrandAsset {
+  id           String   @id @default(uuid()) @map("id")
+  projectId    String   @map("project_id")
+  kind         String   @map("kind") // "BRIEF" | "LOGO"
+  fileName     String   @map("file_name")
+  fileSize     Int      @map("file_size")
+  mimeType     String   @map("mime_type")
+  objectKey    String   @unique @map("object_key") // B2 object key
+  uploadedById String?  @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy Employee? @relation("BrandAssetUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@map("brand_assets")
+}
+
+// A single scheduled content-calendar post for a project.
+model ContentCalendarEntry {
+  id        String    @id @default(uuid()) @map("id")
+  projectId String    @map("project_id")
+  date      DateTime? @map("date") @db.Date
+  platform  String?   @map("platform") // Meta, Instagram, LinkedIn, YouTube …
+  theme     String?   @map("theme") // occasion / topic
+  format    String?   @map("format") // Reel, Static, Carousel, Poll, Video …
+  hook      String?   @map("hook") @db.Text
+  content   String?   @map("content") @db.Text
+  status    String    @default("PLANNED") @map("status") // PLANNED | IN_PROGRESS | READY | POSTED
+  link      String?   @map("link")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, date])
+  @@map("content_calendar_entries")
 }
 
 // ─── V2: Project Teams ────────────────────────────────────────────────────────

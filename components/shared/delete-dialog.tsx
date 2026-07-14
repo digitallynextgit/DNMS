@@ -92,7 +92,7 @@ export function DeleteDialog({
               <span className="text-muted-foreground mt-0.5 block text-xs">
                 {permanent
                   ? "The record and its related data will be removed for good."
-                  : "Leave unticked to just deactivate — hidden from use but recoverable."}
+                  : "Leave unticked to just deactivate - hidden from use but recoverable."}
               </span>
             </span>
           </label>

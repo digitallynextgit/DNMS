@@ -78,15 +78,7 @@ export const POST = withAuth(
   async (req: NextRequest, _ctx: unknown, session: Session) => {
     try {
       const body = await req.json()
-      const {
-        name,
-        description,
-        status,
-        priority,
-        startDate,
-        budget,
-        accountManagerId,
-      } = body
+      const { name, description, status, priority, startDate, budget, accountManagerId } = body
 
       // Validate Account Manager (formerly "owner") - falls back to creator if not supplied
       const ownerId: string = accountManagerId || session.user.id

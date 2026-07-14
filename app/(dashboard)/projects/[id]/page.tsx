@@ -32,7 +32,9 @@ import {
   Activity,
   MessageSquare,
   KeyRound,
+  Sparkles,
 } from "lucide-react"
+import { BrandTab } from "@/features/projects"
 import { TeamsTab } from "@/features/projects"
 import { TasksTab } from "@/features/projects"
 import { ResourcesTab } from "@/features/projects"
@@ -132,6 +134,10 @@ export default function ProjectDetailPage() {
               <Layers className="h-3.5 w-3.5" />
               Overview
             </TabsTrigger>
+            <TabsTrigger value="brand" className="gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              Brand
+            </TabsTrigger>
             <TabsTrigger value="teams" className="gap-1.5">
               <Users className="h-3.5 w-3.5" />
               Teams
@@ -215,6 +221,10 @@ export default function ProjectDetailPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="brand">
+          <BrandTab projectId={projectId} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="teams" className="mt-4">
