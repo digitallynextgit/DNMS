@@ -11,17 +11,49 @@ import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC, toDateOnly } from "@/lib/dates"
 import { renderDecisionEmail } from "@/lib/email-layout"
+import { isOnProbation, getProbationEndDate } from "@/features/employees/probation"
 
 type Tier = 1 | 2 | 3
 
-function getEmployeeTier(probationEndDate: Date | null, confirmationDate: Date | null): Tier {
-  const now = new Date()
-  const probationEnd = probationEndDate ?? confirmationDate
-  if (!probationEnd || now < new Date(probationEnd)) return 1
-  const sixMonthsAfter = new Date(probationEnd)
-  sixMonthsAfter.setMonth(sixMonthsAfter.getMonth() + 6)
-  if (now < sixMonthsAfter) return 2
-  return 3
+/**
+ * Fields needed to place an employee in a WFH tier. Probation is decided by the SAME
+ * rule the rest of the app uses (features/employees/probation.ts) - the `onProbation`
+ * toggle plus dateOfJoining + probationMonths.
+ *
+ * This used to be derived from `probationEndDate ?? confirmationDate` alone, so an
+ * employee with neither column set (which is nearly everyone - those fields are only
+ * populated on early confirmation) fell into `!probationEnd` and was declared TIER 1
+ * "On Probation". 9 of 16 active employees were being shown the probation banner and
+ * blocked from ordinary WFH despite having `onProbation: false`.
+ */
+interface TierInput {
+  onProbation?: boolean | null
+  probationMonths?: number | null
+  dateOfJoining?: Date | null
+  confirmationDate?: Date | null
+}
+
+/** When probation ended (or is scheduled to end): the early-confirmation date if HR
+ *  recorded one, else joiningDate + probationMonths. Null when there is no joining date. */
+function probationCompletionDate(emp: TierInput): Date | null {
+  if (emp.confirmationDate) return new Date(emp.confirmationDate)
+  return getProbationEndDate(emp)
+}
+
+function addMonths(d: Date, n: number): Date {
+  const out = new Date(d)
+  out.setMonth(out.getMonth() + n)
+  return out
+}
+
+function getEmployeeTier(emp: TierInput, now: Date = new Date()): Tier {
+  // TIER 1 = genuinely on probation, per the shared rule.
+  if (isOnProbation(emp, now)) return 1
+  const completed = probationCompletionDate(emp)
+  // No joining date at all -> we cannot place them in a window; treat as fully
+  // eligible rather than falsely branding them "On Probation".
+  if (!completed) return 3
+  return now < addMonths(completed, 6) ? 2 : 3
 }
 
 const WFH_INCLUDE = {
@@ -39,36 +71,32 @@ export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
     const session = await requireSession()
     const employee = await db.employee.findUnique({
       where: { id: session.user.id },
-      select: { probationEndDate: true, confirmationDate: true, dateOfJoining: true },
+      select: {
+        onProbation: true,
+        probationMonths: true,
+        dateOfJoining: true,
+        confirmationDate: true,
+      },
     })
 
     const now = new Date()
-    const probationEnd = employee?.probationEndDate ?? employee?.confirmationDate ?? null
+    const emp: TierInput = employee ?? {}
+    const completed = probationCompletionDate(emp)
+    const tier = getEmployeeTier(emp, now)
 
-    let tier: Tier = 1
     let eligibleFromDate: string | null = null
     let label = ""
 
-    if (!probationEnd || now < new Date(probationEnd)) {
-      tier = 1
+    if (tier === 1) {
       label = "On Probation - WFH allowed only in emergencies (Manager + HR approval required)"
-      if (probationEnd) {
-        const sixMonthsAfter = new Date(probationEnd)
-        sixMonthsAfter.setMonth(sixMonthsAfter.getMonth() + 6)
-        eligibleFromDate = toDateOnly(sixMonthsAfter)
-      }
+      // Ordinary WFH unlocks 6 months AFTER probation completes.
+      if (completed) eligibleFromDate = toDateOnly(addMonths(completed, 6))
+    } else if (tier === 2) {
+      label =
+        "Within 6 months of probation completion - WFH allowed only in emergencies (Manager + HR approval required)"
+      if (completed) eligibleFromDate = toDateOnly(addMonths(completed, 6))
     } else {
-      const sixMonthsAfter = new Date(probationEnd)
-      sixMonthsAfter.setMonth(sixMonthsAfter.getMonth() + 6)
-      if (now < sixMonthsAfter) {
-        tier = 2
-        label =
-          "Within 6 months of probation completion - WFH allowed only in emergencies (Manager + HR approval required)"
-        eligibleFromDate = toDateOnly(sixMonthsAfter)
-      } else {
-        tier = 3
-        label = "Eligible for 1 WFH day per month"
-      }
+      label = "Eligible for 1 WFH day per month"
     }
 
     let usedThisMonth = 0
@@ -92,7 +120,7 @@ export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
       usedThisMonth,
       canApplyEmergencyOnly: tier !== 3,
       joiningDate: employee?.dateOfJoining ? toDateOnly(employee.dateOfJoining) : null,
-      probationEnd: probationEnd ? toDateOnly(probationEnd) : null,
+      probationEnd: completed ? toDateOnly(completed) : null,
     })
   })
 }
@@ -175,14 +203,19 @@ export async function applyWfh(body: {
     const holiday = await db.holiday.findFirst({ where: { date: wfhDate, isOptional: false } })
     if (holiday) return fail(`${wfhDate.toDateString()} is a holiday (${holiday.name})`)
 
+    // Same tier rule as getWfhEligibility - the banner the employee is shown and the
+    // rule enforced here MUST come from one place, or the UI says "you may apply" and
+    // the server refuses (or vice-versa).
     const employee = await db.employee.findUnique({
       where: { id: session.user.id },
-      select: { probationEndDate: true, confirmationDate: true },
+      select: {
+        onProbation: true,
+        probationMonths: true,
+        dateOfJoining: true,
+        confirmationDate: true,
+      },
     })
-    const tier = getEmployeeTier(
-      employee?.probationEndDate ?? null,
-      employee?.confirmationDate ?? null,
-    )
+    const tier = getEmployeeTier(employee ?? {})
 
     if ((tier === 1 || tier === 2) && !isEmergency) {
       const tierMsg =

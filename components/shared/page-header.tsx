@@ -42,6 +42,9 @@ interface PageHeaderProps {
   className?: string
 }
 
+const TITLE_CLASS = "text-foreground truncate text-lg font-semibold tracking-tight"
+const DESC_CLASS = "text-muted-foreground truncate text-sm"
+
 export function PageHeader({
   title,
   description,
@@ -72,13 +75,26 @@ export function PageHeader({
         <div className="flex min-w-0 items-center gap-3">
           {leading}
           <div className="min-w-0 space-y-0.5">
+            {/* `title` and `description` are ReactNode so a page can pass a <Skeleton>
+                (or a row of icons) while its data loads. But <h1> and <p> only accept
+                PHRASING content, and <Skeleton> is a <div> - `<div>` inside `<p>` is
+                invalid HTML, which makes React discard the server markup and re-render
+                (a hydration error). So the semantic <h1>/<p> is used for the normal
+                string case, and a neutral wrapper for arbitrary nodes. */}
             <div className="flex items-center gap-2">
-              <h1 className="text-foreground truncate text-lg font-semibold tracking-tight">
-                {title}
-              </h1>
+              {typeof title === "string" ? (
+                <h1 className={TITLE_CLASS}>{title}</h1>
+              ) : (
+                <div className={TITLE_CLASS}>{title}</div>
+              )}
               {titleSuffix}
             </div>
-            {description && <p className="text-muted-foreground truncate text-sm">{description}</p>}
+            {description &&
+              (typeof description === "string" ? (
+                <p className={DESC_CLASS}>{description}</p>
+              ) : (
+                <div className={DESC_CLASS}>{description}</div>
+              ))}
           </div>
         </div>
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
