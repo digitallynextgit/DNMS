@@ -49,10 +49,10 @@ export function AttendanceTable({
 }: AttendanceTableProps) {
   if (isLoading) {
     return (
-      <div className="bg-card rounded border">
+      <div className="bg-card rounded-lg border">
         <div className="space-y-2 p-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 rounded" />
+            <Skeleton key={i} className="h-12 rounded-lg" />
           ))}
         </div>
       </div>
@@ -137,8 +137,7 @@ export function AttendanceTable({
               log.isManual && onEdit ? (
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
+                  size="icon-sm"
                   onClick={() => onEdit(log)}
                   title="Edit attendance record"
                 >

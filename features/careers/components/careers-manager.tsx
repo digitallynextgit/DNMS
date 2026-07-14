@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react"
+import { MoreVertical, Pencil, Plus, Trash2 } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -102,7 +103,7 @@ function CareerTile({
         }
       }}
       className={cn(
-        "bg-card hover:border-primary/40 focus-visible:ring-ring relative flex min-h-[190px] cursor-pointer flex-col rounded border p-6 shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2",
+        "bg-card hover:border-primary/40 focus-visible:ring-ring relative flex min-h-[190px] cursor-pointer flex-col rounded-lg border p-6 shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2",
         !live && "opacity-95",
       )}
     >
@@ -118,7 +119,7 @@ function CareerTile({
       <div className="mt-auto flex items-end justify-between gap-2 pt-6">
         <div className="min-w-0">
           {!live && (
-            <span className="bg-muted text-muted-foreground mb-1.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium">
+            <span className="bg-muted text-muted-foreground mb-1.5 inline-block rounded-lg px-1.5 py-0.5 text-[10px] font-medium">
               Draft - hidden from site
             </span>
           )}
@@ -174,7 +175,7 @@ function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Actions">
+        <Button variant="ghost" size="icon-sm" aria-label="Actions">
           <MoreVertical className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -509,7 +510,7 @@ function RoleDialog({
       </div>
 
       {isEdit && (
-        <div className="rounded border p-3">
+        <div className="rounded-lg border p-3">
           <Label className="mb-2 block">Current openings</Label>
           <div className="space-y-1.5">
             {(role.openings ?? []).map((op) => (
@@ -518,8 +519,8 @@ function RoleDialog({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
+                  size="icon-sm"
+                  className="shrink-0"
                   onClick={() => removeOpening.mutate(op.id)}
                   disabled={removeOpening.isPending}
                 >
@@ -575,7 +576,7 @@ function RoleItem({ role, subId }: { role: AdminCareerRole; subId: string }) {
   const update = useUpdateRole()
   const openings = role.openings ?? []
   return (
-    <div className="bg-card flex flex-col rounded border p-3 shadow-sm transition-shadow hover:shadow-md">
+    <div className="bg-card flex flex-col rounded-lg border p-3 shadow-sm transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between gap-2">
         <button
           type="button"
@@ -594,7 +595,7 @@ function RoleItem({ role, subId }: { role: AdminCareerRole; subId: string }) {
           {openings.map((op) => (
             <span
               key={op.id}
-              className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[11px]"
+              className="bg-muted text-muted-foreground rounded-lg px-1.5 py-0.5 text-[11px]"
             >
               {op.label}
             </span>
@@ -821,7 +822,7 @@ export function CareersManager() {
   if (isLoading) {
     return (
       <div className="flex h-40 items-center justify-center">
-        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+        <Spinner size="lg" className="text-muted-foreground" />
       </div>
     )
   }

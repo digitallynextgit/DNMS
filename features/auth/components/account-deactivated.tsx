@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { signOut } from "next-auth/react"
-import { Loader2 } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 
 /**
  * Rendered by the dashboard layout when the signed-in employee's account is no
@@ -18,7 +18,7 @@ export function AccountDeactivated() {
 
   return (
     <div className="bg-background flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">
-      <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+      <Spinner size="lg" className="text-muted-foreground" />
       <p className="text-sm font-medium">Your account has been deactivated.</p>
       <p className="text-muted-foreground text-xs">Signing you out…</p>
     </div>

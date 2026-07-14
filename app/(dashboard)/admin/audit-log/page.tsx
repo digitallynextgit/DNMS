@@ -25,18 +25,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Pagination } from "@/components/shared/pagination"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
 import { TableSkeleton } from "@/components/shared/loading-skeleton"
+import { PageHeader } from "@/components/shared/page-header"
 import { MODULES } from "@/lib/constants"
 
 // ---------------------------------------------------------------------------
@@ -150,27 +143,82 @@ export default function AuditLogPage() {
   }
 
   // -----------------------------------------------------------------------
+  // Columns
+  // -----------------------------------------------------------------------
+  const columns: DataTableColumn<AuditEntry>[] = [
+    {
+      header: "Timestamp",
+      className: "text-muted-foreground text-sm whitespace-nowrap",
+      cell: (entry) => format(new Date(entry.createdAt), "dd/MM/yyyy HH:mm:ss"),
+    },
+    {
+      header: "Actor",
+      cell: (entry) =>
+        entry.actor ? (
+          <div>
+            <p className="text-foreground text-sm font-medium">
+              {entry.actor.firstName} {entry.actor.lastName}
+            </p>
+            <p className="text-muted-foreground font-mono text-xs">{entry.actor.employeeNo}</p>
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-sm italic">System</span>
+        ),
+    },
+    {
+      header: "Action",
+      cell: (entry) => <Badge variant={actionBadgeVariant(entry.action)}>{entry.action}</Badge>,
+    },
+    {
+      header: "Module",
+      cell: (entry) => (
+        <span className="text-muted-foreground bg-muted rounded-lg px-2 py-0.5 text-xs font-medium">
+          {entry.module}
+        </span>
+      ),
+    },
+    {
+      header: "Entity",
+      className: "text-muted-foreground text-sm",
+      cell: (entry) =>
+        entry.entityType ? (
+          <span>
+            {entry.entityType}
+            {entry.entityId && (
+              <span className="text-muted-foreground ml-1 font-mono text-xs">
+                {entry.entityId.slice(0, 8)}…
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        ),
+    },
+    {
+      header: "IP Address",
+      className: "text-muted-foreground font-mono text-sm",
+      cell: (entry) => entry.ipAddress ?? <span className="text-muted-foreground">-</span>,
+    },
+  ]
+
+  // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-foreground text-2xl font-semibold">Audit Log</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Track all actions performed in the system
-          </p>
-        </div>
-
-        <Button variant="outline" size="sm" onClick={fetchEntries}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
-      </div>
+      <PageHeader
+        title="Audit Log"
+        description="Track all actions performed in the system"
+        actions={
+          <Button variant="outline" size="sm" onClick={fetchEntries}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+        }
+      />
 
       {/* Filters row */}
-      <div className="bg-card border-border flex flex-wrap gap-3 rounded border p-4">
+      <div className="bg-card border-border flex flex-wrap gap-3 rounded-lg border p-4">
         {/* Module filter */}
         <Select value={moduleFilter || ALL_MODULES_VALUE} onValueChange={handleModuleChange}>
           <SelectTrigger className="w-40">
@@ -239,95 +287,28 @@ export default function AuditLogPage() {
       )}
 
       {/* Table */}
-      <div className="border-border bg-card overflow-hidden rounded border">
-        {loading ? (
+      {loading ? (
+        <div className="border-border bg-card overflow-hidden rounded-lg border">
           <TableSkeleton rows={6} cols={6} />
-        ) : entries.length === 0 ? (
-          <EmptyState title="No audit log entries found." compact />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40">
-                <TableHead>Timestamp</TableHead>
-                <TableHead>Actor</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Module</TableHead>
-                <TableHead>Entity</TableHead>
-                <TableHead>IP Address</TableHead>
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {entries.map((entry) => (
-                <TableRow key={entry.id}>
-                  {/* Timestamp */}
-                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                    {format(new Date(entry.createdAt), "dd/MM/yyyy HH:mm:ss")}
-                  </TableCell>
-
-                  {/* Actor */}
-                  <TableCell>
-                    {entry.actor ? (
-                      <div>
-                        <p className="text-foreground text-sm font-medium">
-                          {entry.actor.firstName} {entry.actor.lastName}
-                        </p>
-                        <p className="text-muted-foreground font-mono text-xs">
-                          {entry.actor.employeeNo}
-                        </p>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground text-sm italic">System</span>
-                    )}
-                  </TableCell>
-
-                  {/* Action */}
-                  <TableCell>
-                    <Badge variant={actionBadgeVariant(entry.action)}>{entry.action}</Badge>
-                  </TableCell>
-
-                  {/* Module */}
-                  <TableCell>
-                    <span className="text-muted-foreground bg-muted rounded px-2 py-0.5 text-xs font-medium">
-                      {entry.module}
-                    </span>
-                  </TableCell>
-
-                  {/* Entity */}
-                  <TableCell className="text-muted-foreground text-sm">
-                    {entry.entityType ? (
-                      <span>
-                        {entry.entityType}
-                        {entry.entityId && (
-                          <span className="text-muted-foreground ml-1 font-mono text-xs">
-                            {entry.entityId.slice(0, 8)}…
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-
-                  {/* IP Address */}
-                  <TableCell className="text-muted-foreground font-mono text-sm">
-                    {entry.ipAddress ?? <span className="text-muted-foreground">-</span>}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
-
-      {/* Pagination */}
-      <Pagination
-        page={pagination.page}
-        totalPages={pagination.totalPages}
-        total={pagination.total}
-        onPageChange={setPage}
-        itemLabel="record"
-      />
+        </div>
+      ) : entries.length === 0 ? (
+        <EmptyState variant="card" title="No audit log entries found." />
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={entries}
+          rowKey={(entry) => entry.id}
+          showSerial
+          serialOffset={(pagination.page - 1) * pagination.limit}
+          pagination={{
+            page: pagination.page,
+            totalPages: pagination.totalPages,
+            total: pagination.total,
+            onPageChange: setPage,
+            itemLabel: "record",
+          }}
+        />
+      )}
     </div>
   )
 }

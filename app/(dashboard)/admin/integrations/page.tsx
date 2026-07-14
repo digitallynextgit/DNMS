@@ -1,6 +1,6 @@
 "use client"
 
-import { Loader2 } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 import { PageHeader } from "@/components/shared/page-header"
 import { IntegrationsForm, useSettings } from "@/features/settings"
 
@@ -15,7 +15,7 @@ export default function IntegrationsPage() {
       />
       {isLoading || !data ? (
         <div className="flex items-center justify-center py-24">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="xl" className="text-muted-foreground" />
         </div>
       ) : (
         <IntegrationsForm settings={data} />

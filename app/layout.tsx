@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import NextTopLoader from "nextjs-toploader"
 import "./globals.css"
 import { Providers } from "@/components/providers/providers"
+import { auth } from "@/server/auth"
 
 // Self-hosted via next/font (no render-blocking Google Fonts request, no FOUT,
 // no layout shift). Exposed as a CSS variable consumed by globals.css.
@@ -21,7 +22,8 @@ export const metadata: Metadata = {
   description: "Modern DNMS for managing your workforce",
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth()
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -33,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="antialiased">
         {/* Navigation progress bar (perceived speed on route changes). */}
         <NextTopLoader color="#ef4444" height={3} showSpinner={false} shadow="0 0 8px #ef4444" />
-        <Providers>{children}</Providers>
+        <Providers session={session}>{children}</Providers>
       </body>
     </html>
   )

@@ -3,7 +3,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
-import { sendEmail } from "@/lib/mailer"
+import { addEmailJob } from "@/lib/queue"
 import { createNotification } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
 import { requireSession, requirePermission } from "@/server/action-guard"
@@ -176,7 +176,7 @@ async function notifyApprovers(
         type: "info",
         link: "/leave/leave-directory",
       })
-      await sendEmail({
+      addEmailJob({
         to: r.email,
         subject: "Leave request awaiting your approval",
         html: `<p>Hi ${r.firstName},</p><p>A leave request needs your review:</p><p><strong>${detail}</strong></p><p>Please review it in DNMS.</p>`,
@@ -1101,7 +1101,7 @@ export async function updateLeaveRequest(
             detailLine,
             reason: !isApproved && rejectionReason ? rejectionReason : null,
           })
-          await sendEmail({
+          addEmailJob({
             to: emp.email,
             subject: email.subject,
             html: email.html,

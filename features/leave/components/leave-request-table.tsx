@@ -139,13 +139,17 @@ export function LeaveRequestTable({
             header: "Manager",
             cell: (request: LeaveRequest) =>
               request.managerDecision === "APPROVED" ? (
-                <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950/40 dark:text-green-300">
-                  Approved
-                </span>
+                <StatusBadge
+                  status="APPROVED"
+                  colorMap={LEAVE_STATUS_COLORS}
+                  labelMap={LEAVE_STATUS_LABELS}
+                />
               ) : request.managerDecision === "REJECTED" ? (
-                <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
-                  Rejected
-                </span>
+                <StatusBadge
+                  status="REJECTED"
+                  colorMap={LEAVE_STATUS_COLORS}
+                  labelMap={LEAVE_STATUS_LABELS}
+                />
               ) : (
                 <span className="text-muted-foreground/50 text-xs">-</span>
               ),
@@ -175,8 +179,8 @@ export function LeaveRequestTable({
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-destructive h-7 w-7"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-destructive"
                     disabled={cancelLeave.isPending}
                     onClick={() => cancelLeave.mutate(request.id)}
                   >
@@ -194,8 +198,8 @@ export function LeaveRequestTable({
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground h-7 w-7 hover:text-green-600"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-green-600"
                       disabled={approveLeave.isPending}
                       onClick={() => approveLeave.mutate(request.id)}
                     >
@@ -209,8 +213,8 @@ export function LeaveRequestTable({
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive h-7 w-7"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-destructive"
                       onClick={() => openRejectDialog(request.id)}
                     >
                       <X className="h-3.5 w-3.5" />

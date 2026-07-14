@@ -291,6 +291,9 @@ model AuditLog {
   @@index([actorId])
   @@index([module])
   @@index([createdAt])
+  // Composite: filter by module/actor AND sort by createdAt in one index scan.
+  @@index([module, createdAt])
+  @@index([actorId, createdAt])
   @@map("audit_logs")
 }
 
@@ -510,6 +513,10 @@ model Employee {
   projectMessages        ProjectMessage[]       @relation("MessageAuthor")
   createdPasswords       ProjectPasswordEntry[] @relation("PasswordCreator")
 
+  // Employee had NO indexes at all. These serve the manager/team queues and the
+  // status filters used by the directory, dashboard and accrual jobs.
+  @@index([managerId])
+  @@index([status, isActive])
   @@map("employees")
 }
 
@@ -645,6 +652,9 @@ model Notification {
 
   @@index([employeeId, isRead])
   @@index([createdAt])
+  // Serves the inbox: where employeeId + orderBy createdAt desc. The
+  // ([employeeId, isRead]) index above cannot satisfy that sort.
+  @@index([employeeId, createdAt])
   @@map("notifications")
 }
 

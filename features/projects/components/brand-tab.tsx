@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { Spinner } from "@/components/shared/spinner"
 import {
   Save,
   Plus,
@@ -15,7 +16,6 @@ import {
   ClipboardList,
   CalendarDays,
   Pencil,
-  Loader2,
   ImageIcon,
   FileDown,
 } from "lucide-react"
@@ -131,7 +131,7 @@ function SectionCard({
     <Card className={cn("overflow-hidden transition-shadow", dirty && "ring-primary/30 ring-1")}>
       <CardHeader className="bg-muted/30 flex flex-row items-start justify-between gap-3 space-y-0 border-b py-3">
         <div className="flex min-w-0 items-start gap-3">
-          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded", tint)}>
+          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", tint)}>
             <Icon className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -158,11 +158,7 @@ function SectionCard({
               disabled={!dirty || saving}
               onClick={onSave}
             >
-              {saving ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Save className="h-3.5 w-3.5" />
-              )}
+              {saving ? <Spinner size="sm" /> : <Save className="h-3.5 w-3.5" />}
               Save
             </Button>
           </div>
@@ -222,6 +218,98 @@ function StrategySection({ projectId, canManage }: Props) {
 
   if (isLoading) return <ListSkeleton rows={4} height="h-32" />
 
+  const objectiveColumns: DataTableColumn<DigitalObjective>[] = [
+    {
+      header: "Platform",
+      cell: (o) => (
+        <Select
+          value={o.platform || undefined}
+          onValueChange={(v) => updateObj(setObjectives, o.id, { platform: v })}
+          disabled={!canManage}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Platform" />
+          </SelectTrigger>
+          <SelectContent>
+            {PLATFORMS.map((p) => (
+              <SelectItem key={p} value={p}>
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ),
+    },
+    {
+      header: "Metric",
+      cell: (o) => (
+        <Input
+          className="h-9"
+          placeholder="e.g. Followers"
+          value={o.metric}
+          disabled={!canManage}
+          onChange={(e) => updateObj(setObjectives, o.id, { metric: e.target.value })}
+        />
+      ),
+    },
+    {
+      header: "Current",
+      headClassName: "w-24",
+      cell: (o) => (
+        <Input
+          className="h-9"
+          placeholder="0"
+          value={o.current}
+          disabled={!canManage}
+          onChange={(e) => updateObj(setObjectives, o.id, { current: e.target.value })}
+        />
+      ),
+    },
+    {
+      header: "Target",
+      headClassName: "w-24",
+      cell: (o) => (
+        <Input
+          className="h-9"
+          placeholder="0"
+          value={o.target}
+          disabled={!canManage}
+          onChange={(e) => updateObj(setObjectives, o.id, { target: e.target.value })}
+        />
+      ),
+    },
+    {
+      header: "Deadline",
+      headClassName: "w-40",
+      cell: (o) =>
+        canManage ? (
+          <DateField
+            value={o.deadline}
+            placeholder="Deadline"
+            onChange={(v) => updateObj(setObjectives, o.id, { deadline: v })}
+          />
+        ) : (
+          <span className="text-sm">{o.deadline || "-"}</span>
+        ),
+    },
+    {
+      header: "",
+      align: "right",
+      headClassName: "w-9",
+      cell: (o) =>
+        canManage ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => setObjectives((p) => p.filter((x) => x.id !== o.id))}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        ) : null,
+    },
+  ]
+
   return (
     <div className="space-y-4">
       {/* 1 · Brand Brief */}
@@ -267,100 +355,15 @@ function StrategySection({ projectId, canManage }: Props) {
         onSave={() => saveSection("objectives", { objectives })}
       >
         {objectives.length === 0 ? (
-          <p className="text-muted-foreground py-4 text-center text-sm">
-            No objectives yet - add your first target.
-          </p>
+          <EmptyState icon={Target} compact title="No objectives yet - add your first target." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px]">
-              <thead>
-                <tr className="text-muted-foreground text-left text-[11px] font-medium">
-                  <th className="pr-2 pb-2">Platform</th>
-                  <th className="pr-2 pb-2">Metric</th>
-                  <th className="w-24 pr-2 pb-2">Current</th>
-                  <th className="w-24 pr-2 pb-2">Target</th>
-                  <th className="w-40 pr-2 pb-2">Deadline</th>
-                  <th className="w-9 pb-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {objectives.map((o) => (
-                  <tr key={o.id}>
-                    <td className="py-1 pr-2">
-                      <Select
-                        value={o.platform || undefined}
-                        onValueChange={(v) => updateObj(setObjectives, o.id, { platform: v })}
-                        disabled={!canManage}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Platform" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PLATFORMS.map((p) => (
-                            <SelectItem key={p} value={p}>
-                              {p}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="py-1 pr-2">
-                      <Input
-                        className="h-9"
-                        placeholder="e.g. Followers"
-                        value={o.metric}
-                        disabled={!canManage}
-                        onChange={(e) => updateObj(setObjectives, o.id, { metric: e.target.value })}
-                      />
-                    </td>
-                    <td className="py-1 pr-2">
-                      <Input
-                        className="h-9"
-                        placeholder="0"
-                        value={o.current}
-                        disabled={!canManage}
-                        onChange={(e) =>
-                          updateObj(setObjectives, o.id, { current: e.target.value })
-                        }
-                      />
-                    </td>
-                    <td className="py-1 pr-2">
-                      <Input
-                        className="h-9"
-                        placeholder="0"
-                        value={o.target}
-                        disabled={!canManage}
-                        onChange={(e) => updateObj(setObjectives, o.id, { target: e.target.value })}
-                      />
-                    </td>
-                    <td className="py-1 pr-2">
-                      {canManage ? (
-                        <DateField
-                          value={o.deadline}
-                          placeholder="Deadline"
-                          onChange={(v) => updateObj(setObjectives, o.id, { deadline: v })}
-                        />
-                      ) : (
-                        <span className="text-sm">{o.deadline || "-"}</span>
-                      )}
-                    </td>
-                    <td className="py-1">
-                      {canManage && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive h-9 w-9"
-                          onClick={() => setObjectives((p) => p.filter((x) => x.id !== o.id))}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={objectiveColumns}
+            rows={objectives}
+            rowKey={(o) => o.id}
+            showSerial
+            minWidth="min-w-[680px]"
+          />
         )}
         {canManage && (
           <Button
@@ -393,7 +396,10 @@ function StrategySection({ projectId, canManage }: Props) {
       >
         <div className="grid gap-3 lg:grid-cols-2">
           {MANIFESTATION_THEMES.map((t) => (
-            <div key={t.key} className={cn("rounded border border-l-4 p-3", THEME_ACCENT[t.key])}>
+            <div
+              key={t.key}
+              className={cn("rounded-lg border border-l-4 p-3", THEME_ACCENT[t.key])}
+            >
               <p className="text-sm font-semibold">{t.title}</p>
               <p className="text-muted-foreground mb-2.5 text-xs">{t.hint}</p>
               <div className="space-y-2">
@@ -481,14 +487,14 @@ function StrategySection({ projectId, canManage }: Props) {
               {guidelines.colors.map((c, i) => (
                 <div
                   key={i}
-                  className="bg-muted/30 group flex items-center gap-2 rounded border px-2 py-1.5"
+                  className="bg-muted/30 group flex items-center gap-2 rounded-lg border px-2 py-1.5"
                 >
                   <input
                     type="color"
                     value={/^#[0-9a-f]{6}$/i.test(c.hex) ? c.hex : "#000000"}
                     disabled={!canManage}
                     onChange={(e) => updateColor(setGuidelines, i, { hex: e.target.value })}
-                    className="h-7 w-7 cursor-pointer rounded border-0 bg-transparent p-0"
+                    className="h-7 w-7 cursor-pointer rounded-lg border-0 bg-transparent p-0"
                   />
                   <div className="flex flex-col">
                     <Input
@@ -624,7 +630,7 @@ function AssetRow({
         {files.map((f) => (
           <span
             key={f.id}
-            className="bg-muted/40 group flex items-center gap-2 rounded border px-2.5 py-1.5 text-xs"
+            className="bg-muted/40 group flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
           >
             <Icon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
             <a
@@ -669,11 +675,7 @@ function AssetRow({
               disabled={uploading}
               onClick={() => inputRef.current?.click()}
             >
-              {uploading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Upload className="h-3.5 w-3.5" />
-              )}
+              {uploading ? <Spinner size="sm" /> : <Upload className="h-3.5 w-3.5" />}
               Upload file
             </Button>
           </>
@@ -744,7 +746,9 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
       header: "Platform",
       cell: (r) =>
         r.platform ? (
-          <span className="bg-muted rounded px-1.5 py-0.5 text-xs font-medium">{r.platform}</span>
+          <span className="bg-muted rounded-lg px-1.5 py-0.5 text-xs font-medium">
+            {r.platform}
+          </span>
         ) : (
           "-"
         ),
@@ -774,13 +778,13 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
       cell: (r) =>
         canManage ? (
           <div className="flex items-center justify-end gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(r)}>
+            <Button variant="ghost" size="icon-sm" onClick={() => setEditing(r)}>
               <Pencil className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-destructive h-7 w-7"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-destructive"
               onClick={() => setDeleteTarget(r)}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -797,7 +801,7 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
           <div className="space-y-1">
             <Label className="text-muted-foreground text-[11px]">Month</Label>
             <Select value={monthNum} onValueChange={setMonthNum}>
-              <SelectTrigger className="h-9 w-36">
+              <SelectTrigger className="w-36">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -814,7 +818,7 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
             <div className="space-y-1">
               <Label className="text-muted-foreground text-[11px]">Year</Label>
               <Select value={year} onValueChange={setYear}>
-                <SelectTrigger className="h-9 w-28">
+                <SelectTrigger className="w-28">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -833,7 +837,7 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
               value={platform || "ALL"}
               onValueChange={(v) => setPlatform(v === "ALL" ? "" : v)}
             >
-              <SelectTrigger className="h-9 w-40">
+              <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -885,11 +889,7 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
               disabled={importXlsx.isPending}
               onClick={() => importRef.current?.click()}
             >
-              {importXlsx.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4" />
-              )}
+              {importXlsx.isPending ? <Spinner /> : <Upload className="h-4 w-4" />}
               Import xlsx
             </Button>
             <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreating(true)}>

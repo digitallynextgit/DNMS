@@ -47,7 +47,7 @@ export function ListSkeleton({
   return (
     <div className={cn("space-y-2", className)}>
       {Array.from({ length: rows }).map((_, i) => (
-        <Skeleton key={i} className={cn("bg-muted w-full animate-pulse rounded", height)} />
+        <Skeleton key={i} className={cn("bg-muted w-full animate-pulse rounded-lg", height)} />
       ))}
     </div>
   )
@@ -57,7 +57,7 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="border-border bg-card rounded-[var(--radius)] border p-5">
+        <div key={i} className="border-border bg-card rounded-lg border p-5">
           <div className="flex items-start justify-between">
             <div className="flex-1 space-y-2">
               <Skeleton className="bg-muted h-3 w-1/2 animate-pulse" />
@@ -104,7 +104,7 @@ export function PageSkeleton() {
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="border-border bg-card rounded-[var(--radius)] border p-5">
+          <div key={i} className="border-border bg-card rounded-lg border p-5">
             <div className="flex items-start justify-between">
               <div className="flex-1 space-y-2">
                 <Skeleton className="bg-muted h-3 w-1/2 animate-pulse" />
@@ -116,7 +116,7 @@ export function PageSkeleton() {
           </div>
         ))}
       </div>
-      <div className="border-border bg-card rounded-[var(--radius)] border">
+      <div className="border-border bg-card rounded-lg border">
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
           <Skeleton className="bg-muted h-4 w-32 animate-pulse" />
           <div className="flex items-center gap-2">

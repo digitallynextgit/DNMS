@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
-import { sendEmailAs } from "@/lib/mailer"
+import { addEmailAsJob } from "@/lib/queue"
 import type { Session } from "next-auth"
 
 const STAGE_EMAIL_CONFIG: Record<
@@ -83,7 +83,7 @@ export const PATCH = withSession(
         const firstName = applicant.firstName
         const jobTitle = applicant.jobPosting?.title ?? "the position"
         try {
-          await sendEmailAs(session.user.id, {
+          addEmailAsJob(session.user.id, {
             to: applicant.email,
             subject: cfg.subject(jobTitle),
             html: cfg.body(firstName, jobTitle),

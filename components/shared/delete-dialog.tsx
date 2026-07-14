@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 
 import { buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -67,7 +67,7 @@ export function DeleteDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="rounded-[var(--radius)]">
+      <AlertDialogContent className="rounded-lg">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-sm font-semibold tracking-tight">
             {title}
@@ -80,7 +80,7 @@ export function DeleteDialog({
         </AlertDialogHeader>
 
         {canPermanent && (
-          <label className="border-border hover:bg-muted/40 flex cursor-pointer items-start gap-2.5 rounded border p-3 text-sm transition-colors">
+          <label className="border-border hover:bg-muted/40 flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-sm transition-colors">
             <Checkbox
               checked={permanent}
               onCheckedChange={(v) => setPermanent(v === true)}
@@ -110,7 +110,7 @@ export function DeleteDialog({
             disabled={isLoading}
             className={cn(buttonVariants({ variant: "destructive" }))}
           >
-            {isLoading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+            {isLoading && <Spinner size="sm" className="mr-2" />}
             {permanent ? permanentButtonLabel : deactivateLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

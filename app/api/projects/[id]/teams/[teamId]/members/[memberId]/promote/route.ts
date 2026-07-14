@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
+import { withProjectManager } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
-import { sendEmail } from "@/lib/mailer"
+import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
 import type { Session } from "next-auth"
 
 // PATCH /api/projects/[id]/teams/[teamId]/members/[memberId]/promote
 // Admin only - make this member the new manager. Previous manager stays as a regular member.
-export const PATCH = withAuth(
-  PERMISSIONS.PROJECT_WRITE,
+export const PATCH = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, teamId, memberId } = ctx.params
@@ -51,7 +51,7 @@ export const PATCH = withAuth(
           type: "success",
           link: `/projects/${projectId}`,
         })
-        await sendEmail({
+        addEmailJob({
           to: member.employee.email,
           subject: `You're now Team Manager of ${team.name}`,
           html: `<p>Hi ${member.employee.firstName},</p>

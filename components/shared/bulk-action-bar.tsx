@@ -32,7 +32,7 @@ export function BulkActionBar({
   return (
     <div
       className={cn(
-        "bg-accent/50 border-border flex flex-wrap items-center justify-between gap-3 rounded border px-3 py-2",
+        "bg-accent/50 border-border flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2",
         className,
       )}
     >

@@ -1,8 +1,7 @@
 "use client"
 
-import { useRouter, useParams } from "next/navigation"
-import { ArrowLeft, BookOpen } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useParams } from "next/navigation"
+import { BookOpen } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
 import { RoleBadge } from "@/features/docs"
@@ -71,7 +70,6 @@ const GUIDES: Record<string, GuideInfo> = {
 // ---------------------------------------------------------------------------
 
 export default function GuideDetailPage() {
-  const router = useRouter()
   const params = useParams()
   const slug = typeof params?.slug === "string" ? params.slug : ""
 
@@ -90,22 +88,14 @@ export default function GuideDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Back button */}
-      <div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push("/docs")}
-          className="text-muted-foreground hover:text-foreground -ml-2 gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Help Center
-        </Button>
-      </div>
-
       {/* Header */}
       <div className="space-y-3">
-        <PageHeader title={guide.title} description={guide.description} />
+        <PageHeader
+          title={guide.title}
+          description={guide.description}
+          backHref="/docs"
+          backLabel="Back to Help Center"
+        />
         {/* Role badges */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-muted-foreground text-xs">For:</span>

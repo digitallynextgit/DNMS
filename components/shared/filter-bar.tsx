@@ -71,7 +71,8 @@ export function FilterSelect({
 }: FilterSelectProps) {
   return (
     <Select value={value || "all"} onValueChange={(v) => onChange(v === "all" ? "" : v)}>
-      <SelectTrigger className={cn("h-9 w-[160px]", className)}>
+      {/* h-9 is the SelectTrigger default now - no local override needed. */}
+      <SelectTrigger className={cn("w-[160px]", className)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>

@@ -15,6 +15,8 @@ import {
 } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { KPI_PROFILE_STATUS_COLORS, KPI_PROFILE_STATUS_LABELS } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -173,8 +175,8 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
                         </div>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:bg-destructive/10 h-8 w-8 shrink-0"
+                          size="icon-sm"
+                          className="text-destructive hover:bg-destructive/10 shrink-0"
                           onClick={() => removeRow(idx)}
                           aria-label="Remove"
                         >
@@ -205,18 +207,6 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
         </p>
       )}
     </div>
-  )
-}
-
-function StatusBadge({ configured }: { configured: boolean }) {
-  return configured ? (
-    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950/40 dark:text-green-300">
-      <CheckCircle2 className="h-3 w-3" /> Configured
-    </span>
-  ) : (
-    <span className="bg-muted text-muted-foreground inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-      Using defaults
-    </span>
   )
 }
 
@@ -279,7 +269,17 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
       className: "tabular-nums",
       cell: (r) => r.selfCount || <span className="text-muted-foreground">-</span>,
     },
-    { header: "Status", cell: (r) => <StatusBadge configured={r.configured} /> },
+    {
+      header: "Status",
+      cell: (r) => (
+        <StatusBadge
+          status={r.configured ? "CONFIGURED" : "DEFAULT"}
+          colorMap={KPI_PROFILE_STATUS_COLORS}
+          labelMap={KPI_PROFILE_STATUS_LABELS}
+          icon={r.configured ? CheckCircle2 : undefined}
+        />
+      ),
+    },
     {
       header: "",
       align: "right",

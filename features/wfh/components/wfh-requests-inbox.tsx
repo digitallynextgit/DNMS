@@ -87,14 +87,18 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
       className: "max-w-[220px]",
       cell: (r) =>
         r.managerDecision === "APPROVED" ? (
-          <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950/40 dark:text-green-300">
-            Approved
-          </span>
+          <StatusBadge
+            status="APPROVED"
+            colorMap={LEAVE_STATUS_COLORS}
+            labelMap={LEAVE_STATUS_LABELS}
+          />
         ) : r.managerDecision === "REJECTED" ? (
           <div className="space-y-0.5">
-            <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
-              Rejected
-            </span>
+            <StatusBadge
+              status="REJECTED"
+              colorMap={LEAVE_STATUS_COLORS}
+              labelMap={LEAVE_STATUS_LABELS}
+            />
             {r.rejectionReason && (
               <p className="text-muted-foreground text-xs">{r.rejectionReason}</p>
             )}

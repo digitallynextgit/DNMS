@@ -1,6 +1,6 @@
 "use client"
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
@@ -311,6 +311,7 @@ async function fetchAttendanceDirectory(from: string, to: string): Promise<Atten
 export function useAttendanceDirectory(from: string, to: string) {
   return useQuery({
     queryKey: ["attendance-directory", from, to],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchAttendanceDirectory(from, to),
     staleTime: 30_000,
     enabled: !!from && !!to,
@@ -322,6 +323,7 @@ export function useAttendanceDirectory(from: string, to: string) {
 export function useAttendanceLogs(filters: AttendanceFilters = {}) {
   return useQuery({
     queryKey: ["attendance-logs", filters],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchAttendanceLogs(filters),
     staleTime: 30_000,
   })
@@ -330,6 +332,7 @@ export function useAttendanceLogs(filters: AttendanceFilters = {}) {
 export function useMyAttendance(filters: MyAttendanceFilters = {}) {
   return useQuery({
     queryKey: ["my-attendance", filters],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchMyAttendance(filters),
     staleTime: 30_000,
   })
@@ -360,6 +363,7 @@ export function useSyncAttendance() {
 export function useMyAttendanceCalendar(year: number, month: number) {
   return useQuery({
     queryKey: ["my-attendance-calendar", year, month],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchMyCalendar(year, month),
     staleTime: 30_000,
   })
@@ -384,6 +388,7 @@ export function useEmployeeAttendanceCalendar(
 ) {
   return useQuery({
     queryKey: ["employee-attendance-calendar", employeeId, year, month],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchEmployeeCalendar(employeeId!, year, month),
     enabled: !!employeeId,
     staleTime: 30_000,
@@ -397,6 +402,7 @@ export function useAttendanceSummary(
 ) {
   return useQuery({
     queryKey: ["attendance-summary", employeeId, month, year],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchAttendanceSummary(employeeId!, month, year),
     enabled: !!employeeId && month >= 1 && month <= 12 && year > 2000,
     staleTime: 60_000,
@@ -571,6 +577,7 @@ export function useTestDevice() {
 export function useHolidays(year?: number) {
   return useQuery({
     queryKey: ["attendance-holidays", year],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchHolidays(year),
     staleTime: 300_000,
   })

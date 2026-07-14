@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
+import { withProjectManager } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
 import { getSignedUrl, deleteFile } from "@/lib/storage"
 
@@ -17,8 +18,7 @@ export const GET = withAuth(
 )
 
 // DELETE - remove the asset from storage + DB.
-export const DELETE = withAuth(
-  PERMISSIONS.PROJECT_WRITE,
+export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
     const asset = await db.brandAsset.findUnique({ where: { id: ctx.params.assetId } })
     if (!asset || asset.projectId !== ctx.params.id)

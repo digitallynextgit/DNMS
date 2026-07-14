@@ -85,8 +85,8 @@ function SectionHeader({
 function ProfileSkeleton() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-48 rounded" />
-      <Skeleton className="h-96 rounded" />
+      <Skeleton className="h-48 rounded-lg" />
+      <Skeleton className="h-96 rounded-lg" />
     </div>
   )
 }

@@ -2,19 +2,13 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Pencil, Loader2 } from "lucide-react"
+import { Pencil } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormDialog } from "@/components/shared/form-dialog"
 import {
   Select,
   SelectContent,
@@ -67,23 +61,22 @@ function SectionDialog({
   children: React.ReactNode
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-150">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-1">{children}</div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={onSave} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      isEdit
+      isPending={saving}
+      submitLabel="Save changes"
+      size="md"
+      scrollBody
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSave()
+      }}
+    >
+      {children}
+    </FormDialog>
   )
 }
 

@@ -7,13 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { FormDialog } from "@/components/shared/form-dialog"
+import { RejectReasonDialog } from "@/components/shared/reject-reason-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -63,7 +58,7 @@ import { formatHours } from "../lib/format-hours"
 // is shown, so the default list view's bundle stays lean.
 const KanbanView = dynamic(() => import("./kanban-view").then((m) => m.KanbanView), {
   ssr: false,
-  loading: () => <div className="bg-muted h-[60vh] w-full animate-pulse rounded" />,
+  loading: () => <div className="bg-muted h-[60vh] w-full animate-pulse rounded-lg" />,
 })
 
 interface Props {
@@ -80,7 +75,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
   const [showPendingOnly, setShowPendingOnly] = useState(false)
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list")
 
-  if (teamsLoading) return <Skeleton className="h-64 rounded" />
+  if (teamsLoading) return <Skeleton className="h-64 rounded-lg" />
   if (teams.length === 0) {
     return (
       <Card className="border-dashed">
@@ -139,7 +134,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
         )}
 
         {/* View toggle */}
-        <div className="ml-auto flex items-center overflow-hidden rounded border">
+        <div className="ml-auto flex items-center overflow-hidden rounded-lg border">
           <Button
             variant={viewMode === "list" ? "secondary" : "ghost"}
             size="sm"
@@ -249,7 +244,7 @@ function TeamTasksSection({
         </div>
 
         {isLoading ? (
-          <Skeleton className="h-32 rounded" />
+          <Skeleton className="h-32 rounded-lg" />
         ) : filtered.length === 0 ? (
           <div className="text-muted-foreground py-6 text-center text-xs">
             No tasks match the filters.
@@ -306,7 +301,7 @@ function TaskRow({
     <>
       <div
         className={cn(
-          "flex items-center gap-3 rounded border p-2.5",
+          "flex items-center gap-3 rounded-lg border p-2.5",
           isPending &&
             "border-amber-300 bg-amber-50/40 dark:border-amber-900/60 dark:bg-amber-950/20",
           isRejected && "border-red-300 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
@@ -398,8 +393,8 @@ function TaskRow({
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground h-7 w-7"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground"
             title="Open task detail"
             onClick={() => setDetailOpen(true)}
           >
@@ -430,8 +425,8 @@ function TaskRow({
           {isManager && !isPending && (
             <Button
               variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-destructive h-7 w-7"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-destructive"
               onClick={() => setConfirmOpen(true)}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -439,9 +434,15 @@ function TaskRow({
           )}
         </div>
 
-        <RejectDialog
+        <RejectReasonDialog
           open={rejectOpen}
-          onClose={() => setRejectOpen(false)}
+          onOpenChange={setRejectOpen}
+          title="Reject Task"
+          reasonLabel="Reason"
+          reasonPlaceholder="Explain why this task is being rejected..."
+          required
+          confirmLabel="Reject"
+          isLoading={reject.isPending}
           onConfirm={(reason) => {
             reject.mutate({ taskId: task.id, reason }, { onSuccess: () => setRejectOpen(false) })
           }}
@@ -467,44 +468,6 @@ function TaskRow({
         isManager={isManager}
       />
     </>
-  )
-}
-
-function RejectDialog({
-  open,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean
-  onClose: () => void
-  onConfirm: (reason: string) => void
-}) {
-  const [reason, setReason] = useState("")
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Reject Task</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label>Reason</Label>
-          <Textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
-            placeholder="Explain why this task is being rejected..."
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="destructive" onClick={() => onConfirm(reason)} disabled={!reason.trim()}>
-            Reject
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -567,119 +530,113 @@ function CreateTaskDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>New Task - {team.name}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          {!isManager && (
-            <div className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-              This will be a <strong>self-task</strong>. It needs the team manager's approval before
-              becoming active.
-            </div>
-          )}
-          <div className="space-y-2">
-            <Label>Title</Label>
+    <FormDialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+      title={`New Task - ${team.name}`}
+      isPending={create.isPending}
+      submitDisabled={!title.trim()}
+      submitLabel="Create Task"
+      onSubmit={(e) => {
+        e.preventDefault()
+        handleCreate()
+      }}
+    >
+      {!isManager && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+          This will be a <strong>self-task</strong>. It needs the team manager's approval before
+          becoming active.
+        </div>
+      )}
+      <div className="space-y-2">
+        <Label>Title</Label>
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="What needs to be done?"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Description (optional)</Label>
+        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Priority</Label>
+          <Select value={priority} onValueChange={setPriority}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="LOW">Low</SelectItem>
+              <SelectItem value="MEDIUM">Medium</SelectItem>
+              <SelectItem value="HIGH">High</SelectItem>
+              <SelectItem value="URGENT">Urgent</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Due Date</Label>
+          <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label>Time Required</Label>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
             <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="What needs to be done?"
+              type="number"
+              min="0"
+              max="999"
+              value={estHours}
+              onChange={(e) => setEstHours(e.target.value)}
+              placeholder="0"
+              className="pr-8"
             />
+            <span className="text-muted-foreground absolute top-1/2 right-2.5 -translate-y-1/2 text-xs">
+              h
+            </span>
           </div>
-          <div className="space-y-2">
-            <Label>Description (optional)</Label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
+          <div className="relative flex-1">
+            <Input
+              type="number"
+              min="0"
+              max="59"
+              value={estMinutes}
+              onChange={(e) => setEstMinutes(e.target.value)}
+              placeholder="0"
+              className="pr-8"
             />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Priority</Label>
-              <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LOW">Low</SelectItem>
-                  <SelectItem value="MEDIUM">Medium</SelectItem>
-                  <SelectItem value="HIGH">High</SelectItem>
-                  <SelectItem value="URGENT">Urgent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Due Date</Label>
-              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Time Required</Label>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Input
-                  type="number"
-                  min="0"
-                  max="999"
-                  value={estHours}
-                  onChange={(e) => setEstHours(e.target.value)}
-                  placeholder="0"
-                  className="pr-8"
-                />
-                <span className="text-muted-foreground absolute top-1/2 right-2.5 -translate-y-1/2 text-xs">
-                  h
-                </span>
-              </div>
-              <div className="relative flex-1">
-                <Input
-                  type="number"
-                  min="0"
-                  max="59"
-                  value={estMinutes}
-                  onChange={(e) => setEstMinutes(e.target.value)}
-                  placeholder="0"
-                  className="pr-8"
-                />
-                <span className="text-muted-foreground absolute top-1/2 right-2.5 -translate-y-1/2 text-xs">
-                  m
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Assignee</Label>
-            {isManager ? (
-              <Select value={assigneeId} onValueChange={setAssigneeId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {team.members.map((m) => (
-                    <SelectItem key={m.employeeId} value={m.employeeId}>
-                      {m.employee.firstName} {m.employee.lastName}
-                      {m.employeeId === currentUserId && " (me)"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <div className="text-muted-foreground text-xs">
-                Self-assigned (only the manager can assign to others)
-              </div>
-            )}
+            <span className="text-muted-foreground absolute top-1/2 right-2.5 -translate-y-1/2 text-xs">
+              m
+            </span>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleCreate} disabled={!title.trim() || create.isPending}>
-            Create Task
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <div className="space-y-2">
+        <Label>Assignee</Label>
+        {isManager ? (
+          <Select value={assigneeId} onValueChange={setAssigneeId}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {team.members.map((m) => (
+                <SelectItem key={m.employeeId} value={m.employeeId}>
+                  {m.employee.firstName} {m.employee.lastName}
+                  {m.employeeId === currentUserId && " (me)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="text-muted-foreground text-xs">
+            Self-assigned (only the manager can assign to others)
+          </div>
+        )}
+      </div>
+    </FormDialog>
   )
 }

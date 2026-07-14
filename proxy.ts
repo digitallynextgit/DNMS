@@ -10,6 +10,10 @@
  * Public paths:
  *   /login                – sign-in page
  *   /forgot-password      – request OTP, verify, and set a new password
+ *   /api/password/forgot|verify-otp|reset
+ *                         – the forgot-password flow (self-protected by the
+ *                           emailed OTP + the short-lived reset token). These
+ *                           MUST be reachable while signed out.
  *   /api/auth/*           – NextAuth internal endpoints
  *   /api/cron/*           – cron jobs (self-protected by CRON_SECRET bearer token)
  *   /api/public/*         – headless public APIs (self-protected by X-API-Key)
@@ -27,6 +31,14 @@ import type { NextRequest } from "next/server"
 const PUBLIC_PREFIXES = [
   "/login",
   "/forgot-password",
+  // The forgot-password flow is used while signed OUT, so its three endpoints
+  // must bypass the session guard. Each is self-protected: `forgot` only emails
+  // a code, `verify-otp` needs that code, and `reset` needs the short-lived
+  // token `verify-otp` hands back. NOTE: the signed-in change-password endpoint
+  // (/api/password itself) is deliberately NOT listed - it stays guarded.
+  "/api/password/forgot",
+  "/api/password/verify-otp",
+  "/api/password/reset",
   "/api/auth",
   "/api/cron",
   "/api/public",

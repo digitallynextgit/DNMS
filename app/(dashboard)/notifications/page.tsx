@@ -135,7 +135,7 @@ export default function NotificationsPage() {
               type="button"
               onClick={() => handleNotificationClick(notification)}
               className={cn(
-                "bg-card hover:bg-muted/40 focus-visible:ring-ring flex w-full items-start gap-3 rounded border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2",
+                "bg-card hover:bg-muted/40 focus-visible:ring-ring flex w-full items-start gap-3 rounded-lg border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2",
                 !notification.isRead &&
                   "border-l-4 border-l-blue-500 bg-blue-50/30 hover:bg-blue-50/50",
               )}

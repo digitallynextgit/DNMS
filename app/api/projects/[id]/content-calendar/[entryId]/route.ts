@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
+import { withProjectManager } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
@@ -12,8 +13,7 @@ const serialize = (e: { date: Date | null }) => ({
 const FIELDS = ["platform", "theme", "format", "hook", "content", "status", "link"] as const
 
 // PATCH - update one entry.
-export const PATCH = withAuth(
-  PERMISSIONS.PROJECT_WRITE,
+export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id, entryId } = ctx.params
@@ -36,8 +36,7 @@ export const PATCH = withAuth(
 )
 
 // DELETE - remove one entry.
-export const DELETE = withAuth(
-  PERMISSIONS.PROJECT_WRITE,
+export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
     try {
       const { id, entryId } = ctx.params

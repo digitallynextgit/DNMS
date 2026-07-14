@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CheckCircle2, Info, Loader2, Pencil, XCircle } from "lucide-react"
+import { CheckCircle2, Info, Pencil, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -119,7 +119,7 @@ function SettingsGroupCard({
         <div className="flex min-w-0 items-center gap-2">
           <CardTitle className="truncate text-base">{group}</CardTitle>
           {groupRequired && (
-            <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+            <span className="bg-muted text-muted-foreground shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
               Required
             </span>
           )}
@@ -184,8 +184,7 @@ function SettingsGroupCard({
                   Cancel
                 </Button>
               )}
-              <Button type="submit" disabled={updateMut.isPending}>
-                {updateMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" disabled={updateMut.isPending} loading={updateMut.isPending}>
                 Save {group}
               </Button>
             </div>
@@ -235,7 +234,7 @@ function FieldInput({
 }) {
   if (field.type === "boolean") {
     return (
-      <div className="flex items-center justify-between rounded border px-3 py-2.5 sm:col-span-2">
+      <div className="flex items-center justify-between rounded-lg border px-3 py-2.5 sm:col-span-2">
         <Label htmlFor={field.key} className="mb-0 cursor-pointer">
           {field.label}
         </Label>

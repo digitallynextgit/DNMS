@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { Spinner } from "@/components/shared/spinner"
 import {
   CheckCircle2,
   AlertTriangle,
   Clock,
   Timer,
   RefreshCw,
-  Loader2,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react"
@@ -92,7 +92,7 @@ export default function MyAttendancePage() {
               title="Pull the latest punches from the attendance device"
             >
               {sync.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Spinner className="mr-2" />
               ) : (
                 <RefreshCw className="mr-2 h-4 w-4" />
               )}
@@ -100,8 +100,7 @@ export default function MyAttendancePage() {
             </Button>
             <Button
               variant="outline"
-              size="icon"
-              className="h-8 w-8"
+              size="icon-sm"
               onClick={prev}
               disabled={!canPrev || isLoading}
               aria-label="Previous month"
@@ -110,8 +109,7 @@ export default function MyAttendancePage() {
             </Button>
             <Button
               variant="outline"
-              size="icon"
-              className="h-8 w-8"
+              size="icon-sm"
               onClick={next}
               disabled={!canNext || isLoading}
               aria-label="Next month"
@@ -157,8 +155,8 @@ export default function MyAttendancePage() {
 
       {/* Calendar (selected month) */}
       {isLoading ? (
-        <div className="bg-card flex h-72 items-center justify-center rounded border">
-          <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+        <div className="bg-card flex h-72 items-center justify-center rounded-lg border">
+          <Spinner size="lg" className="text-muted-foreground" />
         </div>
       ) : (
         <AttendanceCalendar days={days} />

@@ -123,7 +123,7 @@ export default function FloatingHolidaysPage() {
           <Button variant="outline" size="sm" onClick={() => changeYear(year - 1)}>
             &larr; {year - 1}
           </Button>
-          <span className="bg-muted rounded px-3 py-1 text-sm font-medium">{year}</span>
+          <span className="bg-muted rounded-lg px-3 py-1 text-sm font-medium">{year}</span>
           <Button variant="outline" size="sm" onClick={() => changeYear(year + 1)}>
             {year + 1} &rarr;
           </Button>
@@ -158,7 +158,7 @@ export default function FloatingHolidaysPage() {
                 onClick={() => !disabled && toggle(h)}
                 disabled={disabled}
                 className={cn(
-                  "flex items-start justify-between gap-3 rounded border p-4 text-left transition-colors",
+                  "flex items-start justify-between gap-3 rounded-lg border p-4 text-left transition-colors",
                   isSel ? "border-primary bg-primary/5" : "bg-card hover:bg-muted/40",
                   disabled && !isSel && "cursor-not-allowed opacity-50",
                 )}

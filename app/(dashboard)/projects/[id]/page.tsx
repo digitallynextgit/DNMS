@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import { useParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
@@ -33,14 +34,33 @@ import {
   KeyRound,
   Sparkles,
 } from "lucide-react"
-import { BrandTab } from "@/features/projects"
-import { TeamsTab } from "@/features/projects"
-import { TasksTab } from "@/features/projects"
-import { ResourcesTab } from "@/features/projects"
-import { ActivityTab } from "@/features/projects"
-import { MessagesTab } from "@/features/projects"
-import { PasswordsTab } from "@/features/projects"
 import { ProjectFormDialog } from "@/features/projects"
+
+// The 7 tab bodies are ~4,000 lines combined, but Radix only RENDERS the active
+// one - so statically importing them made every visit download and parse all of
+// them up front. Each now loads on first activation.
+const tabFallback = () => <Skeleton className="mt-4 h-64 rounded-lg" />
+const BrandTab = dynamic(() => import("@/features/projects").then((m) => m.BrandTab), {
+  loading: tabFallback,
+})
+const TeamsTab = dynamic(() => import("@/features/projects").then((m) => m.TeamsTab), {
+  loading: tabFallback,
+})
+const TasksTab = dynamic(() => import("@/features/projects").then((m) => m.TasksTab), {
+  loading: tabFallback,
+})
+const ResourcesTab = dynamic(() => import("@/features/projects").then((m) => m.ResourcesTab), {
+  loading: tabFallback,
+})
+const ActivityTab = dynamic(() => import("@/features/projects").then((m) => m.ActivityTab), {
+  loading: tabFallback,
+})
+const MessagesTab = dynamic(() => import("@/features/projects").then((m) => m.MessagesTab), {
+  loading: tabFallback,
+})
+const PasswordsTab = dynamic(() => import("@/features/projects").then((m) => m.PasswordsTab), {
+  loading: tabFallback,
+})
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -48,7 +68,6 @@ export default function ProjectDetailPage() {
   const { data: session } = useSession()
   const { can } = usePermissions()
 
-  const canManage = can(PERMISSIONS.PROJECT_WRITE)
   const userId = session?.user?.id ?? ""
 
   const { data, isLoading } = useProject(projectId)
@@ -56,13 +75,17 @@ export default function ProjectDetailPage() {
   const { data: teamsData } = useProjectTeams(projectId)
   const teams = teamsData?.data ?? []
 
+  // Admins/PMs with project:write can manage any project; the project's ACCOUNT
+  // MANAGER (owner) can fully manage their own project too.
+  const canManage = can(PERMISSIONS.PROJECT_WRITE) || (!!project && project.owner.id === userId)
+
   const [editOpen, setEditOpen] = useState(false)
 
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-24 rounded" />
-        <Skeleton className="h-96 rounded" />
+        <Skeleton className="h-24 rounded-lg" />
+        <Skeleton className="h-96 rounded-lg" />
       </div>
     )
   }
@@ -99,7 +122,7 @@ export default function ProjectDetailPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
-              <span className="bg-muted/50 text-muted-foreground rounded border px-2 py-0.5 font-mono text-xs">
+              <span className="bg-muted/50 text-muted-foreground rounded-lg border px-2 py-0.5 font-mono text-xs">
                 {project.code}
               </span>
             </div>
@@ -114,13 +137,13 @@ export default function ProjectDetailPage() {
               status={project.status}
               colorMap={PROJECT_STATUS_COLORS}
               labelMap={PROJECT_STATUS_LABELS}
-              className="h-8 rounded border border-current/20 px-3 text-sm"
+              size="button"
             />
             <StatusBadge
               status={project.priority}
               colorMap={TASK_PRIORITY_COLORS}
               label={`${TASK_PRIORITY_LABELS[project.priority]} priority`}
-              className="h-8 rounded border border-current/20 px-3 text-sm"
+              size="button"
             />
             {canManage && (
               <Button variant="outline" size="sm" className="h-8" onClick={() => setEditOpen(true)}>

@@ -24,3 +24,42 @@ export const EMPLOYEE_SUMMARY_SELECT = {
   employeeNo: true,
   profilePhoto: true,
 } satisfies Prisma.EmployeeSelect
+
+/**
+ * Exactly the fields the employee DIRECTORY renders - mirrors the
+ * `EmployeeListItem` contract in features/employees/hooks/use-employees.ts.
+ *
+ * Use this instead of a bare `include:`, which makes Prisma return EVERY scalar
+ * on Employee - that is how the address / emergencyContact JSON blobs (and, before
+ * the global omit in server/db.ts, passwordHash + gmailAppPassword) ended up in
+ * the list payload. The address blobs live on EmployeeDetail, not the list.
+ */
+export const EMPLOYEE_LIST_SELECT = {
+  id: true,
+  employeeNo: true,
+  deviceId: true,
+  firstName: true,
+  lastName: true,
+  email: true,
+  phone: true,
+  personalEmail: true,
+  personalPhone: true,
+  dateOfBirth: true,
+  gender: true,
+  nationality: true,
+  bloodGroup: true,
+  profilePhoto: true,
+  status: true,
+  employmentType: true,
+  dateOfJoining: true,
+  probationEndDate: true,
+  onProbation: true,
+  probationMonths: true,
+  workLocation: true,
+  isActive: true,
+  createdAt: true,
+  department: { select: { id: true, name: true } },
+  designation: { select: { id: true, title: true } },
+  jobRole: { select: { id: true, name: true } },
+  manager: { select: { id: true, firstName: true, lastName: true } },
+} satisfies Prisma.EmployeeSelect

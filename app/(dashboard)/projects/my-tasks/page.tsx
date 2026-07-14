@@ -10,6 +10,8 @@ import { AlertTriangle, Clock, Inbox } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -120,6 +122,100 @@ export default function MyTasksPage() {
     (t) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "DONE",
   ).length
 
+  const columns: DataTableColumn<MyTask>[] = [
+    {
+      header: "Status",
+      headClassName: "w-32",
+      cell: (task) => (
+        <Select
+          value={task.status}
+          disabled={
+            task.approvalStatus === "PENDING_APPROVAL" || task.approvalStatus === "REJECTED"
+          }
+          onValueChange={(v) => updateMut.mutate({ id: task.id, status: v })}
+        >
+          <SelectTrigger className="h-7 w-32 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="TODO">To Do</SelectItem>
+            <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+            <SelectItem value="IN_REVIEW">In Review</SelectItem>
+            <SelectItem value="DONE">Done</SelectItem>
+          </SelectContent>
+        </Select>
+      ),
+    },
+    {
+      header: "Task",
+      cell: (task) => {
+        const isOverdue =
+          task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "DONE"
+        const isPending = task.approvalStatus === "PENDING_APPROVAL"
+        const isRejected = task.approvalStatus === "REJECTED"
+        return (
+          <>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium">{task.title}</p>
+              {isPending && (
+                <Badge
+                  variant="outline"
+                  className="bg-amber-100 text-[10px] text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+                >
+                  <Clock className="mr-0.5 inline h-3 w-3" />
+                  Pending
+                </Badge>
+              )}
+              {isRejected && (
+                <Badge variant="outline" className="bg-red-100 text-[10px] text-red-700">
+                  Rejected
+                </Badge>
+              )}
+              {isOverdue && (
+                <Badge variant="outline" className="bg-red-50 text-[10px] text-red-700">
+                  <AlertTriangle className="mr-0.5 inline h-3 w-3" />
+                  Overdue
+                </Badge>
+              )}
+            </div>
+            {task.rejectionReason && (
+              <p className="mt-0.5 text-[11px] text-red-700">Reason: {task.rejectionReason}</p>
+            )}
+          </>
+        )
+      },
+    },
+    {
+      header: "Project",
+      cell: (task) => (
+        <Link href={`/projects/${task.project.id}`} className="text-xs hover:underline">
+          {task.project.name}
+        </Link>
+      ),
+    },
+    {
+      header: "Team",
+      className: "text-muted-foreground text-xs",
+      cell: (task) => task.team?.name ?? "-",
+    },
+    {
+      header: "Priority",
+      cell: (task) => (
+        <StatusBadge
+          status={task.priority}
+          colorMap={TASK_PRIORITY_COLORS}
+          labelMap={TASK_PRIORITY_LABELS}
+          size="xs"
+        />
+      ),
+    },
+    {
+      header: "Due",
+      className: "text-muted-foreground text-xs whitespace-nowrap",
+      cell: (task) => (task.dueDate ? formatDate(task.dueDate) : "-"),
+    },
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader title="My Tasks" description="Tasks assigned to you across all projects." />
@@ -191,120 +287,24 @@ export default function MyTasksPage() {
 
       {/* Groups or table */}
       {isLoading ? (
-        <Skeleton className="h-64 rounded" />
+        <Skeleton className="h-64 rounded-lg" />
       ) : grouped.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <Inbox className="text-muted-foreground/40 mx-auto mb-2 h-8 w-8" />
-            <p className="text-muted-foreground text-sm">No tasks match the filter.</p>
-          </CardContent>
-        </Card>
+        <EmptyState icon={Inbox} variant="card" title="No tasks match the filter." />
       ) : viewMode === "table" ? (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 border-border border-b">
-                  <tr className="text-muted-foreground text-left text-xs tracking-wider uppercase">
-                    <th className="w-32 px-4 py-2.5 font-medium">Status</th>
-                    <th className="px-4 py-2.5 font-medium">Task</th>
-                    <th className="px-4 py-2.5 font-medium">Project</th>
-                    <th className="px-4 py-2.5 font-medium">Team</th>
-                    <th className="px-4 py-2.5 font-medium">Priority</th>
-                    <th className="px-4 py-2.5 font-medium">Due</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-border divide-y">
-                  {pageTasks.map((task) => {
-                    const isOverdue =
-                      task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "DONE"
-                    const isPending = task.approvalStatus === "PENDING_APPROVAL"
-                    const isRejected = task.approvalStatus === "REJECTED"
-                    return (
-                      <tr key={task.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-2.5">
-                          <Select
-                            value={task.status}
-                            disabled={isPending || isRejected}
-                            onValueChange={(v) => updateMut.mutate({ id: task.id, status: v })}
-                          >
-                            <SelectTrigger className="h-7 w-32 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="TODO">To Do</SelectItem>
-                              <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                              <SelectItem value="IN_REVIEW">In Review</SelectItem>
-                              <SelectItem value="DONE">Done</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-medium">{task.title}</p>
-                            {isPending && (
-                              <Badge
-                                variant="outline"
-                                className="bg-amber-100 text-[10px] text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
-                              >
-                                <Clock className="mr-0.5 inline h-3 w-3" />
-                                Pending
-                              </Badge>
-                            )}
-                            {isRejected && (
-                              <Badge
-                                variant="outline"
-                                className="bg-red-100 text-[10px] text-red-700"
-                              >
-                                Rejected
-                              </Badge>
-                            )}
-                            {isOverdue && (
-                              <Badge
-                                variant="outline"
-                                className="bg-red-50 text-[10px] text-red-700"
-                              >
-                                <AlertTriangle className="mr-0.5 inline h-3 w-3" />
-                                Overdue
-                              </Badge>
-                            )}
-                          </div>
-                          {task.rejectionReason && (
-                            <p className="mt-0.5 text-[11px] text-red-700">
-                              Reason: {task.rejectionReason}
-                            </p>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <Link
-                            href={`/projects/${task.project.id}`}
-                            className="text-xs hover:underline"
-                          >
-                            {task.project.name}
-                          </Link>
-                        </td>
-                        <td className="text-muted-foreground px-4 py-2.5 text-xs">
-                          {task.team?.name ?? "-"}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <StatusBadge
-                            status={task.priority}
-                            colorMap={TASK_PRIORITY_COLORS}
-                            labelMap={TASK_PRIORITY_LABELS}
-                            size="xs"
-                          />
-                        </td>
-                        <td className="text-muted-foreground px-4 py-2.5 text-xs whitespace-nowrap">
-                          {task.dueDate ? formatDate(task.dueDate) : "-"}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <DataTable
+          columns={columns}
+          rows={pageTasks}
+          rowKey={(task) => task.id}
+          showSerial
+          serialOffset={(page - 1) * PAGE_SIZE}
+          pagination={{
+            page,
+            totalPages,
+            total,
+            onPageChange: setPage,
+            itemLabel: "task",
+          }}
+        />
       ) : (
         grouped.map(({ project, tasks }) => (
           <Card key={project.id}>
@@ -329,7 +329,7 @@ export default function MyTasksPage() {
                     <div
                       key={task.id}
                       className={cn(
-                        "flex items-center gap-3 rounded border p-2.5",
+                        "flex items-center gap-3 rounded-lg border p-2.5",
                         isOverdue &&
                           "border-red-200 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
                         isPending &&
@@ -410,8 +410,8 @@ export default function MyTasksPage() {
         ))
       )}
 
-      {/* Pagination */}
-      {!isLoading && total > 0 && (
+      {/* Pagination - the table view renders its own inside <DataTable />. */}
+      {!isLoading && total > 0 && !(viewMode === "table" && grouped.length > 0) && (
         <Pagination
           page={page}
           totalPages={totalPages}

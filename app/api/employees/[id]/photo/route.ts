@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import sharp from "sharp"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
@@ -8,6 +9,63 @@ import type { Session } from "next-auth"
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024 // 5 MB
+
+// Avatars render at 20-96px (see AvatarDisplay). 512px covers every size at 2x DPI
+// with room to spare; storing the 5 MB original was costing a multi-MB download to
+// paint a 32px circle.
+const PHOTO_MAX_DIM = 512
+const PHOTO_QUALITY = 80
+
+/**
+ * Downscale + re-encode an uploaded photo to a small WebP. Typical result is
+ * 20-60 KB instead of the multi-MB original. Falls back to the original bytes if
+ * the image can't be processed (corrupt/unsupported), so an upload never hard-fails
+ * on a resize error.
+ */
+async function toThumbnail(
+  buffer: Buffer,
+  fallbackType: string,
+): Promise<{ buffer: Buffer; contentType: string; ext: string }> {
+  try {
+    const out = await sharp(buffer)
+      .rotate() // honour EXIF orientation before resizing
+      .resize(PHOTO_MAX_DIM, PHOTO_MAX_DIM, { fit: "cover", withoutEnlargement: true })
+      .webp({ quality: PHOTO_QUALITY })
+      .toBuffer()
+    return { buffer: out, contentType: "image/webp", ext: "webp" }
+  } catch (e) {
+    console.error("[photo] resize failed, storing original:", e)
+    return { buffer, contentType: fallbackType, ext: fallbackType.split("/")[1] ?? "jpg" }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Signed-URL cache
+// ---------------------------------------------------------------------------
+// Every avatar on screen used to cost a DB lookup + a fresh B2 presign. Both are
+// pure functions of the object key, so cache the signed URL and reuse it until it
+// nears expiry. Keyed by objectKey, which changes on every upload - so a new photo
+// can never be served from a stale entry.
+const SIGNED_TTL_SECONDS = 3600
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
+
+async function cachedSignedUrl(objectKey: string): Promise<string> {
+  const hit = signedUrlCache.get(objectKey)
+  // Re-sign a minute early so we never hand out a URL that expires mid-flight.
+  if (hit && hit.expiresAt > Date.now() + 60_000) return hit.url
+  const url = await getSignedUrl(objectKey, SIGNED_TTL_SECONDS)
+  signedUrlCache.set(objectKey, { url, expiresAt: Date.now() + SIGNED_TTL_SECONDS * 1000 })
+  return url
+}
+
+// The photoKey lookup is also cached: profilePhotoKey only changes on upload/delete,
+// and both of those paths clear the entry.
+const photoKeyCache = new Map<string, string | null>()
+
+function invalidatePhotoCaches(employeeId: string, objectKey?: string | null) {
+  photoKeyCache.delete(employeeId)
+  if (objectKey) signedUrlCache.delete(objectKey)
+}
 
 function canEdit(session: Session, id: string): boolean {
   return session.user.id === id || hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)
@@ -20,27 +78,38 @@ async function deleteQuietly(key: string | null | undefined) {
 }
 
 /**
- * GET /api/employees/[id]/photo - redirect to a short-lived presigned B2 URL.
- * profilePhoto stores this stable route URL, so <img> tags resolve a fresh signed
- * URL on each load without ever exposing the private bucket directly.
+ * GET /api/employees/[id]/photo - redirect to a presigned B2 URL.
+ * profilePhoto stores this stable route URL, so <img> tags resolve a signed URL
+ * without ever exposing the private bucket directly.
+ *
+ * The DB lookup and the B2 presign are both cached (see above), so rendering a
+ * directory full of avatars no longer means one DB query + one presign PER AVATAR.
  */
 export const GET = withSession(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id } = ctx.params
-      const emp = await db.employee.findUnique({
-        where: { id },
-        select: { profilePhotoKey: true },
-      })
-      if (!emp?.profilePhotoKey) {
+
+      let photoKey = photoKeyCache.get(id)
+      if (photoKey === undefined) {
+        const emp = await db.employee.findUnique({
+          where: { id },
+          select: { profilePhotoKey: true },
+        })
+        photoKey = emp?.profilePhotoKey ?? null
+        photoKeyCache.set(id, photoKey)
+      }
+      if (!photoKey) {
         return NextResponse.json({ error: "No photo" }, { status: 404 })
       }
-      const url = await getSignedUrl(emp.profilePhotoKey, 3600)
-      // 302 to the signed URL; allow brief private caching (the route URL is
-      // cache-busted with ?v= on every change, so this never serves a stale photo).
+
+      const url = await cachedSignedUrl(photoKey)
+      // The stored route URL carries a ?v=<timestamp> that changes on every upload,
+      // so this response is immutable for its version - the browser can cache it
+      // hard instead of re-fetching every avatar every 5 minutes.
       return NextResponse.redirect(url, {
         status: 302,
-        headers: { "Cache-Control": "private, max-age=300" },
+        headers: { "Cache-Control": "private, max-age=604800, immutable" },
       })
     } catch (error) {
       console.error("[EMPLOYEE_PHOTO_GET]", error)
@@ -81,9 +150,17 @@ export const POST = withSession(
         select: { profilePhotoKey: true },
       })
 
-      const objectKey = getObjectKey(`profile-photos/${id}`, file.name, crypto.randomUUID())
-      const buffer = Buffer.from(await file.arrayBuffer())
-      await uploadFile(objectKey, buffer, file.type)
+      // Downscale to a 512px WebP BEFORE storing - the bytes we keep are the bytes
+      // every viewer downloads, so this is where the 5 MB -> ~40 KB win is made.
+      const original = Buffer.from(await file.arrayBuffer())
+      const thumb = await toThumbnail(original, file.type)
+
+      const objectKey = getObjectKey(
+        `profile-photos/${id}`,
+        `photo.${thumb.ext}`,
+        crypto.randomUUID(),
+      )
+      await uploadFile(objectKey, thumb.buffer, thumb.contentType)
 
       // Stable serve URL + version param so cached <img>s refresh after a change.
       const url = `/api/employees/${id}/photo?v=${Date.now()}`
@@ -91,6 +168,8 @@ export const POST = withSession(
         where: { id },
         data: { profilePhoto: url, profilePhotoKey: objectKey },
       })
+
+      invalidatePhotoCaches(id, existing?.profilePhotoKey)
 
       // Reclaim space: drop the previous B2 object now that the new one is live.
       await deleteQuietly(existing?.profilePhotoKey)
@@ -119,6 +198,7 @@ export const DELETE = withSession(
         where: { id },
         data: { profilePhoto: null, profilePhotoKey: null },
       })
+      invalidatePhotoCaches(id, existing?.profilePhotoKey)
       await deleteQuietly(existing?.profilePhotoKey)
       return NextResponse.json({ data: { ok: true } })
     } catch (error) {

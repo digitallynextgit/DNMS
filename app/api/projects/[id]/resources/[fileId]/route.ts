@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { canManageProject } from "@/features/projects/server/project-access"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
@@ -46,7 +47,7 @@ export const DELETE = withSession(
       }
 
       const isUploader = resource.uploadedById === session.user.id
-      const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+      const isAdmin = await canManageProject(session, projectId)
       const isTeamManager = resource.team?.managerId === session.user.id
 
       if (!isUploader && !isAdmin && !isTeamManager) {

@@ -144,7 +144,7 @@ export function ApplyLeaveForm() {
         {leaveTypeId && selectedBalance && (
           <div
             className={cn(
-              "flex items-start gap-2 rounded border px-3 py-2 text-sm",
+              "flex items-start gap-2 rounded-lg border px-3 py-2 text-sm",
               hasInsufficientBalance
                 ? "bg-destructive/5 border-destructive/20 text-destructive"
                 : "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300",

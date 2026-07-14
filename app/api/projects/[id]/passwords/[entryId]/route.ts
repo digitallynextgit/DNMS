@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
-import { hasPermission } from "@/lib/permissions"
+import { canManageProject } from "@/features/projects/server/project-access"
 import { encrypt, tryDecrypt } from "@/lib/crypto"
-import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
 // GET /api/projects/[id]/passwords/[entryId] - returns decrypted password
@@ -23,16 +22,16 @@ export const GET = withSession(
 
 // PATCH /api/projects/[id]/passwords/[entryId]
 export const PATCH = withSession(
-  async (req: NextRequest, ctx: { params: Promise<{ entryId: string }> }, session: Session) => {
+  async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
-      const { entryId } = await ctx.params
+      const { id: projectId, entryId } = ctx.params
       const entry = await db.projectPasswordEntry.findUnique({
         where: { id: entryId },
         select: { id: true, createdById: true },
       })
       if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-      const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+      const isAdmin = await canManageProject(session, projectId)
       if (entry.createdById !== session.user.id && !isAdmin) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }
@@ -69,16 +68,16 @@ export const PATCH = withSession(
 
 // DELETE /api/projects/[id]/passwords/[entryId]
 export const DELETE = withSession(
-  async (_req: NextRequest, ctx: { params: Promise<{ entryId: string }> }, session: Session) => {
+  async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
-      const { entryId } = await ctx.params
+      const { id: projectId, entryId } = ctx.params
       const entry = await db.projectPasswordEntry.findUnique({
         where: { id: entryId },
         select: { id: true, createdById: true },
       })
       if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-      const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+      const isAdmin = await canManageProject(session, projectId)
       if (entry.createdById !== session.user.id && !isAdmin) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }

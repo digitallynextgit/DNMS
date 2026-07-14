@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Spinner } from "@/components/shared/spinner"
 import { useMutation } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
@@ -11,7 +12,6 @@ import {
   Users,
   FileText,
   ShieldCheck,
-  Loader2,
   Eye,
   EyeOff,
   Shield,
@@ -158,7 +158,7 @@ export default function ProfilePage() {
   if (sessionStatus === "loading" || isLoading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+        <Spinner size="xl" className="text-muted-foreground" />
       </div>
     )
   }
@@ -501,7 +501,7 @@ export default function ProfilePage() {
                     pwForm.newPassword !== pwForm.confirmPassword
                   }
                 >
-                  {pwMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {pwMut.isPending && <Spinner className="mr-2" />}
                   Change Password
                 </Button>
               </div>
@@ -524,7 +524,7 @@ export default function ProfilePage() {
               {hasGmail && !editingGmail ? (
                 /* Password already set → status + Change / Delete actions. */
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     <span>App Password is set.</span>
                   </div>
@@ -602,7 +602,7 @@ export default function ProfilePage() {
                       onClick={() => gmailMut.mutate()}
                       disabled={gmailMut.isPending || !gmailPwValid}
                     >
-                      {gmailMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {gmailMut.isPending && <Spinner className="mr-2" />}
                       {hasGmail ? "Update App Password" : "Save App Password"}
                     </Button>
                   </div>

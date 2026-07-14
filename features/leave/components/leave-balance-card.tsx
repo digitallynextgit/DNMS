@@ -45,7 +45,7 @@ export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
           </div>
           <span
             className={cn(
-              "shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium",
+              "shrink-0 rounded-lg border px-1.5 py-0.5 text-[10px] font-medium",
               leaveType.isPaid
                 ? "border-border bg-muted/40 text-muted-foreground"
                 : "border-border bg-muted/40 text-muted-foreground",

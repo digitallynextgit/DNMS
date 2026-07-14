@@ -98,7 +98,7 @@
     --input: 0 0% 89%;
     --ring: 0 0% 9%;
 
-    --radius: 0.375rem;
+    --radius: 5px;
   }
 
   .dark {
@@ -131,7 +131,7 @@
     --input: 0 0% 14%;
     --ring: 0 0% 83%;
 
-    --radius: 0.375rem;
+    --radius: 5px;
   }
 }
 

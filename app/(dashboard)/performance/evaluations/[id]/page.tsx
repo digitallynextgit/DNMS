@@ -1,8 +1,8 @@
 "use client"
 
-import { use, useEffect, useMemo, useState } from "react"
-import Link from "next/link"
-import { ArrowLeft, Printer } from "lucide-react"
+import * as React from "react"
+import { use, useEffect, useMemo, useState, useCallback } from "react"
+import { Printer } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -57,7 +57,7 @@ function Rating({
           title={RATING_LABELS[n - 1]}
           onClick={() => onChange?.(n)}
           className={cn(
-            "h-7 w-7 rounded border text-xs font-semibold transition-colors",
+            "h-7 w-7 rounded-lg border text-xs font-semibold transition-colors",
             value === n
               ? "border-primary bg-primary text-primary-foreground"
               : "border-border bg-muted/30 text-muted-foreground",
@@ -70,6 +70,150 @@ function Rating({
     </div>
   )
 }
+
+// ─── Scorecard panels ─────────────────────────────────────────────────────────
+// These MUST live at module scope. They used to be declared inside the page
+// component, which gave them a new function identity on every render - React then
+// treated them as a different component type and unmounted + remounted the whole
+// scorecard on EVERY keystroke in the comment box and every rating click.
+
+interface SectionProps {
+  label: string
+  heading: string
+  items: EvalCriterion[]
+  effective: Record<string, number>
+  perCriterion: Record<string, number>
+  isEditableHere: boolean
+  hidden: boolean
+  onRate: (id: string, n: number) => void
+}
+
+const Section = React.memo(function Section({
+  heading,
+  items,
+  effective,
+  perCriterion,
+  isEditableHere,
+  hidden,
+  onRate,
+}: SectionProps) {
+  if (items.length === 0) return null
+  const weight = Math.round(items.reduce((s, c) => s + c.weight, 0))
+  const sub = scoreEvaluation(items, effective).total
+  return (
+    <div>
+      <div className="text-muted-foreground flex items-center justify-between px-4 py-2 text-xs font-medium">
+        <span>
+          {heading} <span className="text-muted-foreground/70">({weight}%)</span>
+        </span>
+        {!hidden && (
+          <span>
+            <span className="text-foreground font-semibold">{sub}</span> / {weight}
+          </span>
+        )}
+      </div>
+      <table className="w-full text-sm">
+        <tbody className="divide-y">
+          {items.map((c) => (
+            <tr key={c.id}>
+              <td className="px-4 py-2.5 align-middle">
+                <p className="leading-tight">{c.label}</p>
+                <p className="text-muted-foreground text-[11px]">{Math.round(c.weight)}%</p>
+              </td>
+              <td className="px-2 py-2.5 text-right align-middle">
+                <div className="flex justify-end">
+                  <Rating
+                    value={effective[c.id]}
+                    editable={isEditableHere}
+                    onChange={(n) => onRate(c.id, n)}
+                  />
+                </div>
+              </td>
+              <td className="text-muted-foreground w-10 px-2 py-2.5 text-right align-middle tabular-nums">
+                {hidden ? "-" : (perCriterion[c.id] ?? "-")}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+})
+
+interface SidePanelProps {
+  title: string
+  accent: string
+  criteria: EvalCriterion[]
+  effective: Record<string, number>
+  isEditableHere: boolean
+  hidden: boolean
+  sectionALabel: string
+  sectionBLabel: string
+  onRate: (id: string, n: number) => void
+}
+
+const SidePanel = React.memo(function SidePanel({
+  title,
+  accent,
+  criteria,
+  effective,
+  isEditableHere,
+  hidden,
+  sectionALabel,
+  sectionBLabel,
+  onRate,
+}: SidePanelProps) {
+  const score = scoreEvaluation(criteria, effective)
+  const sectionA = criteria.filter((c) => c.section === "A")
+  const sectionB = criteria.filter((c) => c.section === "B")
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className={cn("border-b py-3", accent)}>
+        <CardTitle className="flex items-center justify-between text-sm">
+          <span>{title}</span>
+          <span className="text-xs font-normal">
+            {hidden ? (
+              <span className="text-muted-foreground">Awaiting submission</span>
+            ) : (
+              <>
+                Total <span className="text-foreground font-bold">{score.total}</span> / 100
+              </>
+            )}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {hidden ? (
+          <p className="text-muted-foreground px-4 py-8 text-center text-xs">Not submitted yet.</p>
+        ) : (
+          <div className="divide-y">
+            <Section
+              label="A"
+              heading={sectionALabel}
+              items={sectionA}
+              effective={effective}
+              perCriterion={score.perCriterion}
+              isEditableHere={isEditableHere}
+              hidden={hidden}
+              onRate={onRate}
+            />
+            <Section
+              label="B"
+              heading={sectionBLabel}
+              items={sectionB}
+              effective={effective}
+              perCriterion={score.perCriterion}
+              isEditableHere={isEditableHere}
+              hidden={hidden}
+              onRate={onRate}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+})
 
 export default function EvaluationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -141,7 +285,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
     submit.mutate({ role: editableSide, ratings, comment }, { onSuccess: () => undefined })
   }
 
-  if (isLoading) return <Skeleton className="h-96 rounded" />
+  if (isLoading) return <Skeleton className="h-96 rounded-lg" />
   if (!ev)
     return (
       <p className="text-muted-foreground py-20 text-center text-sm">
@@ -149,120 +293,45 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
       </p>
     )
 
-  const SidePanel = ({
-    side,
-    title,
-    criteria,
-    storedRatings,
-    accent,
-  }: {
-    side: Side
-    title: string
-    criteria: EvalCriterion[]
-    storedRatings: Record<string, number> | null
-    accent: string
-  }) => {
+  // Derives what the (previously in-render) SidePanel closures used to capture.
+  const onRate = useCallback((id: string, n: number) => {
+    setRatings((r) => ({ ...r, [id]: n }))
+  }, [])
+
+  const panelProps = (side: Side, storedRatings: Record<string, number> | null) => {
     const isEditableHere = canEdit && editableSide === side
-    const effective = isEditableHere ? ratings : (storedRatings ?? {})
-    const hidden = !isEditableHere && !storedRatings // e.g. employee before manager submits
-    const score = scoreEvaluation(criteria, effective)
-    const sectionA = criteria.filter((c) => c.section === "A")
-    const sectionB = criteria.filter((c) => c.section === "B")
-
-    const Section = ({ label, items }: { label: string; items: EvalCriterion[] }) => {
-      if (items.length === 0) return null
-      const weight = Math.round(items.reduce((s, c) => s + c.weight, 0))
-      const sub = scoreEvaluation(items, effective).total
-      return (
-        <div>
-          <div className="text-muted-foreground flex items-center justify-between px-4 py-2 text-xs font-medium">
-            <span>
-              {label === "A" ? ev.sectionALabel : ev.sectionBLabel}{" "}
-              <span className="text-muted-foreground/70">({weight}%)</span>
-            </span>
-            {!hidden && (
-              <span>
-                <span className="text-foreground font-semibold">{sub}</span> / {weight}
-              </span>
-            )}
-          </div>
-          <table className="w-full text-sm">
-            <tbody className="divide-y">
-              {items.map((c) => (
-                <tr key={c.id}>
-                  <td className="px-4 py-2.5 align-middle">
-                    <p className="leading-tight">{c.label}</p>
-                    <p className="text-muted-foreground text-[11px]">{Math.round(c.weight)}%</p>
-                  </td>
-                  <td className="px-2 py-2.5 text-right align-middle">
-                    <div className="flex justify-end">
-                      <Rating
-                        value={effective[c.id]}
-                        editable={isEditableHere}
-                        onChange={(n) => setRatings((r) => ({ ...r, [c.id]: n }))}
-                      />
-                    </div>
-                  </td>
-                  <td className="text-muted-foreground w-10 px-2 py-2.5 text-right align-middle tabular-nums">
-                    {hidden ? "-" : (score.perCriterion[c.id] ?? "-")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )
+    return {
+      isEditableHere,
+      effective: isEditableHere ? ratings : (storedRatings ?? {}),
+      hidden: !isEditableHere && !storedRatings, // e.g. employee before manager submits
+      sectionALabel: ev.sectionALabel,
+      sectionBLabel: ev.sectionBLabel,
+      onRate,
     }
-
-    return (
-      <Card className="overflow-hidden">
-        <CardHeader className={cn("border-b py-3", accent)}>
-          <CardTitle className="flex items-center justify-between text-sm">
-            <span>{title}</span>
-            <span className="text-xs font-normal">
-              {hidden ? (
-                <span className="text-muted-foreground">Awaiting submission</span>
-              ) : (
-                <>
-                  Total <span className="text-foreground font-bold">{score.total}</span> / 100
-                </>
-              )}
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {hidden ? (
-            <p className="text-muted-foreground px-4 py-8 text-center text-xs">
-              Not submitted yet.
-            </p>
-          ) : (
-            <div className="divide-y">
-              <Section label="A" items={sectionA} />
-              <Section label="B" items={sectionB} />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    )
   }
 
   return (
     <div className="space-y-6">
-      <div className="no-print flex items-center justify-between">
-        <Button asChild variant="ghost" size="sm" className="-ml-2 gap-1.5">
-          <Link href="/performance/evaluations">
-            <ArrowLeft className="h-4 w-4" /> Back to Evaluations
-          </Link>
-        </Button>
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.print()}>
-          <Printer className="h-4 w-4" /> Print / Save PDF
-        </Button>
-      </div>
-
       <div id="print-area" className="space-y-6">
+        {/* The title/description are part of the printed PDF, but the controls are not:
+            the print action carries .no-print, and print:[&>a]:hidden drops PageHeader's
+            back link (the header's only <a>) from the printout. */}
         <PageHeader
+          className="print:[&>a]:hidden"
           title={`${ev.employee.firstName} ${ev.employee.lastName} - ${ev.periodLabel}`}
           description={`Performance evaluation${ev.dueDate ? ` · due ${new Date(ev.dueDate).toLocaleDateString("en-IN")}` : ""}`}
+          backHref="/performance/evaluations"
+          backLabel="Back to Evaluations"
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              className="no-print gap-1.5"
+              onClick={() => window.print()}
+            >
+              <Printer className="h-4 w-4" /> Print / Save PDF
+            </Button>
+          }
         />
 
         {/* Status / final score */}
@@ -297,26 +366,23 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
 
         <div className={cn("grid gap-6", hasController ? "lg:grid-cols-3" : "lg:grid-cols-2")}>
           <SidePanel
-            side="MANAGER"
             title="Manager Evaluation"
-            criteria={managerCriteria}
-            storedRatings={ev.managerRatings}
             accent="bg-blue-50/60 dark:bg-blue-950/20"
+            criteria={managerCriteria}
+            {...panelProps("MANAGER", ev.managerRatings)}
           />
           <SidePanel
-            side="SELF"
             title="Self-Evaluation"
-            criteria={selfCriteria}
-            storedRatings={ev.selfRatings}
             accent="bg-emerald-50/60 dark:bg-emerald-950/20"
+            criteria={selfCriteria}
+            {...panelProps("SELF", ev.selfRatings)}
           />
           {hasController && (
             <SidePanel
-              side="CONTROLLER"
               title="Project Controller"
-              criteria={managerCriteria}
-              storedRatings={ev.controllerRatings}
               accent="bg-amber-50/60 dark:bg-amber-950/20"
+              criteria={managerCriteria}
+              {...panelProps("CONTROLLER", ev.controllerRatings)}
             />
           )}
         </div>

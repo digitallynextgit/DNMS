@@ -82,9 +82,9 @@ export function KanbanView({ projectId, currentUserId, isAdmin, teamFilter }: Pr
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {COLUMNS.map((c) => (
           <div key={c.id} className="space-y-2">
-            <Skeleton className="h-6 w-24 rounded" />
-            <Skeleton className="h-24 rounded" />
-            <Skeleton className="h-24 rounded" />
+            <Skeleton className="h-6 w-24 rounded-lg" />
+            <Skeleton className="h-24 rounded-lg" />
+            <Skeleton className="h-24 rounded-lg" />
           </div>
         ))}
       </div>
@@ -118,7 +118,7 @@ export function KanbanView({ projectId, currentUserId, isAdmin, teamFilter }: Pr
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                     className={cn(
-                      "min-h-24 flex-1 space-y-2 rounded p-2 transition-colors",
+                      "min-h-24 flex-1 space-y-2 rounded-lg p-2 transition-colors",
                       col.color,
                       snapshot.isDraggingOver && "ring-primary/40 ring-2",
                     )}
@@ -131,7 +131,7 @@ export function KanbanView({ projectId, currentUserId, isAdmin, teamFilter }: Pr
                             {...drag.draggableProps}
                             style={drag.draggableProps.style as CSSProperties}
                             className={cn(
-                              "bg-background cursor-pointer rounded border p-3 shadow-sm select-none",
+                              "bg-background cursor-pointer rounded-lg border p-3 shadow-sm select-none",
                               snap.isDragging && "ring-primary/50 rotate-1 shadow-lg ring-2",
                               task.approvalStatus === "PENDING_APPROVAL" && "border-amber-300",
                             )}

@@ -4,7 +4,7 @@ import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
-import { sendEmail } from "@/lib/mailer"
+import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
 import type { Session } from "next-auth"
 
@@ -47,7 +47,7 @@ export const PATCH = withSession(
             type: "success",
             link: `/projects/${task.team!.projectId}`,
           })
-          await sendEmail({
+          addEmailJob({
             to: task.assignee.email,
             subject: `Task approved: ${task.title}`,
             html: `<p>Hi ${task.assignee.firstName},</p><p>Your self-task <strong>${task.title}</strong> has been approved. You can start working on it.</p>`,

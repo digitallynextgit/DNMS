@@ -1,6 +1,6 @@
 "use client"
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
@@ -286,6 +286,7 @@ export function useDeleteSalaryStructure() {
 export function usePayrollRecords(filters: PayrollFilters = {}) {
   return useQuery({
     queryKey: ["payroll-records", filters],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchPayrollRecords(filters),
     staleTime: 15_000,
   })
@@ -363,6 +364,7 @@ export function useMyPayslip(id: string | null | undefined) {
 export function usePayrollSummary(month?: number, year?: number) {
   return useQuery({
     queryKey: ["payroll-summary", month, year],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchPayrollSummary(month, year),
     staleTime: 30_000,
   })

@@ -3,7 +3,8 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { CalendarDays, Sparkles, ChevronLeft, ChevronRight, Check, Loader2, X } from "lucide-react"
+import { CalendarDays, Sparkles, ChevronLeft, ChevronRight, Check, X } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
@@ -19,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useHolidays, FloatingRequestsInbox } from "@/features/attendance"
+import { useHolidays, FloatingRequestsInbox, HolidayMonthCalendar } from "@/features/attendance"
 import { useUrlState, useUrlPage } from "@/hooks/use-url-state"
 import { cn, formatDate } from "@/lib/utils"
 
@@ -146,16 +147,10 @@ export default function EmployeeHolidayCalendarPage() {
   if (!years.includes(year)) years.push(year)
   years.sort((a, b) => a - b)
 
-  const holidayByDay = new Map(holidays.map((h) => [h.date.slice(0, 10), h]))
-  // date -> list of employees whose birthday falls that day (a team view).
-  const birthdaysByDay = new Map<string, string[]>()
-  for (const b of fd?.birthdays ?? []) {
-    const arr = birthdaysByDay.get(b.date)
-    if (arr) arr.push(b.name)
-    else birthdaysByDay.set(b.date, [b.name])
-  }
-  const firstDow = new Date(Date.UTC(year, calMonth, 1)).getUTCDay()
-  const daysInMonth = new Date(Date.UTC(year, calMonth + 1, 0)).getUTCDate()
+  // Floating holidays this employee has had approved (shown with a tick).
+  const approvedFloatingIds = new Set(
+    (fd?.selections ?? []).filter((s) => s.status === "APPROVED").map((s) => s.holidayId),
+  )
 
   function prevMonth() {
     if (calMonth === 0) {
@@ -225,103 +220,16 @@ export default function EmployeeHolidayCalendarPage() {
         </div>
 
         {/* ── Calendar ── */}
-        <TabsContent value="calendar" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-foreground text-sm font-semibold">
-              {MONTHS[calMonth]} {year}
-            </h3>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={prevMonth}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={nextMonth}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          <div className="bg-card rounded border p-4">
-            <div className="grid grid-cols-7 gap-1">
-              {WEEKDAYS.map((w) => (
-                <div key={w} className="text-muted-foreground py-1 text-center text-xs font-medium">
-                  {w}
-                </div>
-              ))}
-              {Array.from({ length: firstDow }).map((_, i) => (
-                <div key={`b-${i}`} />
-              ))}
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const day = i + 1
-                const dateStr = `${year}-${pad(calMonth + 1)}-${pad(day)}`
-                const h = holidayByDay.get(dateStr)
-                const bdayNames = birthdaysByDay.get(dateStr)
-                const isBirthday = !!bdayNames?.length
-                const bdayLabel = bdayNames
-                  ? bdayNames.length === 1
-                    ? `🎂 ${bdayNames[0].split(" ")[0]}`
-                    : `🎂 ${bdayNames.length} birthdays`
-                  : ""
-                const dow = new Date(Date.UTC(year, calMonth, day)).getUTCDay()
-                const weekend = dow === 0 || dow === 6
-                // A floating holiday this employee applied for and HR approved is
-                // a confirmed day off - show it green, distinct from an un-availed
-                // floating option (amber).
-                const approved =
-                  !!h && h.isOptional && selByHoliday.get(h.id)?.status === "APPROVED"
-                return (
-                  <div
-                    key={day}
-                    title={
-                      isBirthday
-                        ? `Birthday: ${bdayNames!.join(", ")}`
-                        : h
-                          ? `${h.name}${approved ? " - approved floating holiday" : h.isOptional ? " (Floating)" : ""}`
-                          : undefined
-                    }
-                    className={cn(
-                      "flex min-h-18 flex-col rounded p-1.5",
-                      isBirthday
-                        ? "bg-rose-100 text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200"
-                        : h
-                          ? h.isOptional
-                            ? "bg-amber-100 text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200"
-                            : "bg-blue-100 text-blue-900 ring-1 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-200"
-                          : weekend
-                            ? "bg-muted text-muted-foreground"
-                            : "border-border border",
-                    )}
-                  >
-                    <span className="flex items-center gap-1 text-xs font-semibold">
-                      {day}
-                      {approved && <Check className="h-3 w-3" />}
-                    </span>
-                    {(isBirthday || h) && (
-                      <span className="mt-auto line-clamp-2 text-[10px] leading-tight font-medium">
-                        {isBirthday ? bdayLabel : h?.name}
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
-              <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded bg-blue-100 dark:bg-blue-950/40" />
-                <span className="text-muted-foreground">Public holiday</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded bg-amber-100 dark:bg-amber-950/40" />
-                <span className="text-muted-foreground">Floating holiday</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded bg-rose-100 dark:bg-rose-950/40" />
-                <span className="text-muted-foreground">Birthday</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Check className="h-3 w-3" />
-                <span className="text-muted-foreground">Approved floating holiday</span>
-              </span>
-            </div>
-          </div>
+        <TabsContent value="calendar">
+          <HolidayMonthCalendar
+            year={year}
+            month={calMonth}
+            onPrevMonth={prevMonth}
+            onNextMonth={nextMonth}
+            holidays={holidays}
+            approvedFloatingIds={approvedFloatingIds}
+            birthdays={fd?.birthdays}
+          />
         </TabsContent>
 
         {/* ── Floating holidays apply ── */}
@@ -409,7 +317,7 @@ export default function EmployeeHolidayCalendarPage() {
                           onClick={() => applyMut.mutate(h.id)}
                         >
                           {applyMut.isPending ? (
-                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                            <Spinner size="sm" className="mr-1" />
                           ) : (
                             <Check className="mr-1 h-3.5 w-3.5" />
                           )}

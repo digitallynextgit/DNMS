@@ -3,20 +3,14 @@
 import { useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Camera, ChevronDown, Loader2, Trash2, Upload, UserMinus } from "lucide-react"
+import { Camera, ChevronDown, Trash2, Upload, UserMinus } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 import { Button } from "@/components/ui/button"
 import { DateField } from "@/components/shared/date-field"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormDialog } from "@/components/shared/form-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -118,7 +112,7 @@ export function ProfileSelfActions({
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" disabled={photoBusy}>
             {photoBusy ? (
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              <Spinner size="sm" className="mr-1.5" />
             ) : (
               <Camera className="mr-1.5 h-3.5 w-3.5" />
             )}
@@ -166,8 +160,13 @@ export function ProfileSelfActions({
           >
             Resignation Pending
           </Badge>
-          <Button variant="outline" size="sm" disabled={cancelMut.isPending} onClick={withdraw}>
-            {cancelMut.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={cancelMut.isPending}
+            onClick={withdraw}
+            loading={cancelMut.isPending}
+          >
             Withdraw
           </Button>
         </>
@@ -183,47 +182,39 @@ export function ProfileSelfActions({
         </Button>
       )}
 
-      <Dialog open={resignOpen} onOpenChange={setResignOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Apply for Resignation</DialogTitle>
-            <DialogDescription>
-              Submit your resignation for manager approval. Share a reason and your requested last
-              working day below.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-5 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="res-reason">Reason</Label>
-              <Textarea
-                id="res-reason"
-                rows={6}
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="Briefly share why you're resigning (optional)"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Requested Last Working Day</Label>
-              <DateField value={lastWorkingDate} onChange={setLastWorkingDate} />
-            </div>
-            <p className="text-muted-foreground text-xs">
-              This sends a resignation request to your manager for approval. Once approved, your
-              account is deactivated and you'll be signed out. You can withdraw it from your profile
-              while it's still pending.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setResignOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" disabled={applyMut.isPending} onClick={submitResignation}>
-              {applyMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Submit Request
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FormDialog
+        open={resignOpen}
+        onOpenChange={setResignOpen}
+        title="Apply for Resignation"
+        description="Submit your resignation for manager approval. Share a reason and your requested last working day below."
+        isPending={applyMut.isPending}
+        submitLabel="Submit Request"
+        submitVariant="destructive"
+        onSubmit={(e) => {
+          e.preventDefault()
+          submitResignation()
+        }}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="res-reason">Reason</Label>
+          <Textarea
+            id="res-reason"
+            rows={6}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Briefly share why you're resigning (optional)"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Requested Last Working Day</Label>
+          <DateField value={lastWorkingDate} onChange={setLastWorkingDate} />
+        </div>
+        <p className="text-muted-foreground text-xs">
+          This sends a resignation request to your manager for approval. Once approved, your account
+          is deactivated and you'll be signed out. You can withdraw it from your profile while it's
+          still pending.
+        </p>
+      </FormDialog>
     </div>
   )
 }

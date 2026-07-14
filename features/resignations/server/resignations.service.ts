@@ -5,7 +5,8 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotification, notifyApprovers } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
-import { sendEmail, sendEmailAs } from "@/lib/mailer"
+import { sendEmailAs } from "@/lib/mailer"
+import { addEmailJob } from "@/lib/queue"
 import { requireSession, getAuditMeta } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
@@ -360,7 +361,7 @@ export async function reviewResignation(
             firstName: resignation.employee.firstName,
             note: note?.trim() || null,
           })
-          await sendEmail({
+          addEmailJob({
             to: resignation.employee.email,
             cc: resignation.employee.manager?.email || undefined,
             subject: email.subject,
@@ -429,7 +430,7 @@ export async function reviewResignation(
           lastWorkingDate: toDateOnly(lastWorkingDate),
           note: note?.trim() || null,
         })
-        await sendEmail({
+        addEmailJob({
           to: resignation.employee.email,
           cc: resignation.employee.manager?.email || undefined,
           subject: email.subject,

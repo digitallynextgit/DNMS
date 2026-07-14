@@ -7,7 +7,6 @@ import {
   CalendarDays,
   CalendarCheck,
   Sparkles,
-  Loader2,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react"
@@ -19,6 +18,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
 import { Pagination } from "@/components/shared/pagination"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { FormDialog } from "@/components/shared/form-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
@@ -33,42 +33,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import {
   useHolidays,
   useCreateHoliday,
   useDeleteHoliday,
   FloatingRequestsInbox,
+  HolidayMonthCalendar,
 } from "@/features/attendance"
+import { useQuery } from "@tanstack/react-query"
 import { usePermissions } from "@/features/admin"
 import { useUrlState, useUrlPage } from "@/hooks/use-url-state"
 import { PERMISSIONS } from "@/lib/constants"
 import { formatDate, cn } from "@/lib/utils"
 
 const CURRENT_YEAR = new Date().getFullYear()
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-]
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-const pad = (n: number) => String(n).padStart(2, "0")
 
 export default function HolidayCalendarPage() {
   const { can } = usePermissions()
@@ -78,6 +57,18 @@ export default function HolidayCalendarPage() {
   const { data, isLoading } = useHolidays(year)
   const holidays = data?.data ?? []
   type HolidayRow = (typeof holidays)[number]
+
+  // Employee birthdays for the shared month grid (same source the employee
+  // Holiday Calendar uses).
+  const { data: birthdayData } = useQuery({
+    queryKey: ["floating-holidays", year],
+    queryFn: async () => {
+      const res = await fetch(`/api/attendance/floating-holidays?year=${year}`)
+      if (!res.ok) throw new Error("Failed to load")
+      return res.json() as Promise<{ data: { birthdays: { date: string; name: string }[] } }>
+    },
+  })
+  const birthdays = birthdayData?.data.birthdays
 
   const [view, setView] = useUrlState("tab", "table")
   const [calMonth, setCalMonth] = useState(new Date().getMonth())
@@ -90,10 +81,6 @@ export default function HolidayCalendarPage() {
   for (let y = CURRENT_YEAR - 3; y <= CURRENT_YEAR + 3; y++) years.push(y)
   if (!years.includes(year)) years.push(year)
   years.sort((a, b) => a - b)
-
-  // Holidays keyed by "YYYY-MM-DD" for the calendar view.
-  const holidayByDay = new Map<string, HolidayRow>()
-  for (const h of holidays) holidayByDay.set(h.date.slice(0, 10), h)
 
   // Client-side pagination of the per-year holiday list (table view).
   const PAGE_SIZE = 10
@@ -193,8 +180,8 @@ export default function HolidayCalendarPage() {
             cell: (h: HolidayRow) => (
               <Button
                 variant="ghost"
-                size="icon"
-                className="text-destructive hover:text-destructive h-8 w-8"
+                size="icon-sm"
+                className="text-destructive hover:text-destructive"
                 onClick={() => setDeleteId(h.id)}
                 title="Delete holiday"
               >
@@ -321,79 +308,16 @@ export default function HolidayCalendarPage() {
           )}
         </TabsContent>
 
-        {/* ── Calendar view ── */}
-        <TabsContent value="calendar" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-foreground text-sm font-semibold">
-              {MONTHS[calMonth]} {year}
-            </h3>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={prevMonth}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={nextMonth}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="bg-card rounded border p-4">
-            <div className="grid grid-cols-7 gap-1">
-              {WEEKDAYS.map((w) => (
-                <div key={w} className="text-muted-foreground py-1 text-center text-xs font-medium">
-                  {w}
-                </div>
-              ))}
-              {Array.from({ length: firstDow }).map((_, i) => (
-                <div key={`blank-${i}`} />
-              ))}
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const day = i + 1
-                const key = `${year}-${pad(calMonth + 1)}-${pad(day)}`
-                const h = holidayByDay.get(key)
-                const dow = new Date(Date.UTC(year, calMonth, day)).getUTCDay()
-                const weekend = dow === 0 || dow === 6
-                return (
-                  <div
-                    key={day}
-                    title={h ? `${h.name}${h.isOptional ? " (Floating)" : ""}` : undefined}
-                    className={cn(
-                      "flex min-h-[76px] flex-col rounded p-1.5 text-left",
-                      h
-                        ? h.isOptional
-                          ? "bg-amber-100 text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200"
-                          : "bg-blue-100 text-blue-900 ring-1 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-200"
-                        : weekend
-                          ? "bg-muted text-muted-foreground"
-                          : "border-border border",
-                    )}
-                  >
-                    <span className="text-xs font-semibold">{day}</span>
-                    {h && (
-                      <span className="mt-auto line-clamp-2 text-[10px] leading-tight font-medium">
-                        {h.name}
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
-              <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded bg-blue-100 dark:bg-blue-950/40" />
-                <span className="text-muted-foreground">Public holiday</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded bg-amber-100 dark:bg-amber-950/40" />
-                <span className="text-muted-foreground">Floating holiday</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="bg-muted h-3 w-3 rounded" />
-                <span className="text-muted-foreground">Weekend</span>
-              </span>
-            </div>
-          </div>
+        {/* ── Calendar view (the shared month grid, same as the employee one) ── */}
+        <TabsContent value="calendar">
+          <HolidayMonthCalendar
+            year={year}
+            month={calMonth}
+            onPrevMonth={prevMonth}
+            onNextMonth={nextMonth}
+            holidays={holidays}
+            birthdays={birthdays}
+          />
         </TabsContent>
 
         {/* ── Floating-holiday approval inbox (shared with the Leave section) ── */}
@@ -405,84 +329,63 @@ export default function HolidayCalendarPage() {
       </Tabs>
 
       {/* Add Holiday Dialog */}
-      <Dialog
+      <FormDialog
         open={addOpen}
         onOpenChange={(open) => {
           setAddOpen(open)
           if (!open) resetForm()
         }}
+        title="Add Holiday"
+        isPending={createHoliday.isPending}
+        submitDisabled={!name || !date}
+        submitLabel="Add Holiday"
+        size="sm"
+        onSubmit={handleAddSubmit}
       >
-        <DialogContent className="sm:max-w-[440px]">
-          <DialogHeader>
-            <DialogTitle>Add Holiday</DialogTitle>
-          </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="holiday-name">Holiday Name</Label>
+          <Input
+            id="holiday-name"
+            placeholder="e.g. Republic Day"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </div>
 
-          <form onSubmit={handleAddSubmit} className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="holiday-name">Holiday Name</Label>
-              <Input
-                id="holiday-name"
-                placeholder="e.g. Republic Day"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
+        <div className="space-y-2">
+          <Label>Date</Label>
+          <DateField
+            value={date}
+            onChange={setDate}
+            modal
+            startMonth={new Date(year, 0)}
+            endMonth={new Date(year, 11, 31)}
+          />
+        </div>
 
-            <div className="space-y-2">
-              <Label>Date</Label>
-              <DateField
-                value={date}
-                onChange={setDate}
-                modal
-                startMonth={new Date(year, 0)}
-                endMonth={new Date(year, 11, 31)}
-              />
-            </div>
+        <div className="space-y-2">
+          <Label htmlFor="holiday-desc">Description (optional)</Label>
+          <Textarea
+            id="holiday-desc"
+            placeholder="Short description..."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+          />
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="holiday-desc">Description (optional)</Label>
-              <Textarea
-                id="holiday-desc"
-                placeholder="Short description..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="is-optional"
-                checked={isOptional}
-                onCheckedChange={(v) => setIsOptional(!!v)}
-              />
-              <Label htmlFor="is-optional" className="mb-0 cursor-pointer font-normal">
-                Floating holiday (employees avail any 3; otherwise it&apos;s a fixed company
-                holiday)
-              </Label>
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setAddOpen(false)
-                  resetForm()
-                }}
-                disabled={createHoliday.isPending}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createHoliday.isPending || !name || !date}>
-                {createHoliday.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Add Holiday
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="is-optional"
+            checked={isOptional}
+            onCheckedChange={(v) => setIsOptional(!!v)}
+          />
+          <Label htmlFor="is-optional" className="mb-0 cursor-pointer font-normal">
+            Floating holiday (employees avail any 3; otherwise it&apos;s a fixed company holiday)
+          </Label>
+        </div>
+      </FormDialog>
 
       {/* Bulk delete confirmation */}
       <ConfirmDialog

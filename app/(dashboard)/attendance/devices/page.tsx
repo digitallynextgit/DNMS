@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
-import { Plus, RefreshCw, Pencil, Trash2, Wifi, WifiOff, Loader2, Zap, History } from "lucide-react"
+import { Plus, RefreshCw, Pencil, Trash2, Wifi, WifiOff, Zap, History } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
@@ -10,13 +11,14 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
 import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { DeviceFormDialog, EmployeeSyncPanel } from "@/features/attendance"
 import { useDevices, useDeleteDevice, useSyncDevice, useTestDevice } from "@/features/attendance"
 import type { HikvisionDevice } from "@/features/attendance"
 import { usePermissions } from "@/features/admin"
-import { PERMISSIONS } from "@/lib/constants"
+import { ACTIVE_STATUS_COLORS, ACTIVE_STATUS_LABELS, PERMISSIONS } from "@/lib/constants"
 import { formatDateTime } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 
@@ -120,17 +122,12 @@ export default function DevicesPage() {
     {
       header: "Status",
       cell: (device) => (
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium",
-            device.isActive
-              ? "bg-green-500/10 text-green-600 dark:text-green-400"
-              : "bg-muted text-muted-foreground",
-          )}
-        >
-          {device.isActive ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-          {device.isActive ? "Active" : "Inactive"}
-        </span>
+        <StatusBadge
+          status={device.isActive ? "ACTIVE" : "INACTIVE"}
+          colorMap={ACTIVE_STATUS_COLORS}
+          labelMap={ACTIVE_STATUS_LABELS}
+          icon={device.isActive ? Wifi : WifiOff}
+        />
       ),
     },
     {
@@ -154,7 +151,7 @@ export default function DevicesPage() {
                   title="Test connection"
                 >
                   {testingId === device.id ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Spinner size="sm" />
                   ) : (
                     <Zap className="h-3.5 w-3.5" />
                   )}
@@ -169,7 +166,7 @@ export default function DevicesPage() {
                   title="Sync device"
                 >
                   {syncingId === device.id ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Spinner size="sm" />
                   ) : (
                     <RefreshCw className="h-3.5 w-3.5" />
                   )}
@@ -177,8 +174,7 @@ export default function DevicesPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
+                  size="icon-sm"
                   onClick={() => setFullSyncId(device.id)}
                   disabled={syncingId === device.id || !device.isActive}
                   title="Full re-sync (rebuild all history from device)"
@@ -187,8 +183,7 @@ export default function DevicesPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
+                  size="icon-sm"
                   onClick={() => handleEdit(device)}
                   title="Edit device"
                 >
@@ -196,8 +191,8 @@ export default function DevicesPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="text-destructive hover:text-destructive h-8 w-8"
+                  size="icon-sm"
+                  className="text-destructive hover:text-destructive"
                   onClick={() => setDeleteId(device.id)}
                   title="Delete device"
                 >
@@ -246,7 +241,7 @@ export default function DevicesPage() {
       )}
 
       {isLoading ? (
-        <div className="bg-card rounded border">
+        <div className="bg-card rounded-lg border">
           <TableSkeleton rows={4} cols={7} />
         </div>
       ) : devices.length === 0 ? (

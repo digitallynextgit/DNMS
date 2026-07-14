@@ -4,7 +4,7 @@ import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import { createNotification, notifyApprovers } from "@/lib/notifications"
-import { sendEmail } from "@/lib/mailer"
+import { addEmailJob } from "@/lib/queue"
 import { requireSession } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
@@ -336,7 +336,7 @@ export async function updateWfhRequest(
             detailLine: `Work From Home · ${dateStr}`,
             reason: !approved && reason ? reason : null,
           })
-          await sendEmail({
+          addEmailJob({
             to: request.employee.email,
             subject: email.subject,
             html: email.html,

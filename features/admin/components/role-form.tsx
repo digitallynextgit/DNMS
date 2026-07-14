@@ -23,7 +23,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import { Loader2 } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -342,7 +342,7 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
 
           {loadingPermissions ? (
             <div className="text-muted-foreground flex items-center gap-2 py-4">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Spinner />
               Loading permissions…
             </div>
           ) : (
@@ -412,8 +412,11 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting || loadingPermissions}>
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button
+            type="submit"
+            disabled={isSubmitting || loadingPermissions}
+            loading={isSubmitting}
+          >
             {isSubmitting
               ? isEditing
                 ? "Saving…"

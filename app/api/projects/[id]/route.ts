@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth, withSession } from "@/server/api-handler"
+import { withProjectManager } from "@/features/projects/server/project-access"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
@@ -53,8 +54,7 @@ export const GET = withSession(
   },
 )
 
-export const PATCH = withAuth(
-  PERMISSIONS.PROJECT_WRITE,
+export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const body = await req.json()

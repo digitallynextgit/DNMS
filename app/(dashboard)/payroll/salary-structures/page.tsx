@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react"
 import { Plus, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
-import { Pagination } from "@/components/shared/pagination"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
 import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -30,6 +30,17 @@ function formatDate(dateStr: string): string {
     month: "short",
     year: "numeric",
   })
+}
+
+function grossOf(structure: SalaryStructure): number {
+  return (
+    structure.basicSalary +
+    structure.hra +
+    structure.conveyance +
+    structure.medicalAllowance +
+    structure.telephoneAllowance +
+    structure.otherAllowances
+  )
 }
 
 export default function SalaryStructuresPage() {
@@ -86,6 +97,81 @@ export default function SalaryStructuresPage() {
     setDeleteId(null)
   }
 
+  const columns: DataTableColumn<SalaryStructure>[] = [
+    {
+      header: "Employee",
+      cell: (structure) => (
+        <div>
+          <p className="font-medium">
+            {structure.employee.firstName} {structure.employee.lastName}
+          </p>
+          <p className="text-muted-foreground text-xs">{structure.employee.employeeNo}</p>
+          {structure.employee.department && (
+            <p className="text-muted-foreground text-xs">{structure.employee.department.name}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: "Basic",
+      align: "right",
+      cell: (structure) => fmt(structure.basicSalary),
+    },
+    {
+      header: "HRA",
+      align: "right",
+      className: "text-muted-foreground",
+      cell: (structure) => fmt(structure.hra),
+    },
+    {
+      header: "Gross",
+      align: "right",
+      className: "font-medium",
+      cell: (structure) => fmt(grossOf(structure)),
+    },
+    {
+      header: "Net (in-hand)",
+      align: "right",
+      className: "font-semibold text-emerald-600",
+      // No statutory deductions - net is the full gross, paid in hand.
+      cell: (structure) => fmt(grossOf(structure)),
+    },
+    {
+      header: "Effective From",
+      className: "text-muted-foreground",
+      cell: (structure) => formatDate(structure.effectiveFrom),
+    },
+    ...(can(PERMISSIONS.PAYROLL_WRITE)
+      ? [
+          {
+            header: "",
+            align: "right",
+            cell: (structure: SalaryStructure) => (
+              <div className="flex items-center justify-end gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => handleEdit(structure)}
+                  title="Edit"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setDeleteId(structure.id)}
+                  title="Delete"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ),
+          } satisfies DataTableColumn<SalaryStructure>,
+        ]
+      : []),
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -113,107 +199,19 @@ export default function SalaryStructuresPage() {
           }
         />
       ) : (
-        <div className="bg-card rounded border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b">
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Employee</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Basic</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">HRA</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Gross</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">
-                  Net (in-hand)
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">
-                  Effective From
-                </th>
-                {can(PERMISSIONS.PAYROLL_WRITE) && (
-                  <th className="text-muted-foreground px-4 py-3 text-right font-medium">
-                    Actions
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {pagedStructures.map((structure: SalaryStructure) => {
-                const gross =
-                  structure.basicSalary +
-                  structure.hra +
-                  structure.conveyance +
-                  structure.medicalAllowance +
-                  structure.telephoneAllowance +
-                  structure.otherAllowances
-                // No statutory deductions - net is the full gross, paid in hand.
-                const net = gross
-
-                return (
-                  <tr key={structure.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="font-medium">
-                          {structure.employee.firstName} {structure.employee.lastName}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          {structure.employee.employeeNo}
-                        </p>
-                        {structure.employee.department && (
-                          <p className="text-muted-foreground text-xs">
-                            {structure.employee.department.name}
-                          </p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right">{fmt(structure.basicSalary)}</td>
-                    <td className="text-muted-foreground px-4 py-3 text-right">
-                      {fmt(structure.hra)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium">{fmt(gross)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-600">
-                      {fmt(net)}
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3">
-                      {formatDate(structure.effectiveFrom)}
-                    </td>
-                    {can(PERMISSIONS.PAYROLL_WRITE) && (
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleEdit(structure)}
-                            title="Edit"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive h-8 w-8"
-                            onClick={() => setDeleteId(structure.id)}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Pagination */}
-      {!isLoading && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          total={total}
-          onPageChange={setPage}
-          itemLabel="structure"
+        <DataTable
+          columns={columns}
+          rows={pagedStructures}
+          rowKey={(structure) => structure.id}
+          showSerial
+          serialOffset={(page - 1) * PAGE_SIZE}
+          pagination={{
+            page,
+            totalPages,
+            total,
+            onPageChange: setPage,
+            itemLabel: "structure",
+          }}
         />
       )}
 

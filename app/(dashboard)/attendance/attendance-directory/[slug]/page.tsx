@@ -1,18 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { Spinner } from "@/components/shared/spinner"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
-import {
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  Timer,
-  Loader2,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react"
+import { CheckCircle2, AlertTriangle, Clock, Timer, ChevronLeft, ChevronRight } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
@@ -145,8 +138,7 @@ export default function EmployeeAttendancePage() {
           <>
             <Button
               variant="outline"
-              size="icon"
-              className="h-8 w-8"
+              size="icon-sm"
               onClick={prev}
               disabled={!canPrev || isLoading}
               aria-label="Previous month"
@@ -155,8 +147,7 @@ export default function EmployeeAttendancePage() {
             </Button>
             <Button
               variant="outline"
-              size="icon"
-              className="h-8 w-8"
+              size="icon-sm"
               onClick={next}
               disabled={!canNext || isLoading}
               aria-label="Next month"
@@ -200,8 +191,8 @@ export default function EmployeeAttendancePage() {
       </div>
 
       {isLoading || empLoading ? (
-        <div className="bg-card flex h-72 items-center justify-center rounded border">
-          <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+        <div className="bg-card flex h-72 items-center justify-center rounded-lg border">
+          <Spinner size="lg" className="text-muted-foreground" />
         </div>
       ) : (
         <AttendanceCalendar days={days} />

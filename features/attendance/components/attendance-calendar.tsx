@@ -43,7 +43,7 @@ function fmtTime(t: string | null): string {
 function LegendItem({ className, label }: { className: string; label: string }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span className={cn("h-3 w-3 rounded", className)} />
+      <span className={cn("h-3 w-3 rounded-lg", className)} />
       <span className="text-muted-foreground">{label}</span>
     </span>
   )
@@ -58,7 +58,7 @@ function DayCell({ d }: { d: CalendarDay }) {
   return (
     <div
       title={d.label ?? d.status}
-      className={cn("flex min-h-[76px] flex-col rounded p-1.5 text-left", cellStyle(d.status))}
+      className={cn("flex min-h-[76px] flex-col rounded-lg p-1.5 text-left", cellStyle(d.status))}
     >
       <div className="flex items-start justify-between gap-1">
         <span className="text-xs font-semibold">{d.day}</span>
@@ -88,7 +88,7 @@ function DayCell({ d }: { d: CalendarDay }) {
 export function AttendanceCalendar({ days }: { days: CalendarDay[] }) {
   const firstDow = days[0]?.dow ?? 0
   return (
-    <div className="bg-card rounded border p-4">
+    <div className="bg-card rounded-lg border p-4">
       <div className="grid grid-cols-7 gap-1">
         {WEEKDAYS.map((w) => (
           <div key={w} className="text-muted-foreground py-1 text-center text-xs font-medium">

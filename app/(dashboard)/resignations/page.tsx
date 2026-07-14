@@ -97,7 +97,7 @@ export default function ResignationsPage() {
             return (
               <div
                 key={r.id}
-                className="bg-card flex flex-col gap-4 rounded border p-4 sm:flex-row sm:items-start sm:justify-between"
+                className="bg-card flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-start sm:justify-between"
               >
                 <div className="flex min-w-0 gap-3">
                   <AvatarDisplay

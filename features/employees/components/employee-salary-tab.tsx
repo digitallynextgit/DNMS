@@ -4,7 +4,9 @@ import { useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { useSalaryStructures, usePayrollRecords } from "@/features/payroll"
+import { EmptyState } from "@/components/shared/empty-state"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { useSalaryStructures, usePayrollRecords, type PayrollRecord } from "@/features/payroll"
 import { cn } from "@/lib/utils"
 import { PAYROLL_STATUS_COLORS, PAYROLL_STATUS_LABELS } from "@/lib/constants"
 import { Wallet, TrendingUp, TrendingDown, Calendar, Inbox, IndianRupee } from "lucide-react"
@@ -71,6 +73,57 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
     .filter((p) => p.status === "PAID")
     .reduce((sum, p) => sum + p.netSalary, 0)
 
+  const columns: DataTableColumn<PayrollRecord>[] = [
+    {
+      header: "Period",
+      className: "font-medium whitespace-nowrap",
+      cell: (p) => (
+        <>
+          {MONTH_LABELS[p.month - 1]} {p.year}
+        </>
+      ),
+    },
+    {
+      header: "Days",
+      align: "center",
+      cell: (p) => (
+        <>
+          <span className="text-foreground">{p.presentDays}</span>
+          <span className="text-muted-foreground">/{p.workingDays}</span>
+          {p.lopDays > 0 && <span className="ml-1 text-xs text-red-600">(LOP {p.lopDays})</span>}
+        </>
+      ),
+    },
+    {
+      header: "Gross",
+      align: "right",
+      className: "font-medium",
+      cell: (p) => fmt(p.grossSalary),
+    },
+    {
+      header: "Deductions",
+      align: "right",
+      className: "text-red-600",
+      cell: (p) => `-${fmt(p.totalDeductions)}`,
+    },
+    {
+      header: "Net",
+      align: "right",
+      className: "font-semibold",
+      cell: (p) => fmt(p.netSalary),
+    },
+    {
+      header: "Status",
+      cell: (p) => (
+        <StatusBadge
+          status={p.status}
+          colorMap={PAYROLL_STATUS_COLORS}
+          labelMap={PAYROLL_STATUS_LABELS}
+        />
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-6">
       {/* ── Salary Structure ──────────────────────────────────────────────── */}
@@ -81,7 +134,7 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
         </div>
 
         {structuresLoading ? (
-          <Skeleton className="h-48 rounded" />
+          <Skeleton className="h-48 rounded-lg" />
         ) : !structure ? (
           <Card className="border-dashed">
             <CardContent className="py-10 text-center">
@@ -183,63 +236,13 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
         {payrollLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 rounded" />
+              <Skeleton key={i} className="h-14 rounded-lg" />
             ))}
           </div>
         ) : payslips.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-10 text-center">
-              <Inbox className="text-muted-foreground/40 mx-auto mb-2 h-8 w-8" />
-              <p className="text-muted-foreground text-sm">No payslips generated yet.</p>
-            </CardContent>
-          </Card>
+          <EmptyState compact title="No payslips generated yet." />
         ) : (
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 border-border border-b">
-                    <tr className="text-muted-foreground text-left text-xs tracking-wider uppercase">
-                      <th className="px-4 py-2.5 font-medium">Period</th>
-                      <th className="px-4 py-2.5 text-center font-medium">Days</th>
-                      <th className="px-4 py-2.5 text-right font-medium">Gross</th>
-                      <th className="px-4 py-2.5 text-right font-medium">Deductions</th>
-                      <th className="px-4 py-2.5 text-right font-medium">Net</th>
-                      <th className="px-4 py-2.5 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-border divide-y">
-                    {payslips.map((p) => (
-                      <tr key={p.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-2.5 font-medium whitespace-nowrap">
-                          {MONTH_LABELS[p.month - 1]} {p.year}
-                        </td>
-                        <td className="px-4 py-2.5 text-center">
-                          <span className="text-foreground">{p.presentDays}</span>
-                          <span className="text-muted-foreground">/{p.workingDays}</span>
-                          {p.lopDays > 0 && (
-                            <span className="ml-1 text-xs text-red-600">(LOP {p.lopDays})</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-medium">{fmt(p.grossSalary)}</td>
-                        <td className="px-4 py-2.5 text-right text-red-600">
-                          -{fmt(p.totalDeductions)}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-semibold">{fmt(p.netSalary)}</td>
-                        <td className="px-4 py-2.5">
-                          <StatusBadge
-                            status={p.status}
-                            colorMap={PAYROLL_STATUS_COLORS}
-                            labelMap={PAYROLL_STATUS_LABELS}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          <DataTable columns={columns} rows={payslips} rowKey={(p) => p.id} showSerial />
         )}
       </div>
     </div>

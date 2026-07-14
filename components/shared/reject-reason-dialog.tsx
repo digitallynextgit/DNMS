@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Loader2 } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 
 import { buttonVariants } from "@/components/ui/button"
 import {
@@ -63,7 +63,7 @@ export function RejectReasonDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="rounded-[var(--radius)]">
+      <AlertDialogContent className="rounded-lg">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-sm font-semibold tracking-tight">
             {title}
@@ -99,7 +99,7 @@ export function RejectReasonDialog({
             disabled={disabled}
             className={cn(variant === "destructive" && buttonVariants({ variant: "destructive" }))}
           >
-            {isLoading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+            {isLoading && <Spinner size="sm" className="mr-2" />}
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

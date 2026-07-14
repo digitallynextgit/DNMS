@@ -1,18 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Loader2, Pencil, Power, Trash2 } from "lucide-react"
+import { Plus, Pencil, Power, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -20,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { FormDialog } from "@/components/shared/form-dialog"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
@@ -70,7 +64,8 @@ export default function JobRolesPage() {
     setDepartmentId(r.departmentId)
     setDialogOpen(true)
   }
-  function save() {
+  function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
     if (!name.trim() || !departmentId) return
     if (editing) {
       updateRole.mutate(
@@ -115,19 +110,12 @@ export default function JobRolesPage() {
             align: "right" as const,
             cell: (r: JobRole) => (
               <div className="flex items-center justify-end gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  title="Edit"
-                  onClick={() => openEdit(r)}
-                >
+                <Button variant="ghost" size="icon-sm" title="Edit" onClick={() => openEdit(r)}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
+                  size="icon-sm"
                   title={r.isActive ? "Deactivate" : "Activate"}
                   disabled={updateRole.isPending}
                   onClick={() => updateRole.mutate({ id: r.id, body: { isActive: !r.isActive } })}
@@ -137,8 +125,8 @@ export default function JobRolesPage() {
                 {r._count.employees === 0 && (
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:bg-destructive/10 h-7 w-7"
+                    size="icon-sm"
+                    className="text-destructive hover:bg-destructive/10"
                     title="Delete permanently"
                     disabled={deleteRole.isPending}
                     onClick={() => setDeleteTarget(r)}
@@ -200,55 +188,41 @@ export default function JobRolesPage() {
         <DataTable columns={columns} rows={list} rowKey={(r) => r.id} showSerial />
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Job Role" : "Add Job Role"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="jr-dept">Department</Label>
-              <Select value={departmentId} onValueChange={setDepartmentId}>
-                <SelectTrigger id="jr-dept">
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="jr-name">Role name</Label>
-              <Input
-                id="jr-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Full Stack Developer"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={
-                !name.trim() || !departmentId || createRole.isPending || updateRole.isPending
-              }
-              onClick={save}
-            >
-              {(createRole.isPending || updateRole.isPending) && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              {editing ? "Save" : "Create"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={editing ? "Edit Job Role" : "Add Job Role"}
+        isEdit={!!editing}
+        isPending={createRole.isPending || updateRole.isPending}
+        submitDisabled={!name.trim() || !departmentId}
+        size="sm"
+        onSubmit={save}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="jr-dept">Department</Label>
+          <Select value={departmentId} onValueChange={setDepartmentId}>
+            <SelectTrigger id="jr-dept">
+              <SelectValue placeholder="Select department" />
+            </SelectTrigger>
+            <SelectContent>
+              {departments.map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="jr-name">Role name</Label>
+          <Input
+            id="jr-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Full Stack Developer"
+          />
+        </div>
+      </FormDialog>
 
       <ConfirmDialog
         open={!!deleteTarget}

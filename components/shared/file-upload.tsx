@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Upload, X, FileText, Loader2 } from "lucide-react"
+import { Upload, X, FileText } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 
 import { cn } from "@/lib/utils"
 import { formatFileSize } from "@/lib/utils"
@@ -152,7 +153,7 @@ export function FileUpload({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          "focus-visible:ring-ring relative flex min-h-[140px] w-full cursor-pointer flex-col items-center justify-center gap-3 rounded border-2 border-dashed p-6 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+          "focus-visible:ring-ring relative flex min-h-[140px] w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
           isDragging
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/60 hover:bg-muted/30",
@@ -171,11 +172,11 @@ export function FileUpload({
 
         {isUploading ? (
           <>
-            <Loader2 className="text-primary h-10 w-10 animate-spin" />
+            <Spinner className="text-primary h-10 w-10" />
             <p className="text-muted-foreground text-sm font-medium">Uploading...</p>
           </>
         ) : selectedFile ? (
-          <div className="bg-muted/50 flex w-full items-center gap-3 rounded border px-4 py-3">
+          <div className="bg-muted/50 flex w-full items-center gap-3 rounded-lg border px-4 py-3">
             <FileText className="text-primary h-8 w-8 shrink-0" />
             <div className="min-w-0 flex-1 text-left">
               <p className="text-foreground truncate text-sm font-medium">{selectedFile.name}</p>

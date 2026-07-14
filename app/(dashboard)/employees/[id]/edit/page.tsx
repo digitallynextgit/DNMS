@@ -33,8 +33,8 @@ export default function EditEmployeePage({ params }: { params: Promise<{ id: str
 
       {isLoading ? (
         <div className="space-y-4">
-          <Skeleton className="h-12 rounded" />
-          <Skeleton className="h-80 rounded" />
+          <Skeleton className="h-12 rounded-lg" />
+          <Skeleton className="h-80 rounded-lg" />
         </div>
       ) : (
         <EmployeeForm mode="edit" employeeId={id} />

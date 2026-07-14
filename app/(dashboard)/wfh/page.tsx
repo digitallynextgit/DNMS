@@ -137,14 +137,14 @@ export default function MyWfhPage() {
   const myWfh = (
     <>
       {eligLoading ? (
-        <Skeleton className="h-24 rounded" />
+        <Skeleton className="h-24 rounded-lg" />
       ) : eligibility ? (
         <Card>
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
               <div
                 className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded",
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
                   eligibility.tier === 3
                     ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                     : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",

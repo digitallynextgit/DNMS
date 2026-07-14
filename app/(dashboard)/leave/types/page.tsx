@@ -116,7 +116,7 @@ export default function LeaveTypesAndPolicyPage() {
     {
       header: "Code",
       cell: (type) => (
-        <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{type.code}</code>
+        <code className="bg-muted rounded-lg px-1.5 py-0.5 font-mono text-xs">{type.code}</code>
       ),
     },
     {
@@ -175,20 +175,13 @@ export default function LeaveTypesAndPolicyPage() {
       align: "right",
       cell: (type) => (
         <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => openEdit(type)}
-            title="Edit"
-          >
+          <Button variant="ghost" size="icon-sm" onClick={() => openEdit(type)} title="Edit">
             <Pencil className="h-4 w-4" />
             <span className="sr-only">Edit</span>
           </Button>
           <Button
             variant="ghost"
-            size="icon"
-            className="h-8 w-8"
+            size="icon-sm"
             onClick={() => handleToggleActive(type)}
             title={type.isActive ? "Deactivate" : "Activate"}
           >
@@ -201,8 +194,8 @@ export default function LeaveTypesAndPolicyPage() {
           </Button>
           <Button
             variant="ghost"
-            size="icon"
-            className="text-destructive hover:text-destructive h-8 w-8"
+            size="icon-sm"
+            className="text-destructive hover:text-destructive"
             onClick={() => setDeleteId(type.id)}
             title="Delete"
           >

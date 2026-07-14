@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
+import { withProjectManager } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
 import { getSignedUrl } from "@/lib/storage"
 import type { Session } from "next-auth"
@@ -45,8 +46,7 @@ export const GET = withAuth(
 )
 
 // PUT - upsert the brand text/JSON sections (assets are handled separately).
-export const PUT = withAuth(
-  PERMISSIONS.PROJECT_WRITE,
+export const PUT = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const projectId = ctx.params.id

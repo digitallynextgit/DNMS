@@ -2,7 +2,8 @@
 
 import { memo, useEffect, useMemo, useState } from "react"
 import { useTheme } from "next-themes"
-import { Check, Palette, Search, Sun, Moon, Monitor, RotateCcw, Loader2 } from "lucide-react"
+import { Check, Palette, Search, Sun, Moon, Monitor, RotateCcw } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 import {
   Dialog,
   DialogContent,
@@ -56,7 +57,7 @@ const ThemeCard = memo(function ThemeCard({
         // content-visibility lets the browser skip layout/paint for off-screen
         // cards; contain-intrinsic-size reserves their space so the scrollbar
         // stays correct. This is what keeps 107 cards cheap to mount.
-        "group relative flex flex-col gap-2 rounded border p-3 text-left transition-shadow [contain-intrinsic-size:auto_8.5rem] [content-visibility:auto] hover:shadow-md focus-visible:ring-2 focus-visible:outline-none",
+        "group relative flex flex-col gap-2 rounded-lg border p-3 text-left transition-shadow [contain-intrinsic-size:auto_8.5rem] [content-visibility:auto] hover:shadow-md focus-visible:ring-2 focus-visible:outline-none",
         selected
           ? "border-primary ring-primary/30 ring-2"
           : "border-border hover:border-foreground/30",
@@ -64,7 +65,7 @@ const ThemeCard = memo(function ThemeCard({
       aria-pressed={selected}
     >
       <div
-        className="flex h-16 items-center justify-center overflow-hidden rounded border"
+        className="flex h-16 items-center justify-center overflow-hidden rounded-lg border"
         style={{ backgroundColor: theme.swatchBg, borderColor: theme.swatchAccent }}
       >
         <div className="flex gap-1.5">
@@ -127,8 +128,8 @@ export function ThemePicker() {
             <DialogTrigger asChild>
               <Button
                 variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground h-8 w-8"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
                 aria-label="Choose theme"
               >
                 <Palette className="h-4 w-4" />
@@ -161,13 +162,12 @@ export function ThemePicker() {
                 className="h-8 pl-8 text-sm"
               />
             </div>
-            <div className="bg-muted flex items-center gap-0.5 rounded p-0.5">
+            <div className="bg-muted flex items-center gap-0.5 rounded-lg p-0.5">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant={theme === "light" && !paletteId ? "secondary" : "ghost"}
-                    size="icon"
-                    className="h-7 w-7"
+                    size="icon-sm"
                     onClick={() => {
                       clearPalette()
                       setTheme("light")
@@ -183,8 +183,7 @@ export function ThemePicker() {
                 <TooltipTrigger asChild>
                   <Button
                     variant={theme === "dark" && !paletteId ? "secondary" : "ghost"}
-                    size="icon"
-                    className="h-7 w-7"
+                    size="icon-sm"
                     onClick={() => {
                       clearPalette()
                       setTheme("dark")
@@ -200,8 +199,7 @@ export function ThemePicker() {
                 <TooltipTrigger asChild>
                   <Button
                     variant={theme === "system" && !paletteId ? "secondary" : "ghost"}
-                    size="icon"
-                    className="h-7 w-7"
+                    size="icon-sm"
                     onClick={() => {
                       clearPalette()
                       setTheme("system")
@@ -248,7 +246,7 @@ export function ThemePicker() {
               <TabsContent value={activeTab} className="mt-0 outline-none">
                 {!showGrid ? (
                   <div className="flex h-64 items-center justify-center">
-                    <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
+                    <Spinner className="text-muted-foreground h-5 w-5" />
                   </div>
                 ) : filtered.length === 0 ? (
                   <div className="text-muted-foreground py-12 text-center text-sm">

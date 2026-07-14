@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth, withSession } from "@/server/api-handler"
+import { withProjectManager } from "@/features/projects/server/project-access"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
@@ -40,8 +41,7 @@ export const GET = withSession(
 )
 
 // POST /api/projects/[id]/teams - create a new team (Admin only)
-export const POST = withAuth(
-  PERMISSIONS.PROJECT_WRITE,
+export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId } = ctx.params

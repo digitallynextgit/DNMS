@@ -30,15 +30,15 @@ function DocumentListSkeleton() {
   return (
     <div className="flex flex-col gap-3">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="bg-card flex items-center gap-4 rounded border p-4">
-          <Skeleton className="h-10 w-10 rounded" />
+        <div key={i} className="bg-card flex items-center gap-4 rounded-lg border p-4">
+          <Skeleton className="h-10 w-10 rounded-lg" />
           <div className="flex flex-1 flex-col gap-2">
             <Skeleton className="h-4 w-48" />
             <Skeleton className="h-3 w-32" />
           </div>
           <div className="flex items-center gap-2">
-            <Skeleton className="h-8 w-8 rounded" />
-            <Skeleton className="h-8 w-8 rounded" />
+            <Skeleton className="h-8 w-8 rounded-lg" />
+            <Skeleton className="h-8 w-8 rounded-lg" />
           </div>
         </div>
       ))}

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Plus, X, Loader2 } from "lucide-react"
+import { Plus, X } from "lucide-react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
@@ -289,7 +289,7 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
       </div>
 
       {/* Active toggle */}
-      <div className="flex items-center justify-between rounded border p-4">
+      <div className="flex items-center justify-between rounded-lg border p-4">
         <div className="space-y-0.5">
           <Label htmlFor="tpl-active" className="mb-0 cursor-pointer text-sm font-medium">
             Active
@@ -308,8 +308,7 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
 
       {/* Submit */}
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="submit" disabled={!canSubmit}>
-          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button type="submit" disabled={!canSubmit} loading={isSubmitting}>
           {isSubmitting
             ? isEdit
               ? "Saving..."

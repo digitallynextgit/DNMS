@@ -1,6 +1,8 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
+import { Loader2 } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
@@ -19,10 +21,14 @@ const buttonVariants = cva(
         link: "text-foreground h-auto p-0 underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 rounded-[var(--radius)] px-4 py-2",
-        sm: "h-8 rounded-[var(--radius)] px-3 text-xs",
-        lg: "h-10 rounded-[var(--radius)] px-6",
-        icon: "h-9 w-9 rounded-[var(--radius)]",
+        default: "h-9 rounded-lg px-4 py-2",
+        sm: "h-8 rounded-lg px-3 text-xs",
+        lg: "h-10 rounded-lg px-6",
+        // Two sanctioned icon sizes - never override these with a className.
+        // `icon`     - standalone icon button, pairs with a default (h-9) Button.
+        // `icon-sm`  - compact row/toolbar action, pairs with a `sm` (h-8) Button.
+        icon: "h-9 w-9 rounded-lg",
+        "icon-sm": "h-8 w-8 rounded-lg [&_svg]:size-3.5",
       },
     },
     defaultVariants: {
@@ -35,13 +41,36 @@ const buttonVariants = cva(
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   asChild?: boolean
+  /**
+   * Shows a leading spinner and disables the button. Use this instead of
+   * hand-rolling `{isPending && <Spinner />}`.
+   * Ignored when `asChild` is set (Slot must receive a single child).
+   */
+  loading?: boolean
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  (
+    { className, variant, size, asChild = false, loading = false, disabled, children, ...props },
+    ref,
+  ) => {
     const Comp = asChild ? Slot : "button"
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        disabled={asChild ? undefined : disabled || loading}
+        {...props}
+      >
+        {asChild ? (
+          children
+        ) : (
+          <>
+            {loading && <Loader2 className="animate-spin" aria-hidden="true" />}
+            {children}
+          </>
+        )}
+      </Comp>
     )
   },
 )

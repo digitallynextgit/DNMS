@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import ExcelJS from "exceljs"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
+import { withProjectManager } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
@@ -47,8 +48,7 @@ function platformFromSheet(name: string): string | null {
 // POST - bulk-import content-calendar entries from an uploaded .xlsx.
 // Reads every sheet that has a "Date" header, maps columns by header name, and
 // creates one entry per row that actually has content (empty days are skipped).
-export const POST = withAuth(
-  PERMISSIONS.PROJECT_WRITE,
+export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const projectId = ctx.params.id

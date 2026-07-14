@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 import type { EvalCriterion, EvalEvaluator, EvalSection } from "@/features/performance/evaluation"
@@ -61,6 +61,7 @@ export function useEvaluations(params?: { status?: string; page?: number; limit?
   const limit = params?.limit ?? 10
   return useQuery({
     queryKey: ["evaluations", status ?? "all", page, limit],
+    placeholderData: keepPreviousData,
     queryFn: (): Promise<{ data: Evaluation[]; pagination: PaginationMeta }> => {
       const qs = new URLSearchParams({ page: String(page), limit: String(limit) })
       if (status) qs.set("status", status)

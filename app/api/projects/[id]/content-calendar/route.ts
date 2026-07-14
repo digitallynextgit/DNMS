@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
+import { withProjectManager } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
@@ -44,8 +45,7 @@ export const GET = withAuth(
 )
 
 // POST - create one entry.
-export const POST = withAuth(
-  PERMISSIONS.PROJECT_WRITE,
+export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const projectId = ctx.params.id

@@ -7,7 +7,18 @@ import Link from "next/link"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
 import { toast } from "sonner"
-import { Plus, FolderKanban, Calendar, Users, MoreHorizontal, GripVertical } from "lucide-react"
+import {
+  Plus,
+  FolderKanban,
+  Calendar,
+  Users,
+  MoreHorizontal,
+  GripVertical,
+  Eye,
+  Pencil,
+  Archive,
+} from "lucide-react"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
@@ -92,10 +103,17 @@ async function updateProjectStatus(id: string, status: string) {
 export default function ProjectsPage() {
   const { can } = usePermissions()
   const canWrite = can(PERMISSIONS.PROJECT_WRITE)
+  const { data: session } = useSession()
+  const userId = session?.user?.id ?? ""
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({ queryKey: ["projects"], queryFn: fetchProjects })
   const projects = data?.data ?? []
+
+  // A project's ACCOUNT MANAGER (owner) can do anything on their own project,
+  // just like an admin - even without the global project:write permission.
+  const canManageProject = (p: Project) => canWrite || p.owner.id === userId
+  const showBudget = canWrite || projects.some((p) => p.owner.id === userId)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
@@ -193,14 +211,14 @@ export default function ProjectsPage() {
       className: "text-muted-foreground",
       cell: (p) => p.members.length,
     },
-    ...(canWrite
+    ...(showBudget
       ? [
           {
             header: "Budget",
             align: "right" as const,
             className: "text-xs",
             cell: (p: Project) =>
-              p.budget != null ? (
+              canManageProject(p) && p.budget != null ? (
                 `₹${p.budget.toLocaleString("en-IN")}`
               ) : (
                 <span className="text-muted-foreground">-</span>
@@ -211,29 +229,38 @@ export default function ProjectsPage() {
     {
       header: "Actions",
       align: "right",
-      cell: (p) =>
-        canWrite ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Link href={`/projects/${p.id}`}>View Details</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setEditing(p)}>Edit</DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive" onClick={() => setArchiveTarget(p)}>
-                Archive
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <Button variant="ghost" size="sm" asChild className="h-7 text-xs">
-            <Link href={`/projects/${p.id}`}>Open</Link>
+      cell: (p) => (
+        <div className="flex items-center justify-end gap-0.5">
+          <Button variant="ghost" size="icon-sm" asChild title="View details">
+            <Link href={`/projects/${p.id}`} aria-label={`View ${p.name}`}>
+              <Eye className="h-4 w-4" />
+            </Link>
           </Button>
-        ),
+          {canManageProject(p) && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Edit"
+                aria-label={`Edit ${p.name}`}
+                onClick={() => setEditing(p)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-destructive"
+                title="Archive"
+                aria-label={`Archive ${p.name}`}
+                onClick={() => setArchiveTarget(p)}
+              >
+                <Archive className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      ),
     },
   ]
 
@@ -284,9 +311,9 @@ export default function ProjectsPage() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {KANBAN_COLUMNS.map((c) => (
               <div key={c.id} className="space-y-2">
-                <Skeleton className="h-5 w-24 rounded" />
-                <Skeleton className="h-36 rounded" />
-                <Skeleton className="h-36 rounded" />
+                <Skeleton className="h-5 w-24 rounded-lg" />
+                <Skeleton className="h-36 rounded-lg" />
+                <Skeleton className="h-36 rounded-lg" />
               </div>
             ))}
           </div>
@@ -329,7 +356,7 @@ export default function ProjectsPage() {
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                          "min-h-32 flex-1 space-y-2 rounded p-2 transition-colors",
+                          "min-h-32 flex-1 space-y-2 rounded-lg p-2 transition-colors",
                           col.color,
                           snapshot.isDraggingOver && "ring-primary/40 ring-2",
                         )}
@@ -347,7 +374,7 @@ export default function ProjectsPage() {
                                 {...drag.draggableProps}
                                 style={drag.draggableProps.style as CSSProperties}
                                 className={cn(
-                                  "bg-background rounded border p-3 shadow-sm select-none",
+                                  "bg-background rounded-lg border p-3 shadow-sm select-none",
                                   snap.isDragging && "ring-primary/50 rotate-1 shadow-lg ring-2",
                                 )}
                               >
@@ -376,8 +403,8 @@ export default function ProjectsPage() {
                                       <DropdownMenuTrigger asChild>
                                         <Button
                                           variant="ghost"
-                                          size="icon"
-                                          className="-mr-1 h-6 w-6 shrink-0"
+                                          size="icon-sm"
+                                          className="-mr-1 shrink-0"
                                         >
                                           <MoreHorizontal className="h-3.5 w-3.5" />
                                         </Button>
@@ -472,6 +499,7 @@ export default function ProjectsPage() {
                     status={status}
                     colorMap={PROJECT_STATUS_COLORS}
                     labelMap={PROJECT_STATUS_LABELS}
+                    size="button"
                   />
                   <span className="text-muted-foreground text-xs">
                     {group.length} project{group.length !== 1 ? "s" : ""}
@@ -491,7 +519,7 @@ export default function ProjectsPage() {
                     {group.map((project) => (
                       <div
                         key={project.id}
-                        className="bg-card hover:border-foreground/20 flex flex-col gap-3 rounded border p-4 transition-colors"
+                        className="bg-card hover:border-foreground/20 flex flex-col gap-3 rounded-lg border p-4 transition-colors"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
@@ -508,7 +536,7 @@ export default function ProjectsPage() {
                           {canWrite && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                                <Button variant="ghost" size="icon-sm" className="shrink-0">
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>

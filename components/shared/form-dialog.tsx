@@ -1,8 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { Loader2 } from "lucide-react"
-
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -27,11 +25,22 @@ interface FormDialogProps {
   submitDisabled?: boolean
   /** Override the submit label (default: isEdit ? "Save Changes" : "Create"). */
   submitLabel?: string
+  /** Submit button variant - use "destructive" for irreversible actions (e.g. resign). */
+  submitVariant?: "default" | "destructive"
   cancelLabel?: string
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
   /** Field markup. */
   children: React.ReactNode
-  /** DialogContent className (e.g. for width). */
+  /**
+   * Dialog width. Three sanctioned sizes instead of the 12 ad-hoc `sm:max-w-*`
+   * values that used to be sprinkled across the app.
+   *   sm - a few short fields (confirm-ish forms)
+   *   md - the default create/edit form
+   *   lg - wide/two-column forms
+   * (DialogContent already caps at 80vw on large screens.)
+   */
+  size?: "sm" | "md" | "lg"
+  /** Escape hatch for a one-off DialogContent className. Prefer `size`. */
   contentClassName?: string
   /**
    * For tall forms: pin the header and footer and scroll only the body. Without
@@ -39,6 +48,12 @@ interface FormDialogProps {
    */
   scrollBody?: boolean
 }
+
+const SIZES = {
+  sm: "sm:max-w-md",
+  md: "sm:max-w-2xl",
+  lg: "sm:max-w-4xl",
+} as const
 
 /**
  * Standard create/edit dialog shell: header (title/description), a `<form>`,
@@ -55,9 +70,11 @@ export function FormDialog({
   isPending = false,
   submitDisabled = false,
   submitLabel,
+  submitVariant = "default",
   cancelLabel = "Cancel",
   onSubmit,
   children,
+  size = "md",
   contentClassName,
   scrollBody = false,
 }: FormDialogProps) {
@@ -71,8 +88,7 @@ export function FormDialog({
       >
         {cancelLabel}
       </Button>
-      <Button type="submit" disabled={isPending || submitDisabled}>
-        {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      <Button type="submit" variant={submitVariant} loading={isPending} disabled={submitDisabled}>
         {submitLabel ?? (isEdit ? "Save Changes" : "Create")}
       </Button>
     </>
@@ -87,7 +103,8 @@ export function FormDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           className={cn(
-            "flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-[var(--radius)] p-0",
+            "flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-lg p-0",
+            SIZES[size],
             contentClassName,
           )}
         >
@@ -108,7 +125,7 @@ export function FormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("rounded-[var(--radius)]", contentClassName)}>
+      <DialogContent className={cn("rounded-lg", SIZES[size], contentClassName)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

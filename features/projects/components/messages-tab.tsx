@@ -16,14 +16,8 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { FormDialog } from "@/components/shared/form-dialog"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { formatDate } from "@/lib/utils"
 import { Pin, PinOff, Plus, Trash2, Pencil, MessageSquare } from "lucide-react"
@@ -138,8 +132,8 @@ function MessageCard({
             {(isOwner || canManage) && (
               <Button
                 variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground h-7 w-7"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
                 title={message.isPinned ? "Unpin" : "Pin"}
                 onClick={() =>
                   update.mutate({ messageId: message.id, body: { isPinned: !message.isPinned } })
@@ -156,16 +150,16 @@ function MessageCard({
               <>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-foreground h-7 w-7"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-foreground"
                   onClick={() => setEditOpen(true)}
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-destructive h-7 w-7"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-destructive"
                   onClick={() => setConfirmOpen(true)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -229,44 +223,39 @@ function ComposeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && !create.isPending && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>New Message</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label>Subject *</Label>
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Weekly status update, Design decision…"
-              autoFocus
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Message *</Label>
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={5}
-              placeholder="Write your message…"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={create.isPending}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!title.trim() || !content.trim() || create.isPending}
-          >
-            {create.isPending ? "Posting…" : "Post Message"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o && !create.isPending) onClose()
+      }}
+      title="New Message"
+      isPending={create.isPending}
+      submitDisabled={!title.trim() || !content.trim()}
+      submitLabel="Post Message"
+      onSubmit={(e) => {
+        e.preventDefault()
+        handleSubmit()
+      }}
+    >
+      <div className="space-y-2">
+        <Label>Subject *</Label>
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Weekly status update, Design decision…"
+          autoFocus
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Message *</Label>
+        <Textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          rows={5}
+          placeholder="Write your message…"
+        />
+      </div>
+    </FormDialog>
   )
 }
 
@@ -295,33 +284,29 @@ function EditMessageDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && !update.isPending && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit Message</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label>Subject</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Message</Label>
-            <Textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={update.isPending}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!title.trim() || !content.trim() || update.isPending}
-          >
-            {update.isPending ? "Saving…" : "Save"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o && !update.isPending) onClose()
+      }}
+      title="Edit Message"
+      isEdit
+      isPending={update.isPending}
+      submitDisabled={!title.trim() || !content.trim()}
+      submitLabel="Save"
+      onSubmit={(e) => {
+        e.preventDefault()
+        handleSave()
+      }}
+    >
+      <div className="space-y-2">
+        <Label>Subject</Label>
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <Label>Message</Label>
+        <Textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} />
+      </div>
+    </FormDialog>
   )
 }

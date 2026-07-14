@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { canManageProject } from "@/features/projects/server/project-access"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
@@ -26,7 +27,7 @@ export const DELETE = withSession(
       if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 })
 
       // Authorisation: Admin OR this team's manager
-      const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+      const isAdmin = await canManageProject(session, projectId)
       const isManagerOfThisTeam = team.managerId === session.user.id
       if (!isAdmin && !isManagerOfThisTeam) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })

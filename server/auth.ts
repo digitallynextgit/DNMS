@@ -75,6 +75,9 @@ export const authOptions: NextAuthConfig = {
 
         const employee = await db.employee.findUnique({
           where: { email: credentials.email as string },
+          // passwordHash is globally omitted (see server/db.ts) - opt back in here,
+          // the one place that must compare it.
+          omit: { passwordHash: false },
         })
 
         if (!employee || !employee.passwordHash || !employee.isActive) {

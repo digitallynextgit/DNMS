@@ -12,11 +12,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/shared/empty-state"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { LeaveBalanceCard } from "@/features/leave"
-import { useLeaveBalances, useLeaveRequests } from "@/features/leave"
+import { useLeaveBalances, useLeaveRequests, type LeaveRequest } from "@/features/leave"
 import { formatDate, cn } from "@/lib/utils"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
-import { CalendarRange, AlertTriangle, Inbox } from "lucide-react"
+import { CalendarRange, AlertTriangle } from "lucide-react"
 
 interface EmployeeLeaveTabProps {
   employeeId: string
@@ -50,6 +52,68 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
   const lateNoticeCount = yearRequests.filter(
     (r) => (r as { lateNoticePenalty?: boolean }).lateNoticePenalty,
   ).length
+
+  const columns: DataTableColumn<LeaveRequest>[] = [
+    {
+      header: "Type",
+      cell: (r) => (
+        <>
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium">{r.leaveType.name}</span>
+            {!r.leaveType.isPaid && (
+              <Badge variant="outline" className="h-4 py-0 text-[10px]">
+                Unpaid
+              </Badge>
+            )}
+          </div>
+          <span className="text-muted-foreground text-xs">{r.leaveType.code}</span>
+        </>
+      ),
+    },
+    {
+      header: "From",
+      className: "whitespace-nowrap",
+      cell: (r) => formatDate(r.startDate),
+    },
+    {
+      header: "To",
+      className: "whitespace-nowrap",
+      cell: (r) => formatDate(r.endDate),
+    },
+    {
+      header: "Days",
+      align: "center",
+      className: "font-medium",
+      cell: (r) => r.totalDays,
+    },
+    {
+      header: "Status",
+      cell: (r) => (
+        <div className="flex items-center gap-1.5">
+          <StatusBadge
+            status={r.status}
+            colorMap={LEAVE_STATUS_COLORS}
+            labelMap={LEAVE_STATUS_LABELS}
+          />
+          {(r as { lateNoticePenalty?: boolean }).lateNoticePenalty && (
+            <span title="Late notice - double salary deduction flagged">
+              <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: "Approver",
+      className: "text-muted-foreground",
+      cell: (r) => (r.approver ? `${r.approver.firstName} ${r.approver.lastName}` : "-"),
+    },
+    {
+      header: "Reason",
+      className: "text-muted-foreground max-w-[200px] truncate",
+      cell: (r) => r.reason || "-",
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -133,79 +197,9 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
         {requestsLoading ? (
           <ListSkeleton rows={4} height="h-14" />
         ) : yearRequests.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-10 text-center">
-              <Inbox className="text-muted-foreground/40 mx-auto mb-2 h-8 w-8" />
-              <p className="text-muted-foreground text-sm">No leave requests found for {year}.</p>
-            </CardContent>
-          </Card>
+          <EmptyState compact title={`No leave requests found for ${year}.`} />
         ) : (
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 border-border border-b">
-                    <tr className="text-muted-foreground text-left text-xs tracking-wider uppercase">
-                      <th className="px-4 py-2.5 font-medium">Type</th>
-                      <th className="px-4 py-2.5 font-medium">From</th>
-                      <th className="px-4 py-2.5 font-medium">To</th>
-                      <th className="px-4 py-2.5 text-center font-medium">Days</th>
-                      <th className="px-4 py-2.5 font-medium">Status</th>
-                      <th className="px-4 py-2.5 font-medium">Approver</th>
-                      <th className="px-4 py-2.5 font-medium">Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-border divide-y">
-                    {yearRequests.map((r) => {
-                      const lateNotice = (r as { lateNoticePenalty?: boolean }).lateNoticePenalty
-                      return (
-                        <tr key={r.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-4 py-2.5">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-medium">{r.leaveType.name}</span>
-                              {!r.leaveType.isPaid && (
-                                <Badge variant="outline" className="h-4 py-0 text-[10px]">
-                                  Unpaid
-                                </Badge>
-                              )}
-                            </div>
-                            <span className="text-muted-foreground text-xs">
-                              {r.leaveType.code}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap">
-                            {formatDate(r.startDate)}
-                          </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap">{formatDate(r.endDate)}</td>
-                          <td className="px-4 py-2.5 text-center font-medium">{r.totalDays}</td>
-                          <td className="px-4 py-2.5">
-                            <div className="flex items-center gap-1.5">
-                              <StatusBadge
-                                status={r.status}
-                                colorMap={LEAVE_STATUS_COLORS}
-                                labelMap={LEAVE_STATUS_LABELS}
-                              />
-                              {lateNotice && (
-                                <span title="Late notice - double salary deduction flagged">
-                                  <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="text-muted-foreground px-4 py-2.5">
-                            {r.approver ? `${r.approver.firstName} ${r.approver.lastName}` : "-"}
-                          </td>
-                          <td className="text-muted-foreground max-w-[200px] truncate px-4 py-2.5">
-                            {r.reason || "-"}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          <DataTable columns={columns} rows={yearRequests} rowKey={(r) => r.id} showSerial />
         )}
       </div>
     </div>

@@ -100,14 +100,14 @@ async function upsertDay(
   deviceId: string,
   istDay: string,
   punches: Date[],
+  manualDays: ReadonlySet<string>,
 ): Promise<"written" | "skipped"> {
   const date = new Date(`${istDay}T00:00:00.000Z`)
 
-  const existing = await db.attendanceLog.findUnique({
-    where: { employeeId_date: { employeeId, date } },
-    select: { isManual: true },
-  })
-  if (existing?.isManual) return "skipped" // don't clobber a manual correction
+  // The caller fetches every manual day for this employee ONCE (see below), so this
+  // no longer costs a findUnique per employee-day. A full 730-day backfill used to be
+  // 2 queries x days x employees, all sequential.
+  if (manualDays.has(istDay)) return "skipped" // don't clobber a manual correction
 
   punches.sort((a, b) => a.getTime() - b.getTime())
   const checkIn = punches[0]
@@ -226,6 +226,17 @@ export async function syncDeviceSmart(
     else if (!arr.some((e) => e.id === emp.id)) arr.push(emp)
   }
 
+  // Which employees already have ANY attendance row? One groupBy up-front replaces a
+  // per-employee findFirst inside the loop below.
+  const withData = new Set(
+    (
+      await db.attendanceLog.groupBy({
+        by: ["employeeId"],
+        where: { employeeId: { in: employees.map((e) => e.id) } },
+      })
+    ).map((g) => g.employeeId),
+  )
+
   for (const emp of employees) {
     const codes = [emp.deviceId, emp.employeeNo].filter(Boolean) as string[]
     if (codes.length === 0) {
@@ -241,11 +252,7 @@ export async function syncDeviceSmart(
     for (const c of codes) addCode(c, emp)
 
     // First-ever sync (no rows yet) always does a full backfill.
-    const hasData = await db.attendanceLog.findFirst({
-      where: { employeeId: emp.id },
-      select: { id: true },
-    })
-    const doFull = !!opts.full || !hasData
+    const doFull = !!opts.full || !withData.has(emp.id)
 
     let floor: string
     if (doFull) {
@@ -367,12 +374,36 @@ export async function syncDeviceSmart(
 
     const writeErrors: string[] = []
     let synced = 0
-    for (const [day, punches] of punchesByDay) {
-      try {
-        if ((await upsertDay(emp.id, deviceId, day, punches)) === "written") synced++
-      } catch (e) {
-        writeErrors.push(`${day}: ${String(e)}`)
-      }
+
+    // ONE query for every manual correction in this employee's punch range, instead
+    // of a findUnique per day inside the loop.
+    const dayKeys = [...punchesByDay.keys()]
+    const manualRows = await db.attendanceLog.findMany({
+      where: {
+        employeeId: emp.id,
+        isManual: true,
+        date: { in: dayKeys.map((d) => new Date(`${d}T00:00:00.000Z`)) },
+      },
+      select: { date: true },
+    })
+    const manualDays = new Set(manualRows.map((r) => r.date.toISOString().slice(0, 10)))
+
+    // Writes go out with bounded concurrency rather than strictly one-at-a-time.
+    // The chunk stays at/below the pg pool size so we queue rather than thrash it.
+    const WRITE_CHUNK = 10
+    const entries = [...punchesByDay.entries()]
+    for (let i = 0; i < entries.length; i += WRITE_CHUNK) {
+      const slice = entries.slice(i, i + WRITE_CHUNK)
+      const settled = await Promise.allSettled(
+        slice.map(([day, punches]) => upsertDay(emp.id, deviceId, day, punches, manualDays)),
+      )
+      settled.forEach((res, j) => {
+        if (res.status === "fulfilled") {
+          if (res.value === "written") synced++
+        } else {
+          writeErrors.push(`${slice[j]![0]}: ${String(res.reason)}`)
+        }
+      })
     }
     totalSynced += synced
 

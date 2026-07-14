@@ -15,17 +15,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { FormDialog } from "@/components/shared/form-dialog"
 import { formatDate } from "@/lib/utils"
 import {
   Plus,
@@ -170,7 +164,7 @@ function PasswordRow({
     <Card>
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <div className="bg-primary/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded">
+          <div className="bg-primary/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
             <KeyRound className="text-primary h-4 w-4" />
           </div>
 
@@ -198,13 +192,13 @@ function PasswordRow({
             )}
 
             <div className="mt-2 flex items-center gap-2">
-              <code className="bg-muted inline-block min-w-24 rounded px-2 py-0.5 font-mono text-xs">
+              <code className="bg-muted inline-block min-w-24 rounded-lg px-2 py-0.5 font-mono text-xs">
                 {showing && revealedPw ? revealedPw : "••••••••••"}
               </code>
               <Button
                 variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground h-6 w-6"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={handleReveal}
                 disabled={reveal.isPending}
                 title={showing ? "Hide" : "Reveal"}
@@ -213,8 +207,8 @@ function PasswordRow({
               </Button>
               <Button
                 variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground h-6 w-6"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={handleCopy}
                 title="Copy password"
               >
@@ -237,8 +231,8 @@ function PasswordRow({
             {(isOwner || canManage) && (
               <Button
                 variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground h-7 w-7"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
                 onClick={() => setEditOpen(true)}
               >
                 <Pencil className="h-3.5 w-3.5" />
@@ -247,8 +241,8 @@ function PasswordRow({
             {(isOwner || canManage) && (
               <Button
                 variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-destructive h-7 w-7"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-destructive"
                 onClick={() => setConfirmOpen(true)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -355,80 +349,76 @@ function PasswordFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && !pending && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Add Credential" : "Edit Credential"}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label>Label *</Label>
+    <FormDialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o && !pending) onClose()
+      }}
+      title={mode === "create" ? "Add Credential" : "Edit Credential"}
+      isEdit={mode === "edit"}
+      isPending={pending}
+      submitDisabled={!label.trim() || (mode === "create" && !password.trim())}
+      submitLabel={mode === "create" ? "Save" : "Update"}
+      onSubmit={(e) => {
+        e.preventDefault()
+        handleSubmit()
+      }}
+    >
+      <div className="space-y-2">
+        <Label>Label *</Label>
+        <Input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="e.g. Production DB, AWS Root, Figma Team"
+          autoFocus
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Username / Email</Label>
+          <Input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="admin@example.com"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>{mode === "edit" ? "New Password (leave blank to keep)" : "Password *"}</Label>
+          <div className="relative">
             <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. Production DB, AWS Root, Figma Team"
-              autoFocus
+              type={showPw ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={mode === "edit" ? "Leave blank to keep" : "Enter password"}
+              className="pr-9"
             />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Username / Email</Label>
-              <Input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="admin@example.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{mode === "edit" ? "New Password (leave blank to keep)" : "Password *"}</Label>
-              <div className="relative">
-                <Input
-                  type={showPw ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === "edit" ? "Leave blank to keep" : "Enter password"}
-                  className="pr-9"
-                />
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
-                  onClick={() => setShowPw((s) => !s)}
-                >
-                  {showPw ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>URL</Label>
-            <Input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Notes</Label>
-            <Textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              placeholder="Optional notes…"
-            />
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
+              onClick={() => setShowPw((s) => !s)}
+            >
+              {showPw ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={pending}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!label.trim() || (mode === "create" && !password.trim()) || pending}
-          >
-            {pending ? "Saving…" : mode === "create" ? "Save" : "Update"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <div className="space-y-2">
+        <Label>URL</Label>
+        <Input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://example.com"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Notes</Label>
+        <Textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
+          placeholder="Optional notes…"
+        />
+      </div>
+    </FormDialog>
   )
 }

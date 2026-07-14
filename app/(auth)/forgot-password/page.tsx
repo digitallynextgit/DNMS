@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { useMutation } from "@tanstack/react-query"
 import Link from "next/link"
 import { toast } from "sonner"
-import { Loader2, Mail, ArrowLeft, KeyRound, Eye, EyeOff } from "lucide-react"
+import { Mail, ArrowLeft, KeyRound, Eye, EyeOff } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -147,11 +148,7 @@ export default function ForgotPasswordPage() {
             className="h-11 w-full gap-2 text-sm"
             disabled={requestOtp.isPending || !emailValid}
           >
-            {requestOtp.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Mail className="h-4 w-4" />
-            )}
+            {requestOtp.isPending ? <Spinner /> : <Mail className="h-4 w-4" />}
             Send code
           </Button>
         </form>
@@ -191,11 +188,7 @@ export default function ForgotPasswordPage() {
             className="h-11 w-full gap-2 text-sm"
             disabled={verifyOtp.isPending || otp.length !== 6}
           >
-            {verifyOtp.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <KeyRound className="h-4 w-4" />
-            )}
+            {verifyOtp.isPending ? <Spinner /> : <KeyRound className="h-4 w-4" />}
             Verify code
           </Button>
           <div className="text-center">
@@ -279,8 +272,8 @@ export default function ForgotPasswordPage() {
             disabled={
               resetPassword.isPending || password.length < 8 || passwordsMismatch || !confirm
             }
+            loading={resetPassword.isPending}
           >
-            {resetPassword.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             Update password
           </Button>
         </form>

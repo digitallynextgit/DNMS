@@ -1,6 +1,6 @@
 "use client"
 
-import { Loader2 } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 import { PageHeader } from "@/components/shared/page-header"
 import { OrgChartTree } from "@/features/employees"
 import { useOrgChart } from "@/features/employees"
@@ -16,7 +16,7 @@ export default function OrgChartPage() {
 
       {isLoading && (
         <div className="flex items-center justify-center py-24">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="xl" className="text-muted-foreground" />
         </div>
       )}
 
@@ -27,7 +27,7 @@ export default function OrgChartPage() {
       )}
 
       {!isLoading && !error && (
-        <div className="bg-muted/20 min-h-[400px] rounded border">
+        <div className="bg-muted/20 min-h-[400px] rounded-lg border">
           <OrgChartTree nodes={nodes} />
         </div>
       )}

@@ -11,16 +11,8 @@ import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Pagination } from "@/components/shared/pagination"
 import { EmailTemplateForm } from "@/features/admin"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
@@ -109,6 +101,69 @@ export default function EmailTemplatesPage() {
     if (!isLoading && page > totalPages) setPage(totalPages)
   }, [page, totalPages, isLoading])
 
+  const columns: DataTableColumn<EmailTemplate>[] = [
+    { header: "Name", className: "font-medium", cell: (template) => template.name },
+    {
+      header: "Slug",
+      cell: (template) => (
+        <code className="bg-muted rounded-lg px-1.5 py-0.5 font-mono text-xs">{template.slug}</code>
+      ),
+    },
+    {
+      header: "Subject",
+      className: "text-muted-foreground max-w-[200px] text-sm",
+      cell: (template) => truncate(template.subject, 50),
+    },
+    {
+      header: "Trigger",
+      cell: (template) =>
+        template.trigger ? (
+          <Badge variant="outline" className="font-mono text-xs">
+            {template.trigger}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        ),
+    },
+    {
+      header: "Active",
+      cell: (template) => (
+        <Switch
+          checked={template.isActive}
+          disabled={!canWrite || toggleActiveMutation.isPending}
+          onCheckedChange={(checked) =>
+            toggleActiveMutation.mutate({ id: template.id, isActive: checked })
+          }
+          aria-label={`Toggle ${template.name}`}
+        />
+      ),
+    },
+    {
+      header: "Last Updated",
+      className: "text-muted-foreground text-sm",
+      cell: (template) => formatDate(template.updatedAt),
+    },
+    ...(canWrite
+      ? [
+          {
+            header: "",
+            align: "right" as const,
+            headClassName: "w-[60px]",
+            cell: (template: EmailTemplate) => (
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => handleEdit(template)}
+                aria-label={`Edit ${template.name}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            ),
+          },
+        ]
+      : []),
+  ]
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -125,91 +180,31 @@ export default function EmailTemplatesPage() {
       />
 
       {isLoading ? (
-        <div className="rounded border">
+        <div className="rounded-lg border">
           <TableSkeleton rows={5} cols={7} />
         </div>
       ) : templates.length === 0 ? (
         <EmptyState
           icon={Mail}
+          variant="card"
           title="No email templates yet"
           description="Create your first email template to start sending transactional emails."
           action={canWrite ? { label: "Create Template", onClick: handleCreate } : undefined}
         />
       ) : (
-        <div className="rounded border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Slug</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Trigger</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead>Last Updated</TableHead>
-                {canWrite && <TableHead className="w-[60px]" />}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pagedTemplates.map((template) => (
-                <TableRow key={template.id}>
-                  <TableCell className="font-medium">{template.name}</TableCell>
-                  <TableCell>
-                    <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
-                      {template.slug}
-                    </code>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground max-w-[200px] text-sm">
-                    {truncate(template.subject, 50)}
-                  </TableCell>
-                  <TableCell>
-                    {template.trigger ? (
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {template.trigger}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={template.isActive}
-                      disabled={!canWrite || toggleActiveMutation.isPending}
-                      onCheckedChange={(checked) =>
-                        toggleActiveMutation.mutate({ id: template.id, isActive: checked })
-                      }
-                      aria-label={`Toggle ${template.name}`}
-                    />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {formatDate(template.updatedAt)}
-                  </TableCell>
-                  {canWrite && (
-                    <TableCell>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8"
-                        onClick={() => handleEdit(template)}
-                        aria-label={`Edit ${template.name}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {!isLoading && templates.length > 0 && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          total={templates.length}
-          onPageChange={setPage}
-          itemLabel="template"
+        <DataTable
+          columns={columns}
+          rows={pagedTemplates}
+          rowKey={(template) => template.id}
+          showSerial
+          serialOffset={(page - 1) * PAGE_SIZE}
+          pagination={{
+            page,
+            totalPages,
+            total: templates.length,
+            onPageChange: setPage,
+            itemLabel: "template",
+          }}
         />
       )}
 

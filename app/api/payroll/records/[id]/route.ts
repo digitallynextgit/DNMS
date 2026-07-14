@@ -5,7 +5,7 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { computeStatutoryDeductions } from "@/features/payroll/payroll"
 import { createNotification } from "@/lib/notifications"
-import { sendEmail } from "@/lib/mailer"
+import { addEmailJob } from "@/lib/queue"
 import type { Session } from "next-auth"
 
 const payrollInclude = {
@@ -170,7 +170,7 @@ export const PATCH = withAuth(
           select: { firstName: true, email: true },
         })
         if (emp?.email) {
-          await sendEmail({
+          addEmailJob({
             to: emp.email,
             subject: `Payslip - ${monthName} ${updated.year}`,
             html: `
@@ -186,7 +186,7 @@ export const PATCH = withAuth(
                 <p style="color:#666;font-size:13px;">View the full payslip in the HRMS portal.</p>
               </div>`,
             text: `Hi ${emp.firstName}, your ${monthName} ${updated.year} net pay of ₹${updated.netSalary} has been paid. View details in HRMS.`,
-          }).catch(() => {})
+          })
         }
       }
 

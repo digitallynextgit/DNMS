@@ -7,14 +7,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { FormDialog } from "@/components/shared/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -63,11 +58,73 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [viewMode, setViewMode] = useViewMode(`project:${projectId}:teams`)
 
+  const columns: DataTableColumn<ProjectTeam>[] = [
+    {
+      header: "Team",
+      cell: (team) => (
+        <>
+          <p className="font-medium">{team.name}</p>
+          {team.description && (
+            <p className="text-muted-foreground max-w-[300px] truncate text-xs">
+              {team.description}
+            </p>
+          )}
+        </>
+      ),
+    },
+    {
+      header: "Manager",
+      cell: (team) =>
+        team.manager ? (
+          <div className="flex items-center gap-1.5">
+            <AvatarDisplay
+              src={team.manager.profilePhoto}
+              firstName={team.manager.firstName}
+              lastName={team.manager.lastName}
+              size="xs"
+            />
+            <span className="text-xs">
+              <Crown className="mr-0.5 inline h-3 w-3 text-amber-500" />
+              {team.manager.firstName} {team.manager.lastName}
+            </span>
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-xs">-</span>
+        ),
+    },
+    {
+      header: "Members",
+      align: "center",
+      className: "text-muted-foreground",
+      cell: (team) => team.members.length,
+    },
+    {
+      header: "Tasks",
+      align: "center",
+      className: "text-muted-foreground",
+      cell: (team) => team._count.tasks,
+    },
+    {
+      header: "",
+      align: "right",
+      cell: (team) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setExpanded({ ...expanded, [team.id]: !expanded[team.id] })}
+        >
+          {expanded[team.id] ? "Hide" : "View"}
+        </Button>
+      ),
+    },
+  ]
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-32 rounded" />
+          <Skeleton key={i} className="h-32 rounded-lg" />
         ))}
       </div>
     )
@@ -98,73 +155,7 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
           description={canManage ? "Click 'Add Team' to start organising this project." : undefined}
         />
       ) : viewMode === "table" ? (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 border-border border-b">
-                  <tr className="text-muted-foreground text-left text-xs tracking-wider uppercase">
-                    <th className="px-4 py-2.5 font-medium">Team</th>
-                    <th className="px-4 py-2.5 font-medium">Manager</th>
-                    <th className="px-4 py-2.5 text-center font-medium">Members</th>
-                    <th className="px-4 py-2.5 text-center font-medium">Tasks</th>
-                    <th className="px-4 py-2.5 text-right font-medium">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-border divide-y">
-                  {teams.map((team) => (
-                    <tr key={team.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-2.5">
-                        <p className="font-medium">{team.name}</p>
-                        {team.description && (
-                          <p className="text-muted-foreground max-w-[300px] truncate text-xs">
-                            {team.description}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {team.manager ? (
-                          <div className="flex items-center gap-1.5">
-                            <AvatarDisplay
-                              src={team.manager.profilePhoto}
-                              firstName={team.manager.firstName}
-                              lastName={team.manager.lastName}
-                              size="xs"
-                            />
-                            <span className="text-xs">
-                              <Crown className="mr-0.5 inline h-3 w-3 text-amber-500" />
-                              {team.manager.firstName} {team.manager.lastName}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">-</span>
-                        )}
-                      </td>
-                      <td className="text-muted-foreground px-4 py-2.5 text-center">
-                        {team.members.length}
-                      </td>
-                      <td className="text-muted-foreground px-4 py-2.5 text-center">
-                        {team._count.tasks}
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() =>
-                            setExpanded({ ...expanded, [team.id]: !expanded[team.id] })
-                          }
-                        >
-                          {expanded[team.id] ? "Hide" : "View"}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <DataTable columns={columns} rows={teams} rowKey={(team) => team.id} showSerial />
       ) : (
         <div className="space-y-3">
           {teams.map((team) => (
@@ -247,7 +238,7 @@ function TeamCard({
             {canManage && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <Button variant="ghost" size="icon-sm">
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -405,8 +396,8 @@ function MemberRow({
         {canRemove && (
           <Button
             variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-destructive h-6 w-6"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-destructive"
             onClick={() => setRemoveOpen(true)}
           >
             <X className="h-3.5 w-3.5" />
@@ -456,41 +447,38 @@ function CreateTeamDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add Team</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="team-name">Team Name</Label>
-            <Input
-              id="team-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Web Development"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="team-desc">Description (optional)</Label>
-            <Textarea
-              id="team-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || create.isPending}>
-            Create
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+      title="Add Team"
+      isPending={create.isPending}
+      submitDisabled={!name.trim()}
+      onSubmit={(e) => {
+        e.preventDefault()
+        handleCreate()
+      }}
+    >
+      <div className="space-y-2">
+        <Label htmlFor="team-name">Team Name</Label>
+        <Input
+          id="team-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Web Development"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="team-desc">Description (optional)</Label>
+        <Textarea
+          id="team-desc"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+        />
+      </div>
+    </FormDialog>
   )
 }
 
@@ -530,59 +518,58 @@ function AddMemberDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add Member</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <Input
-            placeholder="Search employees..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <div className="max-h-72 divide-y overflow-y-auto rounded border">
-            {employees.length === 0 ? (
-              <p className="text-muted-foreground p-4 text-center text-sm">No matching employees</p>
-            ) : (
-              employees.map((e) => (
-                <button
-                  key={e.id}
-                  className={cn(
-                    "hover:bg-muted/50 flex w-full items-center gap-2 p-2 text-left text-sm",
-                    selected === e.id && "bg-accent",
-                  )}
-                  onClick={() => setSelected(e.id)}
-                >
-                  <AvatarDisplay
-                    src={e.profilePhoto}
-                    firstName={e.firstName}
-                    lastName={e.lastName}
-                    size="sm"
-                    className="h-7 w-7"
-                  />
-                  <div>
-                    <p className="font-medium">
-                      {e.firstName} {e.lastName}
-                    </p>
-                    <p className="text-muted-foreground text-xs">
-                      {e.employeeNo} · {e.designation?.title ?? "-"}
-                    </p>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleAdd} disabled={!selected || add.isPending}>
-            Add Member
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+      title="Add Member"
+      isPending={add.isPending}
+      submitDisabled={!selected}
+      submitLabel="Add Member"
+      onSubmit={(e) => {
+        e.preventDefault()
+        handleAdd()
+      }}
+    >
+      <Input
+        placeholder="Search employees..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+      <div className="max-h-72 divide-y overflow-y-auto rounded-lg border">
+        {employees.length === 0 ? (
+          <p className="text-muted-foreground p-4 text-center text-sm">No matching employees</p>
+        ) : (
+          employees.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              className={cn(
+                "hover:bg-muted/50 flex w-full items-center gap-2 p-2 text-left text-sm",
+                selected === e.id && "bg-accent",
+              )}
+              onClick={() => setSelected(e.id)}
+            >
+              <AvatarDisplay
+                src={e.profilePhoto}
+                firstName={e.firstName}
+                lastName={e.lastName}
+                size="sm"
+                className="h-7 w-7"
+              />
+              <div>
+                <p className="font-medium">
+                  {e.firstName} {e.lastName}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  {e.employeeNo} · {e.designation?.title ?? "-"}
+                </p>
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+    </FormDialog>
   )
 }

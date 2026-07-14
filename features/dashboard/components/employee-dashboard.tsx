@@ -83,7 +83,7 @@ async function fetchEmployeeDashboard(): Promise<EmployeeDashboardData> {
 
 function StatCardSkeleton() {
   return (
-    <div className="border-border bg-card rounded-[var(--radius)] border p-5">
+    <div className="border-border bg-card rounded-lg border p-5">
       <div className="flex items-start justify-between">
         <div className="flex-1 space-y-2">
           <Skeleton className="h-3 w-1/2" />
@@ -108,7 +108,7 @@ export function EmployeeDashboard() {
   return (
     <>
       {isError && (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-[var(--radius)] border px-4 py-3 text-sm">
+        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-4 py-3 text-sm">
           {error?.message ?? "Something went wrong loading your dashboard."}
         </div>
       )}
@@ -196,7 +196,7 @@ export function EmployeeDashboard() {
           {isLoading ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-32 rounded" />
+                <Skeleton key={i} className="h-32 rounded-lg" />
               ))}
             </div>
           ) : !data?.leaveBalances.length ? (
@@ -229,13 +229,13 @@ export function EmployeeDashboard() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <Skeleton className="h-20 rounded" />
+              <Skeleton className="h-20 rounded-lg" />
             ) : !data?.latestPayslip ? (
               <EmptyState title="No payslips available yet." compact />
             ) : (
               <Link
                 href="/payroll/me"
-                className="hover:bg-muted/30 -m-2 flex items-center justify-between rounded p-2 transition-colors"
+                className="hover:bg-muted/30 -m-2 flex items-center justify-between rounded-lg p-2 transition-colors"
               >
                 <div>
                   <p className="text-foreground text-sm font-medium">

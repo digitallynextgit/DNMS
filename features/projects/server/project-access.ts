@@ -1,0 +1,48 @@
+import "server-only"
+
+import { NextRequest, NextResponse } from "next/server"
+import { db } from "@/server/db"
+import { withSession } from "@/server/api-handler"
+import { hasPermission } from "@/lib/permissions"
+import { PERMISSIONS } from "@/lib/constants"
+import type { Session } from "next-auth"
+
+// =============================================================================
+// Who may manage a project?
+//   • anyone with the global `project:write` permission (admins / PMs), OR
+//   • the project's ACCOUNT MANAGER (its owner) - they run their own project and
+//     can do anything inside it, even without the global permission.
+// =============================================================================
+
+export async function canManageProject(session: Session, projectId: string): Promise<boolean> {
+  if (hasPermission(session, PERMISSIONS.PROJECT_WRITE)) return true
+  if (!projectId) return false
+  const project = await db.project.findUnique({
+    where: { id: projectId },
+    select: { ownerId: true },
+  })
+  return !!project && project.ownerId === session.user.id
+}
+
+type ProjectHandler = (
+  req: NextRequest,
+  ctx: { params: Record<string, string> },
+  session: Session,
+) => Promise<Response> | Response
+
+/**
+ * Route guard for project-scoped writes: allows `project:write` holders AND the
+ * project's Account Manager. Expects the project id at `ctx.params.id`.
+ */
+export function withProjectManager(handler: ProjectHandler) {
+  return withSession(async (req, ctx, session) => {
+    const projectId = ctx.params.id
+    if (!(await canManageProject(session, projectId))) {
+      return NextResponse.json(
+        { error: "Only the Account Manager or a project admin can do this" },
+        { status: 403 },
+      )
+    }
+    return handler(req, ctx, session)
+  })
+}

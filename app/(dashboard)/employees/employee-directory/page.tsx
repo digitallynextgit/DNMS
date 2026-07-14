@@ -7,9 +7,9 @@ import { toast } from "sonner"
 import Link from "next/link"
 import { Plus, Eye, Trash2, Download, UserCheck, UserX } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { CardGridSkeleton, ListSkeleton } from "@/components/shared/loading-skeleton"
@@ -27,12 +27,19 @@ import {
   useDeleteEmployee,
   useActivateEmployee,
   useHardDeleteEmployee,
+  type EmployeeListItem,
 } from "@/features/employees"
 import { usePermissions } from "@/features/admin"
 import { useDebounce } from "@/hooks/use-debounce"
-import { cn, formatDate, employeeSlug } from "@/lib/utils"
+import { formatDate, employeeSlug } from "@/lib/utils"
 import { isOnProbation } from "@/features/employees"
-import { EMPLOYEE_STATUS_LABELS, PERMISSIONS, PROBATION_BADGE } from "@/lib/constants"
+import {
+  ACTIVE_STATUS_COLORS,
+  ACTIVE_STATUS_LABELS,
+  EMPLOYEE_STATUS_LABELS,
+  PERMISSIONS,
+  PROBATION_BADGE,
+} from "@/lib/constants"
 import { exportToCsv } from "@/lib/export-csv"
 
 export default function EmployeesPage() {
@@ -131,8 +138,10 @@ export default function EmployeesPage() {
 
   // ── Selection helpers ─────────────────────────────────────────────────────
   const pageIds = useMemo(() => employees.map((e) => e.id), [employees])
-  const { selectedIds, count, isSelected, toggle, toggleAll, clear, allSelected, someSelected } =
-    useRowSelection<string>(pageIds)
+  // The whole object goes to DataTable's `selection` prop (it renders the
+  // select-all + per-row checkboxes); the page only needs these four directly.
+  const selection = useRowSelection<string>(pageIds)
+  const { selectedIds, count, isSelected, clear } = selection
 
   // Reset selection when filters change (different page contents).
   useEffect(() => {
@@ -181,6 +190,137 @@ export default function EmployeesPage() {
       setBulkBusy(false)
     }
   }
+
+  const columns: DataTableColumn<EmployeeListItem>[] = [
+    {
+      header: "Employee",
+      cell: (emp) => (
+        <Link
+          href={`/employees/${employeeSlug(emp.employeeNo, emp.firstName, emp.lastName)}`}
+          className="group flex items-center gap-3"
+        >
+          <AvatarDisplay
+            src={emp.profilePhoto}
+            firstName={emp.firstName}
+            lastName={emp.lastName}
+            size="sm"
+            className="shrink-0"
+          />
+          <div className="min-w-0">
+            <p className="truncate font-medium underline-offset-4 group-hover:underline">
+              {emp.firstName} {emp.lastName}
+            </p>
+            <p className="text-muted-foreground text-xs">{emp.employeeNo}</p>
+          </div>
+        </Link>
+      ),
+    },
+    {
+      header: "Department",
+      className: "text-muted-foreground",
+      cell: (emp) => emp.department?.name ?? "-",
+    },
+    {
+      header: "Designation",
+      className: "text-muted-foreground",
+      cell: (emp) => emp.designation?.title ?? "-",
+    },
+    {
+      header: "Status",
+      cell: (emp) => (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <StatusBadge
+            status={emp.isActive ? "ACTIVE" : "INACTIVE"}
+            colorMap={ACTIVE_STATUS_COLORS}
+            labelMap={ACTIVE_STATUS_LABELS}
+          />
+          {isOnProbation(emp) && (
+            <StatusBadge
+              status="Probation"
+              label="Probation"
+              colorMap={{ Probation: PROBATION_BADGE }}
+            />
+          )}
+        </div>
+      ),
+    },
+    {
+      header: "Joined",
+      className: "text-muted-foreground",
+      cell: (emp) => formatDate(emp.dateOfJoining),
+    },
+    {
+      header: "",
+      align: "right",
+      cell: (emp) => {
+        const fullName = `${emp.firstName} ${emp.lastName}`
+        return (
+          <div className="flex items-center justify-end gap-1">
+            {/* View profile - same destination as clicking the name. */}
+            <Button
+              asChild
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground"
+              title="View"
+            >
+              <Link
+                href={`/employees/${employeeSlug(emp.employeeNo, emp.firstName, emp.lastName)}`}
+                aria-label={`View ${fullName}`}
+              >
+                <Eye className="h-4 w-4" />
+              </Link>
+            </Button>
+            {emp.isActive ? (
+              <>
+                {can(PERMISSIONS.EMPLOYEE_DELETE) && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => deactivateEmployee.mutate(emp.id)}
+                    disabled={deactivateEmployee.isPending}
+                    title="Deactivate"
+                    aria-label={`Deactivate ${fullName}`}
+                  >
+                    <UserX className="h-4 w-4" />
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
+                {can(PERMISSIONS.EMPLOYEE_WRITE) && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-green-600 hover:bg-green-500/10 hover:text-green-600 dark:text-green-400 dark:hover:text-green-400"
+                    onClick={() => activateEmployee.mutate(emp.id)}
+                    disabled={activateEmployee.isPending}
+                    title="Reactivate"
+                    aria-label={`Reactivate ${fullName}`}
+                  >
+                    <UserCheck className="h-4 w-4" />
+                  </Button>
+                )}
+                {can(PERMISSIONS.EMPLOYEE_DELETE) && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setHardDeleteId(emp.id)}
+                    title="Delete permanently"
+                    aria-label={`Delete ${fullName}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        )
+      },
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -279,180 +419,29 @@ export default function EmployeesPage() {
 
       {/* Table View */}
       {!isLoading && employees.length > 0 && viewMode === "table" && (
-        <div className="bg-card rounded border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b">
-                <th className="w-10 px-3 py-3 text-left">
-                  <Checkbox
-                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                    onCheckedChange={toggleAll}
-                    aria-label="Select all on this page"
-                  />
-                </th>
-                <th className="text-muted-foreground w-12 px-2 py-3 text-left font-medium">
-                  S.No.
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Employee</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">
-                  Department
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">
-                  Designation
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Status</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Joined</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {employees.map((emp, idx) => {
-                const fullName = `${emp.firstName} ${emp.lastName}`
-                const isActive = emp.isActive
-                const sno = ((pagination?.page ?? 1) - 1) * (pagination?.limit ?? 10) + idx + 1
-                const rowSelected = isSelected(emp.id)
-
-                return (
-                  <tr
-                    key={emp.id}
-                    className={cn(
-                      "hover:bg-muted/20 transition-colors",
-                      rowSelected && "bg-accent/30",
-                    )}
-                  >
-                    <td className="px-3 py-3">
-                      <Checkbox
-                        checked={rowSelected}
-                        onCheckedChange={() => toggle(emp.id)}
-                        aria-label={`Select ${fullName}`}
-                      />
-                    </td>
-                    <td className="text-muted-foreground px-2 py-3 text-xs tabular-nums">{sno}</td>
-                    {/* Employee column */}
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/employees/${employeeSlug(emp.employeeNo, emp.firstName, emp.lastName)}`}
-                        className="group flex items-center gap-3"
-                      >
-                        <AvatarDisplay
-                          src={emp.profilePhoto}
-                          firstName={emp.firstName}
-                          lastName={emp.lastName}
-                          size="sm"
-                          className="shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate font-medium underline-offset-4 group-hover:underline">
-                            {fullName}
-                          </p>
-                          <p className="text-muted-foreground text-xs">{emp.employeeNo}</p>
-                        </div>
-                      </Link>
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3">
-                      {emp.department?.name ?? "-"}
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3">
-                      {emp.designation?.title ?? "-"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span
-                          className={cn(
-                            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                            isActive
-                              ? "bg-green-500/15 text-green-600 dark:text-green-400"
-                              : "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {isActive ? "Active" : "Inactive"}
-                        </span>
-                        {isOnProbation(emp) && (
-                          <StatusBadge
-                            status="Probation"
-                            label="Probation"
-                            colorMap={{ Probation: PROBATION_BADGE }}
-                          />
-                        )}
-                      </div>
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3">
-                      {formatDate(emp.dateOfJoining)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {/* View profile - same destination as clicking the name. */}
-                        <Button
-                          asChild
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-foreground h-8 w-8"
-                          title="View"
-                        >
-                          <Link
-                            href={`/employees/${employeeSlug(emp.employeeNo, emp.firstName, emp.lastName)}`}
-                            aria-label={`View ${fullName}`}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        {isActive ? (
-                          <>
-                            {can(PERMISSIONS.EMPLOYEE_DELETE) && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-muted-foreground hover:text-destructive h-8 w-8"
-                                onClick={() => deactivateEmployee.mutate(emp.id)}
-                                disabled={deactivateEmployee.isPending}
-                                title="Deactivate"
-                                aria-label={`Deactivate ${fullName}`}
-                              >
-                                <UserX className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            {can(PERMISSIONS.EMPLOYEE_WRITE) && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-green-600 hover:bg-green-500/10 hover:text-green-600 dark:text-green-400 dark:hover:text-green-400"
-                                onClick={() => activateEmployee.mutate(emp.id)}
-                                disabled={activateEmployee.isPending}
-                                title="Reactivate"
-                                aria-label={`Reactivate ${fullName}`}
-                              >
-                                <UserCheck className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {can(PERMISSIONS.EMPLOYEE_DELETE) && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive h-8 w-8"
-                                onClick={() => setHardDeleteId(emp.id)}
-                                title="Delete permanently"
-                                aria-label={`Delete ${fullName}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          rows={employees}
+          rowKey={(emp) => emp.id}
+          showSerial
+          serialOffset={((pagination?.page ?? 1) - 1) * (pagination?.limit ?? 10)}
+          selection={selection}
+          pagination={
+            pagination
+              ? {
+                  page: pagination.page,
+                  totalPages: pagination.totalPages,
+                  total: pagination.total,
+                  onPageChange: setPage,
+                  itemLabel: "employee",
+                }
+              : undefined
+          }
+        />
       )}
 
-      {/* Pagination */}
-      {pagination && (
+      {/* Pagination - the table view renders its own inside <DataTable />. */}
+      {pagination && !(!isLoading && employees.length > 0 && viewMode === "table") && (
         <Pagination
           page={pagination.page}
           totalPages={pagination.totalPages}

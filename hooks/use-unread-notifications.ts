@@ -18,7 +18,9 @@ export function useUnreadNotificationCount() {
   return useQuery({
     queryKey: ["notifications", "unread-count"],
     queryFn: fetchUnreadCount,
-    refetchInterval: 15_000,
-    refetchOnWindowFocus: true,
+    // 15s + refetch-on-focus meant ~8 authenticated DB round trips a minute per open
+    // tab, purely for a badge count. Mutations already invalidate this key, so the
+    // poll is only a safety net for events raised by OTHER users.
+    refetchInterval: 120_000,
   })
 }

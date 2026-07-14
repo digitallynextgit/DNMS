@@ -95,7 +95,7 @@ async function buildProfile(profile: string) {
   // Last resort so we never crash building the transporter.
   if (!account) account = await readProfile("notifications")
 
-  const transporter = nodemailer.createTransport({
+  const transporter = getTransporter({
     host: account.host || "smtp.gmail.com",
     port: toPort(account.port),
     secure: account.secure === "true",
@@ -105,6 +105,37 @@ async function buildProfile(profile: string) {
   // account's configured From, else a safe default.
   const from = requested.from || account.from || "DNMS <noreply@digitallynext.com>"
   return { transporter, from }
+}
+
+// ---------------------------------------------------------------------------
+// Pooled transporters
+// ---------------------------------------------------------------------------
+// Building a transporter per email meant a fresh TCP + TLS + SMTP AUTH handshake
+// for EVERY message (300ms-2s against Gmail). Transporters are now pooled and
+// cached by their exact SMTP config, so the connection is reused. Changing SMTP
+// settings yields a different cache key, so a new transporter is built - stale
+// entries just idle out.
+type SmtpConfig = {
+  host: string
+  port: number
+  secure: boolean
+  auth?: { user: string; pass?: string }
+}
+
+const transporterCache = new Map<string, nodemailer.Transporter>()
+
+function getTransporter(cfg: SmtpConfig): nodemailer.Transporter {
+  const key = JSON.stringify(cfg)
+  const cached = transporterCache.get(key)
+  if (cached) return cached
+  const transporter = nodemailer.createTransport({
+    ...cfg,
+    pool: true,
+    maxConnections: 3,
+    maxMessages: 100,
+  })
+  transporterCache.set(key, transporter)
+  return transporter
 }
 
 interface SendEmailOptions {
@@ -135,23 +166,20 @@ function addressList(value?: string | string[]): string | undefined {
 
 export async function sendEmail(options: SendEmailOptions): Promise<string | null> {
   const { transporter, from } = await buildProfile(options.profile ?? "default")
-  try {
-    const info = await transporter.sendMail({
-      from: options.from ?? from,
-      to: addressList(options.to),
-      cc: addressList(options.cc),
-      subject: options.subject,
-      html: options.html,
-      text: options.text,
-      attachments: options.attachments,
-      replyTo: options.replyTo,
-      inReplyTo: options.inReplyTo,
-      references: options.references,
-    })
-    return info.messageId ?? null
-  } finally {
-    transporter.close()
-  }
+  // NOTE: no transporter.close() - it is pooled and shared (see getTransporter).
+  const info = await transporter.sendMail({
+    from: options.from ?? from,
+    to: addressList(options.to),
+    cc: addressList(options.cc),
+    subject: options.subject,
+    html: options.html,
+    text: options.text,
+    attachments: options.attachments,
+    replyTo: options.replyTo,
+    inReplyTo: options.inReplyTo,
+    references: options.references,
+  })
+  return info.messageId ?? null
 }
 
 /**
@@ -186,8 +214,9 @@ export async function sendEmailAs(
     return sendEmail(options)
   }
 
-  // Build a one-off transporter for this employee, send, discard.
-  const perUser = nodemailer.createTransport({
+  // Pooled per-employee transporter (cached by their SMTP creds), so a manager who
+  // approves several requests reuses one authenticated connection.
+  const perUser = getTransporter({
     host: (await getConfig("SMTP_HOST")) || "smtp.gmail.com",
     port: toPort(await getConfig("SMTP_PORT")),
     secure: (await getConfig("SMTP_SECURE")) === "true",
@@ -196,23 +225,19 @@ export async function sendEmailAs(
 
   const fromName = `${emp.firstName} ${emp.lastName}`.trim() || emp.email
 
-  try {
-    const info = await perUser.sendMail({
-      from: `"${fromName}" <${emp.email}>`,
-      to: addressList(options.to),
-      cc: addressList(options.cc),
-      subject: options.subject,
-      html: options.html,
-      text: options.text,
-      attachments: options.attachments,
-      replyTo: options.replyTo,
-      inReplyTo: options.inReplyTo,
-      references: options.references,
-    })
-    return info.messageId ?? null
-  } finally {
-    perUser.close()
-  }
+  const info = await perUser.sendMail({
+    from: `"${fromName}" <${emp.email}>`,
+    to: addressList(options.to),
+    cc: addressList(options.cc),
+    subject: options.subject,
+    html: options.html,
+    text: options.text,
+    attachments: options.attachments,
+    replyTo: options.replyTo,
+    inReplyTo: options.inReplyTo,
+    references: options.references,
+  })
+  return info.messageId ?? null
 }
 
 export function renderTemplate(

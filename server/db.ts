@@ -2,11 +2,6 @@ import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
 
-const globalForPrisma = globalThis as unknown as {
-  prisma?: PrismaClient
-  pgPool?: Pool
-}
-
 function getPool(): Pool {
   if (globalForPrisma.pgPool) return globalForPrisma.pgPool
   const pool = new Pool({
@@ -19,11 +14,29 @@ function getPool(): Pool {
   return pool
 }
 
-function createClient(): PrismaClient {
+// NOTE: the return type is inferred, not annotated as `PrismaClient`. The `omit`
+// config below is encoded in the client's TYPE, so annotating it would erase that
+// and let `employee.passwordHash` type-check as if it were still there.
+function createClient() {
   return new PrismaClient({
     adapter: new PrismaPg(getPool()),
     log: ["error", "warn"],
+    // Credentials are DENY-BY-DEFAULT: Prisma strips these from every query, so a
+    // `findMany`/`include` without an explicit `select` can never leak them into an
+    // API response. The three places that legitimately need them opt back in with
+    // `omit: { <field>: false }`:
+    //   - server/auth.ts        (bcrypt.compare on login)
+    //   - app/api/profile/route.ts (verify current password; read app password)
+    //   - lib/mailer.ts         (decrypt the Gmail app password to send as the user)
+    omit: {
+      employee: { passwordHash: true, gmailAppPassword: true },
+    },
   })
+}
+
+const globalForPrisma = globalThis as unknown as {
+  prisma?: ReturnType<typeof createClient>
+  pgPool?: Pool
 }
 
 export const db = globalForPrisma.prisma ?? createClient()

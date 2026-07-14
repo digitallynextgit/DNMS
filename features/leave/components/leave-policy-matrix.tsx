@@ -1,6 +1,7 @@
 "use client"
 
-import { Loader2, Save, RefreshCw } from "lucide-react"
+import { Save, RefreshCw } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -29,7 +30,7 @@ export function LeavePolicyActions({ editor }: { editor: LeavePolicyEditor }) {
         disabled={resyncPending}
       >
         {resyncPending ? (
-          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          <Spinner size="sm" className="mr-1.5" />
         ) : (
           <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
         )}
@@ -37,7 +38,7 @@ export function LeavePolicyActions({ editor }: { editor: LeavePolicyEditor }) {
       </Button>
       <Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
         {saving ? (
-          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          <Spinner size="sm" className="mr-1.5" />
         ) : (
           <Save className="mr-1.5 h-3.5 w-3.5" />
         )}
@@ -72,7 +73,7 @@ export function LeavePolicyMatrix({ editor }: { editor: LeavePolicyEditor }) {
         <div className="min-w-[160px]">
           <p className="font-medium">{t.name}</p>
           <div className="mt-0.5 flex items-center gap-1.5">
-            <code className="bg-muted rounded px-1 py-0.5 font-mono text-[10px]">{t.code}</code>
+            <code className="bg-muted rounded-lg px-1 py-0.5 font-mono text-[10px]">{t.code}</code>
             <Badge variant="outline" className="text-[10px]">
               {t.accrualMethod === "UPFRONT" ? "Upfront" : "Monthly"}
             </Badge>

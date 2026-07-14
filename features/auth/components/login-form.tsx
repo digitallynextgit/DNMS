@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { signIn } from "next-auth/react"
-import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -169,8 +170,12 @@ export function LoginForm() {
             </Link>
           </div>
 
-          <Button type="submit" className="h-11 w-full text-sm" disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button
+            type="submit"
+            className="h-11 w-full text-sm"
+            disabled={isSubmitting}
+            loading={isSubmitting}
+          >
             {isSubmitting ? "Signing in…" : "Sign in"}
           </Button>
         </form>
@@ -195,7 +200,7 @@ export function LoginForm() {
         disabled={isGoogleLoading || isSubmitting}
       >
         {isGoogleLoading ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          <Spinner className="mr-2" />
         ) : (
           <svg
             className="mr-2 h-4 w-4"

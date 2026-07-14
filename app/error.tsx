@@ -19,7 +19,7 @@ export default function Error({
       <p className="text-muted-foreground text-sm">{error.message || "Please try again."}</p>
       <button
         onClick={reset}
-        className="bg-primary text-primary-foreground rounded px-4 py-2 text-sm"
+        className="bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm"
       >
         Try again
       </button>

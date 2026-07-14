@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
+import { canManageProject } from "@/features/projects/server/project-access"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
-import { sendEmail } from "@/lib/mailer"
+import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
@@ -54,7 +55,7 @@ export const POST = withSession(
       }
 
       // Authorisation: Admin OR current team's manager
-      const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+      const isAdmin = await canManageProject(session, projectId)
       const isManagerOfThisTeam = team.managerId === session.user.id
       if (!isAdmin && !isManagerOfThisTeam) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -117,7 +118,7 @@ export const POST = withSession(
           type: "info",
           link: `/projects/${projectId}`,
         })
-        await sendEmail({
+        addEmailJob({
           to: employee.email,
           subject: willBeManager
             ? `Team Manager - ${team.name} (${projectName})`

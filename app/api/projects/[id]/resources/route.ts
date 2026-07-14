@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { canManageProject } from "@/features/projects/server/project-access"
 import { randomUUID } from "node:crypto"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
@@ -78,7 +79,7 @@ export const POST = withSession(
       }
 
       // 2. Auth: project participant OR admin
-      const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+      const isAdmin = await canManageProject(session, projectId)
       const isParticipant = isAdmin || (await isProjectParticipant(projectId, session.user.id))
       if (!isParticipant) {
         return NextResponse.json(

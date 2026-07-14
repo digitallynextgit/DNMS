@@ -44,7 +44,7 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
   const onProbation = isOnProbation(employee)
 
   return (
-    <Card className="group border-border bg-card relative overflow-hidden rounded-[var(--radius)] border">
+    <Card className="group border-border bg-card relative overflow-hidden rounded-lg border">
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
@@ -76,8 +76,8 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                  size="icon-sm"
+                  className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" />
                   <span className="sr-only">Actions</span>
@@ -123,7 +123,7 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
 
         {employee.department?.name && (
           <div className="mt-3">
-            <span className="bg-accent text-foreground inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium">
+            <span className="bg-accent text-foreground inline-flex items-center rounded-lg px-1.5 py-0.5 text-xs font-medium">
               {employee.department.name}
             </span>
           </div>

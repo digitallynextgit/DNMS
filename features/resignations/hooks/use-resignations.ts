@@ -1,6 +1,6 @@
 "use client"
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 
@@ -64,6 +64,7 @@ export function useMyResignation() {
 export function useResignationsToReview(filters: { page?: number; limit?: number } = {}) {
   return useQuery({
     queryKey: ["resignations-review", filters],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const params = new URLSearchParams()
       if (filters.page != null) params.set("page", String(filters.page))
@@ -77,8 +78,7 @@ export function useResignationsToReview(filters: { page?: number; limit?: number
     },
     // Keep the panel live (matches the sidebar badge) so new requests appear
     // without a reload. The badge watcher also invalidates this on arrival.
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
+    refetchInterval: 120_000,
   })
 }
 
@@ -92,8 +92,8 @@ export function usePendingResignationCount() {
     queryKey: ["pending-resignation-count"],
     queryFn: async () =>
       (await apiFetch<{ data: { count: number } }>("/api/resignations/review/count")).data.count,
-    refetchInterval: 15_000,
-    refetchOnWindowFocus: true,
+    // Sidebar badge - see the note in hooks/use-unread-notifications.ts.
+    refetchInterval: 120_000,
     staleTime: 5_000,
   })
 }

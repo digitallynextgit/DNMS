@@ -20,13 +20,15 @@ export function StatCard({
   value,
   description,
   icon: Icon,
+  iconColor,
+  iconBg,
   trend,
   className,
 }: StatCardProps) {
   const isPositive = trend ? trend.value >= 0 : true
 
   return (
-    <Card className={cn("border-border bg-card rounded-[var(--radius)] border", className)}>
+    <Card className={cn("border-border bg-card rounded-lg border", className)}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div className="space-y-2">
@@ -42,15 +44,24 @@ export function StatCard({
                 ) : (
                   <TrendingDown className="text-muted-foreground h-3 w-3" />
                 )}
+                {/* No unit is assumed - `label` carries it ("vs last month", "%"...). */}
                 <span className="text-foreground text-xs font-medium">
                   {isPositive ? "+" : ""}
-                  {trend.value}%
+                  {trend.value}
                 </span>
                 <span className="text-muted-foreground text-xs">{trend.label}</span>
               </div>
             )}
           </div>
-          <Icon className="text-muted-foreground h-4 w-4" />
+          {/* When a caller supplies iconBg, the icon gets a tinted tile; otherwise
+              it stays a plain muted glyph. */}
+          {iconBg ? (
+            <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", iconBg)}>
+              <Icon className={cn("h-4 w-4", iconColor ?? "text-muted-foreground")} />
+            </div>
+          ) : (
+            <Icon className={cn("h-4 w-4", iconColor ?? "text-muted-foreground")} />
+          )}
         </div>
       </CardContent>
     </Card>

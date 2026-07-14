@@ -4,7 +4,7 @@ import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
-import { sendEmail } from "@/lib/mailer"
+import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
 import type { Session } from "next-auth"
 
@@ -52,7 +52,7 @@ export const PATCH = withSession(
             type: "error",
             link: `/projects/${task.team!.projectId}`,
           })
-          await sendEmail({
+          addEmailJob({
             to: task.assignee.email,
             subject: `Task rejected: ${task.title}`,
             html: `<p>Hi ${task.assignee.firstName},</p><p>Your self-task <strong>${task.title}</strong> was rejected.</p><p><strong>Reason:</strong> ${reason.trim()}</p>`,

@@ -1,6 +1,6 @@
 "use client"
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
@@ -142,6 +142,7 @@ export function useWfhEligibility() {
 export function useMyWfhRequests(filters: Omit<WfhFilters, "employeeId"> = {}) {
   return useQuery({
     queryKey: ["my-wfh-requests", filters],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchWfhRequests(filters),
     staleTime: 30_000,
   })
@@ -150,6 +151,7 @@ export function useMyWfhRequests(filters: Omit<WfhFilters, "employeeId"> = {}) {
 export function useWfhRequests(filters: WfhFilters = {}) {
   return useQuery({
     queryKey: ["wfh-requests", filters],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchWfhRequests(filters),
     staleTime: 30_000,
   })
@@ -162,6 +164,7 @@ export function useWfhInbox(
 ) {
   return useQuery({
     queryKey: ["wfh-inbox", scope, filters],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchWfhInbox(scope, filters),
     staleTime: 30_000,
   })

@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { signIn, signOut, useSession } from "next-auth/react"
-import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
 
 import { apiFetch } from "@/lib/api-fetch"
@@ -120,8 +120,12 @@ export function ChangePasswordForm() {
           )}
         />
 
-        <Button type="submit" className="h-11 w-full text-sm" disabled={isSubmitting}>
-          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button
+          type="submit"
+          className="h-11 w-full text-sm"
+          disabled={isSubmitting}
+          loading={isSubmitting}
+        >
           {isSubmitting ? "Saving…" : "Set password & continue"}
         </Button>
 

@@ -33,7 +33,7 @@ import { renderWelcomeCredentialsEmail } from "@/features/employees/emails/welco
 import { requireSession, requirePermission, getAuditMeta } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
-import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
+import { EMPLOYEE_SUMMARY_SELECT, EMPLOYEE_LIST_SELECT } from "@/server/selects"
 
 type EmployeeFilters = {
   search?: string
@@ -117,12 +117,8 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
     const [employees, total] = await Promise.all([
       db.employee.findMany({
         where,
-        include: {
-          department: { select: { id: true, name: true } },
-          designation: { select: { id: true, title: true } },
-          jobRole: { select: { id: true, name: true } },
-          manager: { select: { id: true, firstName: true, lastName: true } },
-        },
+        // Explicit select (not `include`) - see EMPLOYEE_LIST_SELECT.
+        select: EMPLOYEE_LIST_SELECT,
         orderBy: { createdAt: "desc" },
         skip,
         take,
@@ -165,6 +161,10 @@ export async function getEmployee(idOrSlug: string): Promise<ActionResult<unknow
 
     const employee = await db.employee.findUnique({
       where: { id },
+      // passwordHash stays globally omitted (server/db.ts). gmailAppPassword is
+      // opted back IN only to derive the boolean flag below - the ciphertext is
+      // stripped again before this leaves the server.
+      omit: { gmailAppPassword: false },
       include: {
         department: { select: { id: true, name: true, code: true } },
         designation: { select: { id: true, title: true, level: true } },

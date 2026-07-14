@@ -8,7 +8,6 @@ import { useSession } from "next-auth/react"
 import { Users, TrendingUp, DollarSign, Play, Trash2, Eye, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
 import { PageHeader } from "@/components/shared/page-header"
-import { Pagination } from "@/components/shared/pagination"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
@@ -40,6 +39,8 @@ import { MONTHS, PAYROLL_STATUS_COLORS, PAYROLL_STATUS_LABELS, PERMISSIONS } fro
 function fmt(amount: number): string {
   return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
+
+const PAGE_SIZE = 10
 
 export default function PayrollPage() {
   const router = useRouter()
@@ -76,7 +77,7 @@ export default function PayrollPage() {
     status: status || undefined,
     search: employeeSearch || undefined,
     page,
-    limit: 10,
+    limit: PAGE_SIZE,
   }
 
   const { data: recordsData, isLoading: recordsLoading } = usePayrollRecords(recordFilters)
@@ -131,6 +132,94 @@ export default function PayrollPage() {
     PAID: 0,
   }
 
+  const columns: DataTableColumn<PayrollRecord>[] = [
+    {
+      header: "Employee",
+      cell: (record) => (
+        <div className="min-w-0">
+          <p className="font-medium">
+            {record.employee.firstName} {record.employee.lastName}
+          </p>
+          <p className="text-muted-foreground text-xs">{record.employee.employeeNo}</p>
+        </div>
+      ),
+    },
+    {
+      header: "Department",
+      className: "text-muted-foreground",
+      cell: (record) => record.employee.department?.name ?? "-",
+    },
+    {
+      header: "Gross",
+      align: "right",
+      className: "font-medium",
+      cell: (record) => fmt(record.grossSalary),
+    },
+    {
+      header: "Deductions",
+      align: "right",
+      className: "text-red-600",
+      cell: (record) => fmt(record.totalDeductions),
+    },
+    {
+      header: "Net",
+      align: "right",
+      className: "font-semibold text-emerald-600",
+      cell: (record) => fmt(record.netSalary),
+    },
+    {
+      header: "Generated",
+      className: "text-muted-foreground text-xs whitespace-nowrap",
+      cell: (record) =>
+        new Date(record.createdAt).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+    },
+    {
+      header: "Status",
+      cell: (record) => (
+        <StatusBadge
+          status={record.status}
+          colorMap={PAYROLL_STATUS_COLORS}
+          labelMap={PAYROLL_STATUS_LABELS}
+        />
+      ),
+    },
+    {
+      header: "",
+      align: "right",
+      cell: (record) => (
+        <div
+          className="flex items-center justify-end gap-1"
+          onClick={(e) => e.stopPropagation()}
+          role="presentation"
+        >
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => router.push(`/payroll/records/${record.id}`)}
+            title="View"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+          {can(PERMISSIONS.PAYROLL_PROCESS) && record.status === "DRAFT" && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-destructive hover:text-destructive"
+              onClick={() => setDeleteId(record.id)}
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -164,7 +253,7 @@ export default function PayrollPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {summaryLoading ? (
-          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded" />)
+          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-lg" />)
         ) : (
           <>
             <Card>
@@ -174,7 +263,7 @@ export default function PayrollPage() {
                     <p className="text-muted-foreground text-sm">Total Employees</p>
                     <p className="mt-1 text-3xl font-bold">{summary?.employeeCount ?? 0}</p>
                   </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded bg-blue-50 dark:bg-blue-950/40">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950/40">
                     <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   </div>
                 </div>
@@ -188,7 +277,7 @@ export default function PayrollPage() {
                     <p className="text-muted-foreground text-sm">Total Payroll</p>
                     <p className="mt-1 text-2xl font-bold">{fmt(summary?.totalGross ?? 0)}</p>
                   </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded bg-emerald-50 dark:bg-emerald-950/40">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950/40">
                     <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                   </div>
                 </div>
@@ -204,7 +293,7 @@ export default function PayrollPage() {
                       {fmt(summary?.totalNet ?? 0)}
                     </p>
                   </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded bg-violet-50 dark:bg-violet-950/40">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950/40">
                     <DollarSign className="h-5 w-5 text-violet-600 dark:text-violet-400" />
                   </div>
                 </div>
@@ -274,129 +363,29 @@ export default function PayrollPage() {
           }
         />
       ) : (
-        <div className="bg-card rounded border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b">
-                {can(PERMISSIONS.PAYROLL_PROCESS) && (
-                  <th className="w-10 px-4 py-3">
-                    <Checkbox
-                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                      onCheckedChange={toggleAll}
-                      aria-label="Select all on this page"
-                    />
-                  </th>
-                )}
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Employee</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">
-                  Department
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Gross</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">
-                  Deductions
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Net</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Generated</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Status</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {records.map((record: PayrollRecord) => {
-                return (
-                  <tr
-                    key={record.id}
-                    className="hover:bg-muted/20 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/payroll/records/${record.id}`)}
-                  >
-                    {can(PERMISSIONS.PAYROLL_PROCESS) && (
-                      <td
-                        className="px-4 py-3"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggle(record.id)
-                        }}
-                      >
-                        <Checkbox
-                          checked={isSelected(record.id)}
-                          onCheckedChange={() => toggle(record.id)}
-                        />
-                      </td>
-                    )}
-                    <td className="px-4 py-3">
-                      <div className="min-w-0">
-                        <p className="font-medium">
-                          {record.employee.firstName} {record.employee.lastName}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          {record.employee.employeeNo}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3">
-                      {record.employee.department?.name ?? "-"}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium">{fmt(record.grossSalary)}</td>
-                    <td className="px-4 py-3 text-right text-red-600">
-                      {fmt(record.totalDeductions)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-600">
-                      {fmt(record.netSalary)}
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3 text-xs whitespace-nowrap">
-                      {new Date(record.createdAt).toLocaleDateString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge
-                        status={record.status}
-                        colorMap={PAYROLL_STATUS_COLORS}
-                        labelMap={PAYROLL_STATUS_LABELS}
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => router.push(`/payroll/records/${record.id}`)}
-                          title="View"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {can(PERMISSIONS.PAYROLL_PROCESS) && record.status === "DRAFT" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive h-8 w-8"
-                            onClick={() => setDeleteId(record.id)}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Pagination */}
-      {!recordsLoading && pagination && (
-        <Pagination
-          page={pagination.page}
-          totalPages={pagination.totalPages}
-          total={pagination.total}
-          onPageChange={setPage}
-          itemLabel="record"
+        <DataTable
+          columns={columns}
+          rows={records}
+          rowKey={(record) => record.id}
+          showSerial
+          serialOffset={(page - 1) * PAGE_SIZE}
+          onRowClick={(record) => router.push(`/payroll/records/${record.id}`)}
+          selection={
+            can(PERMISSIONS.PAYROLL_PROCESS)
+              ? { isSelected, toggle, toggleAll, allSelected, someSelected }
+              : undefined
+          }
+          pagination={
+            pagination
+              ? {
+                  page: pagination.page,
+                  totalPages: pagination.totalPages,
+                  total: pagination.total,
+                  onPageChange: setPage,
+                  itemLabel: "record",
+                }
+              : undefined
+          }
         />
       )}
 

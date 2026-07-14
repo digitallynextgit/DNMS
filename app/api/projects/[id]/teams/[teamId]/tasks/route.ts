@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
+import { canManageProject } from "@/features/projects/server/project-access"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { logActivity } from "@/features/projects/server/activity"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
-import { sendEmail } from "@/lib/mailer"
+import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
 import type { Session } from "next-auth"
 
@@ -53,7 +54,7 @@ export const POST = withSession(
       }
 
       // Admin override
-      const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+      const isAdmin = await canManageProject(session, projectId)
 
       // Caller must be a team member OR admin
       const memberIds = team.members.map((m) => m.employeeId)
@@ -121,7 +122,7 @@ export const POST = withSession(
             type: "info",
             link: `/projects/${projectId}`,
           })
-          await sendEmail({
+          addEmailJob({
             to: task.assignee.email,
             subject: `New task: ${task.title}`,
             html: `<p>Hi ${task.assignee.firstName},</p><p>You've been assigned a new task in <strong>${team.name}</strong>: <strong>${task.title}</strong>.</p>`,

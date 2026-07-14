@@ -4,26 +4,9 @@ import { useState, useRef } from "react"
 import { useParams } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import {
-  Plus,
-  Loader2,
-  ArrowLeft,
-  Mail,
-  Phone,
-  Calendar,
-  FileText,
-  GripVertical,
-  User,
-} from "lucide-react"
+import { Plus, ArrowLeft, Mail, Phone, Calendar, FileText, GripVertical, User } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -36,6 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { FormDialog } from "@/components/shared/form-dialog"
 import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 
@@ -178,7 +162,7 @@ function ApplicantCard({
     <div
       draggable
       onDragStart={(e) => onDragStart(e, applicant.id)}
-      className="bg-card group cursor-grab rounded border p-3 shadow-sm transition-all duration-150 select-none hover:shadow-md active:cursor-grabbing"
+      className="bg-card group cursor-grab rounded-lg border p-3 shadow-sm transition-all duration-150 select-none hover:shadow-md active:cursor-grabbing"
     >
       <div className="flex items-start gap-2.5">
         <AvatarDisplay
@@ -249,7 +233,7 @@ function ApplicantCard({
 
       <button
         onClick={() => onScheduleInterview(applicant)}
-        className="border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary mt-2.5 w-full rounded border border-dashed py-1.5 text-center text-xs transition-colors"
+        className="border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary mt-2.5 w-full rounded-lg border border-dashed py-1.5 text-center text-xs transition-colors"
       >
         + Schedule Interview
       </button>
@@ -400,7 +384,7 @@ export default function JobPipelinePage() {
                 {/* Drop zone */}
                 <div
                   className={cn(
-                    "min-h-[200px] flex-1 rounded border-2 border-dashed p-2 transition-all duration-150",
+                    "min-h-[200px] flex-1 rounded-lg border-2 border-dashed p-2 transition-all duration-150",
                     isOver
                       ? "border-primary bg-primary/5 scale-[1.01]"
                       : "bg-muted/40 border-transparent",
@@ -424,7 +408,7 @@ export default function JobPipelinePage() {
                   {cards.length === 0 && (
                     <div
                       className={cn(
-                        "flex h-24 flex-col items-center justify-center gap-1.5 rounded border border-dashed",
+                        "flex h-24 flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed",
                         isOver ? "border-primary/50 bg-primary/5" : "border-muted-foreground/20",
                       )}
                     >
@@ -440,146 +424,130 @@ export default function JobPipelinePage() {
       </div>
 
       {/* Add Applicant Dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add Applicant</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>First Name</Label>
-                <Input
-                  value={form.firstName}
-                  onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Last Name</Label>
-                <Input
-                  value={form.lastName}
-                  onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Phone (optional)</Label>
-                <Input
-                  value={form.phone}
-                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Source (optional)</Label>
-                <Input
-                  value={form.source}
-                  onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}
-                  placeholder="LinkedIn, Referral..."
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Resume URL (optional)</Label>
-              <Input
-                value={form.resumeUrl}
-                onChange={(e) => setForm((f) => ({ ...f, resumeUrl: e.target.value }))}
-                placeholder="https://drive.google.com/..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Notes (optional)</Label>
-              <textarea
-                className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
-                value={form.notes}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              />
-            </div>
+      <FormDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        title="Add Applicant"
+        isPending={addMut.isPending}
+        submitDisabled={!form.firstName || !form.email}
+        submitLabel="Add Applicant"
+        size="sm"
+        onSubmit={(e) => {
+          e.preventDefault()
+          addMut.mutate({ ...form, jobId: job.id })
+        }}
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label>First Name</Label>
+            <Input
+              value={form.firstName}
+              onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
+            />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => addMut.mutate({ ...form, jobId: job.id })}
-              disabled={addMut.isPending || !form.firstName || !form.email}
-            >
-              {addMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Add Applicant
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="space-y-2">
+            <Label>Last Name</Label>
+            <Input
+              value={form.lastName}
+              onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Email</Label>
+          <Input
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label>Phone (optional)</Label>
+            <Input
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Source (optional)</Label>
+            <Input
+              value={form.source}
+              onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}
+              placeholder="LinkedIn, Referral..."
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Resume URL (optional)</Label>
+          <Input
+            value={form.resumeUrl}
+            onChange={(e) => setForm((f) => ({ ...f, resumeUrl: e.target.value }))}
+            placeholder="https://drive.google.com/..."
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Notes (optional)</Label>
+          <textarea
+            className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+            value={form.notes}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+          />
+        </div>
+      </FormDialog>
 
       {/* Schedule Interview Dialog */}
       {selectedApplicant && (
-        <Dialog open={interviewOpen} onOpenChange={setInterviewOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                Schedule Interview - {selectedApplicant.firstName} {selectedApplicant.lastName}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Type</Label>
-                  <Select
-                    value={iForm.type}
-                    onValueChange={(v) => setIForm((f) => ({ ...f, type: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INTERVIEW_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t.charAt(0) + t.slice(1).toLowerCase().replace("_", " ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Date & Time</Label>
-                  <Input
-                    type="datetime-local"
-                    value={iForm.scheduledAt}
-                    onChange={(e) => setIForm((f) => ({ ...f, scheduledAt: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Notes (optional)</Label>
-                <textarea
-                  className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
-                  value={iForm.notes}
-                  onChange={(e) => setIForm((f) => ({ ...f, notes: e.target.value }))}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setInterviewOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={() => interviewMut.mutate({ ...iForm, applicantId: selectedApplicant.id })}
-                disabled={interviewMut.isPending || !iForm.scheduledAt}
+        <FormDialog
+          open={interviewOpen}
+          onOpenChange={setInterviewOpen}
+          title={`Schedule Interview - ${selectedApplicant.firstName} ${selectedApplicant.lastName}`}
+          isPending={interviewMut.isPending}
+          submitDisabled={!iForm.scheduledAt}
+          submitLabel="Schedule"
+          size="sm"
+          onSubmit={(e) => {
+            e.preventDefault()
+            interviewMut.mutate({ ...iForm, applicantId: selectedApplicant.id })
+          }}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select
+                value={iForm.type}
+                onValueChange={(v) => setIForm((f) => ({ ...f, type: v }))}
               >
-                {interviewMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Schedule
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {INTERVIEW_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t.charAt(0) + t.slice(1).toLowerCase().replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Date & Time</Label>
+              <Input
+                type="datetime-local"
+                value={iForm.scheduledAt}
+                onChange={(e) => setIForm((f) => ({ ...f, scheduledAt: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Notes (optional)</Label>
+            <textarea
+              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+              value={iForm.notes}
+              onChange={(e) => setIForm((f) => ({ ...f, notes: e.target.value }))}
+            />
+          </div>
+        </FormDialog>
       )}
     </div>
   )

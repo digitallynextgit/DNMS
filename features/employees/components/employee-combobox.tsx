@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Check, ChevronsUpDown, Search, X, Loader2 } from "lucide-react"
+import { Check, ChevronsUpDown, Search, X } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -70,7 +71,7 @@ export function EmployeeCombobox({
           role="combobox"
           aria-expanded={open}
           className={cn(
-            "border-input h-10 w-full justify-between rounded px-3 font-normal",
+            "border-input h-10 w-full justify-between rounded-lg px-3 font-normal",
             !value && "text-muted-foreground",
           )}
         >
@@ -104,7 +105,7 @@ export function EmployeeCombobox({
         <div className="max-h-64 overflow-y-auto p-1">
           {isLoading ? (
             <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin" /> Searching…
+              <Spinner /> Searching…
             </div>
           ) : employees.length === 0 ? (
             <p className="text-muted-foreground py-6 text-center text-sm">No employees found.</p>
@@ -114,7 +115,7 @@ export function EmployeeCombobox({
                 key={emp.id}
                 type="button"
                 onClick={() => handleSelect(emp)}
-                className="hover:bg-accent flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left transition-colors"
+                className="hover:bg-accent flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors"
               >
                 <AvatarDisplay
                   src={emp.profilePhoto}

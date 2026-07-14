@@ -1,6 +1,6 @@
 "use client"
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
@@ -299,6 +299,7 @@ export function useEligibleLeaveTypes() {
 export function useLeaveBalances(employeeId?: string, year?: number) {
   return useQuery({
     queryKey: ["leave-balances", employeeId, year],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchLeaveBalances(employeeId, year),
     staleTime: 60_000,
   })
@@ -329,6 +330,7 @@ async function fetchLeaveBalanceDirectory(
 export function useLeaveBalanceDirectory(year?: number) {
   return useQuery({
     queryKey: ["leave-balance-directory", year],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchLeaveBalanceDirectory(year),
     staleTime: 30_000,
   })
@@ -337,6 +339,7 @@ export function useLeaveBalanceDirectory(year?: number) {
 export function useLeaveRequests(filters: LeaveRequestFilters = {}) {
   return useQuery({
     queryKey: ["leave-requests", filters],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchLeaveRequests(filters),
     staleTime: 30_000,
   })
@@ -345,6 +348,7 @@ export function useLeaveRequests(filters: LeaveRequestFilters = {}) {
 export function useMyLeaveRequests(filters: Omit<LeaveRequestFilters, "employeeId"> = {}) {
   return useQuery({
     queryKey: ["my-leave-requests", filters],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchLeaveRequests(filters),
     staleTime: 30_000,
   })
@@ -355,6 +359,7 @@ export function useTeamLeaveRequests(
 ) {
   return useQuery({
     queryKey: ["team-leave-requests", filters],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchTeamLeaveRequests(filters),
     staleTime: 30_000,
   })
@@ -366,6 +371,7 @@ export function useMyTeamLeaveRequests(
 ) {
   return useQuery({
     queryKey: ["my-team-leave-requests", filters],
+    placeholderData: keepPreviousData,
     queryFn: () => fetchMyTeamLeave(filters),
     staleTime: 30_000,
   })

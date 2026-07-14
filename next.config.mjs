@@ -4,9 +4,11 @@ const nextConfig = {
   // Allow cross-origin requests to the dev server (`next dev`) from these
   // hosts. Only affects development; production (`next start`) ignores this.
   allowedDevOrigins: ["187.127.159.101", "digitallynext.tech"],
-  // Keep exceljs as a Node external so Turbopack doesn't try to bundle its
-  // Node-only dependencies (used by the attendance import parser).
-  serverExternalPackages: ["exceljs"],
+  // Keep these as Node externals so Turbopack doesn't try to bundle their
+  // Node-only / native dependencies.
+  //   exceljs - attendance + content-calendar import parsers
+  //   sharp   - native image codec, used to downscale profile photos on upload
+  serverExternalPackages: ["exceljs", "sharp"],
   experimental: {
     // Disable Turbopack's on-disk persistent dev cache. In Next 16.2.6 a
     // corrupted cache restore panics the tokio worker with

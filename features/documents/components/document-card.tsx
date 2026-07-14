@@ -142,9 +142,9 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
 
   return (
     <>
-      <div className="bg-card hover:bg-muted/30 flex items-start gap-4 rounded border p-4 transition-colors">
+      <div className="bg-card hover:bg-muted/30 flex items-start gap-4 rounded-lg border p-4 transition-colors">
         {/* File icon */}
-        <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded">
+        <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
           <Icon className={cn("h-5 w-5", colorClass)} />
         </div>
 
@@ -194,9 +194,8 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
         {/* Actions */}
         <div className="flex shrink-0 items-center gap-1">
           <Button
-            size="icon"
+            size="icon-sm"
             variant="ghost"
-            className="h-8 w-8"
             onClick={handleView}
             disabled={viewLoading}
             title="View"
@@ -206,9 +205,8 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
           </Button>
 
           <Button
-            size="icon"
+            size="icon-sm"
             variant="ghost"
-            className="h-8 w-8"
             onClick={handleDownload}
             disabled={downloadLoading}
             title="Download"
@@ -219,9 +217,9 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
 
           {canDelete && onDelete && (
             <Button
-              size="icon"
+              size="icon-sm"
               variant="ghost"
-              className="text-muted-foreground hover:text-destructive h-8 w-8"
+              className="text-muted-foreground hover:text-destructive"
               onClick={() => setConfirmOpen(true)}
               title="Delete"
               aria-label={`Delete ${document.title}`}

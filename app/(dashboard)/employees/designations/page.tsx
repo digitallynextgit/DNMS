@@ -5,18 +5,12 @@ import { useUpdateEffect } from "@/hooks/use-update-effect"
 import { useUrlPage } from "@/hooks/use-url-state"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Plus, Loader2, Pencil, Power, Trash2 } from "lucide-react"
+import { Plus, Pencil, Power, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormDialog } from "@/components/shared/form-dialog"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { SearchInput } from "@/components/shared/search-input"
@@ -149,6 +143,15 @@ export default function DesignationsPage() {
     setLevel("1")
   }
 
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    saveMut.mutate({
+      id: editing?.id,
+      title: title.trim(),
+      level: Number(level) || 1,
+    })
+  }
+
   const designations = data?.data ?? []
 
   // ── Client-side search + slot-of-10 pagination ────────────────────────────
@@ -237,19 +240,12 @@ export default function DesignationsPage() {
               <div
                 className={cn("flex items-center justify-end gap-1", !d.isActive && "opacity-60")}
               >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  title="Edit"
-                  onClick={() => openEdit(d)}
-                >
+                <Button variant="ghost" size="icon-sm" title="Edit" onClick={() => openEdit(d)}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
+                  size="icon-sm"
                   title={d.isActive ? "Deactivate" : "Activate"}
                   disabled={activeMut.isPending}
                   onClick={() => activeMut.mutate({ id: d.id, isActive: !d.isActive })}
@@ -259,8 +255,8 @@ export default function DesignationsPage() {
                 {d._count.employees === 0 && (
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:bg-destructive/10 h-7 w-7"
+                    size="icon-sm"
+                    className="text-destructive hover:bg-destructive/10"
                     title="Delete permanently"
                     disabled={purgeMut.isPending}
                     onClick={() => setDeleteTarget(d)}
@@ -312,15 +308,15 @@ export default function DesignationsPage() {
       )}
 
       {isLoading ? (
-        <div className="bg-card rounded border">
+        <div className="bg-card rounded-lg border">
           <ListSkeleton rows={5} height="h-12" className="p-4" />
         </div>
       ) : designations.length === 0 ? (
-        <div className="bg-card rounded border">
+        <div className="bg-card rounded-lg border">
           <EmptyState title="No designations yet." compact />
         </div>
       ) : rows.length === 0 ? (
-        <div className="bg-card rounded border">
+        <div className="bg-card rounded-lg border">
           <EmptyState title="No designations match your search." compact />
         </div>
       ) : (
@@ -342,61 +338,37 @@ export default function DesignationsPage() {
         itemLabel="designation"
       />
 
-      <Dialog open={dialogOpen} onOpenChange={(o) => (o ? setDialogOpen(true) : closeDialog())}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Designation" : "Add Designation"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="desig-title">Title</Label>
-              <Input
-                id="desig-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Software Engineer"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="desig-level">Level (1–13)</Label>
-              <Input
-                id="desig-level"
-                type="number"
-                min={1}
-                max={13}
-                value={level}
-                onChange={(e) => setLevel(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>
-              Cancel
-            </Button>
-            <Button
-              disabled={!title.trim() || saveMut.isPending}
-              onClick={() =>
-                saveMut.mutate({
-                  id: editing?.id,
-                  title: title.trim(),
-                  level: Number(level) || 1,
-                })
-              }
-            >
-              {saveMut.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : editing ? (
-                "Save"
-              ) : (
-                "Create"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FormDialog
+        open={dialogOpen}
+        onOpenChange={(o) => (o ? setDialogOpen(true) : closeDialog())}
+        title={editing ? "Edit Designation" : "Add Designation"}
+        isEdit={!!editing}
+        isPending={saveMut.isPending}
+        submitDisabled={!title.trim()}
+        size="sm"
+        onSubmit={handleSubmit}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="desig-title">Title</Label>
+          <Input
+            id="desig-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Software Engineer"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="desig-level">Level (1–13)</Label>
+          <Input
+            id="desig-level"
+            type="number"
+            min={1}
+            max={13}
+            value={level}
+            onChange={(e) => setLevel(e.target.value)}
+          />
+        </div>
+      </FormDialog>
 
       <ConfirmDialog
         open={bulkOpen}

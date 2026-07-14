@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 
 /**
  * Persist a small piece of UI state (active tab, current page, view mode, …) in
@@ -11,15 +11,21 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
  *
  * Mirrors the `useState` API: returns `[value, setValue]`. The value is read
  * live from the `?<key>=` search param (falling back to `defaultValue`), so
- * back/forward navigation updates it automatically. Writing does a shallow
- * `router.replace` (no scroll jump, no server refetch of the route shell). The
- * param is removed entirely when set back to the default, keeping URLs tidy.
+ * back/forward navigation updates it automatically. The param is removed
+ * entirely when set back to the default, keeping URLs tidy.
+ *
+ * IMPORTANT - why this uses `window.history.replaceState` and NOT `router.replace`:
+ * this state is purely CLIENT-side UI (page number, active tab, view mode). In the
+ * App Router, `router.replace()` to a new URL fetches a fresh RSC payload for the
+ * segment, which re-runs the dashboard layout (`auth()` + a DB lookup) and the Edge
+ * middleware - on EVERY pagination click and every debounced keystroke. The native
+ * history API updates the URL (and `useSearchParams`, which Next keeps in sync)
+ * with no server round trip at all.
  *
  * When a page hosts more than one stateful control, give each a distinct `key`
  * (e.g. "tab", "page", "reqPage") so they don't clobber one another.
  */
 export function useUrlState(key: string, defaultValue: string): [string, (value: string) => void] {
-  const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const value = searchParams.get(key) ?? defaultValue
@@ -30,9 +36,9 @@ export function useUrlState(key: string, defaultValue: string): [string, (value:
       if (!next || next === defaultValue) params.delete(key)
       else params.set(key, next)
       const qs = params.toString()
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+      window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname)
     },
-    [key, defaultValue, router, pathname, searchParams],
+    [key, defaultValue, pathname, searchParams],
   )
 
   return [value, setValue]

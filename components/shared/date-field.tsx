@@ -55,7 +55,9 @@ export function DateField({
           type="button"
           variant="outline"
           className={cn(
-            "border-input h-10 w-full justify-start rounded px-3 text-left font-normal",
+            // Matches Input/Select exactly (h-9, radius var) so a date field lines
+            // up with the fields beside it.
+            "border-input h-9 w-full justify-start rounded-lg px-3 text-left font-normal",
             !value && "text-muted-foreground",
           )}
         >

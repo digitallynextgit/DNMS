@@ -4,6 +4,7 @@ import Link from "next/link"
 import { FileText, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
@@ -19,6 +20,70 @@ export default function MyPayslipsPage() {
 
   const payslips = data?.data ?? []
 
+  const columns: DataTableColumn<PayrollRecord>[] = [
+    {
+      header: "Month",
+      className: "font-medium",
+      cell: (payslip) => MONTHS[payslip.month - 1],
+    },
+    {
+      header: "Year",
+      className: "text-muted-foreground",
+      cell: (payslip) => payslip.year,
+    },
+    {
+      header: "Gross",
+      align: "right",
+      cell: (payslip) => fmt(payslip.grossSalary),
+    },
+    {
+      header: "Deductions",
+      align: "right",
+      className: "text-red-600",
+      cell: (payslip) => fmt(payslip.totalDeductions),
+    },
+    {
+      header: "Net",
+      align: "right",
+      className: "font-semibold text-emerald-600",
+      cell: (payslip) => fmt(payslip.netSalary),
+    },
+    {
+      header: "Generated",
+      className: "text-muted-foreground text-xs whitespace-nowrap",
+      cell: (payslip) =>
+        new Date(payslip.createdAt).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+    },
+    {
+      header: "Status",
+      cell: (payslip) => (
+        <StatusBadge
+          status={payslip.status}
+          colorMap={PAYROLL_STATUS_COLORS}
+          labelMap={PAYROLL_STATUS_LABELS}
+        />
+      ),
+    },
+    {
+      header: "",
+      align: "right",
+      cell: (payslip) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="outline" size="sm" asChild className="gap-1.5">
+            <Link href={`/payroll/me/${payslip.id}`}>
+              <Download className="h-3.5 w-3.5" />
+              View
+            </Link>
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader title="My Payslips" description="View your payslip history" />
@@ -28,65 +93,7 @@ export default function MyPayslipsPage() {
       ) : payslips.length === 0 ? (
         <EmptyState icon={FileText} title="No payslips available yet." />
       ) : (
-        <div className="bg-card rounded border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b">
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Month</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Year</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Gross</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">
-                  Deductions
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Net</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Generated</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Status</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {payslips.map((payslip: PayrollRecord) => {
-                const monthName = MONTHS[payslip.month - 1]
-
-                return (
-                  <tr key={payslip.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3 font-medium">{monthName}</td>
-                    <td className="text-muted-foreground px-4 py-3">{payslip.year}</td>
-                    <td className="px-4 py-3 text-right">{fmt(payslip.grossSalary)}</td>
-                    <td className="px-4 py-3 text-right text-red-600">
-                      {fmt(payslip.totalDeductions)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-600">
-                      {fmt(payslip.netSalary)}
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3 text-xs whitespace-nowrap">
-                      {new Date(payslip.createdAt).toLocaleDateString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge
-                        status={payslip.status}
-                        colorMap={PAYROLL_STATUS_COLORS}
-                        labelMap={PAYROLL_STATUS_LABELS}
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button variant="outline" size="sm" asChild className="gap-1.5">
-                        <Link href={`/payroll/me/${payslip.id}`}>
-                          <Download className="h-3.5 w-3.5" />
-                          View
-                        </Link>
-                      </Button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable columns={columns} rows={payslips} rowKey={(payslip) => payslip.id} showSerial />
       )}
     </div>
   )

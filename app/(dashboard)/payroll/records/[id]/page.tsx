@@ -4,7 +4,8 @@ import { use, useState } from "react"
 import Link from "next/link"
 import { useMutation } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { ChevronLeft, Loader2, Download } from "lucide-react"
+import { ChevronLeft, Download } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -55,7 +56,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
     onError: (e: Error) => toast.error(e.message),
   })
 
-  if (isLoading) return <Skeleton className="h-96 rounded" />
+  if (isLoading) return <Skeleton className="h-96 rounded-lg" />
   if (!r) {
     return (
       <div className="flex flex-col items-center gap-4 py-20">
@@ -83,17 +84,12 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
       <PageHeader
         title={`Payslip - ${monthName} ${r.year}`}
         description={`${r.employee.firstName} ${r.employee.lastName} · ${r.employee.employeeNo}`}
+        backHref="/payroll/payroll-directory"
+        backLabel="Back to Payroll"
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
-              <Download className="h-4 w-4" /> Download PDF
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/payroll/payroll-directory" className="flex items-center gap-1.5">
-                <ChevronLeft className="h-4 w-4" /> Back
-              </Link>
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
+            <Download className="h-4 w-4" /> Download PDF
+          </Button>
         }
       />
 
@@ -109,14 +105,14 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
             disabled={patchMut.isPending}
             onClick={() => patchMut.mutate({ status: next })}
           >
-            {patchMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {patchMut.isPending && <Spinner className="mr-2" />}
             Mark {PAYROLL_STATUS_LABELS[next] ?? next}
           </Button>
         )}
       </div>
 
       {/* The official payslip (this is what prints / downloads). */}
-      <div className="bg-card rounded border p-2 sm:p-4">
+      <div className="bg-card rounded-lg border p-2 sm:p-4">
         <PayslipDocument record={r} />
       </div>
 

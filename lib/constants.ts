@@ -271,17 +271,35 @@ export const EMPLOYEE_STATUS_LABELS: Record<string, string> = {
   TERMINATED: "Terminated",
 }
 
+/**
+ * ─── The status-pill palette ────────────────────────────────────────────────
+ * ONE formula for every status colour in the app. Previously there were FIVE
+ * competing families (bordered+opaque, borderless+alpha, emerald-500/30, ...),
+ * so an amber "PENDING" leave pill and an amber "ON_HOLD" project pill looked
+ * nothing alike on adjacent pages.
+ *
+ * This is the borderless/alpha family: the /10 tint works on any background and
+ * needs only a text override in dark mode - no per-shade dark bg/border to keep
+ * in sync. Every *_COLORS map below is built from these tones. Add a tone here
+ * rather than writing raw classes in a map.
+ */
+export const TONE = {
+  green: "bg-green-500/10 text-green-600 dark:text-green-400",
+  emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  blue: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  orange: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+  red: "bg-red-500/10 text-red-600 dark:text-red-400",
+  purple: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+  neutral: "bg-muted text-muted-foreground",
+} as const
+
 export const EMPLOYEE_STATUS_COLORS: Record<string, string> = {
-  ACTIVE:
-    "border border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300",
-  ON_LEAVE:
-    "border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300",
-  SUSPENDED:
-    "border border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300",
-  RESIGNED:
-    "border border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200",
-  TERMINATED:
-    "border border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300",
+  ACTIVE: TONE.green,
+  ON_LEAVE: TONE.amber,
+  SUSPENDED: TONE.red,
+  RESIGNED: TONE.neutral,
+  TERMINATED: TONE.red,
 }
 
 export const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {
@@ -315,22 +333,29 @@ export const ATTENDANCE_STATUS_LABELS: Record<string, string> = {
   ON_LEAVE: "On Leave",
   HOLIDAY: "Holiday",
   WEEKEND: "Weekend",
+  MISSING_PUNCH: "Missing punch",
+}
+
+/** Active / inactive pill - used for devices, employees, holidays, roles… */
+export const ACTIVE_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Active",
+  INACTIVE: "Inactive",
 }
 
 export const ATTENDANCE_STATUS_COLORS: Record<string, string> = {
-  PRESENT:
-    "border border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300",
-  ABSENT:
-    "border border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300",
-  HALF_DAY:
-    "border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300",
-  LATE: "border border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-900 dark:bg-orange-950/50 dark:text-orange-300",
-  ON_LEAVE:
-    "border border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-300",
-  HOLIDAY:
-    "border border-purple-200 bg-purple-100 text-purple-700 dark:border-purple-900 dark:bg-purple-950/50 dark:text-purple-300",
-  WEEKEND:
-    "border border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200",
+  PRESENT: TONE.green,
+  ABSENT: TONE.red,
+  HALF_DAY: TONE.amber,
+  LATE: TONE.orange,
+  ON_LEAVE: TONE.blue,
+  HOLIDAY: TONE.purple,
+  WEEKEND: TONE.neutral,
+  MISSING_PUNCH: TONE.purple,
+}
+
+export const ACTIVE_STATUS_COLORS: Record<string, string> = {
+  ACTIVE: TONE.green,
+  INACTIVE: TONE.neutral,
 }
 
 export const LEAVE_STATUS_LABELS: Record<string, string> = {
@@ -341,14 +366,10 @@ export const LEAVE_STATUS_LABELS: Record<string, string> = {
 }
 
 export const LEAVE_STATUS_COLORS: Record<string, string> = {
-  PENDING:
-    "border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300",
-  APPROVED:
-    "border border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300",
-  REJECTED:
-    "border border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300",
-  CANCELLED:
-    "border border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200",
+  PENDING: TONE.amber,
+  APPROVED: TONE.green,
+  REJECTED: TONE.red,
+  CANCELLED: TONE.neutral,
 }
 
 export const PAYROLL_STATUS_LABELS: Record<string, string> = {
@@ -359,13 +380,10 @@ export const PAYROLL_STATUS_LABELS: Record<string, string> = {
 }
 
 export const PAYROLL_STATUS_COLORS: Record<string, string> = {
-  DRAFT:
-    "border border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200",
-  PROCESSING:
-    "border border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-300",
-  APPROVED:
-    "border border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300",
-  PAID: "border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300",
+  DRAFT: TONE.neutral,
+  PROCESSING: TONE.blue,
+  APPROVED: TONE.green,
+  PAID: TONE.emerald,
 }
 
 export const MONTHS = [
@@ -392,11 +410,11 @@ export const PROJECT_STATUS_LABELS: Record<string, string> = {
 }
 
 export const PROJECT_STATUS_COLORS: Record<string, string> = {
-  PLANNING: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  ACTIVE: "bg-green-500/10 text-green-600 dark:text-green-400",
-  ON_HOLD: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  COMPLETED: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
-  CANCELLED: "bg-muted text-muted-foreground",
+  PLANNING: TONE.blue,
+  ACTIVE: TONE.green,
+  ON_HOLD: TONE.amber,
+  COMPLETED: TONE.purple,
+  CANCELLED: TONE.neutral,
 }
 
 export const TASK_STATUS_LABELS: Record<string, string> = {
@@ -408,11 +426,11 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
 }
 
 export const TASK_STATUS_COLORS: Record<string, string> = {
-  TODO: "bg-muted text-muted-foreground",
-  IN_PROGRESS: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  IN_REVIEW: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  DONE: "bg-green-500/10 text-green-600 dark:text-green-400",
-  CANCELLED: "bg-red-500/10 text-red-600 dark:text-red-400",
+  TODO: TONE.neutral,
+  IN_PROGRESS: TONE.blue,
+  IN_REVIEW: TONE.amber,
+  DONE: TONE.green,
+  CANCELLED: TONE.neutral,
 }
 
 export const TASK_PRIORITY_LABELS: Record<string, string> = {
@@ -423,10 +441,10 @@ export const TASK_PRIORITY_LABELS: Record<string, string> = {
 }
 
 export const TASK_PRIORITY_COLORS: Record<string, string> = {
-  LOW: "bg-muted text-muted-foreground",
-  MEDIUM: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  HIGH: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  URGENT: "bg-red-500/10 text-red-600 dark:text-red-400",
+  LOW: TONE.neutral,
+  MEDIUM: TONE.blue,
+  HIGH: TONE.amber,
+  URGENT: TONE.red,
 }
 
 export const JOB_STATUS_LABELS: Record<string, string> = {
@@ -437,10 +455,10 @@ export const JOB_STATUS_LABELS: Record<string, string> = {
 }
 
 export const JOB_STATUS_COLORS: Record<string, string> = {
-  DRAFT: "bg-muted text-muted-foreground",
-  OPEN: "bg-green-500/10 text-green-600 dark:text-green-400",
-  CLOSED: "bg-red-500/10 text-red-600 dark:text-red-400",
-  ON_HOLD: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  DRAFT: TONE.neutral,
+  OPEN: TONE.green,
+  CLOSED: TONE.red,
+  ON_HOLD: TONE.amber,
 }
 
 export const APPLICANT_STAGE_LABELS: Record<string, string> = {
@@ -453,12 +471,12 @@ export const APPLICANT_STAGE_LABELS: Record<string, string> = {
 }
 
 export const APPLICANT_STAGE_COLORS: Record<string, string> = {
-  APPLIED: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  SCREENING: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  INTERVIEW: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
-  OFFER: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
-  HIRED: "bg-green-500/10 text-green-600 dark:text-green-400",
-  REJECTED: "bg-red-500/10 text-red-600 dark:text-red-400",
+  APPLIED: TONE.blue,
+  SCREENING: TONE.amber,
+  INTERVIEW: TONE.purple,
+  OFFER: TONE.orange,
+  HIRED: TONE.green,
+  REJECTED: TONE.red,
 }
 
 // ─── Centralized maps (were previously duplicated/inline in pages) ──────────
@@ -470,19 +488,26 @@ export const EVALUATION_STATUS_LABELS: Record<string, string> = {
   COMPLETED: "Completed",
 }
 
+/** Whether an employee has a custom KPI profile, or falls back to the sheet defaults. */
+export const KPI_PROFILE_STATUS_LABELS: Record<string, string> = {
+  CONFIGURED: "Configured",
+  DEFAULT: "Using defaults",
+}
+
+export const KPI_PROFILE_STATUS_COLORS: Record<string, string> = {
+  CONFIGURED: TONE.green,
+  DEFAULT: TONE.neutral,
+}
+
 export const EVALUATION_STATUS_COLORS: Record<string, string> = {
-  PENDING:
-    "border border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200",
-  SELF_DONE:
-    "border border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-300",
-  MANAGER_DONE:
-    "border border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-300",
-  COMPLETED:
-    "border border-green-200 bg-green-100 text-green-700 dark:border-green-900 dark:bg-green-950/50 dark:text-green-300",
+  PENDING: TONE.amber,
+  SELF_DONE: TONE.blue,
+  MANAGER_DONE: TONE.blue,
+  COMPLETED: TONE.green,
 }
 
 /** Single amber pill for the "on probation" flag (unifies 4 hand-copied variants). */
-export const PROBATION_BADGE = "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+export const PROBATION_BADGE = TONE.amber
 
 export const DOC_ROLE_LABELS: Record<string, string> = {
   employee: "Employee",
@@ -492,20 +517,16 @@ export const DOC_ROLE_LABELS: Record<string, string> = {
 }
 
 export const DOC_ROLE_COLORS: Record<string, string> = {
-  employee: "border border-blue-500/30 bg-blue-500/10 text-blue-500",
-  manager: "border border-purple-500/30 bg-purple-500/10 text-purple-500",
-  hr: "border border-emerald-500/30 bg-emerald-500/10 text-emerald-500",
-  admin: "border border-destructive/30 bg-destructive/10 text-destructive",
+  employee: TONE.blue,
+  manager: TONE.purple,
+  hr: TONE.emerald,
+  admin: TONE.red,
 }
 
 export const RESOURCE_CATEGORY_COLORS: Record<string, string> = {
-  BRIEFS:
-    "border border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
-  ASSETS:
-    "border border-purple-200 bg-purple-100 text-purple-700 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300",
-  DELIVERABLES:
-    "border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
-  REFERENCES:
-    "border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
-  OTHER: "border border-border bg-muted text-muted-foreground",
+  BRIEFS: TONE.blue,
+  ASSETS: TONE.purple,
+  DELIVERABLES: TONE.emerald,
+  REFERENCES: TONE.amber,
+  OTHER: TONE.neutral,
 }

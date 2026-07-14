@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { Spinner } from "@/components/shared/spinner"
 import { useRouter } from "next/navigation"
 import { useForm, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -12,12 +13,10 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Loader2,
   Upload,
   FileText,
   Trash2,
   X,
-  Calendar as CalendarIcon,
   List,
   Eye,
   EyeOff,
@@ -27,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Calendar } from "@/components/ui/calendar"
+import { DateField } from "@/components/shared/date-field"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
@@ -164,19 +163,6 @@ const WORK_LOCATIONS = ["Remote", "Office", "Hybrid"] as const
 
 // Convert between the form's "yyyy-MM-dd" string and a Date for the calendar,
 // staying in local time so the day never shifts across timezones.
-function parseDateString(s?: string): Date | undefined {
-  if (!s) return undefined
-  const [y, m, d] = s.split("-").map(Number)
-  if (!y || !m || !d) return undefined
-  return new Date(y, m - 1, d)
-}
-
-function toDateString(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, "0")
-  const d = String(date.getDate()).padStart(2, "0")
-  return `${y}-${m}-${d}`
-}
 
 // Generate a readable, reasonably strong password for a new hire. Avoids
 // ambiguous characters (0/O, 1/l/I) and guarantees a mix of classes.
@@ -209,58 +195,6 @@ function nextEmployeeCode(codes: string[]): string {
   let n = 1
   while (used.has(n)) n++
   return String(n)
-}
-
-// ─── Reusable date picker (shadcn calendar in a popover) ───────────────────────
-
-function DateField({
-  value,
-  onChange,
-  placeholder = "Pick a date",
-  startMonth,
-  endMonth,
-  disabled,
-}: {
-  value?: string
-  onChange: (v: string) => void
-  placeholder?: string
-  startMonth?: Date
-  endMonth?: Date
-  disabled?: (date: Date) => boolean
-}) {
-  const [open, setOpen] = useState(false)
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className={cn(
-            "border-input h-10 w-full justify-start rounded px-3 text-left font-normal",
-            !value && "text-muted-foreground",
-          )}
-        >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? formatDate(value) : placeholder}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          captionLayout="dropdown"
-          startMonth={startMonth}
-          endMonth={endMonth}
-          defaultMonth={parseDateString(value)}
-          selected={parseDateString(value)}
-          onSelect={(date) => {
-            onChange(date ? toDateString(date) : "")
-            if (date) setOpen(false)
-          }}
-          disabled={disabled}
-        />
-      </PopoverContent>
-    </Popover>
-  )
 }
 
 // ─── Step config ──────────────────────────────────────────────────────────────
@@ -432,7 +366,7 @@ function EmailStatusHint({ status }: { status: EmailAvailability }) {
   if (status === "checking")
     return (
       <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
-        <Loader2 className="h-3 w-3 animate-spin" />
+        <Spinner size="xs" />
         Checking availability…
       </p>
     )
@@ -962,7 +896,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   if (mode === "edit" && isLoadingEmployee) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+        <Spinner size="xl" className="text-muted-foreground" />
       </div>
     )
   }
@@ -1089,7 +1023,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
           <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             {/* Probation (admin only) - kept at the top of the step. */}
             {isProbationAdmin && (
-              <div className="border-border bg-muted/30 space-y-3 rounded border p-4 sm:col-span-2">
+              <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <Label className="text-sm font-medium">On Probation</Label>
@@ -1127,7 +1061,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     </FormField>
 
                     <FormField label="Probation Ends">
-                      <div className="border-input bg-background text-muted-foreground flex h-10 items-center rounded border px-3 text-sm">
+                      <div className="border-input bg-background text-muted-foreground flex h-10 items-center rounded-lg border px-3 text-sm">
                         {probationHint}
                       </div>
                     </FormField>
@@ -1164,7 +1098,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                         employeeCodes.map((e) => (
                           <div
                             key={e.id}
-                            className="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm"
+                            className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm"
                           >
                             <span className="truncate">
                               {e.firstName} {e.lastName}
@@ -1327,7 +1261,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             {/* Login password (create only). Auto-filled with a generated value; HR
                 can edit it or regenerate. It is emailed to the employee either way. */}
             {mode === "create" && (
-              <div className="border-border bg-muted/30 space-y-3 rounded border p-4 sm:col-span-2">
+              <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
                 <FormField label="Login Password" required error={errors.password?.message}>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
@@ -1391,7 +1325,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             {/* Gmail App Password - encrypted at rest, used to send emails as this
                 employee. HR toggles whether to add one now or skip it. */}
-            <div className="border-border bg-muted/30 space-y-3 rounded border p-4 sm:col-span-2">
+            <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <Label className="text-sm font-medium">Gmail App Password</Label>
@@ -1473,10 +1407,10 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                 {existingDocs.map((doc) => (
                   <div
                     key={doc.id}
-                    className="bg-muted/30 hover:bg-muted/50 flex items-center justify-between rounded border px-4 py-3 transition-colors"
+                    className="bg-muted/30 hover:bg-muted/50 flex items-center justify-between rounded-lg border px-4 py-3 transition-colors"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="bg-background flex h-9 w-9 shrink-0 items-center justify-center rounded border">
+                      <div className="bg-background flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
                         <FileText className="text-muted-foreground h-4 w-4" />
                       </div>
                       <div className="min-w-0">
@@ -1490,8 +1424,8 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     <Button
                       type="button"
                       variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:text-destructive h-8 w-8 shrink-0"
+                      size="icon-sm"
+                      className="text-destructive hover:text-destructive shrink-0"
                       onClick={() => deleteExistingDoc(doc.id)}
                       aria-label="Remove document"
                     >
@@ -1530,7 +1464,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               {pendingDocs.length === 0 ? (
                 <label
                   htmlFor="emp-doc-input"
-                  className="border-border hover:border-foreground/40 hover:bg-muted/30 flex cursor-pointer flex-col items-center justify-center rounded border border-dashed py-12 transition-colors"
+                  className="border-border hover:border-foreground/40 hover:bg-muted/30 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed py-12 transition-colors"
                 >
                   <Upload className="text-muted-foreground mb-3 h-6 w-6" />
                   <span className="text-sm font-medium">Click to add documents</span>
@@ -1541,11 +1475,11 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               ) : (
                 <div className="space-y-3">
                   {pendingDocs.map((doc) => (
-                    <div key={doc.uid} className="bg-muted/20 space-y-4 rounded border p-4">
+                    <div key={doc.uid} className="bg-muted/20 space-y-4 rounded-lg border p-4">
                       {/* Filename header - prominent so it's clear which doc you're editing */}
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
-                          <div className="bg-background flex h-9 w-9 shrink-0 items-center justify-center rounded border">
+                          <div className="bg-background flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
                             <FileText className="text-muted-foreground h-4 w-4" />
                           </div>
                           <div className="min-w-0">
@@ -1559,8 +1493,8 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-destructive shrink-0"
                           onClick={() => removePendingDoc(doc.uid)}
                           aria-label="Remove file"
                         >
@@ -1938,7 +1872,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner className="mr-2" />
                   {redirecting ? "Opening profile…" : "Saving..."}
                 </>
               ) : mode === "create" ? (

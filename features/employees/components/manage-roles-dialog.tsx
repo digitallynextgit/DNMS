@@ -4,15 +4,7 @@ import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { FormDialog } from "@/components/shared/form-dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 
@@ -80,22 +72,24 @@ export function ManageRolesDialog({
   })
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          Manage Roles
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Manage roles</DialogTitle>
-          <DialogDescription>
-            Assign or remove roles for {employeeName}. Roles grant permissions such as approving
-            leave or managing payroll.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3 py-2">
+    <>
+      <Button variant="outline" size="sm" onClick={() => handleOpenChange(true)}>
+        Manage Roles
+      </Button>
+      <FormDialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title="Manage roles"
+        description={`Assign or remove roles for ${employeeName}. Roles grant permissions such as approving leave or managing payroll.`}
+        isPending={save.isPending}
+        submitDisabled={isLoading}
+        submitLabel="Save"
+        onSubmit={(e) => {
+          e.preventDefault()
+          save.mutate()
+        }}
+      >
+        <div className="space-y-3">
           {isLoading ? (
             <p className="text-muted-foreground text-sm">Loading roles…</p>
           ) : (roles ?? []).length === 0 ? (
@@ -105,7 +99,7 @@ export function ManageRolesDialog({
               <label
                 key={role.id}
                 htmlFor={`role-${role.id}`}
-                className="hover:bg-muted/50 flex cursor-pointer items-start gap-3 rounded-[var(--radius)] p-2"
+                className="hover:bg-muted/50 flex cursor-pointer items-start gap-3 rounded-lg p-2"
               >
                 <Checkbox
                   id={`role-${role.id}`}
@@ -123,16 +117,7 @@ export function ManageRolesDialog({
             ))
           )}
         </div>
-
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)} disabled={save.isPending}>
-            Cancel
-          </Button>
-          <Button onClick={() => save.mutate()} disabled={save.isPending || isLoading}>
-            {save.isPending ? "Saving…" : "Save"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </FormDialog>
+    </>
   )
 }

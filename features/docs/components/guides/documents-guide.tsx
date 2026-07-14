@@ -8,7 +8,7 @@ export function DocumentsGuide() {
       <GuideSection title="Types of Documents">
         <p>There are two kinds of documents in DNMS:</p>
         <div className="mt-2 space-y-3">
-          <div className="border-border rounded border p-4">
+          <div className="border-border rounded-lg border p-4">
             <p className="text-foreground font-medium">Company Documents</p>
             <p className="text-muted-foreground mt-1">
               These are files shared with everyone in the company - things like HR policies, leave
@@ -16,7 +16,7 @@ export function DocumentsGuide() {
               download these.
             </p>
           </div>
-          <div className="border-border rounded border p-4">
+          <div className="border-border rounded-lg border p-4">
             <p className="text-foreground font-medium">Employee Documents</p>
             <p className="text-muted-foreground mt-1">
               These are your personal files - your offer letter, ID proof, certificates, and other

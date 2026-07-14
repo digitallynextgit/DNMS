@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { ATTENDANCE_STATUS_COLORS, ATTENDANCE_STATUS_LABELS } from "@/lib/constants"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { DateField } from "@/components/shared/date-field"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -21,22 +23,6 @@ import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { cn, formatWorkHours, employeeSlug } from "@/lib/utils"
 import { format } from "date-fns"
-
-const STATUS_META: Record<string, { label: string; cls: string }> = {
-  PRESENT: {
-    label: "Present",
-    cls: "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300",
-  },
-  HALF_DAY: {
-    label: "Half day",
-    cls: "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-300",
-  },
-  MISSING_PUNCH: {
-    label: "Missing punch",
-    cls: "bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300",
-  },
-  ABSENT: { label: "On Leave", cls: "bg-muted text-muted-foreground" },
-}
 
 function fmtTime(iso: string | null): string {
   if (!iso) return "-"
@@ -115,14 +101,13 @@ export default function AttendanceDirectoryPage() {
 
   const statusCol: DataTableColumn<AttendanceDirectoryRow> = {
     header: "Status",
-    cell: (r) => {
-      const m = STATUS_META[r.status] ?? STATUS_META.ABSENT
-      return (
-        <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", m.cls)}>
-          {m.label}
-        </span>
-      )
-    },
+    cell: (r) => (
+      <StatusBadge
+        status={r.status}
+        colorMap={ATTENDANCE_STATUS_COLORS}
+        labelMap={ATTENDANCE_STATUS_LABELS}
+      />
+    ),
   }
 
   const columns: DataTableColumn<AttendanceDirectoryRow>[] = isSingleDay

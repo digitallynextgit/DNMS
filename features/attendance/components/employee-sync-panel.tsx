@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { RefreshCw, History, Loader2, Search, Users } from "lucide-react"
+import { RefreshCw, History, Search, Users } from "lucide-react"
+import { Spinner } from "@/components/shared/spinner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -129,17 +130,12 @@ export function EmployeeSyncPanel({ devices }: { devices: DeviceOption[] }) {
               onClick={() => run(r.employeeNo, false)}
               title="Sync new days for this employee"
             >
-              {rowBusy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
-              )}
+              {rowBusy ? <Spinner size="sm" /> : <RefreshCw className="h-3.5 w-3.5" />}
               Sync
             </Button>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-8 w-8"
+              size="icon-sm"
               disabled={!r.hasCode || rowBusy || !targetDevice}
               onClick={() => run(r.employeeNo, true)}
               title="Full re-sync this employee's history from the device"

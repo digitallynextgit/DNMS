@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { randomUUID } from "crypto"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
+import { withProjectManager } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
 import { uploadFile, getObjectKey, ensureBucket } from "@/lib/storage"
 import type { Session } from "next-auth"
@@ -10,8 +11,7 @@ const MAX_BYTES = 25 * 1024 * 1024 // 25 MB
 const BLOCKED = ["exe", "bat", "cmd", "sh", "msi", "com", "scr", "js", "jar", "vbs"]
 
 // POST - upload a brand file (kind = "BRIEF" | "LOGO"). multipart/form-data.
-export const POST = withAuth(
-  PERMISSIONS.PROJECT_WRITE,
+export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const projectId = ctx.params.id
