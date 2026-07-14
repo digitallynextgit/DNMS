@@ -49,7 +49,7 @@ export interface DigitalObjective {
 export const MANIFESTATION_THEMES = [
   { key: "AWARENESS", title: "Brand Awareness", hint: "Knowledge & information" },
   { key: "DEMAND", title: "Demand Generation", hint: "Paid ads" },
-  { key: "THOUGHT", title: "Thought Leadership", hint: "Mission / vision — brand & founder" },
+  { key: "THOUGHT", title: "Thought Leadership", hint: "Mission / vision - brand & founder" },
   { key: "COMMUNITY", title: "Community Engagement", hint: "Offers, redeem & loyalty programs" },
 ] as const
 export type ManifestationKey = (typeof MANIFESTATION_THEMES)[number]["key"]

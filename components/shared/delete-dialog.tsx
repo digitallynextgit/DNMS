@@ -80,7 +80,7 @@ export function DeleteDialog({
         </AlertDialogHeader>
 
         {canPermanent && (
-          <label className="border-border hover:bg-muted/40 flex cursor-pointer items-start gap-2.5 rounded-md border p-3 text-sm transition-colors">
+          <label className="border-border hover:bg-muted/40 flex cursor-pointer items-start gap-2.5 rounded border p-3 text-sm transition-colors">
             <Checkbox
               checked={permanent}
               onCheckedChange={(v) => setPermanent(v === true)}

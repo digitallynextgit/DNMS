@@ -17,6 +17,7 @@ import {
   Pencil,
   Loader2,
   ImageIcon,
+  FileDown,
 } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { DateField } from "@/components/shared/date-field"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -129,7 +131,7 @@ function SectionCard({
     <Card className={cn("overflow-hidden transition-shadow", dirty && "ring-primary/30 ring-1")}>
       <CardHeader className="bg-muted/30 flex flex-row items-start justify-between gap-3 space-y-0 border-b py-3">
         <div className="flex min-w-0 items-start gap-3">
-          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", tint)}>
+          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded", tint)}>
             <Icon className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -332,15 +334,15 @@ function StrategySection({ projectId, canManage }: Props) {
                       />
                     </td>
                     <td className="py-1 pr-2">
-                      <Input
-                        className="h-9"
-                        type="date"
-                        value={o.deadline}
-                        disabled={!canManage}
-                        onChange={(e) =>
-                          updateObj(setObjectives, o.id, { deadline: e.target.value })
-                        }
-                      />
+                      {canManage ? (
+                        <DateField
+                          value={o.deadline}
+                          placeholder="Deadline"
+                          onChange={(v) => updateObj(setObjectives, o.id, { deadline: v })}
+                        />
+                      ) : (
+                        <span className="text-sm">{o.deadline || "-"}</span>
+                      )}
                     </td>
                     <td className="py-1">
                       {canManage && (
@@ -391,10 +393,7 @@ function StrategySection({ projectId, canManage }: Props) {
       >
         <div className="grid gap-3 lg:grid-cols-2">
           {MANIFESTATION_THEMES.map((t) => (
-            <div
-              key={t.key}
-              className={cn("rounded-lg border border-l-4 p-3", THEME_ACCENT[t.key])}
-            >
+            <div key={t.key} className={cn("rounded border border-l-4 p-3", THEME_ACCENT[t.key])}>
               <p className="text-sm font-semibold">{t.title}</p>
               <p className="text-muted-foreground mb-2.5 text-xs">{t.hint}</p>
               <div className="space-y-2">
@@ -482,7 +481,7 @@ function StrategySection({ projectId, canManage }: Props) {
               {guidelines.colors.map((c, i) => (
                 <div
                   key={i}
-                  className="bg-muted/30 group flex items-center gap-2 rounded-lg border px-2 py-1.5"
+                  className="bg-muted/30 group flex items-center gap-2 rounded border px-2 py-1.5"
                 >
                   <input
                     type="color"
@@ -625,7 +624,7 @@ function AssetRow({
         {files.map((f) => (
           <span
             key={f.id}
-            className="bg-muted/40 group flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
+            className="bg-muted/40 group flex items-center gap-2 rounded border px-2.5 py-1.5 text-xs"
           >
             <Icon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
             <a
@@ -700,9 +699,28 @@ const emptyEntry = (): Omit<ContentEntry, "id"> => ({
   link: null,
 })
 
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+]
+
 function ContentCalendarSection({ projectId, canManage }: Props) {
-  const [month, setMonth] = useState("")
+  const thisYear = new Date().getFullYear()
+  const [monthNum, setMonthNum] = useState("ALL") // "ALL" | "01".."12"
+  const [year, setYear] = useState(String(thisYear))
   const [platform, setPlatform] = useState("")
+  const month = monthNum === "ALL" ? "" : `${year}-${monthNum}`
+
   const { data, isLoading } = useContentCalendar(projectId, {
     month: month || undefined,
     platform: platform || undefined,
@@ -778,13 +796,37 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
             <Label className="text-muted-foreground text-[11px]">Month</Label>
-            <Input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="h-9 w-40"
-            />
+            <Select value={monthNum} onValueChange={setMonthNum}>
+              <SelectTrigger className="h-9 w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All months</SelectItem>
+                {MONTH_NAMES.map((m, i) => (
+                  <SelectItem key={m} value={String(i + 1).padStart(2, "0")}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+          {monthNum !== "ALL" && (
+            <div className="space-y-1">
+              <Label className="text-muted-foreground text-[11px]">Year</Label>
+              <Select value={year} onValueChange={setYear}>
+                <SelectTrigger className="h-9 w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 5 }, (_, i) => thisYear - 2 + i).map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1">
             <Label className="text-muted-foreground text-[11px]">Platform</Label>
             <Select
@@ -804,13 +846,13 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
               </SelectContent>
             </Select>
           </div>
-          {(month || platform) && (
+          {(monthNum !== "ALL" || platform) && (
             <Button
               variant="ghost"
               size="sm"
               className="h-9"
               onClick={() => {
-                setMonth("")
+                setMonthNum("ALL")
                 setPlatform("")
               }}
             >
@@ -831,6 +873,11 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
                 e.target.value = ""
               }}
             />
+            <Button variant="outline" size="sm" className="h-9 gap-1.5" asChild>
+              <a href={`/api/projects/${projectId}/content-calendar/template`}>
+                <FileDown className="h-4 w-4" /> Template
+              </a>
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -945,10 +992,10 @@ function EntryDialog({
         <div className="grid gap-3 py-1 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label>Date</Label>
-            <Input
-              type="date"
+            <DateField
               value={form.date ?? ""}
-              onChange={(e) => set({ date: e.target.value || null })}
+              placeholder="Pick a date"
+              onChange={(v) => set({ date: v || null })}
             />
           </div>
           <div className="space-y-1.5">

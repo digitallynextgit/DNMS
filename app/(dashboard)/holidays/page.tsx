@@ -337,7 +337,7 @@ export default function HolidayCalendarPage() {
             </div>
           </div>
 
-          <div className="bg-card rounded-lg border p-4">
+          <div className="bg-card rounded border p-4">
             <div className="grid grid-cols-7 gap-1">
               {WEEKDAYS.map((w) => (
                 <div key={w} className="text-muted-foreground py-1 text-center text-xs font-medium">
@@ -358,7 +358,7 @@ export default function HolidayCalendarPage() {
                     key={day}
                     title={h ? `${h.name}${h.isOptional ? " (Floating)" : ""}` : undefined}
                     className={cn(
-                      "flex min-h-[76px] flex-col rounded-md p-1.5 text-left",
+                      "flex min-h-[76px] flex-col rounded p-1.5 text-left",
                       h
                         ? h.isOptional
                           ? "bg-amber-100 text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200"
@@ -381,15 +381,15 @@ export default function HolidayCalendarPage() {
 
             <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
               <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-sm bg-blue-100 dark:bg-blue-950/40" />
+                <span className="h-3 w-3 rounded bg-blue-100 dark:bg-blue-950/40" />
                 <span className="text-muted-foreground">Public holiday</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-sm bg-amber-100 dark:bg-amber-950/40" />
+                <span className="h-3 w-3 rounded bg-amber-100 dark:bg-amber-950/40" />
                 <span className="text-muted-foreground">Floating holiday</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="bg-muted h-3 w-3 rounded-sm" />
+                <span className="bg-muted h-3 w-3 rounded" />
                 <span className="text-muted-foreground">Weekend</span>
               </span>
             </div>

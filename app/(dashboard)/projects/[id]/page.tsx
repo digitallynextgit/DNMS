@@ -7,7 +7,6 @@ import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
@@ -87,10 +86,12 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <Button variant="ghost" size="sm" asChild className="-ml-2">
+      <div className="space-y-3">
+        {/* Same height + radius as the Edit button so every control on this
+            header reads as one consistent set. */}
+        <Button variant="outline" size="sm" asChild className="group h-8">
           <Link href="/projects">
-            <ChevronLeft className="mr-1 h-4 w-4" />
+            <ChevronLeft className="mr-1 h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
             Back to projects
           </Link>
         </Button>
@@ -98,27 +99,31 @@ export default function ProjectDetailPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
-              <Badge variant="outline" className="font-mono text-xs">
+              <span className="bg-muted/50 text-muted-foreground rounded border px-2 py-0.5 font-mono text-xs">
                 {project.code}
-              </Badge>
+              </span>
             </div>
             {project.description && (
               <p className="text-muted-foreground mt-1 max-w-2xl text-sm">{project.description}</p>
             )}
           </div>
+          {/* Status + priority are sized to match the Edit button: same height,
+              same corner radius, so the row reads as one control group. */}
           <div className="flex items-center gap-2">
             <StatusBadge
               status={project.status}
               colorMap={PROJECT_STATUS_COLORS}
               labelMap={PROJECT_STATUS_LABELS}
+              className="h-8 rounded border border-current/20 px-3 text-sm"
             />
             <StatusBadge
               status={project.priority}
               colorMap={TASK_PRIORITY_COLORS}
               label={`${TASK_PRIORITY_LABELS[project.priority]} priority`}
+              className="h-8 rounded border border-current/20 px-3 text-sm"
             />
             {canManage && (
-              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+              <Button variant="outline" size="sm" className="h-8" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-1 h-3.5 w-3.5" />
                 Edit
               </Button>

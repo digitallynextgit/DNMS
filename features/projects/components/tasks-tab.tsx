@@ -63,7 +63,7 @@ import { formatHours } from "../lib/format-hours"
 // is shown, so the default list view's bundle stays lean.
 const KanbanView = dynamic(() => import("./kanban-view").then((m) => m.KanbanView), {
   ssr: false,
-  loading: () => <div className="bg-muted h-[60vh] w-full animate-pulse rounded-lg" />,
+  loading: () => <div className="bg-muted h-[60vh] w-full animate-pulse rounded" />,
 })
 
 interface Props {

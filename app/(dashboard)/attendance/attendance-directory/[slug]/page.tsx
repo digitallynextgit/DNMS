@@ -200,7 +200,7 @@ export default function EmployeeAttendancePage() {
       </div>
 
       {isLoading || empLoading ? (
-        <div className="bg-card flex h-72 items-center justify-center rounded-lg border">
+        <div className="bg-card flex h-72 items-center justify-center rounded border">
           <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
         </div>
       ) : (

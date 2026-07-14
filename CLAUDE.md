@@ -224,7 +224,7 @@ export default function Error({
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
       <h2 className="text-xl font-semibold">Something went wrong</h2>
       <p className="text-muted-foreground text-sm">{error.message || "Please try again."}</p>
-      <button onClick={reset} className="bg-primary text-primary-foreground rounded-md px-4 py-2">
+      <button onClick={reset} className="bg-primary text-primary-foreground rounded px-4 py-2">
         Try again
       </button>
     </div>

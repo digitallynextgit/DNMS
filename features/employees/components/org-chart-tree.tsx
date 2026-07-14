@@ -153,7 +153,7 @@ export function OrgChartTree({ nodes }: OrgChartTreeProps) {
   return (
     <div className="relative">
       {/* Zoom controls */}
-      <div className="bg-card/90 absolute top-3 right-3 z-10 flex items-center gap-0.5 rounded-md border p-0.5 shadow-sm backdrop-blur">
+      <div className="bg-card/90 absolute top-3 right-3 z-10 flex items-center gap-0.5 rounded border p-0.5 shadow-sm backdrop-blur">
         <Button
           variant="ghost"
           size="icon"

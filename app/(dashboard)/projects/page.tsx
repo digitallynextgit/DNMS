@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
@@ -151,6 +152,90 @@ export default function ProjectsPage() {
     ON_HOLD: pageProjects.filter((p) => p.status === "ON_HOLD"),
     COMPLETED: pageProjects.filter((p) => p.status === "COMPLETED"),
   }
+
+  // Table view uses the shared DataTable (S.No, house styling, scroll handling).
+  // One table per status group, so the S.No restarts within each group.
+  const tableColumns: DataTableColumn<Project>[] = [
+    { header: "Code", className: "font-mono text-xs", cell: (p) => p.code },
+    {
+      header: "Name",
+      cell: (p) => (
+        <Link href={`/projects/${p.id}`} className="font-medium hover:underline">
+          {p.name}
+        </Link>
+      ),
+    },
+    {
+      header: "Account Manager",
+      cell: (p) => (
+        <div className="flex items-center gap-1.5">
+          <AvatarDisplay
+            src={p.owner.profilePhoto}
+            firstName={p.owner.firstName}
+            lastName={p.owner.lastName}
+            size="xs"
+          />
+          <span className="text-xs">
+            {p.owner.firstName} {p.owner.lastName}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: "Tasks",
+      align: "center",
+      className: "text-muted-foreground",
+      cell: (p) => p._count.tasks,
+    },
+    {
+      header: "Members",
+      align: "center",
+      className: "text-muted-foreground",
+      cell: (p) => p.members.length,
+    },
+    ...(canWrite
+      ? [
+          {
+            header: "Budget",
+            align: "right" as const,
+            className: "text-xs",
+            cell: (p: Project) =>
+              p.budget != null ? (
+                `₹${p.budget.toLocaleString("en-IN")}`
+              ) : (
+                <span className="text-muted-foreground">-</span>
+              ),
+          },
+        ]
+      : []),
+    {
+      header: "Actions",
+      align: "right",
+      cell: (p) =>
+        canWrite ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/projects/${p.id}`}>View Details</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEditing(p)}>Edit</DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive" onClick={() => setArchiveTarget(p)}>
+                Archive
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button variant="ghost" size="sm" asChild className="h-7 text-xs">
+            <Link href={`/projects/${p.id}`}>Open</Link>
+          </Button>
+        ),
+    },
+  ]
 
   function onDragEnd(result: DropResult) {
     if (!result.destination) return
@@ -394,95 +479,13 @@ export default function ProjectsPage() {
                 </div>
 
                 {viewMode === "table" ? (
-                  <div className="bg-card overflow-x-auto rounded border">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/40 border-border border-b">
-                        <tr className="text-muted-foreground text-left text-xs tracking-wider uppercase">
-                          <th className="px-4 py-2.5 font-medium">Code</th>
-                          <th className="px-4 py-2.5 font-medium">Name</th>
-                          <th className="px-4 py-2.5 font-medium">Account Manager</th>
-                          <th className="px-4 py-2.5 text-center font-medium">Tasks</th>
-                          <th className="px-4 py-2.5 text-center font-medium">Members</th>
-                          {canWrite && (
-                            <th className="px-4 py-2.5 text-right font-medium">Budget</th>
-                          )}
-                          <th className="px-4 py-2.5 text-right font-medium">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-border divide-y">
-                        {group.map((project) => (
-                          <tr key={project.id} className="hover:bg-muted/30 transition-colors">
-                            <td className="px-4 py-2.5 font-mono text-xs">{project.code}</td>
-                            <td className="px-4 py-2.5">
-                              <Link
-                                href={`/projects/${project.id}`}
-                                className="font-medium hover:underline"
-                              >
-                                {project.name}
-                              </Link>
-                            </td>
-                            <td className="px-4 py-2.5">
-                              <div className="flex items-center gap-1.5">
-                                <AvatarDisplay
-                                  src={project.owner.profilePhoto}
-                                  firstName={project.owner.firstName}
-                                  lastName={project.owner.lastName}
-                                  size="xs"
-                                />
-                                <span className="text-xs">
-                                  {project.owner.firstName} {project.owner.lastName}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="text-muted-foreground px-4 py-2.5 text-center">
-                              {project._count.tasks}
-                            </td>
-                            <td className="text-muted-foreground px-4 py-2.5 text-center">
-                              {project.members.length}
-                            </td>
-                            {canWrite && (
-                              <td className="px-4 py-2.5 text-right text-xs">
-                                {project.budget != null ? (
-                                  `₹${project.budget.toLocaleString("en-IN")}`
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </td>
-                            )}
-                            <td className="px-4 py-2.5 text-right">
-                              {canWrite ? (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem asChild>
-                                      <Link href={`/projects/${project.id}`}>View Details</Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => setEditing(project)}>
-                                      Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      className="text-destructive"
-                                      onClick={() => setArchiveTarget(project)}
-                                    >
-                                      Archive
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              ) : (
-                                <Button variant="ghost" size="sm" asChild className="h-7 text-xs">
-                                  <Link href={`/projects/${project.id}`}>Open</Link>
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <DataTable
+                    columns={tableColumns}
+                    rows={group}
+                    rowKey={(p) => p.id}
+                    showSerial
+                    minWidth="min-w-[860px]"
+                  />
                 ) : (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {group.map((project) => (

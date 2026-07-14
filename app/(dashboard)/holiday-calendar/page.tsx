@@ -239,7 +239,7 @@ export default function EmployeeHolidayCalendarPage() {
               </Button>
             </div>
           </div>
-          <div className="bg-card rounded-lg border p-4">
+          <div className="bg-card rounded border p-4">
             <div className="grid grid-cols-7 gap-1">
               {WEEKDAYS.map((w) => (
                 <div key={w} className="text-muted-foreground py-1 text-center text-xs font-medium">
@@ -278,7 +278,7 @@ export default function EmployeeHolidayCalendarPage() {
                           : undefined
                     }
                     className={cn(
-                      "flex min-h-18 flex-col rounded-md p-1.5",
+                      "flex min-h-18 flex-col rounded p-1.5",
                       isBirthday
                         ? "bg-rose-100 text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200"
                         : h
@@ -305,15 +305,15 @@ export default function EmployeeHolidayCalendarPage() {
             </div>
             <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
               <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-sm bg-blue-100 dark:bg-blue-950/40" />
+                <span className="h-3 w-3 rounded bg-blue-100 dark:bg-blue-950/40" />
                 <span className="text-muted-foreground">Public holiday</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-sm bg-amber-100 dark:bg-amber-950/40" />
+                <span className="h-3 w-3 rounded bg-amber-100 dark:bg-amber-950/40" />
                 <span className="text-muted-foreground">Floating holiday</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-sm bg-rose-100 dark:bg-rose-950/40" />
+                <span className="h-3 w-3 rounded bg-rose-100 dark:bg-rose-950/40" />
                 <span className="text-muted-foreground">Birthday</span>
               </span>
               <span className="flex items-center gap-1.5">

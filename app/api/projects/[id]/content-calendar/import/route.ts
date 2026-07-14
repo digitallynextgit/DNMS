@@ -83,6 +83,7 @@ export const POST = withAuth(
           row.eachCell({ includeEmpty: false }, (cell, cn) => {
             const h = cellText(cell.value).toLowerCase()
             if (h.includes("date")) map.date = cn
+            else if (h.includes("platform") || h.includes("channel")) map.platform = cn
             else if (h.includes("theme") || h.includes("occasion")) map.theme = cn
             else if (h.includes("format")) map.format = cn
             else if (h.includes("hook")) map.hook = cn
@@ -98,7 +99,7 @@ export const POST = withAuth(
         }
         if (headerRow === -1) continue // not a calendar-shaped sheet
 
-        const platform = platformFromSheet(ws.name)
+        const sheetPlatform = platformFromSheet(ws.name)
         let used = 0
         for (let r = headerRow + 1; r <= ws.rowCount; r++) {
           const row = ws.getRow(r)
@@ -110,10 +111,11 @@ export const POST = withAuth(
           // Skip empty days (a date with nothing planned).
           if (!theme && !format && !hook && !content) continue
           const date = colMap.date ? parseDate(row.getCell(colMap.date).value) : null
+          // The Platform column wins; otherwise fall back to the sheet name.
           rows.push({
             projectId,
             date,
-            platform,
+            platform: get(colMap.platform) || sheetPlatform,
             theme: theme || null,
             format: format || null,
             hook: hook || null,

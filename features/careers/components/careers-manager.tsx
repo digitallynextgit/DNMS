@@ -509,7 +509,7 @@ function RoleDialog({
       </div>
 
       {isEdit && (
-        <div className="rounded-md border p-3">
+        <div className="rounded border p-3">
           <Label className="mb-2 block">Current openings</Label>
           <div className="space-y-1.5">
             {(role.openings ?? []).map((op) => (
