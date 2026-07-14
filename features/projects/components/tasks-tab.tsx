@@ -58,7 +58,7 @@ import { formatHours } from "../lib/format-hours"
 // is shown, so the default list view's bundle stays lean.
 const KanbanView = dynamic(() => import("./kanban-view").then((m) => m.KanbanView), {
   ssr: false,
-  loading: () => <div className="bg-muted h-[60vh] w-full animate-pulse rounded-lg" />,
+  loading: () => <div className="bg-muted h-[60vh] w-full animate-pulse rounded" />,
 })
 
 interface Props {
@@ -75,7 +75,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
   const [showPendingOnly, setShowPendingOnly] = useState(false)
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list")
 
-  if (teamsLoading) return <Skeleton className="h-64 rounded-lg" />
+  if (teamsLoading) return <Skeleton className="h-64 rounded" />
   if (teams.length === 0) {
     return (
       <Card className="border-dashed">
@@ -134,7 +134,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
         )}
 
         {/* View toggle */}
-        <div className="ml-auto flex items-center overflow-hidden rounded-lg border">
+        <div className="ml-auto flex items-center overflow-hidden rounded border">
           <Button
             variant={viewMode === "list" ? "secondary" : "ghost"}
             size="sm"
@@ -244,7 +244,7 @@ function TeamTasksSection({
         </div>
 
         {isLoading ? (
-          <Skeleton className="h-32 rounded-lg" />
+          <Skeleton className="h-32 rounded" />
         ) : filtered.length === 0 ? (
           <div className="text-muted-foreground py-6 text-center text-xs">
             No tasks match the filters.
@@ -301,7 +301,7 @@ function TaskRow({
     <>
       <div
         className={cn(
-          "flex items-center gap-3 rounded-lg border p-2.5",
+          "flex items-center gap-3 rounded border p-2.5",
           isPending &&
             "border-amber-300 bg-amber-50/40 dark:border-amber-900/60 dark:bg-amber-950/20",
           isRejected && "border-red-300 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
@@ -545,7 +545,7 @@ function CreateTaskDialog({
       }}
     >
       {!isManager && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+        <div className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
           This will be a <strong>self-task</strong>. It needs the team manager's approval before
           becoming active.
         </div>

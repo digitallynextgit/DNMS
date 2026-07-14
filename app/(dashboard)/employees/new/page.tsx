@@ -1,7 +1,4 @@
 import { redirect } from "next/navigation"
-import Link from "next/link"
-import { ChevronLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmployeeForm } from "@/features/employees"
 import { getSession } from "@/server/api-handler"
@@ -24,14 +21,8 @@ export default async function NewEmployeePage() {
       <PageHeader
         title="Add Employee"
         description="Create a new employee profile"
-        actions={
-          <Button variant="outline" asChild>
-            <Link href="/employees/employee-directory" className="flex items-center gap-1.5">
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </Link>
-          </Button>
-        }
+        backHref="/employees/employee-directory"
+        backLabel="Back to Employees"
       />
 
       <EmployeeForm mode="create" />

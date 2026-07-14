@@ -2,36 +2,14 @@
 
 import { useState } from "react"
 import { Spinner } from "@/components/shared/spinner"
-import {
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  Timer,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react"
+import { CheckCircle2, AlertTriangle, Clock, Timer, RefreshCw } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
+import { MonthNav, MONTH_NAMES } from "@/components/shared/month-nav"
 import { Button } from "@/components/ui/button"
 import { useMyAttendanceCalendar, useSyncAttendance } from "@/features/attendance"
 import { AttendanceCalendar } from "@/features/attendance/components/attendance-calendar"
 import { formatWorkHours } from "@/lib/utils"
-
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-]
 
 export default function MyAttendancePage() {
   const now = new Date()
@@ -81,7 +59,7 @@ export default function MyAttendancePage() {
     <div className="space-y-6">
       <PageHeader
         title="My Attendance"
-        description={`${MONTHS[month - 1]} ${year}`}
+        description={`${MONTH_NAMES[month - 1]} ${year}`}
         actions={
           <>
             <Button
@@ -98,24 +76,16 @@ export default function MyAttendancePage() {
               )}
               Refresh
             </Button>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={prev}
-              disabled={!canPrev || isLoading}
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={next}
-              disabled={!canNext || isLoading}
-              aria-label="Next month"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            {/* The header already prints the month, so the stepper is arrows only. */}
+            <MonthNav
+              year={year}
+              month={month - 1}
+              onPrev={prev}
+              onNext={next}
+              canPrev={canPrev && !isLoading}
+              canNext={canNext && !isLoading}
+              showLabel={false}
+            />
           </>
         }
       />
@@ -155,7 +125,7 @@ export default function MyAttendancePage() {
 
       {/* Calendar (selected month) */}
       {isLoading ? (
-        <div className="bg-card flex h-72 items-center justify-center rounded-lg border">
+        <div className="bg-card flex h-72 items-center justify-center rounded border">
           <Spinner size="lg" className="text-muted-foreground" />
         </div>
       ) : (

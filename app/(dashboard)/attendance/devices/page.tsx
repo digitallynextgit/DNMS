@@ -9,13 +9,13 @@ import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
-import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { useRowSelection } from "@/hooks/use-row-selection"
-import { DeviceFormDialog, EmployeeSyncPanel } from "@/features/attendance"
-import { useDevices, useDeleteDevice, useSyncDevice, useTestDevice } from "@/features/attendance"
+import { DeviceFormDialog, EmployeeSyncPanel, SyncProgressBar } from "@/features/attendance"
+import { useSyncProgress } from "@/features/attendance"
+import { useDevices, useDeleteDevice, useTestDevice } from "@/features/attendance"
 import type { HikvisionDevice } from "@/features/attendance"
 import { usePermissions } from "@/features/admin"
 import { ACTIVE_STATUS_COLORS, ACTIVE_STATUS_LABELS, PERMISSIONS } from "@/lib/constants"
@@ -30,8 +30,9 @@ export default function DevicesPage() {
   const devices = data?.data ?? []
 
   const deleteDevice = useDeleteDevice()
-  const syncDevice = useSyncDevice()
   const testDevice = useTestDevice()
+  // Streaming sync: gives a real % + ETA instead of an indeterminate spinner.
+  const { progress, isRunning, start: startSync, cancel: cancelSync } = useSyncProgress()
 
   // Client-side pagination (devices is a small, full-list config resource).
   const PAGE_SIZE = 10
@@ -57,7 +58,7 @@ export default function DevicesPage() {
   async function handleSync(id: string) {
     setSyncingId(id)
     try {
-      await syncDevice.mutateAsync(id)
+      await startSync(id)
     } finally {
       setSyncingId(null)
     }
@@ -69,7 +70,7 @@ export default function DevicesPage() {
   async function handleFullSync(id: string) {
     setSyncingId(id)
     try {
-      await syncDevice.mutateAsync({ id, full: true })
+      await startSync(id, { full: true })
     } finally {
       setSyncingId(null)
     }
@@ -240,11 +241,27 @@ export default function DevicesPage() {
         </BulkActionBar>
       )}
 
-      {isLoading ? (
-        <div className="bg-card rounded-lg border">
-          <TableSkeleton rows={4} cols={7} />
-        </div>
-      ) : devices.length === 0 ? (
+      {/* Live sync progress: real % (the server knows the total window count before
+          it starts), elapsed timer and a measured ETA. Rendered above the table so it
+          stays visible for the whole run, which can be minutes on a full backfill. */}
+      <SyncProgressBar progress={progress} onCancel={cancelSync} />
+
+      {/* The table renders from the first paint: while `isLoading` it draws
+          skeleton rows inside its own real <thead>, derived from `columns`, so
+          the column count follows `canWrite` instead of being hand-counted. */}
+      {isLoading || devices.length > 0 ? (
+        <DataTable
+          columns={columns}
+          rows={pagedDevices}
+          rowKey={(d) => d.id}
+          minWidth="min-w-[820px]"
+          showSerial
+          serialOffset={(currentPage - 1) * PAGE_SIZE}
+          selection={canWrite ? selection : undefined}
+          loading={isLoading}
+          skeletonRows={4}
+        />
+      ) : (
         <EmptyState
           variant="card"
           icon={WifiOff}
@@ -260,16 +277,6 @@ export default function DevicesPage() {
                 }
               : undefined
           }
-        />
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={pagedDevices}
-          rowKey={(d) => d.id}
-          minWidth="min-w-[820px]"
-          showSerial
-          serialOffset={(currentPage - 1) * PAGE_SIZE}
-          selection={canWrite ? selection : undefined}
         />
       )}
 
@@ -329,7 +336,7 @@ export default function DevicesPage() {
         title="Full re-sync from device?"
         description="Rebuilds attendance for every active employee from the device, back to their joining date. Device-synced rows are overwritten with the device's data (fixing any wrong days); HR manual corrections are always kept. Must run on the office network, and may take a while."
         confirmLabel="Full re-sync"
-        isLoading={syncDevice.isPending}
+        isLoading={isRunning}
         onConfirm={async () => {
           const id = fullSyncId
           if (!id) return

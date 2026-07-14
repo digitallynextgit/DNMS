@@ -9,8 +9,8 @@ import { toast } from "sonner"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/shared/pagination"
 import { cn, formatRelativeTime, truncate } from "@/lib/utils"
 
@@ -45,6 +45,26 @@ function getNotificationIcon(type: string) {
     default:
       return <Info className="h-5 w-5 text-blue-500" />
   }
+}
+
+/**
+ * Placeholder row built from the real notification row's layout (bordered card,
+ * `p-4`, 9x9 icon circle, title + timestamp on one line, message below) rather
+ * than a flat grey bar, so nothing reflows when the feed arrives.
+ */
+function NotificationRowSkeleton() {
+  return (
+    <div className="bg-card flex w-full items-start gap-3 rounded border p-4">
+      <Skeleton className="mt-0.5 h-9 w-9 shrink-0 rounded-full" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-3 w-16 shrink-0" />
+        </div>
+        <Skeleton className="h-4 w-full max-w-md" />
+      </div>
+    </div>
+  )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -121,7 +141,7 @@ export default function NotificationsPage() {
 
       <div className="flex flex-col gap-2">
         {isLoading ? (
-          <ListSkeleton rows={6} height="h-[88px]" />
+          Array.from({ length: LIMIT }).map((_, i) => <NotificationRowSkeleton key={i} />)
         ) : notifications.length === 0 ? (
           <EmptyState
             icon={CheckCircle}
@@ -135,7 +155,7 @@ export default function NotificationsPage() {
               type="button"
               onClick={() => handleNotificationClick(notification)}
               className={cn(
-                "bg-card hover:bg-muted/40 focus-visible:ring-ring flex w-full items-start gap-3 rounded-lg border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2",
+                "bg-card hover:bg-muted/40 focus-visible:ring-ring flex w-full items-start gap-3 rounded border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2",
                 !notification.isRead &&
                   "border-l-4 border-l-blue-500 bg-blue-50/30 hover:bg-blue-50/50",
               )}

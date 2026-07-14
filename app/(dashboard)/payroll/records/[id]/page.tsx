@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { usePayrollRecord, PayslipDocument } from "@/features/payroll"
+import { usePayrollRecord, PayslipDocument, PayslipSkeleton } from "@/features/payroll"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, PAYROLL_STATUS_LABELS, PAYROLL_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -56,8 +56,9 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
     onError: (e: Error) => toast.error(e.message),
   })
 
-  if (isLoading) return <Skeleton className="h-96 rounded-lg" />
-  if (!r) {
+  // Only a LOADED-but-missing record is "not found"; while loading we paint the
+  // shell and placehold just the data regions.
+  if (!isLoading && !r) {
     return (
       <div className="flex flex-col items-center gap-4 py-20">
         <p className="text-muted-foreground">Payroll record not found.</p>
@@ -70,36 +71,61 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
     )
   }
 
-  const monthName = new Date(r.year, r.month - 1).toLocaleString("default", { month: "long" })
-  const next = NEXT_STATUS[r.status]
+  const monthName = r
+    ? new Date(r.year, r.month - 1).toLocaleString("default", { month: "long" })
+    : null
+  const next = r ? NEXT_STATUS[r.status] : null
   const Row = ({ label, value, bold }: { label: string; value: string; bold?: boolean }) => (
     <div className={cn("flex justify-between py-1.5 text-sm", bold && "border-t font-semibold")}>
       <span className={cn(!bold && "text-muted-foreground")}>{label}</span>
       <span>{value}</span>
     </div>
   )
+  /** A label/value line, placeheld - same 1.5-unit row rhythm as <Row>. */
+  const RowSkeleton = ({ bold }: { bold?: boolean }) => (
+    <div className={cn("flex justify-between py-1.5", bold && "border-t")}>
+      <Skeleton className="my-0.5 h-4 w-32" />
+      <Skeleton className="my-0.5 h-4 w-16" />
+    </div>
+  )
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Payslip - ${monthName} ${r.year}`}
-        description={`${r.employee.firstName} ${r.employee.lastName} · ${r.employee.employeeNo}`}
+        title={r ? `Payslip - ${monthName} ${r.year}` : "Payslip"}
+        description={
+          r ? (
+            `${r.employee.firstName} ${r.employee.lastName} · ${r.employee.employeeNo}`
+          ) : (
+            <Skeleton className="h-4 w-56" />
+          )
+        }
         backHref="/payroll/payroll-directory"
         backLabel="Back to Payroll"
         actions={
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!r}
+            onClick={() => window.print()}
+            className="gap-2"
+          >
             <Download className="h-4 w-4" /> Download PDF
           </Button>
         }
       />
 
       <div className="flex items-center gap-3">
-        <StatusBadge
-          status={r.status}
-          colorMap={PAYROLL_STATUS_COLORS}
-          labelMap={PAYROLL_STATUS_LABELS}
-        />
-        {canProcess && next && (
+        {r ? (
+          <StatusBadge
+            status={r.status}
+            colorMap={PAYROLL_STATUS_COLORS}
+            labelMap={PAYROLL_STATUS_LABELS}
+          />
+        ) : (
+          <Skeleton className="h-5 w-20 rounded-full" />
+        )}
+        {r && canProcess && next && (
           <Button
             size="sm"
             disabled={patchMut.isPending}
@@ -112,8 +138,8 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* The official payslip (this is what prints / downloads). */}
-      <div className="bg-card rounded-lg border p-2 sm:p-4">
-        <PayslipDocument record={r} />
+      <div className="bg-card rounded border p-2 sm:p-4">
+        {r ? <PayslipDocument record={r} /> : <PayslipSkeleton />}
       </div>
 
       {/* HR breakdown - on-screen only (auto-hidden when printing the payslip). */}
@@ -123,10 +149,16 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
             <CardTitle className="text-sm">Attendance</CardTitle>
           </CardHeader>
           <CardContent>
-            <Row label="Days in month" value={String(r.workingDays)} />
-            <Row label="Paid days" value={String(r.presentDays)} />
-            <Row label="Paid leave days" value={String(r.leaveDays)} />
-            <Row label="Unpaid days (LOP)" value={String(r.lopDays)} />
+            {r ? (
+              <>
+                <Row label="Days in month" value={String(r.workingDays)} />
+                <Row label="Paid days" value={String(r.presentDays)} />
+                <Row label="Paid leave days" value={String(r.leaveDays)} />
+                <Row label="Unpaid days (LOP)" value={String(r.lopDays)} />
+              </>
+            ) : (
+              Array.from({ length: 4 }).map((_, i) => <RowSkeleton key={i} />)
+            )}
           </CardContent>
         </Card>
 
@@ -135,14 +167,25 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
             <CardTitle className="text-sm">Earnings</CardTitle>
           </CardHeader>
           <CardContent>
-            <Row label="Basic" value={inr(r.basicSalary)} />
-            <Row label="HRA" value={inr(r.hra)} />
-            <Row label="Transport Allowance" value={inr(r.conveyance)} />
-            <Row label="Medical Allowance" value={inr(r.medicalAllowance)} />
-            <Row label="Telephone / Mobile Bill" value={inr(r.telephoneAllowance)} />
-            <Row label="Special Allowance" value={inr(r.otherAllowances)} />
-            {r.overtime > 0 && <Row label="Overtime" value={inr(r.overtime)} />}
-            <Row label="Gross" value={inr(r.grossSalary)} bold />
+            {r ? (
+              <>
+                <Row label="Basic" value={inr(r.basicSalary)} />
+                <Row label="HRA" value={inr(r.hra)} />
+                <Row label="Transport Allowance" value={inr(r.conveyance)} />
+                <Row label="Medical Allowance" value={inr(r.medicalAllowance)} />
+                <Row label="Telephone / Mobile Bill" value={inr(r.telephoneAllowance)} />
+                <Row label="Special Allowance" value={inr(r.otherAllowances)} />
+                {r.overtime > 0 && <Row label="Overtime" value={inr(r.overtime)} />}
+                <Row label="Gross" value={inr(r.grossSalary)} bold />
+              </>
+            ) : (
+              <>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <RowSkeleton key={i} />
+                ))}
+                <RowSkeleton bold />
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -151,13 +194,22 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
             <CardTitle className="text-sm">Deductions</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground py-2 text-sm italic">
-              No deductions - full salary paid in hand.
-            </p>
-            {r.otherDeductions > 0 && (
-              <Row label="Other deductions" value={inr(r.otherDeductions)} />
+            {r ? (
+              <>
+                <p className="text-muted-foreground py-2 text-sm italic">
+                  No deductions - full salary paid in hand.
+                </p>
+                {r.otherDeductions > 0 && (
+                  <Row label="Other deductions" value={inr(r.otherDeductions)} />
+                )}
+                <Row label="Total deductions" value={inr(r.totalDeductions)} bold />
+              </>
+            ) : (
+              <>
+                <Skeleton className="my-2 h-4 w-64" />
+                <RowSkeleton bold />
+              </>
             )}
-            <Row label="Total deductions" value={inr(r.totalDeductions)} bold />
           </CardContent>
         </Card>
 
@@ -166,12 +218,16 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
             <CardTitle className="text-sm">Net Pay</CardTitle>
           </CardHeader>
           <CardContent className="flex h-full items-center">
-            <p className="text-2xl font-bold">{inr(r.netSalary)}</p>
+            {r ? (
+              <p className="text-2xl font-bold">{inr(r.netSalary)}</p>
+            ) : (
+              <Skeleton className="h-8 w-36" />
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {canProcess && r.status === "DRAFT" && (
+      {r && canProcess && r.status === "DRAFT" && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Adjustments (draft only)</CardTitle>

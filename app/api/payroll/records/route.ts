@@ -3,9 +3,14 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
-import { createNotification } from "@/lib/notifications"
+import { createNotifications } from "@/lib/notifications"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
+import type { Prisma } from "@prisma/client"
 import type { Session } from "next-auth"
+
+// Callers that omit ?page (e.g. an employee's payslip history) used to get EVERY
+// record. Pagination is now always applied; they get one max-size page instead.
+const UNPAGED_LIMIT = 100
 
 export const GET = withAuth(
   PERMISSIONS.PAYROLL_READ,
@@ -18,13 +23,13 @@ export const GET = withAuth(
       const employeeId = searchParams.get("employeeId") ?? undefined
       const search = searchParams.get("search")?.trim() || undefined
 
-      // Pagination is opt-in: the HR records table passes ?page; other consumers
-      // (e.g. an employee's full payslip history) omit it and get every record.
+      // Pagination is ALWAYS applied (never an unbounded read). The HR records
+      // table passes ?page and gets the 10-row default; consumers that omit it
+      // (an employee's payslip history) fall back to a single 100-row page.
       const pageParam = searchParams.get("page")
-      const paginate = pageParam !== null
-      const { page, limit, skip } = resolvePagination(
+      const { page, limit, skip, take } = resolvePagination(
         { page: pageParam, limit: searchParams.get("limit") },
-        10,
+        pageParam !== null ? 10 : UNPAGED_LIMIT,
       )
 
       const where: Record<string, unknown> = {}
@@ -67,20 +72,13 @@ export const GET = withAuth(
       ]
 
       const [records, total] = await Promise.all([
-        db.payrollRecord.findMany({
-          where,
-          include,
-          orderBy,
-          ...(paginate ? { skip, take: limit } : {}),
-        }),
+        db.payrollRecord.findMany({ where, include, orderBy, skip, take }),
         db.payrollRecord.count({ where }),
       ])
 
       return NextResponse.json({
         data: records,
-        pagination: paginate
-          ? paginationMeta(total, page, limit)
-          : { total, page: 1, limit: total, totalPages: 1 },
+        pagination: paginationMeta(total, page, limit),
       })
     } catch (error) {
       console.error("[PAYROLL_RECORDS_GET]", error)
@@ -150,19 +148,90 @@ export const POST = withAuth(
       const monthEndYmd = ymd(monthEnd)
       const todayYmd = new Date().toISOString().slice(0, 10)
 
-      // Company holidays (office closed → paid days off). Optional/floating holidays
-      // stay normal working days.
-      const monthHolidays = await db.holiday.findMany({
-        where: { date: { gte: monthStart, lte: monthEnd }, isOptional: false },
-        select: { date: true },
-      })
+      const employeeIdList = employees.map((e) => e.id)
+
+      // ── One read per table for the WHOLE month / ALL employees ───────────────
+      // (previously six sequential queries INSIDE the per-employee loop).
+      const [monthHolidays, existingRecords, allAttendanceLogs, allApprovedLeaves, allFloating] =
+        await Promise.all([
+          // Company holidays (office closed → paid days off). Optional/floating
+          // holidays stay normal working days.
+          db.holiday.findMany({
+            where: { date: { gte: monthStart, lte: monthEnd }, isOptional: false },
+            select: { date: true },
+          }),
+          db.payrollRecord.findMany({
+            where: { employeeId: { in: employeeIdList }, month: monthNum, year: yearNum },
+            select: { employeeId: true },
+          }),
+          db.attendanceLog.findMany({
+            where: {
+              employeeId: { in: employeeIdList },
+              date: { gte: monthStart, lte: monthEnd },
+            },
+            select: { employeeId: true, date: true, status: true },
+          }),
+          db.leaveRequest.findMany({
+            where: {
+              employeeId: { in: employeeIdList },
+              status: "APPROVED",
+              startDate: { lte: monthEnd },
+              endDate: { gte: monthStart },
+            },
+            select: {
+              employeeId: true,
+              startDate: true,
+              endDate: true,
+              leaveType: { select: { isPaid: true } },
+            },
+          }),
+          db.floatingHolidaySelection.findMany({
+            where: {
+              employeeId: { in: employeeIdList },
+              status: "APPROVED",
+              holiday: { date: { gte: monthStart, lte: monthEnd } },
+            },
+            select: { employeeId: true, holiday: { select: { date: true } } },
+          }),
+        ])
+
       const holidaySet = new Set(monthHolidays.map((h) => ymd(h.date)))
       const isOffDay = (date: Date) => {
         const dow = date.getUTCDay()
         return dow === 0 || dow === 6 || holidaySet.has(ymd(date))
       }
 
-      const created: string[] = []
+      // Bucket every row by employeeId so the loop below is pure in-memory work.
+      const existingByEmployee = new Set(existingRecords.map((r) => r.employeeId))
+
+      const attendanceByEmployee = new Map<string, { date: Date; status: string }[]>()
+      for (const log of allAttendanceLogs) {
+        const arr = attendanceByEmployee.get(log.employeeId)
+        if (arr) arr.push(log)
+        else attendanceByEmployee.set(log.employeeId, [log])
+      }
+
+      type LeaveRow = { startDate: Date; endDate: Date; leaveType: { isPaid: boolean } }
+      const leavesByEmployee = new Map<string, LeaveRow[]>()
+      for (const leave of allApprovedLeaves) {
+        const arr = leavesByEmployee.get(leave.employeeId)
+        if (arr) arr.push(leave)
+        else leavesByEmployee.set(leave.employeeId, [leave])
+      }
+
+      const floatingByEmployee = new Map<string, Date[]>()
+      for (const f of allFloating) {
+        const arr = floatingByEmployee.get(f.employeeId)
+        if (arr) arr.push(f.holiday.date)
+        else floatingByEmployee.set(f.employeeId, [f.holiday.date])
+      }
+
+      const rowsToCreate: {
+        employeeId: string
+        netSalary: number
+        data: Prisma.PayrollRecordCreateManyInput
+      }[] = []
+      let createdCount = 0
       const skipped: string[] = []
       const notEmployed: string[] = []
       const errors: string[] = []
@@ -170,17 +239,7 @@ export const POST = withAuth(
       for (const employee of employees) {
         try {
           // Skip if record already exists
-          const existing = await db.payrollRecord.findUnique({
-            where: {
-              employeeId_month_year: {
-                employeeId: employee.id,
-                month: monthNum,
-                year: yearNum,
-              },
-            },
-          })
-
-          if (existing) {
+          if (existingByEmployee.has(employee.id)) {
             skipped.push(employee.id)
             continue
           }
@@ -195,23 +254,12 @@ export const POST = withAuth(
           }
 
           // Attendance punches keyed by day.
-          const attendanceLogs = await db.attendanceLog.findMany({
-            where: { employeeId: employee.id, date: { gte: monthStart, lte: monthEnd } },
-            select: { date: true, status: true },
-          })
+          const attendanceLogs = attendanceByEmployee.get(employee.id) ?? []
           const attByDay = new Map<string, string>()
           for (const log of attendanceLogs) attByDay.set(ymd(log.date), log.status)
 
           // Approved leaves → per-working-day paid / unpaid sets.
-          const approvedLeaves = await db.leaveRequest.findMany({
-            where: {
-              employeeId: employee.id,
-              status: "APPROVED",
-              startDate: { lte: monthEnd },
-              endDate: { gte: monthStart },
-            },
-            include: { leaveType: { select: { isPaid: true } } },
-          })
+          const approvedLeaves = leavesByEmployee.get(employee.id) ?? []
           const paidLeave = new Set<string>()
           const unpaidLeave = new Set<string>()
           for (const leave of approvedLeaves) {
@@ -231,15 +279,8 @@ export const POST = withAuth(
 
           // Approved floating holidays → paid days off for this employee.
           const floatingOff = new Set<string>()
-          const floating = await db.floatingHolidaySelection.findMany({
-            where: {
-              employeeId: employee.id,
-              status: "APPROVED",
-              holiday: { date: { gte: monthStart, lte: monthEnd } },
-            },
-            select: { holiday: { select: { date: true } } },
-          })
-          for (const f of floating) floatingOff.add(ymd(f.holiday.date))
+          const floating = floatingByEmployee.get(employee.id) ?? []
+          for (const date of floating) floatingOff.add(ymd(date))
 
           // ── Walk every calendar day and credit pay from attendance ──────────
           // Off days (weekend/holiday) are paid. Working days are paid only when
@@ -311,7 +352,9 @@ export const POST = withAuth(
           const totalDeductions = pfEmployee + esi + tds + otherDeductions
           const netSalary = Math.max(0, grossSalary - totalDeductions)
 
-          const record = await db.payrollRecord.create({
+          rowsToCreate.push({
+            employeeId: employee.id,
+            netSalary,
             data: {
               employeeId: employee.id,
               salaryStructureId: ss.id,
@@ -339,31 +382,62 @@ export const POST = withAuth(
               status: "DRAFT",
             },
           })
-
-          created.push(record.id)
-
-          // In-app notification: payslip ready
-          const monthName = new Date(yearNum, monthNum - 1).toLocaleString("default", {
-            month: "long",
-          })
-          await createNotification({
-            employeeId: employee.id,
-            title: "Payslip Ready",
-            message: `Your payslip for ${monthName} ${yearNum} is ready. Net pay: ₹${netSalary.toLocaleString("en-IN")}.`,
-            type: "success",
-            link: "/payroll/me",
-          })
         } catch (empError) {
           console.error(`[PAYROLL_GENERATE] Error for employee ${employee.id}:`, empError)
           errors.push(employee.id)
         }
       }
 
+      // ── Write: one createMany for every payslip, one createMany for the notices ──
+      const monthName = new Date(yearNum, monthNum - 1).toLocaleString("default", {
+        month: "long",
+      })
+      const notified: typeof rowsToCreate = []
+      if (rowsToCreate.length > 0) {
+        try {
+          // skipDuplicates guards the (employeeId, month, year) unique index against
+          // a concurrent generate run; the rows we read above were already filtered.
+          const result = await db.payrollRecord.createMany({
+            data: rowsToCreate.map((r) => r.data),
+            skipDuplicates: true,
+          })
+          createdCount = result.count
+          notified.push(...rowsToCreate)
+        } catch (batchError) {
+          // Batch insert failed → fall back to per-row inserts so one bad row can't
+          // sink the whole run (preserves the old per-employee `errors` semantics).
+          console.error("[PAYROLL_GENERATE] Batch insert failed, falling back:", batchError)
+          for (const row of rowsToCreate) {
+            try {
+              await db.payrollRecord.create({ data: row.data })
+              createdCount++
+              notified.push(row)
+            } catch (empError) {
+              console.error(`[PAYROLL_GENERATE] Error for employee ${row.employeeId}:`, empError)
+              errors.push(row.employeeId)
+            }
+          }
+        }
+      }
+
+      // In-app notification: payslip ready
+      if (notified.length > 0) {
+        await createNotifications(
+          notified.map((r) => ({
+            employeeId: r.employeeId,
+            title: "Payslip Ready",
+            message: `Your payslip for ${monthName} ${yearNum} is ready. Net pay: ₹${r.netSalary.toLocaleString("en-IN")}.`,
+            type: "success" as const,
+            link: "/payroll/me",
+          })),
+        )
+      }
+
       const notEmployedNote = notEmployed.length ? `, ${notEmployed.length} not yet joined` : ""
       return NextResponse.json(
         {
-          message: `Payroll generated: ${created.length} created, ${skipped.length} skipped (already exist)${notEmployedNote}, ${errors.length} errors`,
-          created: created.length,
+          message: `Payroll generated: ${createdCount} created, ${skipped.length} skipped (already exist)${notEmployedNote}, ${errors.length} errors`,
+          created: createdCount,
           skipped: skipped.length,
           notEmployed: notEmployed.length,
           errors: errors.length,

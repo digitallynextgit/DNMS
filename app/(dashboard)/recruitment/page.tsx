@@ -303,7 +303,7 @@ export default function RecruitmentPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+            <div className="flex h-10 w-10 items-center justify-center rounded bg-blue-500/10">
               <Briefcase className="h-5 w-5 text-blue-600" />
             </div>
             <div>
@@ -314,7 +314,7 @@ export default function RecruitmentPage() {
         </Card>
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
+            <div className="flex h-10 w-10 items-center justify-center rounded bg-green-500/10">
               <Briefcase className="h-5 w-5 text-green-600" />
             </div>
             <div>
@@ -325,7 +325,7 @@ export default function RecruitmentPage() {
         </Card>
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
+            <div className="flex h-10 w-10 items-center justify-center rounded bg-purple-500/10">
               <Users className="h-5 w-5 text-purple-600" />
             </div>
             <div>
@@ -501,7 +501,7 @@ export default function RecruitmentPage() {
         </div>
 
         {selectedDept && (
-          <div className="bg-muted/30 space-y-2.5 rounded-lg border p-3">
+          <div className="bg-muted/30 space-y-2.5 rounded border p-3">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium">
                 Careers settings for &ldquo;{selectedDept.name}&rdquo;
@@ -604,14 +604,14 @@ export default function RecruitmentPage() {
         <div className="space-y-2">
           <Label>Description (optional)</Label>
           <textarea
-            className="bg-background focus:ring-ring min-h-20 w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+            className="bg-background focus:ring-ring min-h-20 w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             placeholder="Job description, requirements..."
           />
         </div>
 
-        <div className="space-y-3 rounded-lg border border-dashed p-3">
+        <div className="space-y-3 rounded border border-dashed p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-medium">Publish to Careers Site</p>
@@ -671,7 +671,7 @@ export default function RecruitmentPage() {
           <div className="space-y-2">
             <Label>Intro</Label>
             <textarea
-              className="bg-background focus:ring-ring min-h-20 w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+              className="bg-background focus:ring-ring min-h-20 w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
               value={form.intro}
               onChange={(e) => setForm((f) => ({ ...f, intro: e.target.value }))}
               placeholder="Opening paragraph shown on the careers detail page."
@@ -681,7 +681,7 @@ export default function RecruitmentPage() {
           <div className="space-y-2">
             <Label>Job Essence (optional)</Label>
             <textarea
-              className="bg-background focus:ring-ring min-h-17.5 w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+              className="bg-background focus:ring-ring min-h-17.5 w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
               value={form.jobEssence}
               onChange={(e) => setForm((f) => ({ ...f, jobEssence: e.target.value }))}
               placeholder="The gist - what success in this role looks like."
@@ -691,7 +691,7 @@ export default function RecruitmentPage() {
           <div className="space-y-2">
             <Label>Key Requirements (one per line)</Label>
             <textarea
-              className="bg-background focus:ring-ring min-h-22.5 w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+              className="bg-background focus:ring-ring min-h-22.5 w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
               value={form.keyRequirements}
               onChange={(e) => setForm((f) => ({ ...f, keyRequirements: e.target.value }))}
               placeholder={
@@ -703,7 +703,7 @@ export default function RecruitmentPage() {
           <div className="space-y-2">
             <Label>Current Openings (one per line, optional)</Label>
             <textarea
-              className="bg-background focus:ring-ring min-h-17.5 w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+              className="bg-background focus:ring-ring min-h-17.5 w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
               value={form.currentOpenings}
               onChange={(e) => setForm((f) => ({ ...f, currentOpenings: e.target.value }))}
               placeholder={"Junior (1-2 Years)\nSenior (3-5 Years)\nLead"}

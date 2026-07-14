@@ -15,7 +15,6 @@ import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { SearchInput } from "@/components/shared/search-input"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
@@ -307,19 +306,10 @@ export default function DesignationsPage() {
         </BulkActionBar>
       )}
 
-      {isLoading ? (
-        <div className="bg-card rounded-lg border">
-          <ListSkeleton rows={5} height="h-12" className="p-4" />
-        </div>
-      ) : designations.length === 0 ? (
-        <div className="bg-card rounded-lg border">
-          <EmptyState title="No designations yet." compact />
-        </div>
-      ) : rows.length === 0 ? (
-        <div className="bg-card rounded-lg border">
-          <EmptyState title="No designations match your search." compact />
-        </div>
-      ) : (
+      {/* The table renders from the first paint: while `isLoading` it draws
+          skeleton rows inside its own real <thead>, so the header, column count
+          and S.No column never move when the data lands. */}
+      {isLoading || rows.length > 0 ? (
         <DataTable
           columns={columns}
           rows={rows}
@@ -327,7 +317,16 @@ export default function DesignationsPage() {
           showSerial
           serialOffset={(page - 1) * PAGE_SIZE}
           selection={canWrite ? selection : undefined}
+          loading={isLoading}
         />
+      ) : designations.length === 0 ? (
+        <div className="bg-card rounded border">
+          <EmptyState title="No designations yet." compact />
+        </div>
+      ) : (
+        <div className="bg-card rounded border">
+          <EmptyState title="No designations match your search." compact />
+        </div>
       )}
 
       <Pagination

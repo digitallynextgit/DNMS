@@ -26,7 +26,7 @@ const AnalyticsCharts = dynamic(
     loading: () => (
       <div className="grid gap-4 lg:grid-cols-2">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-64 rounded-lg" />
+          <Skeleton key={i} className="h-64 rounded" />
         ))}
       </div>
     ),
@@ -75,7 +75,7 @@ export default function AnalyticsPage() {
         <CardGridSkeleton count={8} />
         <div className="grid gap-4 lg:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-64 rounded-lg" />
+            <Skeleton key={i} className="h-64 rounded" />
           ))}
         </div>
       </div>

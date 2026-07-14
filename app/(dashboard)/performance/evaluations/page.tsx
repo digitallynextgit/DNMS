@@ -8,10 +8,8 @@ import { Plus, Trash2, Inbox } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
-import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { FormDialog } from "@/components/shared/form-dialog"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -252,15 +250,10 @@ export default function EvaluationsPage() {
         }
       />
 
-      {isLoading ? (
-        <Card>
-          <CardContent className="p-0">
-            <TableSkeleton rows={3} cols={6} />
-          </CardContent>
-        </Card>
-      ) : evaluations.length === 0 ? (
-        <EmptyState icon={Inbox} variant="card" title="No evaluations yet." />
-      ) : (
+      {/* The table renders from the first paint: while `isLoading` it draws
+          skeleton rows inside its own real <thead>, derived from `columns`, so
+          the placeholder always has the right column count and alignment. */}
+      {isLoading || evaluations.length > 0 ? (
         <DataTable
           columns={columns}
           rows={evaluations}
@@ -268,6 +261,8 @@ export default function EvaluationsPage() {
           showSerial
           serialOffset={(page - 1) * PAGE_SIZE}
           minWidth="min-w-[680px]"
+          loading={isLoading}
+          skeletonRows={PAGE_SIZE}
           pagination={
             pagination
               ? {
@@ -280,6 +275,8 @@ export default function EvaluationsPage() {
               : undefined
           }
         />
+      ) : (
+        <EmptyState icon={Inbox} variant="card" title="No evaluations yet." />
       )}
 
       <ConfirmDialog

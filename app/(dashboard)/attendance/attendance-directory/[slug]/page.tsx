@@ -5,9 +5,11 @@ import { Spinner } from "@/components/shared/spinner"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
-import { CheckCircle2, AlertTriangle, Clock, Timer, ChevronLeft, ChevronRight } from "lucide-react"
+import { CheckCircle2, AlertTriangle, Clock, Timer, ChevronLeft } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
+import { Skeleton } from "@/components/ui/skeleton"
 import { StatCard } from "@/components/shared/stat-card"
+import { MonthNav, MONTH_NAMES } from "@/components/shared/month-nav"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { Button } from "@/components/ui/button"
 import { useEmployee } from "@/features/employees"
@@ -16,21 +18,6 @@ import { AttendanceCalendar } from "@/features/attendance/components/attendance-
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { formatWorkHours } from "@/lib/utils"
-
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-]
 
 export default function EmployeeAttendancePage() {
   const params = useParams()
@@ -106,55 +93,41 @@ export default function EmployeeAttendancePage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/attendance/attendance-directory">
-          <ChevronLeft className="mr-1 h-4 w-4" />
-          Back to directory
-        </Link>
-      </Button>
-
-      {employee && (
-        <div className="flex items-center gap-2.5">
-          <AvatarDisplay
-            src={employee.profilePhoto}
-            firstName={employee.firstName}
-            lastName={employee.lastName}
-            size="md"
-          />
-          <div>
-            <p className="text-foreground text-base font-semibold">{fullName}</p>
-            <p className="text-muted-foreground text-xs">
-              {employee.employeeNo}
-              {employee.designation?.title ? ` · ${employee.designation.title}` : ""}
-            </p>
-          </div>
-        </div>
-      )}
-
+      {/* One PageHeader: the back button, the avatar and the identity line all live in
+          it, so this page's Back button is the SAME control (outline, size sm, hover
+          chevron) as every other detail page instead of a one-off ghost link. */}
       <PageHeader
-        title="Attendance"
-        description={`${MONTHS[month - 1]} ${year}`}
+        backHref="/attendance/attendance-directory"
+        backLabel="Back to directory"
+        leading={
+          employee ? (
+            <AvatarDisplay
+              src={employee.profilePhoto}
+              firstName={employee.firstName}
+              lastName={employee.lastName}
+              size="md"
+            />
+          ) : (
+            <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+          )
+        }
+        title={employee ? fullName : <Skeleton className="h-6 w-40" />}
+        description={
+          employee ? (
+            `${employee.employeeNo}${employee.designation?.title ? ` · ${employee.designation.title}` : ""}`
+          ) : (
+            <Skeleton className="h-4 w-32" />
+          )
+        }
         actions={
-          <>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={prev}
-              disabled={!canPrev || isLoading}
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={next}
-              disabled={!canNext || isLoading}
-              aria-label="Next month"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </>
+          <MonthNav
+            year={year}
+            month={month - 1}
+            onPrev={prev}
+            onNext={next}
+            canPrev={canPrev && !isLoading}
+            canNext={canNext && !isLoading}
+          />
         }
       />
 
@@ -191,7 +164,7 @@ export default function EmployeeAttendancePage() {
       </div>
 
       {isLoading || empLoading ? (
-        <div className="bg-card flex h-72 items-center justify-center rounded-lg border">
+        <div className="bg-card flex h-72 items-center justify-center rounded border">
           <Spinner size="lg" className="text-muted-foreground" />
         </div>
       ) : (

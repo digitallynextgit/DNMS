@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
-import { useMyPayslip, PayslipDocument } from "@/features/payroll"
+import { useMyPayslip, PayslipDocument, PayslipSkeleton } from "@/features/payroll"
 import { MONTHS, PAYROLL_STATUS_COLORS, PAYROLL_STATUS_LABELS } from "@/lib/constants"
 
 export default function MyPayslipPage({ params }: { params: Promise<{ id: string }> }) {
@@ -15,8 +15,9 @@ export default function MyPayslipPage({ params }: { params: Promise<{ id: string
   const { data, isLoading } = useMyPayslip(id)
   const record = data?.data
 
-  if (isLoading) return <Skeleton className="h-[600px] rounded-lg" />
-  if (!record) {
+  // Only a LOADED-but-missing payslip is "not found"; while loading we paint the
+  // shell (back link, title, actions) and placehold just the payslip itself.
+  if (!isLoading && !record) {
     return (
       <EmptyState
         title="Payslip not found."
@@ -25,23 +26,27 @@ export default function MyPayslipPage({ params }: { params: Promise<{ id: string
     )
   }
 
-  const monthName = MONTHS[record.month - 1]
+  const monthName = record ? MONTHS[record.month - 1] : null
 
   return (
     <div className="space-y-6">
       {/* Header - hidden when printing/saving as PDF (the payslip itself is #print-area). */}
       <PageHeader
         className="no-print"
-        title={`Payslip - ${monthName} ${record.year}`}
+        title={record ? `Payslip - ${monthName} ${record.year}` : "Payslip"}
         backHref="/payroll/me"
         actions={
           <>
-            <StatusBadge
-              status={record.status}
-              colorMap={PAYROLL_STATUS_COLORS}
-              labelMap={PAYROLL_STATUS_LABELS}
-            />
-            <Button size="sm" onClick={() => window.print()} className="gap-2">
+            {record ? (
+              <StatusBadge
+                status={record.status}
+                colorMap={PAYROLL_STATUS_COLORS}
+                labelMap={PAYROLL_STATUS_LABELS}
+              />
+            ) : (
+              <Skeleton className="h-5 w-20 rounded-full" />
+            )}
+            <Button size="sm" disabled={!record} onClick={() => window.print()} className="gap-2">
               <Download className="h-4 w-4" />
               Download PDF
             </Button>
@@ -49,8 +54,8 @@ export default function MyPayslipPage({ params }: { params: Promise<{ id: string
         }
       />
 
-      <div className="bg-card rounded-lg border p-2 sm:p-4">
-        <PayslipDocument record={record} />
+      <div className="bg-card rounded border p-2 sm:p-4">
+        {record ? <PayslipDocument record={record} /> : <PayslipSkeleton />}
       </div>
     </div>
   )

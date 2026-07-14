@@ -26,9 +26,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
-import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { MODULES } from "@/lib/constants"
 
@@ -172,7 +172,7 @@ export default function AuditLogPage() {
     {
       header: "Module",
       cell: (entry) => (
-        <span className="text-muted-foreground bg-muted rounded-lg px-2 py-0.5 text-xs font-medium">
+        <span className="text-muted-foreground bg-muted rounded px-2 py-0.5 text-xs font-medium">
           {entry.module}
         </span>
       ),
@@ -218,7 +218,7 @@ export default function AuditLogPage() {
       />
 
       {/* Filters row */}
-      <div className="bg-card border-border flex flex-wrap gap-3 rounded-lg border p-4">
+      <div className="bg-card border-border flex flex-wrap gap-3 rounded border p-4">
         {/* Module filter */}
         <Select value={moduleFilter || ALL_MODULES_VALUE} onValueChange={handleModuleChange}>
           <SelectTrigger className="w-40">
@@ -278,28 +278,28 @@ export default function AuditLogPage() {
         )}
       </div>
 
-      {/* Summary */}
-      {!loading && (
+      {/* Summary - placeheld rather than removed, so the table below doesn't
+          jump up and back down when the counts arrive. */}
+      {loading ? (
+        <Skeleton className="h-5 w-56" />
+      ) : (
         <p className="text-muted-foreground text-sm">
           Showing {entries.length} of {pagination.total} entries
           {pagination.totalPages > 1 && ` - Page ${pagination.page} of ${pagination.totalPages}`}
         </p>
       )}
 
-      {/* Table */}
-      {loading ? (
-        <div className="border-border bg-card overflow-hidden rounded-lg border">
-          <TableSkeleton rows={6} cols={6} />
-        </div>
-      ) : entries.length === 0 ? (
-        <EmptyState variant="card" title="No audit log entries found." />
-      ) : (
+      {/* Table - rendered while loading too; <DataTable loading /> draws skeleton
+          rows inside the real <thead>, so the columns never jump. */}
+      {loading || entries.length > 0 ? (
         <DataTable
           columns={columns}
           rows={entries}
           rowKey={(entry) => entry.id}
           showSerial
           serialOffset={(pagination.page - 1) * pagination.limit}
+          loading={loading}
+          skeletonRows={10}
           pagination={{
             page: pagination.page,
             totalPages: pagination.totalPages,
@@ -308,6 +308,8 @@ export default function AuditLogPage() {
             itemLabel: "record",
           }}
         />
+      ) : (
+        <EmptyState variant="card" title="No audit log entries found." />
       )}
     </div>
   )

@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/shared/page-header"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { useMyPayslips, type PayrollRecord } from "@/features/payroll"
 import { MONTHS, PAYROLL_STATUS_COLORS, PAYROLL_STATUS_LABELS } from "@/lib/constants"
 
@@ -88,12 +87,19 @@ export default function MyPayslipsPage() {
     <div className="space-y-6">
       <PageHeader title="My Payslips" description="View your payslip history" />
 
-      {isLoading ? (
-        <ListSkeleton rows={5} height="h-16" />
-      ) : payslips.length === 0 ? (
-        <EmptyState icon={FileText} title="No payslips available yet." />
+      {/* The table renders from the first paint: while `isLoading` it draws
+          skeleton rows inside its own real <thead>, so the header, column count
+          and S.No column never move when the payslips land. */}
+      {isLoading || payslips.length > 0 ? (
+        <DataTable
+          columns={columns}
+          rows={payslips}
+          rowKey={(payslip) => payslip.id}
+          showSerial
+          loading={isLoading}
+        />
       ) : (
-        <DataTable columns={columns} rows={payslips} rowKey={(payslip) => payslip.id} showSerial />
+        <EmptyState icon={FileText} title="No payslips available yet." />
       )}
     </div>
   )

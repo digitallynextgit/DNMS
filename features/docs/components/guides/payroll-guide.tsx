@@ -78,7 +78,7 @@ export function PayrollGuide() {
             />
           </div>
 
-          <div className="bg-muted/40 border-border rounded-lg border p-4">
+          <div className="bg-muted/40 border-border rounded border p-4">
             <p className="text-foreground font-medium">
               Net Salary = Gross Salary − Total Deductions
             </p>

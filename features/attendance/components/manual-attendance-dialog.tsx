@@ -6,6 +6,8 @@ import { apiFetch } from "@/lib/api-fetch"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { FormDialog } from "@/components/shared/form-dialog"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { ATTENDANCE_STATUS_COLORS, ATTENDANCE_STATUS_LABELS, TONE } from "@/lib/constants"
 import { DateField } from "@/components/shared/date-field"
 import { TimeField } from "@/components/shared/time-field"
 import {
@@ -55,22 +57,24 @@ function minutesBetween(checkIn: string, checkOut: string): number {
   return oh * 60 + om - (ih * 60 + im)
 }
 
-// Live preview of the status the server will derive from the punches.
-function previewStatus(checkIn: string, checkOut: string): { label: string; cls: string } | null {
-  const green = "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300"
-  const orange = "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
-  const purple = "bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300"
-  const red = "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300"
-
+// Live preview of the status the server will derive from the punches. Returns an
+// ATTENDANCE status code so the pill renders from the shared ATTENDANCE_STATUS_*
+// maps - the preview can no longer drift from the colour the real row will use.
+// "INVALID" is not an attendance status (it's a validation error), so it falls
+// through to StatusBadge's fallbackColor.
+function previewStatus(
+  checkIn: string,
+  checkOut: string,
+): { status: string; label?: string } | null {
   if (!checkIn && !checkOut) return null
   if (checkIn && checkOut) {
     const mins = minutesBetween(checkIn, checkOut)
-    if (mins <= 0) return { label: "Check-out is before check-in", cls: red }
+    if (mins <= 0) return { status: "INVALID", label: "Check-out is before check-in" }
     const hours = mins / 60
-    if (hours >= 4 && hours < 8) return { label: "Half day", cls: orange }
-    return { label: "Present", cls: green }
+    if (hours >= 4 && hours < 8) return { status: "HALF_DAY" }
+    return { status: "PRESENT" }
   }
-  return { label: "Missing punch", cls: purple }
+  return { status: "MISSING_PUNCH" }
 }
 
 function workHoursPreview(checkIn: string, checkOut: string): string {
@@ -206,11 +210,13 @@ export function ManualAttendanceDialog({
       {status && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Status:</span>
-          <span
-            className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", status.cls)}
-          >
-            {status.label}
-          </span>
+          <StatusBadge
+            status={status.status}
+            label={status.label}
+            colorMap={ATTENDANCE_STATUS_COLORS}
+            labelMap={ATTENDANCE_STATUS_LABELS}
+            fallbackColor={TONE.red}
+          />
           {hours && <span className="text-muted-foreground">· {hours}</span>}
         </div>
       )}

@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
-import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -238,20 +237,18 @@ export default function RolesPage() {
         }
       />
 
-      {/* Roles table */}
-      {loading ? (
-        <div className="border-border bg-card overflow-hidden rounded-lg border">
-          <TableSkeleton rows={6} cols={canWrite ? 6 : 5} />
-        </div>
-      ) : roles.length === 0 ? (
-        <EmptyState variant="card" title="No roles found." />
-      ) : (
+      {/* Roles table - rendered while loading too. The skeleton rows are derived
+          from `columns`, so the column count follows `canWrite` automatically
+          instead of being hand-counted. */}
+      {loading || roles.length > 0 ? (
         <DataTable
           columns={columns}
           rows={pagedRoles}
           rowKey={(role) => role.id}
           showSerial
           serialOffset={(page - 1) * PAGE_SIZE}
+          loading={loading}
+          skeletonRows={PAGE_SIZE}
           pagination={{
             page,
             totalPages,
@@ -260,6 +257,8 @@ export default function RolesPage() {
             itemLabel: "role",
           }}
         />
+      ) : (
+        <EmptyState variant="card" title="No roles found." />
       )}
 
       {/* Create / Edit Sheet */}

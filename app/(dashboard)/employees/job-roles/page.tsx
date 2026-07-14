@@ -16,7 +16,6 @@ import {
 import { FormDialog } from "@/components/shared/form-dialog"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import {
@@ -172,9 +171,18 @@ export default function JobRolesPage() {
         </Select>
       </div>
 
-      {isLoading ? (
-        <ListSkeleton rows={5} height="h-12" />
-      ) : list.length === 0 ? (
+      {/* The table renders from the first paint: while `isLoading` it draws
+          skeleton rows inside its own real <thead>, so the header, column count
+          and S.No column never move when the data lands. */}
+      {isLoading || list.length > 0 ? (
+        <DataTable
+          columns={columns}
+          rows={list}
+          rowKey={(r) => r.id}
+          showSerial
+          loading={isLoading}
+        />
+      ) : (
         <EmptyState
           variant="card"
           title="No job roles yet."
@@ -184,8 +192,6 @@ export default function JobRolesPage() {
               : undefined
           }
         />
-      ) : (
-        <DataTable columns={columns} rows={list} rowKey={(r) => r.id} showSerial />
       )}
 
       <FormDialog

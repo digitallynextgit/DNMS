@@ -1,7 +1,8 @@
 "use client"
 
-import { ChevronLeft, ChevronRight, Check } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Check } from "lucide-react"
+import { MonthNav } from "@/components/shared/month-nav"
+import { CalendarLegend, type CalendarLegendItem } from "@/components/shared/calendar-legend"
 import { cn } from "@/lib/utils"
 
 // =============================================================================
@@ -9,20 +10,6 @@ import { cn } from "@/lib/utils"
 // Calendar and the HR Holidays page - don't hand-roll another grid.
 // =============================================================================
 
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-]
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const pad = (n: number) => String(n).padStart(2, "0")
 
@@ -69,28 +56,19 @@ export function HolidayMonthCalendar({
   const firstDow = new Date(Date.UTC(year, month, 1)).getUTCDay()
   const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
 
+  const legend: CalendarLegendItem[] = [
+    { swatch: "bg-blue-100 dark:bg-blue-950/40", label: "Public holiday" },
+    { swatch: "bg-amber-100 dark:bg-amber-950/40", label: "Floating holiday" },
+    ...(birthdays && birthdays.length > 0
+      ? [{ swatch: "bg-rose-100 dark:bg-rose-950/40", label: "Birthday" }]
+      : []),
+  ]
+
   return (
     <div className={cn("space-y-4", className)}>
-      <div className="flex items-center justify-between">
-        <h3 className="text-foreground text-sm font-semibold">
-          {MONTHS[month]} {year}
-        </h3>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={onPrevMonth}
-            aria-label="Previous month"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon-sm" onClick={onNextMonth} aria-label="Next month">
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <MonthNav year={year} month={month} onPrev={onPrevMonth} onNext={onNextMonth} />
 
-      <div className="bg-card rounded-lg border p-4">
+      <div className="bg-card rounded border p-4">
         <div className="grid grid-cols-7 gap-1">
           {WEEKDAYS.map((w) => (
             <div key={w} className="text-muted-foreground py-1 text-center text-xs font-medium">
@@ -129,7 +107,7 @@ export function HolidayMonthCalendar({
                       : undefined
                 }
                 className={cn(
-                  "flex min-h-[76px] flex-col rounded-lg p-1.5 text-left",
+                  "flex min-h-[76px] flex-col rounded p-1.5 text-left",
                   isBirthday
                     ? "bg-rose-100 text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200"
                     : h
@@ -155,29 +133,15 @@ export function HolidayMonthCalendar({
           })}
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
-          <LegendSwatch className="bg-blue-100 dark:bg-blue-950/40" label="Public holiday" />
-          <LegendSwatch className="bg-amber-100 dark:bg-amber-950/40" label="Floating holiday" />
-          {birthdays && birthdays.length > 0 && (
-            <LegendSwatch className="bg-rose-100 dark:bg-rose-950/40" label="Birthday" />
-          )}
+        <CalendarLegend items={legend}>
           {approvedFloatingIds && (
             <span className="flex items-center gap-1.5">
               <Check className="h-3 w-3" />
               <span className="text-muted-foreground">Approved floating holiday</span>
             </span>
           )}
-        </div>
+        </CalendarLegend>
       </div>
     </div>
-  )
-}
-
-function LegendSwatch({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className={cn("h-3 w-3 rounded-sm", className)} />
-      <span className="text-muted-foreground">{label}</span>
-    </span>
   )
 }

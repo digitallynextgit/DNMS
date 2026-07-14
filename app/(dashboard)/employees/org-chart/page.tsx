@@ -27,7 +27,7 @@ export default function OrgChartPage() {
       )}
 
       {!isLoading && !error && (
-        <div className="bg-muted/20 min-h-[400px] rounded-lg border">
+        <div className="bg-muted/20 min-h-[400px] rounded border">
           <OrgChartTree nodes={nodes} />
         </div>
       )}

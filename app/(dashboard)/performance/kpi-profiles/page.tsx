@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { Skeleton } from "@/components/ui/skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
@@ -121,7 +121,48 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
 
   const isEmpty = useMemo(() => draft.every((d) => !d.label.trim()), [draft])
 
-  if (isLoading) return <ListSkeleton rows={4} height="h-24" />
+  // The editor's own frame (side titles, section cards, their headers) is built
+  // from the static SIDES/SECTIONS constants, so it can paint before the profile
+  // arrives - only the KPI rows are placeheld, in their real input shape.
+  if (isLoading) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center justify-end gap-2">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-8 w-28" />
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {SIDES.map((side) => (
+            <div key={side.key} className="space-y-4">
+              <h3 className="text-sm font-semibold">{side.title}</h3>
+              {SECTIONS.map((sec) => (
+                <Card key={sec.key} className="overflow-hidden">
+                  <CardHeader className={`py-2.5 ${side.accent}`}>
+                    <CardTitle className="flex items-center justify-between text-xs">
+                      <span>{sec.title}</span>
+                      <Skeleton className="h-3 w-24" />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 p-3">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <div className="flex-1 space-y-1">
+                          <Skeleton className="h-8 w-full" />
+                          <Skeleton className="h-7 w-2/3" />
+                        </div>
+                        <Skeleton className="h-8 w-8 shrink-0 rounded" />
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -307,11 +348,10 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
         />
       </div>
 
-      {isLoading ? (
-        <ListSkeleton rows={6} height="h-14" />
-      ) : filtered.length === 0 ? (
-        <EmptyState variant="card" title="No employees found." />
-      ) : (
+      {/* The table renders from the first paint: while `isLoading` it draws
+          skeleton rows inside its own real <thead>, so the header, column count
+          and S.No column never move when the employees land. */}
+      {isLoading || filtered.length > 0 ? (
         <DataTable
           columns={columns}
           rows={paged}
@@ -320,6 +360,8 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
           showSerial
           serialOffset={(currentPage - 1) * PAGE_SIZE}
           minWidth="min-w-[680px]"
+          loading={isLoading}
+          skeletonRows={PAGE_SIZE}
           pagination={{
             page: currentPage,
             totalPages,
@@ -328,6 +370,8 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
             itemLabel: "employee",
           }}
         />
+      ) : (
+        <EmptyState variant="card" title="No employees found." />
       )}
     </div>
   )
@@ -365,14 +409,12 @@ export default function KpiProfilesPage() {
 
       {selected ? (
         <div className="space-y-4">
+          {/* Same back control as every other page - `onBack` renders the identical
+              button as `backHref`, it just calls back instead of navigating. */}
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="-ml-2 gap-1.5"
-              onClick={() => setSelected(null)}
-            >
-              <ArrowLeft className="h-4 w-4" /> All employees
+            <Button variant="outline" size="sm" className="group" onClick={() => setSelected(null)}>
+              <ArrowLeft className="transition-transform group-hover:-translate-x-0.5" />
+              All employees
             </Button>
             {selected.name && (
               <span className="text-muted-foreground text-sm">

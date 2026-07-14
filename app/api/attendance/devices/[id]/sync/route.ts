@@ -44,9 +44,13 @@ export const POST = withAuth(
         )
       }
 
-      // Only a whole-device sync advances lastSyncAt - a single-employee sync
-      // must not make the next incremental sync think everyone is up to date.
-      if (!onlyEmployeeNo) {
+      // Only a whole-device sync advances lastSyncAt - a single-employee sync must
+      // not make the next incremental sync think everyone is up to date. And only a
+      // run that COMPLETED the whole span may advance it: `lastSyncAt` is now what
+      // decides whether an employee has been covered, so advancing it after a run
+      // that bailed on device errors would mark people as synced whose older windows
+      // were never fetched.
+      if (!onlyEmployeeNo && result.completed) {
         await db.hikvisionDevice.update({ where: { id }, data: { lastSyncAt: new Date() } })
       }
 

@@ -7,7 +7,10 @@ import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
+import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { StatStrip } from "@/components/shared/stat-strip"
+import { InfoRow } from "@/components/shared/info-row"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
@@ -20,7 +23,7 @@ import {
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
 } from "@/lib/constants"
-import { cn, formatDate } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import {
   ChevronLeft,
   Calendar,
@@ -39,7 +42,7 @@ import { ProjectFormDialog } from "@/features/projects"
 // The 7 tab bodies are ~4,000 lines combined, but Radix only RENDERS the active
 // one - so statically importing them made every visit download and parse all of
 // them up front. Each now loads on first activation.
-const tabFallback = () => <Skeleton className="mt-4 h-64 rounded-lg" />
+const tabFallback = () => <Skeleton className="mt-4 h-64 rounded" />
 const BrandTab = dynamic(() => import("@/features/projects").then((m) => m.BrandTab), {
   loading: tabFallback,
 })
@@ -84,8 +87,8 @@ export default function ProjectDetailPage() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-24 rounded-lg" />
-        <Skeleton className="h-96 rounded-lg" />
+        <Skeleton className="h-24 rounded" />
+        <Skeleton className="h-96 rounded" />
       </div>
     )
   }
@@ -109,30 +112,20 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-3">
-        {/* Same height + radius as the Edit button so every control on this
-            header reads as one consistent set. */}
-        <Button variant="outline" size="sm" asChild className="group h-8">
-          <Link href="/projects">
-            <ChevronLeft className="mr-1 h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
-            Back to projects
-          </Link>
-        </Button>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
-              <span className="bg-muted/50 text-muted-foreground rounded-lg border px-2 py-0.5 font-mono text-xs">
-                {project.code}
-              </span>
-            </div>
-            {project.description && (
-              <p className="text-muted-foreground mt-1 max-w-2xl text-sm">{project.description}</p>
-            )}
-          </div>
-          {/* Status + priority are sized to match the Edit button: same height,
-              same corner radius, so the row reads as one control group. */}
-          <div className="flex items-center gap-2">
+      <PageHeader
+        backHref="/projects"
+        backLabel="Back to projects"
+        title={project.name}
+        titleSuffix={
+          <span className="bg-muted/50 text-muted-foreground shrink-0 rounded border px-2 py-0.5 font-mono text-xs">
+            {project.code}
+          </span>
+        }
+        description={project.description ?? undefined}
+        /* Status + priority are sized to match the Edit button: same height,
+           same corner radius, so the row reads as one control group. */
+        actions={
+          <>
             <StatusBadge
               status={project.status}
               colorMap={PROJECT_STATUS_COLORS}
@@ -151,9 +144,9 @@ export default function ProjectDetailPage() {
                 Edit
               </Button>
             )}
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <Tabs defaultValue="overview">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -194,27 +187,24 @@ export default function ProjectDetailPage() {
         </div>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              <div
-                className={cn(
-                  "divide-border grid divide-x divide-y sm:divide-y-0",
-                  canManage ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3",
-                )}
-              >
-                <Stat label="Teams" value={teams.length} />
-                <Stat label="Members" value={totalMembers} />
-                <Stat label="Tasks" value={totalTasks} />
-                {canManage && (
-                  <Stat
-                    label="Budget"
-                    value={project.budget ? `₹${project.budget.toLocaleString("en-IN")}` : "-"}
-                    isText
-                  />
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <StatStrip
+            items={[
+              { label: "Teams", value: teams.length },
+              { label: "Members", value: totalMembers },
+              { label: "Tasks", value: totalTasks },
+              // Budget is manager-only, so the strip is 4-up for them and 3-up
+              // for everyone else.
+              ...(canManage
+                ? [
+                    {
+                      label: "Budget",
+                      value: project.budget ? `₹${project.budget.toLocaleString("en-IN")}` : "-",
+                      isText: true,
+                    },
+                  ]
+                : []),
+            ]}
+          />
 
           <Card>
             <CardContent className="space-y-4 p-5">
@@ -240,8 +230,8 @@ export default function ProjectDetailPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-4 border-t pt-3 text-sm sm:grid-cols-3">
-                <Field label="Code" value={project.code} mono />
-                <Field
+                <InfoRow label="Code" value={project.code} mono />
+                <InfoRow
                   label="Onboarding Date"
                   value={project.startDate ? formatDate(project.startDate) : "-"}
                   icon={Calendar}
@@ -297,51 +287,6 @@ export default function ProjectDetailPage() {
           accountManagerId: project.owner.id,
         }}
       />
-    </div>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  isText,
-}: {
-  label: string
-  value: number | string
-  isText?: boolean
-}) {
-  return (
-    <div className="px-4 py-3">
-      <p className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
-        {label}
-      </p>
-      <p className={cn("mt-1 tabular-nums", isText ? "text-sm font-medium" : "text-xl font-bold")}>
-        {value}
-      </p>
-    </div>
-  )
-}
-
-function Field({
-  label,
-  value,
-  icon: Icon,
-  mono,
-}: {
-  label: string
-  value: string
-  icon?: React.ElementType
-  mono?: boolean
-}) {
-  return (
-    <div>
-      <p className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
-        {label}
-      </p>
-      <p className={cn("mt-1 flex items-center gap-1.5", mono && "font-mono")}>
-        {Icon && <Icon className="text-muted-foreground h-3.5 w-3.5" />}
-        {value}
-      </p>
     </div>
   )
 }

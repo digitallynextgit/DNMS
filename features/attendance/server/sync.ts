@@ -52,6 +52,23 @@ export interface EmployeeSyncResult {
   error?: string
 }
 
+/** Emitted after each device window so the UI can draw a real progress bar + ETA. */
+export interface SyncProgress {
+  phase: "probing" | "fetching" | "writing" | "done"
+  /** Device windows completed / total. Known up front, so percent + ETA are real. */
+  windowsDone: number
+  windowsTotal: number
+  /** The IST day range just fetched, e.g. "2026-07-13..2026-07-14". */
+  currentRange?: string
+  /** Punches attributed so far. */
+  punches: number
+  /** Milliseconds elapsed since the sync started. */
+  elapsedMs: number
+  /** Estimated milliseconds remaining, from the measured average window time. */
+  etaMs: number | null
+  message?: string
+}
+
 interface SyncEmployee {
   id: string
   employeeNo: string
@@ -59,6 +76,8 @@ interface SyncEmployee {
   firstName?: string | null
   lastName?: string | null
   dateOfJoining?: Date | null
+  /** Used to decide "was this person already covered by a previous device sync?" */
+  createdAt: Date
 }
 
 // ─── IST date helpers ───────────────────────────────────────────────────────
@@ -86,6 +105,12 @@ function addDaysStr(dayStr: string, n: number): string {
   const d = new Date(`${dayStr}T00:00:00.000Z`)
   d.setUTCDate(d.getUTCDate() + n)
   return d.toISOString().slice(0, 10)
+}
+/** Whole days from `from` to `to` (both YYYY-MM-DD, inclusive of neither end). */
+function daysBetween(from: string, to: string): number {
+  const a = new Date(`${from}T00:00:00.000Z`).getTime()
+  const b = new Date(`${to}T00:00:00.000Z`).getTime()
+  return Math.max(0, Math.round((b - a) / 86_400_000))
 }
 
 /**
@@ -168,8 +193,18 @@ async function upsertDay(
 export async function syncDeviceSmart(
   deviceId: string,
   config: DeviceConfig,
-  opts: { onlyEmployeeNo?: string; full?: boolean } = {},
-): Promise<{ totalSynced: number; results: EmployeeSyncResult[] }> {
+  opts: {
+    onlyEmployeeNo?: string
+    full?: boolean
+    /** Called after each device window; drives the UI progress bar + ETA. */
+    onProgress?: (p: SyncProgress) => void
+  } = {},
+): Promise<{ totalSynced: number; results: EmployeeSyncResult[]; completed: boolean }> {
+  const startedAt = Date.now()
+  const report = (p: Omit<SyncProgress, "elapsedMs">) =>
+    opts.onProgress?.({ ...p, elapsedMs: Date.now() - startedAt })
+
+  report({ phase: "probing", windowsDone: 0, windowsTotal: 0, punches: 0, etaMs: null })
   const probe = await testDeviceConnection(config)
   if (!probe.success) throw new DeviceUnreachableError(probe.message)
 
@@ -200,6 +235,7 @@ export async function syncDeviceSmart(
       firstName: true,
       lastName: true,
       dateOfJoining: true,
+      createdAt: true,
     },
   })
 
@@ -226,17 +262,6 @@ export async function syncDeviceSmart(
     else if (!arr.some((e) => e.id === emp.id)) arr.push(emp)
   }
 
-  // Which employees already have ANY attendance row? One groupBy up-front replaces a
-  // per-employee findFirst inside the loop below.
-  const withData = new Set(
-    (
-      await db.attendanceLog.groupBy({
-        by: ["employeeId"],
-        where: { employeeId: { in: employees.map((e) => e.id) } },
-      })
-    ).map((g) => g.employeeId),
-  )
-
   for (const emp of employees) {
     const codes = [emp.deviceId, emp.employeeNo].filter(Boolean) as string[]
     if (codes.length === 0) {
@@ -251,15 +276,31 @@ export async function syncDeviceSmart(
     }
     for (const c of codes) addCode(c, emp)
 
-    // First-ever sync (no rows yet) always does a full backfill.
-    const doFull = !!opts.full || !withData.has(emp.id)
+    // Does this person need a FULL backfill?
+    //
+    // The test is "were they already covered by a previous device sync?", i.e. were
+    // they created BEFORE the device's last sync. It is deliberately NOT "do they
+    // have any attendance rows": an employee whose code isn't on the device (or who
+    // simply never punched) has no rows and never will, so the row-based test kept
+    // them flagged "never synced" FOREVER - and because the device walk spans back to
+    // the oldest employee floor, ONE such person dragged every sync into a full
+    // multi-year crawl (~460 device calls) even when everyone else needed one day.
+    //
+    // createdAt > lastSyncAt correctly catches the case that matters: an employee
+    // added AFTER the last sync (even with a backdated joining date) still gets their
+    // whole history pulled. An existing employee who genuinely needs a re-backfill can
+    // be fixed with the per-row "Full" button (?full=1).
+    const isNewSinceLastSync = !device?.lastSyncAt || emp.createdAt > device.lastSyncAt
+    const doFull = !!opts.full || isNewSinceLastSync
 
     let floor: string
     if (doFull) {
       const joinDay = emp.dateOfJoining ? istDayStr(emp.dateOfJoining) : null
       floor = joinDay && joinDay > retentionFloor ? joinDay : retentionFloor
     } else {
-      const s = since ?? addDaysStr(today, -1)
+      // Step one day BACK from the last sync so a punch that landed late (or a day
+      // that was still incomplete when we last looked) is re-read and corrected.
+      const s = addDaysStr(since ?? today, -1)
       floor = s < retentionFloor ? retentionFloor : s > today ? today : s
     }
     acc.set(emp.id, { emp, floor, doFull, punchesByDay: new Map(), seen: new Set() })
@@ -288,6 +329,12 @@ export async function syncDeviceSmart(
   const deviceErrors: string[] = []
   let consecutiveFailures = 0
   let batchEnd = today
+  // Total windows is known before we start (the span is fixed), so the progress bar
+  // is a real fraction and the ETA is measured, not guessed.
+  const windowsTotal = Math.max(1, Math.ceil((daysBetween(globalFloor, today) + 1) / BATCH_DAYS))
+  let windowsDone = 0
+  let punches = 0
+  let bailed = false
   while (batchEnd >= globalFloor) {
     const batchStart =
       addDaysStr(batchEnd, -(BATCH_DAYS - 1)) < globalFloor
@@ -321,7 +368,10 @@ export async function syncDeviceSmart(
       // keep walking back (so e.g. a hiccup near April can't drop March). Only
       // bail once several windows in a row fail, i.e. the device really went down.
       deviceErrors.push(`${batchStart}..${batchEnd}: ${error}`)
-      if (++consecutiveFailures >= 3) break
+      if (++consecutiveFailures >= 3) {
+        bailed = true
+        break
+      }
       batchEnd = addDaysStr(batchStart, -1)
       continue
     }
@@ -344,13 +394,34 @@ export async function syncDeviceSmart(
       const ms = ev.timestamp.getTime()
       if (bucket.seen.has(ms)) continue
       bucket.seen.add(ms)
+      punches++
       const arr = bucket.punchesByDay.get(day)
       if (arr) arr.push(ev.timestamp)
       else bucket.punchesByDay.set(day, [ev.timestamp])
     }
 
+    windowsDone++
+    const avgMs = (Date.now() - startedAt) / windowsDone
+    report({
+      phase: "fetching",
+      windowsDone,
+      windowsTotal,
+      currentRange: `${batchStart}..${batchEnd}`,
+      punches,
+      etaMs: Math.max(0, Math.round(avgMs * (windowsTotal - windowsDone))),
+    })
+
     batchEnd = addDaysStr(batchStart, -1)
   }
+
+  report({
+    phase: "writing",
+    windowsDone,
+    windowsTotal,
+    punches,
+    etaMs: 0,
+    message: "Writing attendance…",
+  })
 
   // Upsert per employee/day and build results.
   const sharedError = deviceErrors.length ? deviceErrors.join("; ") : undefined
@@ -419,5 +490,17 @@ export async function syncDeviceSmart(
     })
   }
 
-  return { totalSynced, results }
+  report({
+    phase: "done",
+    windowsDone,
+    windowsTotal,
+    punches,
+    etaMs: 0,
+    message: `${totalSynced} day(s) written`,
+  })
+
+  // `completed` = the device walk finished the whole span. The caller only advances
+  // the device's lastSyncAt when this is true - otherwise a run that bailed early
+  // would mark employees as "covered" when their older windows never got fetched.
+  return { totalSynced, results, completed: !bailed }
 }

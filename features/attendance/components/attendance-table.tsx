@@ -49,10 +49,10 @@ export function AttendanceTable({
 }: AttendanceTableProps) {
   if (isLoading) {
     return (
-      <div className="bg-card rounded-lg border">
+      <div className="bg-card rounded border">
         <div className="space-y-2 p-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 rounded-lg" />
+            <Skeleton key={i} className="h-12 rounded" />
           ))}
         </div>
       </div>

@@ -57,7 +57,7 @@ function Rating({
           title={RATING_LABELS[n - 1]}
           onClick={() => onChange?.(n)}
           className={cn(
-            "h-7 w-7 rounded-lg border text-xs font-semibold transition-colors",
+            "h-7 w-7 rounded border text-xs font-semibold transition-colors",
             value === n
               ? "border-primary bg-primary text-primary-foreground"
               : "border-border bg-muted/30 text-muted-foreground",
@@ -215,6 +215,50 @@ const SidePanel = React.memo(function SidePanel({
   )
 })
 
+/**
+ * Placeholder shaped like a real SidePanel: the same tinted header (real title,
+ * so the two scorecards are identifiable while loading) over criterion rows -
+ * label + the five 7x7 rating buttons + the score column.
+ */
+function SidePanelSkeleton({ title, accent }: { title: string; accent: string }) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className={cn("border-b py-3", accent)}>
+        <CardTitle className="flex items-center justify-between text-sm">
+          <span>{title}</span>
+          <Skeleton className="h-4 w-20" />
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y">
+          {Array.from({ length: 2 }).map((_, section) => (
+            <div key={section}>
+              <div className="flex items-center justify-between px-4 py-2">
+                <Skeleton className="h-3.5 w-32" />
+                <Skeleton className="h-3.5 w-10" />
+              </div>
+              {Array.from({ length: 4 }).map((_, row) => (
+                <div key={row} className="flex items-center justify-between gap-2 px-4 py-2.5">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-8" />
+                  </div>
+                  <div className="flex gap-1">
+                    {Array.from({ length: 5 }).map((_, n) => (
+                      <Skeleton key={n} className="h-7 w-7 rounded" />
+                    ))}
+                  </div>
+                  <Skeleton className="h-4 w-6" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function EvaluationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { data, isLoading } = useEvaluation(id)
@@ -265,6 +309,11 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
     setComment(cmt ?? "")
   }, [ev, editableSide])
 
+  // Must sit with the other hooks, above every early return.
+  const onRate = useCallback((id: string, n: number) => {
+    setRatings((r) => ({ ...r, [id]: n }))
+  }, [])
+
   const selfCriteria = (ev?.selfCriteria ?? []) as EvalCriterion[]
   const managerCriteria = (ev?.managerCriteria ?? []) as EvalCriterion[]
 
@@ -285,18 +334,14 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
     submit.mutate({ role: editableSide, ratings, comment }, { onSuccess: () => undefined })
   }
 
-  if (isLoading) return <Skeleton className="h-96 rounded-lg" />
-  if (!ev)
+  // Only a LOADED-but-missing evaluation is "not found"; while loading we paint
+  // the shell and placehold just the scorecards.
+  if (!isLoading && !ev)
     return (
       <p className="text-muted-foreground py-20 text-center text-sm">
         Evaluation not found or you don&apos;t have access.
       </p>
     )
-
-  // Derives what the (previously in-render) SidePanel closures used to capture.
-  const onRate = useCallback((id: string, n: number) => {
-    setRatings((r) => ({ ...r, [id]: n }))
-  }, [])
 
   const panelProps = (side: Side, storedRatings: Record<string, number> | null) => {
     const isEditableHere = canEdit && editableSide === side
@@ -304,8 +349,8 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
       isEditableHere,
       effective: isEditableHere ? ratings : (storedRatings ?? {}),
       hidden: !isEditableHere && !storedRatings, // e.g. employee before manager submits
-      sectionALabel: ev.sectionALabel,
-      sectionBLabel: ev.sectionBLabel,
+      sectionALabel: ev?.sectionALabel ?? "",
+      sectionBLabel: ev?.sectionBLabel ?? "",
       onRate,
     }
   }
@@ -318,8 +363,18 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
             back link (the header's only <a>) from the printout. */}
         <PageHeader
           className="print:[&>a]:hidden"
-          title={`${ev.employee.firstName} ${ev.employee.lastName} - ${ev.periodLabel}`}
-          description={`Performance evaluation${ev.dueDate ? ` · due ${new Date(ev.dueDate).toLocaleDateString("en-IN")}` : ""}`}
+          title={
+            ev
+              ? `${ev.employee.firstName} ${ev.employee.lastName} - ${ev.periodLabel}`
+              : "Performance Evaluation"
+          }
+          description={
+            ev ? (
+              `Performance evaluation${ev.dueDate ? ` · due ${new Date(ev.dueDate).toLocaleDateString("en-IN")}` : ""}`
+            ) : (
+              <Skeleton className="h-4 w-56" />
+            )
+          }
           backHref="/performance/evaluations"
           backLabel="Back to Evaluations"
           actions={
@@ -327,6 +382,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
               variant="outline"
               size="sm"
               className="no-print gap-1.5"
+              disabled={!ev}
               onClick={() => window.print()}
             >
               <Printer className="h-4 w-4" /> Print / Save PDF
@@ -340,20 +396,32 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
             <div className="flex items-center gap-6 text-sm">
               <div>
                 <p className="text-muted-foreground">Self</p>
-                <p className="font-medium">{ev.selfSubmittedAt ? "Submitted" : "Pending"}</p>
+                {ev ? (
+                  <p className="font-medium">{ev.selfSubmittedAt ? "Submitted" : "Pending"}</p>
+                ) : (
+                  <Skeleton className="my-1 h-4 w-16" />
+                )}
               </div>
               <div>
                 <p className="text-muted-foreground">Manager</p>
-                <p className="font-medium">{ev.managerSubmittedAt ? "Submitted" : "Pending"}</p>
+                {ev ? (
+                  <p className="font-medium">{ev.managerSubmittedAt ? "Submitted" : "Pending"}</p>
+                ) : (
+                  <Skeleton className="my-1 h-4 w-16" />
+                )}
               </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <p className="text-muted-foreground text-sm">Final Score</p>
-                <p className="text-2xl font-bold">
-                  {managerShown ? `${managerScore.total}` : "-"}
-                  <span className="text-muted-foreground text-base font-normal"> / 100</span>
-                </p>
+                {ev ? (
+                  <p className="text-2xl font-bold">
+                    {managerShown ? `${managerScore.total}` : "-"}
+                    <span className="text-muted-foreground text-base font-normal"> / 100</span>
+                  </p>
+                ) : (
+                  <Skeleton className="mt-1 ml-auto h-8 w-24" />
+                )}
               </div>
               {verdict && (
                 <Badge variant="outline" className={cn("h-fit", TONE[verdict.tone])}>
@@ -365,31 +433,46 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
         </Card>
 
         <div className={cn("grid gap-6", hasController ? "lg:grid-cols-3" : "lg:grid-cols-2")}>
-          <SidePanel
-            title="Manager Evaluation"
-            accent="bg-blue-50/60 dark:bg-blue-950/20"
-            criteria={managerCriteria}
-            {...panelProps("MANAGER", ev.managerRatings)}
-          />
-          <SidePanel
-            title="Self-Evaluation"
-            accent="bg-emerald-50/60 dark:bg-emerald-950/20"
-            criteria={selfCriteria}
-            {...panelProps("SELF", ev.selfRatings)}
-          />
-          {hasController && (
-            <SidePanel
-              title="Project Controller"
-              accent="bg-amber-50/60 dark:bg-amber-950/20"
-              criteria={managerCriteria}
-              {...panelProps("CONTROLLER", ev.controllerRatings)}
-            />
+          {ev ? (
+            <>
+              <SidePanel
+                title="Manager Evaluation"
+                accent="bg-blue-50/60 dark:bg-blue-950/20"
+                criteria={managerCriteria}
+                {...panelProps("MANAGER", ev.managerRatings)}
+              />
+              <SidePanel
+                title="Self-Evaluation"
+                accent="bg-emerald-50/60 dark:bg-emerald-950/20"
+                criteria={selfCriteria}
+                {...panelProps("SELF", ev.selfRatings)}
+              />
+              {hasController && (
+                <SidePanel
+                  title="Project Controller"
+                  accent="bg-amber-50/60 dark:bg-amber-950/20"
+                  criteria={managerCriteria}
+                  {...panelProps("CONTROLLER", ev.controllerRatings)}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <SidePanelSkeleton
+                title="Manager Evaluation"
+                accent="bg-blue-50/60 dark:bg-blue-950/20"
+              />
+              <SidePanelSkeleton
+                title="Self-Evaluation"
+                accent="bg-emerald-50/60 dark:bg-emerald-950/20"
+              />
+            </>
           )}
         </div>
       </div>
 
       {/* Comments + submit for the viewer's side (not part of the printed PDF) */}
-      {editableSide && (
+      {ev && editableSide && (
         <Card className="no-print">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">{SIDE_LABEL[editableSide]} comments</CardTitle>

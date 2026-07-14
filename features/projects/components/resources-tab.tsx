@@ -211,7 +211,7 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
       </div>
 
       {isLoading ? (
-        <Skeleton className="h-64 rounded-lg" />
+        <Skeleton className="h-64 rounded" />
       ) : resources.length === 0 ? (
         <EmptyState compact icon={Inbox} title="No files uploaded yet." />
       ) : (
@@ -349,7 +349,7 @@ function UploadDialog({
         <input
           ref={fileInput}
           type="file"
-          className="text-foreground file:bg-muted file:text-foreground hover:file:bg-muted/80 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+          className="text-foreground file:bg-muted file:text-foreground hover:file:bg-muted/80 block w-full text-sm file:mr-3 file:rounded file:border-0 file:px-3 file:py-1.5 file:text-xs file:font-medium"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
         {file && (

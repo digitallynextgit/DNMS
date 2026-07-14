@@ -32,7 +32,7 @@ export function EmptyState({
       className={cn(
         "flex flex-col items-center justify-center gap-3 text-center",
         compact ? "py-8" : "py-16",
-        variant === "card" && "bg-card rounded-lg border",
+        variant === "card" && "bg-card rounded border",
         className,
       )}
     >

@@ -7,7 +7,6 @@ import { toast } from "sonner"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
-import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -106,7 +105,7 @@ export default function EmailTemplatesPage() {
     {
       header: "Slug",
       cell: (template) => (
-        <code className="bg-muted rounded-lg px-1.5 py-0.5 font-mono text-xs">{template.slug}</code>
+        <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{template.slug}</code>
       ),
     },
     {
@@ -179,25 +178,18 @@ export default function EmailTemplatesPage() {
         }
       />
 
-      {isLoading ? (
-        <div className="rounded-lg border">
-          <TableSkeleton rows={5} cols={7} />
-        </div>
-      ) : templates.length === 0 ? (
-        <EmptyState
-          icon={Mail}
-          variant="card"
-          title="No email templates yet"
-          description="Create your first email template to start sending transactional emails."
-          action={canWrite ? { label: "Create Template", onClick: handleCreate } : undefined}
-        />
-      ) : (
+      {/* The table renders from the first paint: while `isLoading` it draws
+          skeleton rows inside its own real <thead>, derived from `columns`, so
+          the placeholder always has the right column count and alignment. */}
+      {isLoading || templates.length > 0 ? (
         <DataTable
           columns={columns}
           rows={pagedTemplates}
           rowKey={(template) => template.id}
           showSerial
           serialOffset={(page - 1) * PAGE_SIZE}
+          loading={isLoading}
+          skeletonRows={PAGE_SIZE}
           pagination={{
             page,
             totalPages,
@@ -205,6 +197,14 @@ export default function EmailTemplatesPage() {
             onPageChange: setPage,
             itemLabel: "template",
           }}
+        />
+      ) : (
+        <EmptyState
+          icon={Mail}
+          variant="card"
+          title="No email templates yet"
+          description="Create your first email template to start sending transactional emails."
+          action={canWrite ? { label: "Create Template", onClick: handleCreate } : undefined}
         />
       )}
 

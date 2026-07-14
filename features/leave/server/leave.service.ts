@@ -418,7 +418,20 @@ export async function getAllLeaveBalances(year?: number): Promise<ActionResult<u
         department: { select: { id: true, name: true } },
         leaveBalances: {
           where: { year: resolvedYear, leaveType: { isActive: true } },
-          include: { leaveType: true },
+          // Explicit select: `include: { leaveType: true }` repeated the ENTIRE
+          // leave-type row on every balance of every employee.
+          select: {
+            id: true,
+            employeeId: true,
+            leaveTypeId: true,
+            year: true,
+            allocated: true,
+            accrued: true,
+            used: true,
+            pending: true,
+            carried: true,
+            leaveType: { select: { id: true, name: true, code: true, isPaid: true } },
+          },
           orderBy: { leaveType: { name: "asc" } },
         },
       },

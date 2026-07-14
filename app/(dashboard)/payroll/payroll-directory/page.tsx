@@ -19,7 +19,6 @@ import { PageHeader } from "@/components/shared/page-header"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { useRowSelection } from "@/hooks/use-row-selection"
@@ -250,80 +249,90 @@ export default function PayrollPage() {
         />
       </div>
 
-      {/* Summary cards */}
+      {/* Summary cards - the card shells (title + icon tile) paint immediately;
+          only the value is placeheld, so nothing shifts when the summary lands. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {summaryLoading ? (
-          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-lg" />)
-        ) : (
-          <>
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-muted-foreground text-sm">Total Employees</p>
-                    <p className="mt-1 text-3xl font-bold">{summary?.employeeCount ?? 0}</p>
-                  </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950/40">
-                    <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-muted-foreground text-sm">Total Employees</p>
+                {summaryLoading ? (
+                  <Skeleton className="mt-1 h-9 w-16" />
+                ) : (
+                  <p className="mt-1 text-3xl font-bold">{summary?.employeeCount ?? 0}</p>
+                )}
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded bg-blue-50 dark:bg-blue-950/40">
+                <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-muted-foreground text-sm">Total Payroll</p>
-                    <p className="mt-1 text-2xl font-bold">{fmt(summary?.totalGross ?? 0)}</p>
-                  </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950/40">
-                    <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-muted-foreground text-sm">Total Payroll</p>
+                {summaryLoading ? (
+                  <Skeleton className="mt-1 h-8 w-28" />
+                ) : (
+                  <p className="mt-1 text-2xl font-bold">{fmt(summary?.totalGross ?? 0)}</p>
+                )}
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded bg-emerald-50 dark:bg-emerald-950/40">
+                <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-muted-foreground text-sm">Net Payable (in hand)</p>
-                    <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                      {fmt(summary?.totalNet ?? 0)}
-                    </p>
-                  </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950/40">
-                    <DollarSign className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-muted-foreground text-sm">Net Payable (in hand)</p>
+                {summaryLoading ? (
+                  <Skeleton className="mt-1 h-8 w-28" />
+                ) : (
+                  <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                    {fmt(summary?.totalNet ?? 0)}
+                  </p>
+                )}
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded bg-violet-50 dark:bg-violet-950/40">
+                <DollarSign className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Status breakdown badges */}
-      {!summaryLoading && (
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(statusBreakdown).map(([s, count]) => {
-            const color = PAYROLL_STATUS_COLORS[s] ?? "bg-gray-100 text-gray-700"
-            const label = PAYROLL_STATUS_LABELS[s] ?? s
-            return (
-              <span
-                key={s}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium",
-                  color,
-                )}
-              >
-                <span className="font-bold">{count}</span>
-                {label}
-              </span>
-            )
-          })}
-        </div>
-      )}
+      {/* Status breakdown badges - the row itself paints immediately (the four
+          statuses are fixed); only the counts are placeheld. */}
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(statusBreakdown).map(([s, statusCount]) => {
+          const color = PAYROLL_STATUS_COLORS[s] ?? "bg-gray-100 text-gray-700"
+          const label = PAYROLL_STATUS_LABELS[s] ?? s
+          return (
+            <span
+              key={s}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium",
+                color,
+              )}
+            >
+              {summaryLoading ? (
+                <Skeleton className="h-3 w-3 rounded" />
+              ) : (
+                <span className="font-bold">{statusCount}</span>
+              )}
+              {label}
+            </span>
+          )
+        })}
+      </div>
 
       {/* Bulk actions */}
       {can(PERMISSIONS.PAYROLL_PROCESS) && (
@@ -350,19 +359,9 @@ export default function PayrollPage() {
         </BulkActionBar>
       )}
 
-      {/* Records table */}
-      {recordsLoading ? (
-        <ListSkeleton rows={5} height="h-14" />
-      ) : records.length === 0 ? (
-        <EmptyState
-          title="No payroll records found."
-          action={
-            can(PERMISSIONS.PAYROLL_PROCESS)
-              ? { label: "Generate Payroll", onClick: () => setGenerateOpen(true) }
-              : undefined
-          }
-        />
-      ) : (
+      {/* Records table - rendered while loading too; <DataTable loading /> draws
+          skeleton rows inside the real <thead>, so the columns never jump. */}
+      {recordsLoading || records.length > 0 ? (
         <DataTable
           columns={columns}
           rows={records}
@@ -375,6 +374,8 @@ export default function PayrollPage() {
               ? { isSelected, toggle, toggleAll, allSelected, someSelected }
               : undefined
           }
+          loading={recordsLoading}
+          skeletonRows={PAGE_SIZE}
           pagination={
             pagination
               ? {
@@ -384,6 +385,15 @@ export default function PayrollPage() {
                   onPageChange: setPage,
                   itemLabel: "record",
                 }
+              : undefined
+          }
+        />
+      ) : (
+        <EmptyState
+          title="No payroll records found."
+          action={
+            can(PERMISSIONS.PAYROLL_PROCESS)
+              ? { label: "Generate Payroll", onClick: () => setGenerateOpen(true) }
               : undefined
           }
         />

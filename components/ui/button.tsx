@@ -21,14 +21,14 @@ const buttonVariants = cva(
         link: "text-foreground h-auto p-0 underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 rounded-lg px-4 py-2",
-        sm: "h-8 rounded-lg px-3 text-xs",
-        lg: "h-10 rounded-lg px-6",
+        default: "h-9 rounded px-4 py-2",
+        sm: "h-8 rounded px-3 text-xs",
+        lg: "h-10 rounded px-6",
         // Two sanctioned icon sizes - never override these with a className.
         // `icon`     - standalone icon button, pairs with a default (h-9) Button.
         // `icon-sm`  - compact row/toolbar action, pairs with a `sm` (h-8) Button.
-        icon: "h-9 w-9 rounded-lg",
-        "icon-sm": "h-8 w-8 rounded-lg [&_svg]:size-3.5",
+        icon: "h-9 w-9 rounded",
+        "icon-sm": "h-8 w-8 rounded [&_svg]:size-3.5",
       },
     },
     defaultVariants: {

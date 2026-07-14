@@ -81,21 +81,6 @@ async function fetchEmployeeDashboard(): Promise<EmployeeDashboardData> {
   return res.json()
 }
 
-function StatCardSkeleton() {
-  return (
-    <div className="border-border bg-card rounded-lg border p-5">
-      <div className="flex items-start justify-between">
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-3 w-1/2" />
-          <Skeleton className="h-7 w-1/3" />
-          <Skeleton className="h-3 w-2/3" />
-        </div>
-        <Skeleton className="h-4 w-4 shrink-0" />
-      </div>
-    </div>
-  )
-}
-
 export function EmployeeDashboard() {
   const { data, isLoading, isError, error } = useQuery<EmployeeDashboardData, Error>({
     queryKey: ["dashboard-me"],
@@ -108,48 +93,41 @@ export function EmployeeDashboard() {
   return (
     <>
       {isError && (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-4 py-3 text-sm">
+        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded border px-4 py-3 text-sm">
           {error?.message ?? "Something went wrong loading your dashboard."}
         </div>
       )}
 
       {/* Summary stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {isLoading ? (
-          <>
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-          </>
-        ) : (
-          <>
-            <StatCard
-              title="Present This Month"
-              value={data?.attendance.present ?? 0}
-              description={`Avg ${data?.attendance.avgHours ?? 0}h / working day`}
-              icon={CheckCircle2}
-            />
-            <StatCard
-              title="Leave Available"
-              value={data?.totalLeaveAvailable ?? 0}
-              description="Days across all types"
-              icon={CalendarDays}
-            />
-            <StatCard
-              title="Pending Requests"
-              value={pendingTotal}
-              description={`${data?.pending.leave ?? 0} leave · ${data?.pending.wfh ?? 0} WFH`}
-              icon={Clock}
-            />
-            <StatCard
-              title="Unread Notifications"
-              value={data?.notifications.unread ?? 0}
-              description="In your inbox"
-              icon={Bell}
-            />
-          </>
-        )}
+        <StatCard
+          title="Present This Month"
+          value={data?.attendance.present ?? 0}
+          description={`Avg ${data?.attendance.avgHours ?? 0}h / working day`}
+          icon={CheckCircle2}
+          loading={isLoading}
+        />
+        <StatCard
+          title="Leave Available"
+          value={data?.totalLeaveAvailable ?? 0}
+          description="Days across all types"
+          icon={CalendarDays}
+          loading={isLoading}
+        />
+        <StatCard
+          title="Pending Requests"
+          value={pendingTotal}
+          description={`${data?.pending.leave ?? 0} leave · ${data?.pending.wfh ?? 0} WFH`}
+          icon={Clock}
+          loading={isLoading}
+        />
+        <StatCard
+          title="Unread Notifications"
+          value={data?.notifications.unread ?? 0}
+          description="In your inbox"
+          icon={Bell}
+          loading={isLoading}
+        />
       </div>
 
       {/* Quick actions */}
@@ -196,7 +174,7 @@ export function EmployeeDashboard() {
           {isLoading ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-32 rounded-lg" />
+                <Skeleton key={i} className="h-32 rounded" />
               ))}
             </div>
           ) : !data?.leaveBalances.length ? (
@@ -229,13 +207,13 @@ export function EmployeeDashboard() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <Skeleton className="h-20 rounded-lg" />
+              <Skeleton className="h-20 rounded" />
             ) : !data?.latestPayslip ? (
               <EmptyState title="No payslips available yet." compact />
             ) : (
               <Link
                 href="/payroll/me"
-                className="hover:bg-muted/30 -m-2 flex items-center justify-between rounded-lg p-2 transition-colors"
+                className="hover:bg-muted/30 -m-2 flex items-center justify-between rounded p-2 transition-colors"
               >
                 <div>
                   <p className="text-foreground text-sm font-medium">

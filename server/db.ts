@@ -8,6 +8,9 @@ function getPool(): Pool {
     connectionString: process.env.DATABASE_URL,
     max: process.env.NODE_ENV === "production" ? 10 : 5,
     idleTimeoutMillis: 30_000,
+    // Fail fast instead of queueing forever when every connection is busy (e.g. a
+    // long backfill pinning the pool) - a stuck request is better than a stalled app.
+    connectionTimeoutMillis: 5_000,
     keepAlive: true,
   })
   if (process.env.NODE_ENV !== "production") globalForPrisma.pgPool = pool

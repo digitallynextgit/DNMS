@@ -6,8 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { StatStrip } from "@/components/shared/stat-strip"
 import { useSalaryStructures, usePayrollRecords, type PayrollRecord } from "@/features/payroll"
-import { cn } from "@/lib/utils"
 import { PAYROLL_STATUS_COLORS, PAYROLL_STATUS_LABELS } from "@/lib/constants"
 import { Wallet, TrendingUp, TrendingDown, Calendar, Inbox, IndianRupee } from "lucide-react"
 
@@ -134,7 +134,7 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
         </div>
 
         {structuresLoading ? (
-          <Skeleton className="h-48 rounded-lg" />
+          <Skeleton className="h-48 rounded" />
         ) : !structure ? (
           <Card className="border-dashed">
             <CardContent className="py-10 text-center">
@@ -150,26 +150,24 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
         ) : (
           <>
             {/* Summary strip - single row, divided */}
-            <Card>
-              <CardContent className="p-0">
-                <div className="divide-border grid grid-cols-2 divide-x divide-y sm:grid-cols-4 sm:divide-y-0">
-                  <SummaryCard
-                    label="Net Monthly"
-                    value={fmt(netMonthly)}
-                    icon={IndianRupee}
-                    accent="green"
-                  />
-                  <SummaryCard label="Gross Monthly" value={fmt(earnings)} icon={TrendingUp} />
-                  <SummaryCard label="Annual CTC" value={fmt(annualCTC)} icon={Calendar} />
-                  <SummaryCard
-                    label="Effective From"
-                    value={formatDate(structure.effectiveFrom)}
-                    icon={Calendar}
-                    isText
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            <StatStrip
+              items={[
+                {
+                  label: "Net Monthly",
+                  value: fmt(netMonthly),
+                  icon: IndianRupee,
+                  tone: "success",
+                },
+                { label: "Gross Monthly", value: fmt(earnings), icon: TrendingUp },
+                { label: "Annual CTC", value: fmt(annualCTC), icon: Calendar },
+                {
+                  label: "Effective From",
+                  value: formatDate(structure.effectiveFrom),
+                  icon: Calendar,
+                  isText: true,
+                },
+              ]}
+            />
 
             {/* Component breakdown */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -236,7 +234,7 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
         {payrollLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 rounded-lg" />
+              <Skeleton key={i} className="h-14 rounded" />
             ))}
           </div>
         ) : payslips.length === 0 ? (
@@ -254,42 +252,6 @@ function LineItem({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium tabular-nums">{value}</span>
-    </div>
-  )
-}
-
-function SummaryCard({
-  label,
-  value,
-  icon: Icon,
-  accent,
-  isText,
-}: {
-  label: string
-  value: string
-  icon: React.ElementType
-  accent?: "green"
-  isText?: boolean
-}) {
-  const valueColor =
-    accent === "green" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"
-  return (
-    <div className="px-4 py-3">
-      <div className="flex items-center gap-1.5">
-        <Icon className="text-muted-foreground h-3 w-3" />
-        <p className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
-          {label}
-        </p>
-      </div>
-      <p
-        className={cn(
-          "mt-1 tabular-nums",
-          isText ? "text-sm font-medium" : "text-lg font-bold",
-          valueColor,
-        )}
-      >
-        {value}
-      </p>
     </div>
   )
 }

@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
@@ -12,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useWfhEligibility, useApplyWfh } from "@/features/wfh"
-import { ArrowLeft, AlertTriangle, Info, Home } from "lucide-react"
+import { AlertTriangle, Info, Home } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export default function ApplyWfhPage() {
@@ -47,18 +46,12 @@ export default function ApplyWfhPage() {
       <PageHeader
         title="Apply for Work From Home"
         description="Submit a new WFH request."
-        actions={
-          <Button variant="outline" asChild>
-            <Link href="/wfh" className="flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Link>
-          </Button>
-        }
+        backHref="/wfh"
+        backLabel="Back to WFH"
       />
 
       {isLoading ? (
-        <Skeleton className="h-32 rounded-lg" />
+        <Skeleton className="h-32 rounded" />
       ) : eligibility ? (
         <Card
           className={cn(
@@ -135,7 +128,7 @@ export default function ApplyWfhPage() {
         )}
 
         {mustBeEmergency && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs dark:border-amber-800 dark:bg-amber-950/20">
+          <div className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs dark:border-amber-800 dark:bg-amber-950/20">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
             <div className="space-y-1">
               <p className="font-medium text-amber-800 dark:text-amber-300">Emergency-only WFH</p>

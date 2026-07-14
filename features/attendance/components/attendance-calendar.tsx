@@ -1,5 +1,6 @@
 "use client"
 
+import { CalendarLegend, type CalendarLegendItem } from "@/components/shared/calendar-legend"
 import { cn, formatWorkHours } from "@/lib/utils"
 import type { CalendarDay, CalendarDayStatus } from "@/features/attendance/hooks/use-attendance"
 
@@ -40,14 +41,15 @@ function fmtTime(t: string | null): string {
   })
 }
 
-function LegendItem({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className={cn("h-3 w-3 rounded-lg", className)} />
-      <span className="text-muted-foreground">{label}</span>
-    </span>
-  )
-}
+const LEGEND: CalendarLegendItem[] = [
+  { swatch: "bg-green-100 dark:bg-green-950/40", label: "Present" },
+  { swatch: "bg-orange-100 dark:bg-orange-950/40", label: "Half day" },
+  { swatch: "bg-purple-100 dark:bg-purple-950/40", label: "Missing punch" },
+  { swatch: "bg-red-100 dark:bg-red-950/40", label: "Leave" },
+  { swatch: "bg-yellow-100 dark:bg-yellow-950/40", label: "Work from home" },
+  { swatch: "bg-blue-100 dark:bg-blue-950/40", label: "Holiday" },
+  { swatch: "bg-muted", label: "Weekend" },
+]
 
 function DayCell({ d }: { d: CalendarDay }) {
   const showTimes =
@@ -58,7 +60,7 @@ function DayCell({ d }: { d: CalendarDay }) {
   return (
     <div
       title={d.label ?? d.status}
-      className={cn("flex min-h-[76px] flex-col rounded-lg p-1.5 text-left", cellStyle(d.status))}
+      className={cn("flex min-h-[76px] flex-col rounded p-1.5 text-left", cellStyle(d.status))}
     >
       <div className="flex items-start justify-between gap-1">
         <span className="text-xs font-semibold">{d.day}</span>
@@ -88,7 +90,7 @@ function DayCell({ d }: { d: CalendarDay }) {
 export function AttendanceCalendar({ days }: { days: CalendarDay[] }) {
   const firstDow = days[0]?.dow ?? 0
   return (
-    <div className="bg-card rounded-lg border p-4">
+    <div className="bg-card rounded border p-4">
       <div className="grid grid-cols-7 gap-1">
         {WEEKDAYS.map((w) => (
           <div key={w} className="text-muted-foreground py-1 text-center text-xs font-medium">
@@ -103,15 +105,7 @@ export function AttendanceCalendar({ days }: { days: CalendarDay[] }) {
         ))}
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
-        <LegendItem className="bg-green-100 dark:bg-green-950/40" label="Present" />
-        <LegendItem className="bg-orange-100 dark:bg-orange-950/40" label="Half day" />
-        <LegendItem className="bg-purple-100 dark:bg-purple-950/40" label="Missing punch" />
-        <LegendItem className="bg-red-100 dark:bg-red-950/40" label="Leave" />
-        <LegendItem className="bg-yellow-100 dark:bg-yellow-950/40" label="Work from home" />
-        <LegendItem className="bg-blue-100 dark:bg-blue-950/40" label="Holiday" />
-        <LegendItem className="bg-muted" label="Weekend" />
-      </div>
+      <CalendarLegend items={LEGEND} />
     </div>
   )
 }

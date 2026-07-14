@@ -2,9 +2,6 @@
 
 import { PageHeader } from "@/components/shared/page-header"
 import { ApplyLeaveForm } from "@/features/leave"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
 
 export default function ApplyLeavePage() {
   return (
@@ -12,14 +9,8 @@ export default function ApplyLeavePage() {
       <PageHeader
         title="Apply for Leave"
         description="Submit a new leave request for approval."
-        actions={
-          <Button variant="outline" asChild>
-            <Link href="/leave" className="flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Leave
-            </Link>
-          </Button>
-        }
+        backHref="/leave"
+        backLabel="Back to Leave"
       />
 
       <ApplyLeaveForm />

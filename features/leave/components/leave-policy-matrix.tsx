@@ -73,7 +73,7 @@ export function LeavePolicyMatrix({ editor }: { editor: LeavePolicyEditor }) {
         <div className="min-w-[160px]">
           <p className="font-medium">{t.name}</p>
           <div className="mt-0.5 flex items-center gap-1.5">
-            <code className="bg-muted rounded-lg px-1 py-0.5 font-mono text-[10px]">{t.code}</code>
+            <code className="bg-muted rounded px-1 py-0.5 font-mono text-[10px]">{t.code}</code>
             <Badge variant="outline" className="text-[10px]">
               {t.accrualMethod === "UPFRONT" ? "Upfront" : "Monthly"}
             </Badge>

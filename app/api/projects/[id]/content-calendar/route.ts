@@ -18,6 +18,22 @@ type Entry = {
 }
 const serialize = (e: Entry) => ({ ...e, date: e.date ? e.date.toISOString().slice(0, 10) : null })
 
+// Only the columns the calendar renders (no createdAt/updatedAt/projectId), and a
+// hard cap so an un-filtered (no ?month) read can never fetch the whole table -
+// `hook`/`content` are @db.Text and dominate the payload.
+const ENTRY_SELECT = {
+  id: true,
+  date: true,
+  platform: true,
+  theme: true,
+  format: true,
+  hook: true,
+  content: true,
+  status: true,
+  link: true,
+} as const
+const MAX_ENTRIES = 500
+
 // GET - content-calendar entries (optional ?month=YYYY-MM & ?platform=).
 export const GET = withAuth(
   PERMISSIONS.PROJECT_READ,
@@ -34,7 +50,9 @@ export const GET = withAuth(
       if (platform) where.platform = platform
       const entries = await db.contentCalendarEntry.findMany({
         where,
+        select: ENTRY_SELECT,
         orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+        take: MAX_ENTRIES,
       })
       return NextResponse.json({ data: entries.map(serialize) })
     } catch (error) {

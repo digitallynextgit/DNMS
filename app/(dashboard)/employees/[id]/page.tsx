@@ -1,9 +1,7 @@
 "use client"
 
 import { use, useState } from "react"
-import Link from "next/link"
 import {
-  ChevronLeft,
   Mail,
   Phone,
   Building2,
@@ -25,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { EmptyState } from "@/components/shared/empty-state"
+import { PageHeader } from "@/components/shared/page-header"
 import { EmployeeAdminActions } from "@/features/employees"
 import { ManageRolesDialog } from "@/features/employees"
 import {
@@ -34,7 +33,7 @@ import {
   EditEmergencyContact,
 } from "@/features/employees"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Separator } from "@/components/ui/separator"
+import { InfoRow, SectionHeader } from "@/components/shared/info-row"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { useEmployee } from "@/features/employees"
 import { usePermissions } from "@/features/admin"
@@ -48,45 +47,46 @@ import {
   PROBATION_BADGE,
 } from "@/lib/constants"
 
-interface InfoRowProps {
-  label: string
-  value?: string | null
-}
-
-function InfoRow({ label, value }: InfoRowProps) {
-  return (
-    <div className="space-y-0.5">
-      <p className="text-muted-foreground text-xs tracking-wide uppercase">{label}</p>
-      <p className="text-sm font-medium">{value || "-"}</p>
-    </div>
-  )
-}
-
-function SectionHeader({
-  children,
-  action,
-}: {
-  children: React.ReactNode
-  action?: React.ReactNode
-}) {
-  return (
-    <div>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-foreground/80 text-sm font-semibold tracking-wider uppercase">
-          {children}
-        </h3>
-        {action}
-      </div>
-      <Separator className="mb-4" />
-    </div>
-  )
-}
-
+/**
+ * Mirrors the REAL profile layout instead of two grey blocks: the same PageHeader
+ * (real Back button, avatar-sized circle, title/description bars at the true size)
+ * and the same card grid. The page shell paints instantly - only the data regions
+ * are placeheld - so opening a profile never blanks the screen.
+ */
 function ProfileSkeleton() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-48 rounded-lg" />
-      <Skeleton className="h-96 rounded-lg" />
+      <PageHeader
+        backHref="/employees/employee-directory"
+        backLabel="Back to Employees"
+        leading={<Skeleton className="h-12 w-12 shrink-0 rounded-full" />}
+        title={<Skeleton className="h-6 w-48" />}
+        description={<Skeleton className="h-4 w-64" />}
+      />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardContent className="space-y-4 p-5">
+            <Skeleton className="h-4 w-32" />
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between gap-4">
+                <Skeleton className="h-3.5 w-28" />
+                <Skeleton className="h-3.5 w-40" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-4 p-5">
+            <Skeleton className="h-4 w-24" />
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="space-y-1.5">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
@@ -124,107 +124,97 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="space-y-6">
-      {/* Back link */}
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/employees/employee-directory" className="flex items-center gap-1.5">
-          <ChevronLeft className="h-4 w-4" />
-          Back to Employees
-        </Link>
-      </Button>
-
-      {/* Top profile card */}
-      <Card>
-        <CardContent className="pt-6 pb-6">
-          <div className="flex flex-col items-start gap-6 sm:flex-row">
-            {/* Avatar */}
-            <Avatar className="h-24 w-24 shrink-0">
-              {/* Always mount AvatarImage (src empty when no photo) so Radix resets
-                  its loading status and shows the fallback the moment a photo is
-                  removed - conditionally unmounting it leaves a stale "loaded"
-                  status and a blank avatar until reload. */}
-              <AvatarImage src={emp.profilePhoto ?? undefined} alt={fullName} />
-              <AvatarFallback className={cn("text-2xl font-bold text-white", avatarBg)}>
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-
-            {/* Name block */}
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-bold tracking-tight">{fullName}</h1>
-                  <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm">
-                    {emp.designation?.title && (
-                      <span className="flex items-center gap-1">
-                        <Briefcase className="h-3.5 w-3.5" />
-                        {emp.designation.title}
-                      </span>
-                    )}
-                    {emp.department?.name && (
-                      <span className="flex items-center gap-1">
-                        <Building2 className="h-3.5 w-3.5" />
-                        {emp.department.name}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {(can(PERMISSIONS.EMPLOYEE_WRITE) || userId === emp.id) && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Photo (admin) + Resign (self only) live here; the component
-                        decides which to show based on permission / ownership. */}
-                    <EmployeeAdminActions
-                      employeeId={emp.id}
-                      status={emp.status}
-                      hasPhoto={!!emp.profilePhoto}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Badges row */}
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="font-mono text-xs">
-                  {emp.employeeNo}
-                </Badge>
-                <StatusBadge
-                  status={emp.status}
-                  colorMap={EMPLOYEE_STATUS_COLORS}
-                  labelMap={EMPLOYEE_STATUS_LABELS}
-                />
-                {probation.onProbation && (
-                  <StatusBadge
-                    status="Probation"
-                    label={`On Probation${
-                      probation.endDate
-                        ? ` · until ${formatDate(probation.endDate.toISOString())}`
-                        : ""
-                    }`}
-                    colorMap={{ Probation: PROBATION_BADGE }}
-                  />
-                )}
-              </div>
-
-              {/* Contact row */}
-              <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-4 text-sm">
-                <a
-                  href={`mailto:${emp.email}`}
-                  className="hover:text-foreground flex items-center gap-1.5 transition-colors"
-                >
-                  <Mail className="h-3.5 w-3.5 shrink-0" />
-                  {emp.email}
-                </a>
-                {emp.phone && (
-                  <a
-                    href={`tel:${emp.phone}`}
-                    className="hover:text-foreground flex items-center gap-1.5 transition-colors"
-                  >
-                    <Phone className="h-3.5 w-3.5 shrink-0" />
-                    {emp.phone}
-                  </a>
-                )}
-              </div>
+      {/* Title, avatar, back link and the admin actions all now live in the shared
+          PageHeader, so this page's title is the same size/offset as every other. */}
+      <PageHeader
+        backHref="/employees/employee-directory"
+        backLabel="Back to Employees"
+        title={fullName}
+        leading={
+          <Avatar className="h-12 w-12 shrink-0">
+            {/* Always mount AvatarImage (src empty when no photo) so Radix resets
+                its loading status and shows the fallback the moment a photo is
+                removed - conditionally unmounting it leaves a stale "loaded"
+                status and a blank avatar until reload. */}
+            <AvatarImage src={emp.profilePhoto ?? undefined} alt={fullName} />
+            <AvatarFallback className={cn("text-base font-bold text-white", avatarBg)}>
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        }
+        description={
+          <span className="flex flex-wrap items-center gap-2">
+            {emp.designation?.title && (
+              <span className="flex items-center gap-1">
+                <Briefcase className="h-3.5 w-3.5" />
+                {emp.designation.title}
+              </span>
+            )}
+            {emp.department?.name && (
+              <span className="flex items-center gap-1">
+                <Building2 className="h-3.5 w-3.5" />
+                {emp.department.name}
+              </span>
+            )}
+          </span>
+        }
+        actions={
+          (can(PERMISSIONS.EMPLOYEE_WRITE) || userId === emp.id) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Photo (admin) + Resign (self only) live here; the component
+                  decides which to show based on permission / ownership. */}
+              <EmployeeAdminActions
+                employeeId={emp.id}
+                status={emp.status}
+                hasPhoto={!!emp.profilePhoto}
+              />
             </div>
+          )
+        }
+      />
+
+      {/* Identity + contact card */}
+      <Card>
+        <CardContent className="space-y-3 pt-6 pb-6">
+          {/* Badges row */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="font-mono text-xs">
+              {emp.employeeNo}
+            </Badge>
+            <StatusBadge
+              status={emp.status}
+              colorMap={EMPLOYEE_STATUS_COLORS}
+              labelMap={EMPLOYEE_STATUS_LABELS}
+            />
+            {probation.onProbation && (
+              <StatusBadge
+                status="Probation"
+                label={`On Probation${
+                  probation.endDate ? ` · until ${formatDate(probation.endDate.toISOString())}` : ""
+                }`}
+                colorMap={{ Probation: PROBATION_BADGE }}
+              />
+            )}
+          </div>
+
+          {/* Contact row */}
+          <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
+            <a
+              href={`mailto:${emp.email}`}
+              className="hover:text-foreground flex items-center gap-1.5 transition-colors"
+            >
+              <Mail className="h-3.5 w-3.5 shrink-0" />
+              {emp.email}
+            </a>
+            {emp.phone && (
+              <a
+                href={`tel:${emp.phone}`}
+                className="hover:text-foreground flex items-center gap-1.5 transition-colors"
+              >
+                <Phone className="h-3.5 w-3.5 shrink-0" />
+                {emp.phone}
+              </a>
+            )}
           </div>
         </CardContent>
       </Card>

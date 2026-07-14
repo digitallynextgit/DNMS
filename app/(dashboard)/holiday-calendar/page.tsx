@@ -7,6 +7,7 @@ import { CalendarDays, Sparkles, ChevronLeft, ChevronRight, Check, X } from "luc
 import { Spinner } from "@/components/shared/spinner"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { StatCard } from "@/components/shared/stat-card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
@@ -22,7 +23,8 @@ import {
 } from "@/components/ui/select"
 import { useHolidays, FloatingRequestsInbox, HolidayMonthCalendar } from "@/features/attendance"
 import { useUrlState, useUrlPage } from "@/hooks/use-url-state"
-import { cn, formatDate } from "@/lib/utils"
+import { FLOATING_REQUEST_STATUS_COLORS, FLOATING_REQUEST_STATUS_LABELS } from "@/lib/constants"
+import { formatDate } from "@/lib/utils"
 
 const CURRENT_YEAR = new Date().getFullYear()
 const MONTHS = [
@@ -85,21 +87,6 @@ async function withdrawFloating(holidayId: string) {
   })
   if (!res.ok) throw new Error("Failed to withdraw")
   return res.json()
-}
-
-const STATUS_META: Record<string, { label: string; cls: string }> = {
-  PENDING: {
-    label: "Pending",
-    cls: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
-  },
-  APPROVED: {
-    label: "Approved",
-    cls: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300",
-  },
-  REJECTED: {
-    label: "Rejected",
-    cls: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300",
-  },
 }
 
 export default function EmployeeHolidayCalendarPage() {
@@ -265,19 +252,19 @@ export default function EmployeeHolidayCalendarPage() {
                     className: "max-w-[220px]",
                     cell: (h: FloatingHoliday) => {
                       const sel = selByHoliday.get(h.id)
-                      const meta = sel ? STATUS_META[sel.status] : undefined
-                      if (!meta) return <span className="text-muted-foreground text-xs">-</span>
+                      // A withdrawn (CANCELLED) request has no pill - it reads the
+                      // same as never having applied, so it is absent from the map.
+                      const known = sel && FLOATING_REQUEST_STATUS_LABELS[sel.status]
+                      if (!sel || !known)
+                        return <span className="text-muted-foreground text-xs">-</span>
                       return (
                         <div className="space-y-0.5">
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-                              meta.cls,
-                            )}
-                          >
-                            {meta.label}
-                          </span>
-                          {sel?.status === "REJECTED" && sel.rejectionReason && (
+                          <StatusBadge
+                            status={sel.status}
+                            colorMap={FLOATING_REQUEST_STATUS_COLORS}
+                            labelMap={FLOATING_REQUEST_STATUS_LABELS}
+                          />
+                          {sel.status === "REJECTED" && sel.rejectionReason && (
                             <p className="text-muted-foreground text-xs">{sel.rejectionReason}</p>
                           )}
                         </div>

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { RejectReasonDialog } from "@/components/shared/reject-reason-dialog"
@@ -19,6 +19,31 @@ import {
   type ReviewableResignation,
 } from "@/features/resignations"
 import { cn, getAvatarColor, formatDate } from "@/lib/utils"
+
+/**
+ * Placeholder card built from the real resignation card's layout (bordered
+ * panel, avatar + name/designation/applied lines on the left, Decline / Approve
+ * buttons on the right) rather than a flat grey bar, so nothing reflows when
+ * the requests arrive.
+ */
+function ResignationCardSkeleton() {
+  return (
+    <div className="bg-card flex flex-col gap-4 rounded border p-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex min-w-0 gap-3">
+        <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+        <div className="min-w-0 space-y-2">
+          <Skeleton className="h-4 w-44" />
+          <Skeleton className="h-3 w-56" />
+          <Skeleton className="h-3 w-40" />
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <Skeleton className="h-8 w-24 rounded" />
+        <Skeleton className="h-8 w-24 rounded" />
+      </div>
+    </div>
+  )
+}
 
 export default function ResignationsPage() {
   const router = useRouter()
@@ -87,7 +112,11 @@ export default function ResignationsPage() {
       />
 
       {isLoading ? (
-        <ListSkeleton rows={3} height="h-24" />
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <ResignationCardSkeleton key={i} />
+          ))}
+        </div>
       ) : resignations.length === 0 ? (
         <EmptyState icon={UserMinus} title="No pending resignations to review." variant="card" />
       ) : (
@@ -97,7 +126,7 @@ export default function ResignationsPage() {
             return (
               <div
                 key={r.id}
-                className="bg-card flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-start sm:justify-between"
+                className="bg-card flex flex-col gap-4 rounded border p-4 sm:flex-row sm:items-start sm:justify-between"
               >
                 <div className="flex min-w-0 gap-3">
                   <AvatarDisplay

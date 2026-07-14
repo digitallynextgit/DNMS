@@ -45,6 +45,8 @@ import { DateField } from "@/components/shared/date-field"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { CONTENT_CALENDAR_STATUS_COLORS, CONTENT_CALENDAR_STATUS_LABELS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import {
   useProjectBrand,
@@ -61,7 +63,6 @@ import {
   PLATFORMS,
   CONTENT_FORMATS,
   CALENDAR_STATUSES,
-  CALENDAR_STATUS_META,
   MANIFESTATION_THEMES,
   EMPTY_GUIDELINES,
   emptyManifestation,
@@ -131,7 +132,7 @@ function SectionCard({
     <Card className={cn("overflow-hidden transition-shadow", dirty && "ring-primary/30 ring-1")}>
       <CardHeader className="bg-muted/30 flex flex-row items-start justify-between gap-3 space-y-0 border-b py-3">
         <div className="flex min-w-0 items-start gap-3">
-          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", tint)}>
+          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded", tint)}>
             <Icon className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -396,10 +397,7 @@ function StrategySection({ projectId, canManage }: Props) {
       >
         <div className="grid gap-3 lg:grid-cols-2">
           {MANIFESTATION_THEMES.map((t) => (
-            <div
-              key={t.key}
-              className={cn("rounded-lg border border-l-4 p-3", THEME_ACCENT[t.key])}
-            >
+            <div key={t.key} className={cn("rounded border border-l-4 p-3", THEME_ACCENT[t.key])}>
               <p className="text-sm font-semibold">{t.title}</p>
               <p className="text-muted-foreground mb-2.5 text-xs">{t.hint}</p>
               <div className="space-y-2">
@@ -487,14 +485,14 @@ function StrategySection({ projectId, canManage }: Props) {
               {guidelines.colors.map((c, i) => (
                 <div
                   key={i}
-                  className="bg-muted/30 group flex items-center gap-2 rounded-lg border px-2 py-1.5"
+                  className="bg-muted/30 group flex items-center gap-2 rounded border px-2 py-1.5"
                 >
                   <input
                     type="color"
                     value={/^#[0-9a-f]{6}$/i.test(c.hex) ? c.hex : "#000000"}
                     disabled={!canManage}
                     onChange={(e) => updateColor(setGuidelines, i, { hex: e.target.value })}
-                    className="h-7 w-7 cursor-pointer rounded-lg border-0 bg-transparent p-0"
+                    className="h-7 w-7 cursor-pointer rounded border-0 bg-transparent p-0"
                   />
                   <div className="flex flex-col">
                     <Input
@@ -630,7 +628,7 @@ function AssetRow({
         {files.map((f) => (
           <span
             key={f.id}
-            className="bg-muted/40 group flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs"
+            className="bg-muted/40 group flex items-center gap-2 rounded border px-2.5 py-1.5 text-xs"
           >
             <Icon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
             <a
@@ -746,9 +744,7 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
       header: "Platform",
       cell: (r) =>
         r.platform ? (
-          <span className="bg-muted rounded-lg px-1.5 py-0.5 text-xs font-medium">
-            {r.platform}
-          </span>
+          <span className="bg-muted rounded px-1.5 py-0.5 text-xs font-medium">{r.platform}</span>
         ) : (
           "-"
         ),
@@ -763,14 +759,13 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
     },
     {
       header: "Status",
-      cell: (r) => {
-        const m = CALENDAR_STATUS_META[r.status] ?? CALENDAR_STATUS_META.PLANNED
-        return (
-          <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", m.cls)}>
-            {m.label}
-          </span>
-        )
-      },
+      cell: (r) => (
+        <StatusBadge
+          status={r.status in CONTENT_CALENDAR_STATUS_LABELS ? r.status : "PLANNED"}
+          colorMap={CONTENT_CALENDAR_STATUS_COLORS}
+          labelMap={CONTENT_CALENDAR_STATUS_LABELS}
+        />
+      ),
     },
     {
       header: "",
@@ -1063,7 +1058,7 @@ function EntryDialog({
               <SelectContent>
                 {CALENDAR_STATUSES.map((s) => (
                   <SelectItem key={s} value={s}>
-                    {CALENDAR_STATUS_META[s].label}
+                    {CONTENT_CALENDAR_STATUS_LABELS[s] ?? s}
                   </SelectItem>
                 ))}
               </SelectContent>

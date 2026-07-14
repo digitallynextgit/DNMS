@@ -71,7 +71,7 @@ export function EmployeeCombobox({
           role="combobox"
           aria-expanded={open}
           className={cn(
-            "border-input h-10 w-full justify-between rounded-lg px-3 font-normal",
+            "border-input h-10 w-full justify-between rounded px-3 font-normal",
             !value && "text-muted-foreground",
           )}
         >
@@ -115,7 +115,7 @@ export function EmployeeCombobox({
                 key={emp.id}
                 type="button"
                 onClick={() => handleSelect(emp)}
-                className="hover:bg-accent flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors"
+                className="hover:bg-accent flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left transition-colors"
               >
                 <AvatarDisplay
                   src={emp.profilePhoto}

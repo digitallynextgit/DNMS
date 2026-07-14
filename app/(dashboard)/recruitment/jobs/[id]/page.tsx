@@ -4,8 +4,7 @@ import { useState, useRef } from "react"
 import { useParams } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Plus, ArrowLeft, Mail, Phone, Calendar, FileText, GripVertical, User } from "lucide-react"
-import Link from "next/link"
+import { Plus, Mail, Phone, Calendar, FileText, GripVertical, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { FormDialog } from "@/components/shared/form-dialog"
-import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
+import { PageHeader } from "@/components/shared/page-header"
 import { cn } from "@/lib/utils"
 
 interface Interview {
@@ -162,7 +161,7 @@ function ApplicantCard({
     <div
       draggable
       onDragStart={(e) => onDragStart(e, applicant.id)}
-      className="bg-card group cursor-grab rounded-lg border p-3 shadow-sm transition-all duration-150 select-none hover:shadow-md active:cursor-grabbing"
+      className="bg-card group cursor-grab rounded border p-3 shadow-sm transition-all duration-150 select-none hover:shadow-md active:cursor-grabbing"
     >
       <div className="flex items-start gap-2.5">
         <AvatarDisplay
@@ -233,7 +232,7 @@ function ApplicantCard({
 
       <button
         onClick={() => onScheduleInterview(applicant)}
-        className="border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary mt-2.5 w-full rounded-lg border border-dashed py-1.5 text-center text-xs transition-colors"
+        className="border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary mt-2.5 w-full rounded border border-dashed py-1.5 text-center text-xs transition-colors"
       >
         + Schedule Interview
       </button>
@@ -311,47 +310,44 @@ export default function JobPipelinePage() {
     dragApplicantId.current = null
   }
 
-  if (isLoading)
-    return (
-      <div className="space-y-6 p-6">
-        <Skeleton className="h-10 w-64" />
-        <CardGridSkeleton />
-      </div>
-    )
-
-  if (!job) return null
+  // "Not found" (loaded, but no job) still bails out - only the LOADING state now
+  // paints the shell instead of blanking the page.
+  if (!isLoading && !job) return null
 
   const grouped = STAGES.reduce(
     (acc, s) => ({
       ...acc,
-      [s]: (job.applicants ?? []).filter((a) => a.stage === s),
+      [s]: (job?.applicants ?? []).filter((a) => a.stage === s),
     }),
     {} as Record<string, Applicant[]>,
   )
+  const applicantCount = job?.applicants?.length ?? 0
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="bg-background flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <Link href="/recruitment">
-            <Button variant="ghost" size="sm" className="h-8 gap-1.5">
-              <ArrowLeft className="h-4 w-4" /> Back
+      {/* Header - painted immediately; only the job's own text is placeheld. */}
+      <div className="bg-background border-b px-6">
+        <PageHeader
+          backHref="/recruitment"
+          title={job?.title ?? "Job Pipeline"}
+          description={
+            job ? (
+              <>
+                {job.department?.name ?? "No department"} · {job.location ?? "Remote"} ·{" "}
+                <span className="font-medium">
+                  {applicantCount} applicant{applicantCount !== 1 ? "s" : ""}
+                </span>
+              </>
+            ) : (
+              <Skeleton className="h-4 w-64" />
+            )
+          }
+          actions={
+            <Button onClick={() => setAddOpen(true)} disabled={!job} className="gap-2">
+              <Plus className="h-4 w-4" /> Add Applicant
             </Button>
-          </Link>
-          <div>
-            <h1 className="text-xl font-semibold">{job.title}</h1>
-            <p className="text-muted-foreground text-sm">
-              {job.department?.name ?? "No department"} · {job.location ?? "Remote"} ·{" "}
-              <span className="font-medium">
-                {job.applicants?.length ?? 0} applicant{job.applicants?.length !== 1 ? "s" : ""}
-              </span>
-            </p>
-          </div>
-        </div>
-        <Button onClick={() => setAddOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Add Applicant
-        </Button>
+          }
+        />
       </div>
 
       {/* Kanban Board */}
@@ -376,45 +372,63 @@ export default function JobPipelinePage() {
                     <span className={cn("h-2 w-2 flex-shrink-0 rounded-full", cfg.dot)} />
                     <span className={cn("text-sm font-semibold", cfg.color)}>{cfg.label}</span>
                   </div>
-                  <Badge variant="secondary" className="h-5 px-1.5 text-xs font-medium">
-                    {cards.length}
-                  </Badge>
+                  {isLoading ? (
+                    <Skeleton className="h-5 w-6 rounded" />
+                  ) : (
+                    <Badge variant="secondary" className="h-5 px-1.5 text-xs font-medium">
+                      {cards.length}
+                    </Badge>
+                  )}
                 </div>
 
                 {/* Drop zone */}
                 <div
                   className={cn(
-                    "min-h-[200px] flex-1 rounded-lg border-2 border-dashed p-2 transition-all duration-150",
+                    "min-h-[200px] flex-1 rounded border-2 border-dashed p-2 transition-all duration-150",
                     isOver
                       ? "border-primary bg-primary/5 scale-[1.01]"
                       : "bg-muted/40 border-transparent",
                   )}
                 >
-                  <div className="space-y-2">
-                    {cards.map((applicant) => (
-                      <ApplicantCard
-                        key={applicant.id}
-                        applicant={applicant}
-                        onDragStart={handleDragStart}
-                        onScheduleInterview={(a) => {
-                          setSelectedApplicant(a)
-                          setIForm(emptyInterviewForm)
-                          setInterviewOpen(true)
-                        }}
-                      />
-                    ))}
-                  </div>
-
-                  {cards.length === 0 && (
-                    <div
-                      className={cn(
-                        "flex h-24 flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed",
-                        isOver ? "border-primary/50 bg-primary/5" : "border-muted-foreground/20",
-                      )}
-                    >
-                      <User className="text-muted-foreground/40 h-4 w-4" />
-                      <p className="text-muted-foreground/50 text-xs">Drop here</p>
+                  {isLoading ? (
+                    // Two card-shaped placeholders per column (an ApplicantCard is
+                    // ~8rem tall), so the board keeps its real geometry while loading.
+                    <div className="space-y-2">
+                      {Array.from({ length: 2 }).map((_, i) => (
+                        <Skeleton key={i} className="h-32 w-full rounded" />
+                      ))}
                     </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        {cards.map((applicant) => (
+                          <ApplicantCard
+                            key={applicant.id}
+                            applicant={applicant}
+                            onDragStart={handleDragStart}
+                            onScheduleInterview={(a) => {
+                              setSelectedApplicant(a)
+                              setIForm(emptyInterviewForm)
+                              setInterviewOpen(true)
+                            }}
+                          />
+                        ))}
+                      </div>
+
+                      {cards.length === 0 && (
+                        <div
+                          className={cn(
+                            "flex h-24 flex-col items-center justify-center gap-1.5 rounded border border-dashed",
+                            isOver
+                              ? "border-primary/50 bg-primary/5"
+                              : "border-muted-foreground/20",
+                          )}
+                        >
+                          <User className="text-muted-foreground/40 h-4 w-4" />
+                          <p className="text-muted-foreground/50 text-xs">Drop here</p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -424,77 +438,79 @@ export default function JobPipelinePage() {
       </div>
 
       {/* Add Applicant Dialog */}
-      <FormDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        title="Add Applicant"
-        isPending={addMut.isPending}
-        submitDisabled={!form.firstName || !form.email}
-        submitLabel="Add Applicant"
-        size="sm"
-        onSubmit={(e) => {
-          e.preventDefault()
-          addMut.mutate({ ...form, jobId: job.id })
-        }}
-      >
-        <div className="grid grid-cols-2 gap-3">
+      {job && (
+        <FormDialog
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          title="Add Applicant"
+          isPending={addMut.isPending}
+          submitDisabled={!form.firstName || !form.email}
+          submitLabel="Add Applicant"
+          size="sm"
+          onSubmit={(e) => {
+            e.preventDefault()
+            addMut.mutate({ ...form, jobId: job.id })
+          }}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>First Name</Label>
+              <Input
+                value={form.firstName}
+                onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Last Name</Label>
+              <Input
+                value={form.lastName}
+                onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
+              />
+            </div>
+          </div>
           <div className="space-y-2">
-            <Label>First Name</Label>
+            <Label>Email</Label>
             <Input
-              value={form.firstName}
-              onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Phone (optional)</Label>
+              <Input
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Source (optional)</Label>
+              <Input
+                value={form.source}
+                onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}
+                placeholder="LinkedIn, Referral..."
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Resume URL (optional)</Label>
+            <Input
+              value={form.resumeUrl}
+              onChange={(e) => setForm((f) => ({ ...f, resumeUrl: e.target.value }))}
+              placeholder="https://drive.google.com/..."
             />
           </div>
           <div className="space-y-2">
-            <Label>Last Name</Label>
-            <Input
-              value={form.lastName}
-              onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
+            <Label>Notes (optional)</Label>
+            <textarea
+              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+              value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             />
           </div>
-        </div>
-        <div className="space-y-2">
-          <Label>Email</Label>
-          <Input
-            type="email"
-            value={form.email}
-            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label>Phone (optional)</Label>
-            <Input
-              value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Source (optional)</Label>
-            <Input
-              value={form.source}
-              onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}
-              placeholder="LinkedIn, Referral..."
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <Label>Resume URL (optional)</Label>
-          <Input
-            value={form.resumeUrl}
-            onChange={(e) => setForm((f) => ({ ...f, resumeUrl: e.target.value }))}
-            placeholder="https://drive.google.com/..."
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Notes (optional)</Label>
-          <textarea
-            className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
-            value={form.notes}
-            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-          />
-        </div>
-      </FormDialog>
+        </FormDialog>
+      )}
 
       {/* Schedule Interview Dialog */}
       {selectedApplicant && (
@@ -542,7 +558,7 @@ export default function JobPipelinePage() {
           <div className="space-y-2">
             <Label>Notes (optional)</Label>
             <textarea
-              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
               value={iForm.notes}
               onChange={(e) => setIForm((f) => ({ ...f, notes: e.target.value }))}
             />

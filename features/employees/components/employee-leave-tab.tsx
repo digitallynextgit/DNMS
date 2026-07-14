@@ -14,9 +14,10 @@ import {
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { StatStrip } from "@/components/shared/stat-strip"
 import { LeaveBalanceCard } from "@/features/leave"
 import { useLeaveBalances, useLeaveRequests, type LeaveRequest } from "@/features/leave"
-import { formatDate, cn } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { CalendarRange, AlertTriangle } from "lucide-react"
 
@@ -138,34 +139,32 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
       </div>
 
       {/* Year summary strip - compact, single row */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="divide-border grid grid-cols-2 divide-x divide-y sm:grid-cols-4 sm:divide-y-0">
-            <SummaryStat
-              label="Approved"
-              value={approvedDays}
-              suffix={approvedDays === 1 ? "day" : "days"}
-            />
-            <SummaryStat
-              label="Pending"
-              value={pendingDays}
-              suffix={pendingDays === 1 ? "day" : "days"}
-              tone="amber"
-            />
-            <SummaryStat
-              label="Total Requests"
-              value={yearRequests.length}
-              suffix={yearRequests.length === 1 ? "request" : "requests"}
-            />
-            <SummaryStat
-              label="Late Notice"
-              value={lateNoticeCount}
-              suffix={lateNoticeCount === 1 ? "flagged" : "flagged"}
-              tone={lateNoticeCount > 0 ? "red" : "default"}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <StatStrip
+        items={[
+          {
+            label: "Approved",
+            value: approvedDays,
+            suffix: approvedDays === 1 ? "day" : "days",
+          },
+          {
+            label: "Pending",
+            value: pendingDays,
+            suffix: pendingDays === 1 ? "day" : "days",
+            tone: pendingDays > 0 ? "warning" : "default",
+          },
+          {
+            label: "Total Requests",
+            value: yearRequests.length,
+            suffix: yearRequests.length === 1 ? "request" : "requests",
+          },
+          {
+            label: "Late Notice",
+            value: lateNoticeCount,
+            suffix: "flagged",
+            tone: lateNoticeCount > 0 ? "danger" : "default",
+          },
+        ]}
+      />
 
       {/* Leave balances */}
       <div className="space-y-3">
@@ -202,36 +201,6 @@ export function EmployeeLeaveTab({ employeeId }: EmployeeLeaveTabProps) {
           <DataTable columns={columns} rows={yearRequests} rowKey={(r) => r.id} showSerial />
         )}
       </div>
-    </div>
-  )
-}
-
-function SummaryStat({
-  label,
-  value,
-  suffix,
-  tone = "default",
-}: {
-  label: string
-  value: number
-  suffix: string
-  tone?: "default" | "amber" | "red"
-}) {
-  const valueColor =
-    tone === "red" && value > 0
-      ? "text-red-600 dark:text-red-400"
-      : tone === "amber" && value > 0
-        ? "text-amber-600 dark:text-amber-400"
-        : "text-foreground"
-  return (
-    <div className="px-4 py-3">
-      <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
-        {label}
-      </p>
-      <p className="mt-1 flex items-baseline gap-1">
-        <span className={cn("text-xl font-bold tabular-nums", valueColor)}>{value}</span>
-        <span className="text-muted-foreground text-[11px]">{suffix}</span>
-      </p>
     </div>
   )
 }

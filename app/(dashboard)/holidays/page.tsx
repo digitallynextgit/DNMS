@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { PageHeader } from "@/components/shared/page-header"
+import { StatusBadge } from "@/components/shared/status-badge"
 import { StatCard } from "@/components/shared/stat-card"
 import { Pagination } from "@/components/shared/pagination"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -44,8 +45,8 @@ import {
 import { useQuery } from "@tanstack/react-query"
 import { usePermissions } from "@/features/admin"
 import { useUrlState, useUrlPage } from "@/hooks/use-url-state"
-import { PERMISSIONS } from "@/lib/constants"
-import { formatDate, cn } from "@/lib/utils"
+import { HOLIDAY_TYPE_COLORS, HOLIDAY_TYPE_LABELS, PERMISSIONS } from "@/lib/constants"
+import { formatDate } from "@/lib/utils"
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -162,14 +163,11 @@ export default function HolidayCalendarPage() {
     {
       header: "Type",
       cell: (h) => (
-        <span
-          className={cn(
-            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-            h.isOptional ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700",
-          )}
-        >
-          {h.isOptional ? "Floating" : "Fixed"}
-        </span>
+        <StatusBadge
+          status={h.isOptional ? "FLOATING" : "FIXED"}
+          colorMap={HOLIDAY_TYPE_COLORS}
+          labelMap={HOLIDAY_TYPE_LABELS}
+        />
       ),
     },
     ...(canWrite

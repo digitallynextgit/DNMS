@@ -1,72 +1,25 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth, withSession } from "@/server/api-handler"
-import { hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
-import { resolvePagination, paginationMeta } from "@/lib/pagination"
+import { listProjects } from "@/features/projects/server/projects.queries"
 import type { Session } from "next-auth"
 
 export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
   try {
     const { searchParams } = req.nextUrl
-    const status = searchParams.get("status") ?? undefined
-    const mine = searchParams.get("mine") === "true"
-    const { page, limit, skip, take } = resolvePagination(
-      { page: searchParams.get("page"), limit: searchParams.get("limit") },
-      20,
-    )
-
-    const where: Record<string, unknown> = { isArchived: false }
-    if (status) where.status = status
-    // Admins/PMs (project:write) can see all projects; everyone else is always
-    // restricted to projects they own or are a team member of (the `mine`
-    // filter can further narrow it for admins, but never widens it for others).
-    const canViewAll = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
-    if (!canViewAll || mine) {
-      where.OR = [
-        { ownerId: session.user.id },
-        { teams: { some: { members: { some: { employeeId: session.user.id } } } } },
-      ]
-    }
-
-    const [projects, total] = await Promise.all([
-      db.project.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: "desc" },
-        include: {
-          owner: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
-          teams: {
-            select: {
-              id: true,
-              name: true,
-              members: {
-                select: {
-                  employee: {
-                    select: { id: true, firstName: true, lastName: true, profilePhoto: true },
-                  },
-                },
-              },
-            },
-          },
-          _count: { select: { tasks: true, teams: true, resources: true } },
+    return NextResponse.json(
+      await listProjects(
+        {
+          status: searchParams.get("status") ?? undefined,
+          mine: searchParams.get("mine") === "true",
+          page: searchParams.get("page"),
+          limit: searchParams.get("limit"),
         },
-      }),
-      db.project.count({ where }),
-    ])
-
-    // Flatten members across all teams for the list-card avatar display
-    const decorated = projects.map((p) => ({
-      ...p,
-      members: p.teams.flatMap((t) => t.members),
-    }))
-
-    return NextResponse.json({
-      data: decorated,
-      pagination: paginationMeta(total, page, limit),
-    })
+        session,
+      ),
+    )
   } catch (error) {
     console.error("[PROJECTS_GET]", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -96,19 +49,17 @@ export const POST = withAuth(
         )
       }
 
-      // Auto-generate code in DN## format (DN01, DN02, …). Looks at max existing DN-prefixed code.
-      const dnProjects = await db.project.findMany({
+      // Auto-generate code in DN##### format (DN00001, DN00002, …). Codes are
+      // fixed-width and zero-padded (this endpoint is the only generator), so the
+      // lexicographically highest DN code IS the numerically highest one - let the
+      // DB find it instead of loading every project code into JS.
+      const lastDn = await db.project.findFirst({
         where: { code: { startsWith: "DN" } },
         select: { code: true },
+        orderBy: { code: "desc" },
       })
-      let maxNum = 0
-      for (const p of dnProjects) {
-        const m = p.code.match(/^DN(\d+)$/)
-        if (m) {
-          const n = parseInt(m[1], 10)
-          if (n > maxNum) maxNum = n
-        }
-      }
+      const lastMatch = lastDn?.code.match(/^DN(\d+)$/)
+      const maxNum = lastMatch ? parseInt(lastMatch[1] ?? "0", 10) : 0
       const nextNum = maxNum + 1
       const code = `DN${nextNum.toString().padStart(5, "0")}`
 

@@ -9,7 +9,7 @@ interface InfoTableProps {
 
 export function InfoTable({ rows }: InfoTableProps) {
   return (
-    <div className="border-border overflow-hidden rounded-lg border">
+    <div className="border-border overflow-hidden rounded border">
       <table className="w-full text-sm">
         <tbody>
           {rows.map((row, index) => (

@@ -12,6 +12,7 @@ import { Pagination } from "@/components/shared/pagination"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { StatStrip } from "@/components/shared/stat-strip"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -118,6 +119,7 @@ export default function MyTasksPage() {
   }, [pageTasks])
 
   const pendingApproval = tasks.filter((t) => t.approvalStatus === "PENDING_APPROVAL")
+  const doneCount = tasks.filter((t) => t.status === "DONE").length
   const overdueCount = tasks.filter(
     (t) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "DONE",
   ).length
@@ -221,28 +223,26 @@ export default function MyTasksPage() {
       <PageHeader title="My Tasks" description="Tasks assigned to you across all projects." />
 
       {/* Summary strip */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="divide-border grid grid-cols-2 divide-x divide-y sm:grid-cols-4 sm:divide-y-0">
-            <Stat label="Total" value={tasks.length} />
-            <Stat
-              label="Done"
-              value={tasks.filter((t) => t.status === "DONE").length}
-              tone="emerald"
-            />
-            <Stat
-              label="Pending approval"
-              value={pendingApproval.length}
-              tone={pendingApproval.length > 0 ? "amber" : "default"}
-            />
-            <Stat
-              label="Overdue"
-              value={overdueCount}
-              tone={overdueCount > 0 ? "red" : "default"}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <StatStrip
+        items={[
+          { label: "Total", value: tasks.length },
+          {
+            label: "Done",
+            value: doneCount,
+            tone: doneCount > 0 ? "success" : "default",
+          },
+          {
+            label: "Pending approval",
+            value: pendingApproval.length,
+            tone: pendingApproval.length > 0 ? "warning" : "default",
+          },
+          {
+            label: "Overdue",
+            value: overdueCount,
+            tone: overdueCount > 0 ? "danger" : "default",
+          },
+        ]}
+      />
 
       {/* Pending approval callout */}
       {pendingApproval.length > 0 && (
@@ -287,7 +287,7 @@ export default function MyTasksPage() {
 
       {/* Groups or table */}
       {isLoading ? (
-        <Skeleton className="h-64 rounded-lg" />
+        <Skeleton className="h-64 rounded" />
       ) : grouped.length === 0 ? (
         <EmptyState icon={Inbox} variant="card" title="No tasks match the filter." />
       ) : viewMode === "table" ? (
@@ -329,7 +329,7 @@ export default function MyTasksPage() {
                     <div
                       key={task.id}
                       className={cn(
-                        "flex items-center gap-3 rounded-lg border p-2.5",
+                        "flex items-center gap-3 rounded border p-2.5",
                         isOverdue &&
                           "border-red-200 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
                         isPending &&
@@ -420,33 +420,6 @@ export default function MyTasksPage() {
           itemLabel="task"
         />
       )}
-    </div>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string
-  value: number
-  tone?: "default" | "emerald" | "amber" | "red"
-}) {
-  const color =
-    tone === "emerald" && value > 0
-      ? "text-emerald-600 dark:text-emerald-400"
-      : tone === "amber" && value > 0
-        ? "text-amber-600 dark:text-amber-400"
-        : tone === "red" && value > 0
-          ? "text-red-600 dark:text-red-400"
-          : "text-foreground"
-  return (
-    <div className="px-4 py-3">
-      <p className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
-        {label}
-      </p>
-      <p className={cn("mt-1 text-xl font-bold tabular-nums", color)}>{value}</p>
     </div>
   )
 }

@@ -44,7 +44,7 @@ export function StatusBadge({
       className={cn(
         "inline-flex w-fit items-center gap-1 font-medium",
         size === "button"
-          ? "h-8 rounded-lg border border-current/20 px-3 text-sm"
+          ? "h-8 rounded border border-current/20 px-3 text-sm"
           : size === "xs"
             ? "rounded-full px-2 py-0.5 text-[10px]"
             : "rounded-full px-2.5 py-0.5 text-xs",

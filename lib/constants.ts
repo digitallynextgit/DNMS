@@ -530,3 +530,49 @@ export const RESOURCE_CATEGORY_COLORS: Record<string, string> = {
   REFERENCES: TONE.amber,
   OTHER: TONE.neutral,
 }
+
+/**
+ * Holiday type pill. The DB models this as `isOptional: boolean`, so callers map
+ * `h.isOptional ? "FLOATING" : "FIXED"` before handing it to <StatusBadge>.
+ */
+export const HOLIDAY_TYPE_LABELS: Record<string, string> = {
+  FIXED: "Fixed",
+  FLOATING: "Floating",
+}
+
+export const HOLIDAY_TYPE_COLORS: Record<string, string> = {
+  FIXED: TONE.blue,
+  FLOATING: TONE.amber,
+}
+
+/**
+ * Status of an employee's floating-holiday request.
+ * CANCELLED is deliberately absent: a withdrawn request shows no pill at all
+ * (the cell falls back to "-"), exactly as if the employee had never applied.
+ */
+export const FLOATING_REQUEST_STATUS_LABELS: Record<string, string> = {
+  PENDING: "Pending",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+}
+
+export const FLOATING_REQUEST_STATUS_COLORS: Record<string, string> = {
+  PENDING: TONE.amber,
+  APPROVED: TONE.green,
+  REJECTED: TONE.red,
+}
+
+/** Status of a post in a project's content calendar (Brand tab). */
+export const CONTENT_CALENDAR_STATUS_LABELS: Record<string, string> = {
+  PLANNED: "Planned",
+  IN_PROGRESS: "In progress",
+  READY: "Ready",
+  POSTED: "Posted",
+}
+
+export const CONTENT_CALENDAR_STATUS_COLORS: Record<string, string> = {
+  PLANNED: TONE.neutral,
+  IN_PROGRESS: TONE.amber,
+  READY: TONE.blue,
+  POSTED: TONE.green,
+}

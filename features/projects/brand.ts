@@ -16,24 +16,13 @@ export const CONTENT_FORMATS = [
   "Other",
 ] as const
 
+/**
+ * Colours + labels for these live in `lib/constants.ts` as
+ * CONTENT_CALENDAR_STATUS_COLORS / _LABELS (built from the shared TONE palette),
+ * and are rendered through the shared <StatusBadge>.
+ */
 export const CALENDAR_STATUSES = ["PLANNED", "IN_PROGRESS", "READY", "POSTED"] as const
 export type CalendarStatus = (typeof CALENDAR_STATUSES)[number]
-
-export const CALENDAR_STATUS_META: Record<string, { label: string; cls: string }> = {
-  PLANNED: { label: "Planned", cls: "bg-muted text-muted-foreground" },
-  IN_PROGRESS: {
-    label: "In progress",
-    cls: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
-  },
-  READY: {
-    label: "Ready",
-    cls: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
-  },
-  POSTED: {
-    label: "Posted",
-    cls: "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300",
-  },
-}
 
 // ── Digital objectives (targets) ──
 export interface DigitalObjective {

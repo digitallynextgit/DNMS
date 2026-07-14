@@ -25,10 +25,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PageHeader } from "@/components/shared/page-header"
+import { InfoRow, SectionHeader } from "@/components/shared/info-row"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
@@ -66,31 +66,6 @@ async function saveGmailAppPassword(body: { gmailAppPassword: string }) {
   const data = await res.json()
   if (!res.ok) throw new Error(data.error?.message ?? "Failed")
   return data
-}
-
-interface InfoRowProps {
-  label: string
-  value?: string | null
-}
-
-function InfoRow({ label, value }: InfoRowProps) {
-  return (
-    <div className="space-y-0.5">
-      <p className="text-muted-foreground text-xs tracking-wide uppercase">{label}</p>
-      <p className="text-sm font-medium">{value || "-"}</p>
-    </div>
-  )
-}
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div>
-      <h3 className="text-foreground/80 mb-3 text-sm font-semibold tracking-wider uppercase">
-        {children}
-      </h3>
-      <Separator className="mb-4" />
-    </div>
-  )
 }
 
 export default function ProfilePage() {
@@ -524,7 +499,7 @@ export default function ProfilePage() {
               {hasGmail && !editingGmail ? (
                 /* Password already set → status + Change / Delete actions. */
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
+                  <div className="flex items-center gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     <span>App Password is set.</span>
                   </div>

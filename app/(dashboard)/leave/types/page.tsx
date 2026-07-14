@@ -15,7 +15,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DeleteDialog } from "@/components/shared/delete-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { useLeaveTypes, useDeleteLeaveType, useUpdateLeaveType } from "@/features/leave"
 import type { LeaveType } from "@/features/leave"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
@@ -23,7 +22,6 @@ import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import { Plus, Pencil, ToggleLeft, ToggleRight, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Pagination } from "@/components/shared/pagination"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 
@@ -116,7 +114,7 @@ export default function LeaveTypesAndPolicyPage() {
     {
       header: "Code",
       cell: (type) => (
-        <code className="bg-muted rounded-lg px-1.5 py-0.5 font-mono text-xs">{type.code}</code>
+        <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{type.code}</code>
       ),
     },
     {
@@ -244,15 +242,10 @@ export default function LeaveTypesAndPolicyPage() {
               </Button>
             </BulkActionBar>
 
-            {isLoading ? (
-              <ListSkeleton rows={5} height="h-14" />
-            ) : leaveTypes.length === 0 ? (
-              <EmptyState
-                variant="card"
-                title="No leave types configured yet."
-                action={{ label: "Create First Leave Type", onClick: openCreate }}
-              />
-            ) : (
+            {/* The table renders from the first paint: while `isLoading` it draws
+                skeleton rows inside its own real <thead>, so the header, column
+                count and S.No column never move when the data lands. */}
+            {isLoading || leaveTypes.length > 0 ? (
               <DataTable
                 columns={columns}
                 rows={pagedTypes}
@@ -260,6 +253,8 @@ export default function LeaveTypesAndPolicyPage() {
                 showSerial
                 serialOffset={(currentPage - 1) * PAGE_SIZE}
                 selection={selection}
+                loading={isLoading}
+                skeletonRows={PAGE_SIZE}
                 pagination={{
                   page: currentPage,
                   totalPages,
@@ -267,6 +262,12 @@ export default function LeaveTypesAndPolicyPage() {
                   onPageChange: setPage,
                   itemLabel: "leave type",
                 }}
+              />
+            ) : (
+              <EmptyState
+                variant="card"
+                title="No leave types configured yet."
+                action={{ label: "Create First Leave Type", onClick: openCreate }}
               />
             )}
           </TabsContent>

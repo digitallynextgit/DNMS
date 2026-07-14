@@ -1,5 +1,6 @@
 import "server-only"
 
+import { Prisma } from "@prisma/client"
 import { db } from "@/server/db"
 import { SYSTEM_ROLES } from "@/lib/constants"
 import { requireAnyRole } from "@/server/action-guard"
@@ -145,32 +146,80 @@ function entitlementFor(
   return fromPolicy !== undefined ? fromPolicy : type.maxDaysPerYear
 }
 
-/**
- * Seed/refresh an employee's balances for a year from the policy matrix.
- * Sets `allocated` (entitlement) and `accrued` (pro-rated by elapsed months).
- * Skips types with zero entitlement (unlimited / not granted).
- */
-export async function allocateFromPolicy(employeeId: string, year: number): Promise<number> {
-  const employee = await db.employee.findUnique({
-    where: { id: employeeId },
-    select: {
-      employmentType: true,
-      dateOfJoining: true,
-      confirmationDate: true,
-      probationMonths: true,
-      gender: true,
-    },
-  })
-  if (!employee) return 0
+// ─── Shared policy context ───────────────────────────────────────────────────
+// The leave-type table and the policy matrix are the SAME for every employee, so
+// a bulk run (resync / rollover) loads them ONCE and passes them down instead of
+// re-reading them per employee.
+type LeaveTypeRow = {
+  id: string
+  code: string
+  maxDaysPerYear: number
+  accrualMethod: string
+  isPaid: boolean
+}
 
+export type AccrualContext = {
+  types: LeaveTypeRow[]
+  /** employmentType → (leaveTypeId → daysPerYear) */
+  policyByEmploymentType: Map<string, Map<string, number>>
+}
+
+/** Load the leave types + full policy matrix once, for a bulk accrual run. */
+export async function loadAccrualContext(): Promise<AccrualContext> {
   const [types, policies] = await Promise.all([
     db.leaveType.findMany({
       where: { isActive: true },
       select: { id: true, code: true, maxDaysPerYear: true, accrualMethod: true, isPaid: true },
     }),
-    db.leavePolicy.findMany({ where: { employmentType: employee.employmentType } }),
+    db.leavePolicy.findMany({
+      select: { employmentType: true, leaveTypeId: true, daysPerYear: true },
+    }),
   ])
-  const policyMap = new Map(policies.map((p) => [p.leaveTypeId, p.daysPerYear]))
+  const policyByEmploymentType = new Map<string, Map<string, number>>()
+  for (const p of policies) {
+    let m = policyByEmploymentType.get(p.employmentType)
+    if (!m) {
+      m = new Map<string, number>()
+      policyByEmploymentType.set(p.employmentType, m)
+    }
+    m.set(p.leaveTypeId, p.daysPerYear)
+  }
+  return { types, policyByEmploymentType }
+}
+
+type EmployeePolicyInfo = EmployeeAccrualInfo & { gender: string | null }
+
+/**
+ * Seed/refresh an employee's balances for a year from the policy matrix.
+ * Sets `allocated` (entitlement) and `accrued` (pro-rated by elapsed months).
+ * Skips types with zero entitlement (unlimited / not granted).
+ *
+ * `opts` lets a bulk caller supply the already-loaded employee row and the
+ * shared leave-type/policy context so this does no per-employee lookup reads.
+ */
+export async function allocateFromPolicy(
+  employeeId: string,
+  year: number,
+  opts?: { employee?: EmployeePolicyInfo; ctx?: AccrualContext; skipUsedFloor?: boolean },
+): Promise<number> {
+  const employee =
+    opts?.employee ??
+    (await db.employee.findUnique({
+      where: { id: employeeId },
+      select: {
+        employmentType: true,
+        dateOfJoining: true,
+        confirmationDate: true,
+        probationMonths: true,
+        gender: true,
+      },
+    }))
+  if (!employee) return 0
+
+  const ctx = opts?.ctx ?? (await loadAccrualContext())
+  const types = ctx.types
+  const policyMap =
+    ctx.policyByEmploymentType.get(employee.employmentType) ?? new Map<string, number>()
 
   // No paid leave accrues until accrual begins (probation completed; contract
   // staff after 6 months). While accrual hasn't started, the employee is "on
@@ -179,6 +228,27 @@ export async function allocateFromPolicy(employeeId: string, year: number): Prom
   const onProbation = !!start && new Date() < start
   // Earned Leave unlocks only 6 months AFTER probation ends (policy G).
   const elStart = start ? addMonths(start, 6) : null
+
+  // Existing rows for this employee/year, read once so the writes below can be
+  // batched (was: an upsert or deleteMany PER leave type).
+  const existing = await db.leaveBalance.findMany({
+    where: { employeeId, year },
+    select: { id: true, leaveTypeId: true, allocated: true, accrued: true },
+  })
+  const existingByType = new Map(existing.map((b) => [b.leaveTypeId, b]))
+
+  const toDelete: string[] = []
+  const toCreate: {
+    employeeId: string
+    leaveTypeId: string
+    year: number
+    allocated: number
+    accrued: number
+    used: number
+    pending: number
+    carried: number
+  }[] = []
+  const toUpdate: { id: string; allocated: number; accrued: number }[] = []
 
   let count = 0
   for (const type of types) {
@@ -197,16 +267,13 @@ export async function allocateFromPolicy(employeeId: string, year: number): Prom
     if (allocated <= 0 || maternityBlocked || paidBlockedOnProbation) {
       // Not granted (0 entitlement / not yet eligible this year; maternity for a
       // non-female; any paid leave during probation) - remove any lingering row.
-      await db.leaveBalance.deleteMany({
-        where: { employeeId, leaveTypeId: type.id, year },
-      })
+      toDelete.push(type.id)
       continue
     }
     const accrued = accruedTarget(type.accrualMethod, allocated, eligibleMonths, monthsElapsed)
-    await db.leaveBalance.upsert({
-      where: { employeeId_leaveTypeId_year: { employeeId, leaveTypeId: type.id, year } },
-      update: { allocated, accrued },
-      create: {
+    const row = existingByType.get(type.id)
+    if (!row) {
+      toCreate.push({
         employeeId,
         leaveTypeId: type.id,
         year,
@@ -215,13 +282,43 @@ export async function allocateFromPolicy(employeeId: string, year: number): Prom
         used: 0,
         pending: 0,
         carried: 0,
-      },
-    })
+      })
+    } else if (row.allocated !== allocated || row.accrued !== accrued) {
+      // Same result as the old unconditional upsert-update, minus the no-op writes.
+      toUpdate.push({ id: row.id, allocated, accrued })
+    }
     count++
   }
-  // Never let accrued fall below what's already used.
-  await db.$executeRaw`UPDATE "leave_balances" SET "accrued" = "used" WHERE "employee_id" = ${employeeId} AND "year" = ${year} AND "accrued" < "used"`
+
+  const writes: Prisma.PrismaPromise<unknown>[] = []
+  if (toDelete.length > 0) {
+    writes.push(
+      db.leaveBalance.deleteMany({ where: { employeeId, year, leaveTypeId: { in: toDelete } } }),
+    )
+  }
+  if (toCreate.length > 0) writes.push(db.leaveBalance.createMany({ data: toCreate }))
+  for (const u of toUpdate) {
+    writes.push(
+      db.leaveBalance.update({
+        where: { id: u.id },
+        data: { allocated: u.allocated, accrued: u.accrued },
+      }),
+    )
+  }
+  if (writes.length > 0) await db.$transaction(writes)
+
+  // Never let accrued fall below what's already used. A bulk caller passes
+  // `skipUsedFloor` and runs the identical statement ONCE for all its employees.
+  if (!opts?.skipUsedFloor) {
+    await db.$executeRaw`UPDATE "leave_balances" SET "accrued" = "used" WHERE "employee_id" = ${employeeId} AND "year" = ${year} AND "accrued" < "used"`
+  }
   return count
+}
+
+/** The `accrued >= used` floor, applied to a whole batch of employees at once. */
+async function applyUsedFloor(employeeIds: string[], year: number): Promise<void> {
+  if (employeeIds.length === 0) return
+  await db.$executeRaw`UPDATE "leave_balances" SET "accrued" = "used" WHERE "year" = ${year} AND "accrued" < "used" AND "employee_id" IN (${Prisma.join(employeeIds)})`
 }
 
 /** Update only `accrued` from the current `allocated` (idempotent monthly job). */
@@ -295,10 +392,21 @@ export async function rolloverYear(
   toYear: number,
 ): Promise<{ employees: number; carried: number }> {
   const fromYear = toYear - 1
-  const employees = await db.employee.findMany({
-    where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] }, ...NOT_LEAVE_EXEMPT },
-    select: { id: true },
-  })
+  // Leave types + policy matrix are employee-independent - load them once.
+  const [employees, ctx] = await Promise.all([
+    db.employee.findMany({
+      where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] }, ...NOT_LEAVE_EXEMPT },
+      select: {
+        id: true,
+        employmentType: true,
+        dateOfJoining: true,
+        confirmationDate: true,
+        probationMonths: true,
+        gender: true,
+      },
+    }),
+    loadAccrualContext(),
+  ])
 
   let carriedCount = 0
   for (const e of employees) {
@@ -306,7 +414,7 @@ export async function rolloverYear(
       where: { employeeId: e.id, year: fromYear },
       include: { leaveType: { select: { id: true, carryForward: true, maxCarryDays: true } } },
     })
-    await allocateFromPolicy(e.id, toYear)
+    await allocateFromPolicy(e.id, toYear, { employee: e, ctx })
     for (const b of prev) {
       if (!b.leaveType.carryForward) continue
       const leftover = Math.max(0, b.accrued + b.carried - b.used)
@@ -328,12 +436,35 @@ export async function resyncLeaveBalances(year?: number): Promise<ActionResult<u
   return runAction(async () => {
     const session = await requireAnyRole([SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN])
     const resolvedYear = year ?? new Date().getFullYear()
-    const employees = await db.employee.findMany({
-      where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] }, ...NOT_LEAVE_EXEMPT },
-      select: { id: true },
-    })
+    // Employees + the (employee-independent) leave types & policy matrix are read
+    // ONCE; allocateFromPolicy then does zero lookup queries per employee.
+    const [employees, ctx] = await Promise.all([
+      db.employee.findMany({
+        where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] }, ...NOT_LEAVE_EXEMPT },
+        select: {
+          id: true,
+          employmentType: true,
+          dateOfJoining: true,
+          confirmationDate: true,
+          probationMonths: true,
+          gender: true,
+        },
+      }),
+      loadAccrualContext(),
+    ])
     let balances = 0
-    for (const e of employees) balances += await allocateFromPolicy(e.id, resolvedYear)
+    for (const e of employees) {
+      balances += await allocateFromPolicy(e.id, resolvedYear, {
+        employee: e,
+        ctx,
+        skipUsedFloor: true,
+      })
+    }
+    // One `accrued >= used` floor pass for every employee we just touched.
+    await applyUsedFloor(
+      employees.map((e) => e.id),
+      resolvedYear,
+    )
 
     await createAuditLog(session, {
       action: "RESYNC",

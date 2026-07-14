@@ -183,7 +183,7 @@ function ModuleCardItem({ card, onRead }: { card: ModuleCard; onRead: () => void
     <Card className="flex flex-col transition-shadow hover:shadow-md">
       <CardContent className="flex flex-1 flex-col gap-4 p-6">
         {/* Icon */}
-        <div className="bg-primary/10 flex h-11 w-11 items-center justify-center rounded-lg">
+        <div className="bg-primary/10 flex h-11 w-11 items-center justify-center rounded">
           <Icon className="text-primary h-5 w-5" />
         </div>
 

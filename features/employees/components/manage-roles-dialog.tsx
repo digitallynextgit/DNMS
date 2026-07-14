@@ -99,7 +99,7 @@ export function ManageRolesDialog({
               <label
                 key={role.id}
                 htmlFor={`role-${role.id}`}
-                className="hover:bg-muted/50 flex cursor-pointer items-start gap-3 rounded-lg p-2"
+                className="hover:bg-muted/50 flex cursor-pointer items-start gap-3 rounded p-2"
               >
                 <Checkbox
                   id={`role-${role.id}`}

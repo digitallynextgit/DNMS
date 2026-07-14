@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
-import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { SalaryStructureForm } from "@/features/payroll"
 import {
@@ -187,24 +186,18 @@ export default function SalaryStructuresPage() {
         }
       />
 
-      {isLoading ? (
-        <TableSkeleton rows={5} cols={7} />
-      ) : structures.length === 0 ? (
-        <EmptyState
-          title="No salary structures configured yet."
-          action={
-            can(PERMISSIONS.PAYROLL_WRITE)
-              ? { label: "Add First Structure", onClick: handleAdd }
-              : undefined
-          }
-        />
-      ) : (
+      {/* The table renders from the first paint: while `isLoading` it draws
+          skeleton rows inside its own real <thead>, derived from `columns`, so
+          the placeholder always has the right column count and alignment. */}
+      {isLoading || structures.length > 0 ? (
         <DataTable
           columns={columns}
           rows={pagedStructures}
           rowKey={(structure) => structure.id}
           showSerial
           serialOffset={(page - 1) * PAGE_SIZE}
+          loading={isLoading}
+          skeletonRows={PAGE_SIZE}
           pagination={{
             page,
             totalPages,
@@ -212,6 +205,15 @@ export default function SalaryStructuresPage() {
             onPageChange: setPage,
             itemLabel: "structure",
           }}
+        />
+      ) : (
+        <EmptyState
+          title="No salary structures configured yet."
+          action={
+            can(PERMISSIONS.PAYROLL_WRITE)
+              ? { label: "Add First Structure", onClick: handleAdd }
+              : undefined
+          }
         />
       )}
 

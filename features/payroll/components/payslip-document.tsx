@@ -1,5 +1,6 @@
 "use client"
 
+import { Skeleton } from "@/components/ui/skeleton"
 import { MONTHS } from "@/lib/constants"
 import { totalMonthlyEarnings } from "@/features/payroll/payroll"
 import type { PayrollRecord } from "@/features/payroll/hooks/use-payroll"
@@ -101,6 +102,63 @@ function fmtDate(iso: string | null): string {
   const mon = d.toLocaleString("en-GB", { month: "short" })
   const yy = String(d.getFullYear()).slice(-2)
   return `${dd}-${mon}-${yy}`
+}
+
+/**
+ * Placeholder shaped like the real salary slip above - same bordered A4 sheet,
+ * letterhead + title, the employee detail grid, the earnings table and the
+ * net-pay strip. Lets the payslip pages paint their shell (back link, title,
+ * actions) immediately instead of blanking the whole screen while loading.
+ */
+export function PayslipSkeleton() {
+  return (
+    <div className="mx-auto max-w-3xl">
+      <div className="space-y-4 rounded border border-neutral-300 px-6 py-5 dark:border-neutral-700">
+        {/* Letterhead */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1.5">
+            <Skeleton className="h-4 w-56" />
+            <Skeleton className="h-3 w-40" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+          <Skeleton className="h-16 w-16" />
+        </div>
+
+        {/* "Salary Slip - Month Year" */}
+        <div className="flex justify-center border-t pt-3">
+          <Skeleton className="h-4 w-48" />
+        </div>
+
+        {/* Employee detail grid */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Skeleton className="h-3.5 w-24" />
+              <Skeleton className="h-3.5 flex-1" />
+            </div>
+          ))}
+        </div>
+
+        {/* Earnings / deductions table */}
+        <div className="space-y-1.5">
+          <Skeleton className="h-6 w-full" />
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="flex gap-1.5">
+              <Skeleton className="h-6 flex-1" />
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-6 w-24" />
+            </div>
+          ))}
+        </div>
+
+        {/* Net pay + amount in words */}
+        <div className="space-y-2 border-t pt-3">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-3.5 w-72" />
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function PayslipDocument({ record }: { record: PayrollRecord }) {

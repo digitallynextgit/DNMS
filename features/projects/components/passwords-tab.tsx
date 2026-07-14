@@ -164,7 +164,7 @@ function PasswordRow({
     <Card>
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <div className="bg-primary/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+          <div className="bg-primary/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded">
             <KeyRound className="text-primary h-4 w-4" />
           </div>
 
@@ -192,7 +192,7 @@ function PasswordRow({
             )}
 
             <div className="mt-2 flex items-center gap-2">
-              <code className="bg-muted inline-block min-w-24 rounded-lg px-2 py-0.5 font-mono text-xs">
+              <code className="bg-muted inline-block min-w-24 rounded px-2 py-0.5 font-mono text-xs">
                 {showing && revealedPw ? revealedPw : "••••••••••"}
               </code>
               <Button

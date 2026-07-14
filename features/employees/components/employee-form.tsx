@@ -1023,7 +1023,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
           <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             {/* Probation (admin only) - kept at the top of the step. */}
             {isProbationAdmin && (
-              <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
+              <div className="border-border bg-muted/30 space-y-3 rounded border p-4 sm:col-span-2">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <Label className="text-sm font-medium">On Probation</Label>
@@ -1061,7 +1061,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     </FormField>
 
                     <FormField label="Probation Ends">
-                      <div className="border-input bg-background text-muted-foreground flex h-10 items-center rounded-lg border px-3 text-sm">
+                      <div className="border-input bg-background text-muted-foreground flex h-10 items-center rounded border px-3 text-sm">
                         {probationHint}
                       </div>
                     </FormField>
@@ -1098,7 +1098,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                         employeeCodes.map((e) => (
                           <div
                             key={e.id}
-                            className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm"
+                            className="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm"
                           >
                             <span className="truncate">
                               {e.firstName} {e.lastName}
@@ -1261,7 +1261,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             {/* Login password (create only). Auto-filled with a generated value; HR
                 can edit it or regenerate. It is emailed to the employee either way. */}
             {mode === "create" && (
-              <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
+              <div className="border-border bg-muted/30 space-y-3 rounded border p-4 sm:col-span-2">
                 <FormField label="Login Password" required error={errors.password?.message}>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
@@ -1325,7 +1325,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
 
             {/* Gmail App Password - encrypted at rest, used to send emails as this
                 employee. HR toggles whether to add one now or skip it. */}
-            <div className="border-border bg-muted/30 space-y-3 rounded-lg border p-4 sm:col-span-2">
+            <div className="border-border bg-muted/30 space-y-3 rounded border p-4 sm:col-span-2">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <Label className="text-sm font-medium">Gmail App Password</Label>
@@ -1407,10 +1407,10 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                 {existingDocs.map((doc) => (
                   <div
                     key={doc.id}
-                    className="bg-muted/30 hover:bg-muted/50 flex items-center justify-between rounded-lg border px-4 py-3 transition-colors"
+                    className="bg-muted/30 hover:bg-muted/50 flex items-center justify-between rounded border px-4 py-3 transition-colors"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="bg-background flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
+                      <div className="bg-background flex h-9 w-9 shrink-0 items-center justify-center rounded border">
                         <FileText className="text-muted-foreground h-4 w-4" />
                       </div>
                       <div className="min-w-0">
@@ -1464,7 +1464,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               {pendingDocs.length === 0 ? (
                 <label
                   htmlFor="emp-doc-input"
-                  className="border-border hover:border-foreground/40 hover:bg-muted/30 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed py-12 transition-colors"
+                  className="border-border hover:border-foreground/40 hover:bg-muted/30 flex cursor-pointer flex-col items-center justify-center rounded border border-dashed py-12 transition-colors"
                 >
                   <Upload className="text-muted-foreground mb-3 h-6 w-6" />
                   <span className="text-sm font-medium">Click to add documents</span>
@@ -1475,11 +1475,11 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               ) : (
                 <div className="space-y-3">
                   {pendingDocs.map((doc) => (
-                    <div key={doc.uid} className="bg-muted/20 space-y-4 rounded-lg border p-4">
+                    <div key={doc.uid} className="bg-muted/20 space-y-4 rounded border p-4">
                       {/* Filename header - prominent so it's clear which doc you're editing */}
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
-                          <div className="bg-background flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
+                          <div className="bg-background flex h-9 w-9 shrink-0 items-center justify-center rounded border">
                             <FileText className="text-muted-foreground h-4 w-4" />
                           </div>
                           <div className="min-w-0">

@@ -38,6 +38,13 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
 
+  /* Tailwind's BARE `rounded` utility is hardcoded to 0.25rem (4px) unless the
+     border-radius namespace default is set here. Without this line, `rounded` (4px)
+     and `rounded-lg` (5px) are different - and an editor "canonical class" auto-fix
+     that rewrites rounded-lg -> rounded silently reverts the whole app's radius.
+     Defining the default makes BOTH spellings resolve to --radius, so the radius
+     cannot drift no matter which one is written. */
+  --radius: 5px;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -417,5 +424,15 @@
   .animate-dnms-float,
   .animate-dnms-fade-up {
     animation: none;
+  }
+}
+
+/* Indeterminate <Progress> bar: slides while the total is still unknown. */
+@keyframes progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
   }
 }

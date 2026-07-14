@@ -103,7 +103,7 @@ export function FormDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           className={cn(
-            "flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-lg p-0",
+            "flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded p-0",
             SIZES[size],
             contentClassName,
           )}
@@ -125,7 +125,7 @@ export function FormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("rounded-lg", SIZES[size], contentClassName)}>
+      <DialogContent className={cn("rounded", SIZES[size], contentClassName)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

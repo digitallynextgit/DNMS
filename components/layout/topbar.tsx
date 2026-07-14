@@ -66,7 +66,7 @@ export function Topbar({ session }: { session: Session }) {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">
               {isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              <span className="border-border/60 text-muted-foreground ml-1.5 rounded-lg border px-1 py-px text-[10px]">
+              <span className="border-border/60 text-muted-foreground ml-1.5 rounded border px-1 py-px text-[10px]">
                 Ctrl B
               </span>
             </TooltipContent>
@@ -99,7 +99,7 @@ export function Topbar({ session }: { session: Session }) {
         {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="hover:bg-accent focus-visible:ring-ring flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none">
+            <button className="hover:bg-accent focus-visible:ring-ring flex items-center gap-2 rounded px-2 py-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none">
               <AvatarDisplay
                 src={profilePhoto}
                 firstName={firstName}

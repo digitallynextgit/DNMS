@@ -12,7 +12,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -137,14 +136,14 @@ export default function MyWfhPage() {
   const myWfh = (
     <>
       {eligLoading ? (
-        <Skeleton className="h-24 rounded-lg" />
+        <Skeleton className="h-24 rounded" />
       ) : eligibility ? (
         <Card>
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
               <div
                 className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded",
                   eligibility.tier === 3
                     ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                     : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
@@ -202,11 +201,10 @@ export default function MyWfhPage() {
           </Button>
         </BulkActionBar>
 
-        {reqLoading ? (
-          <ListSkeleton rows={3} height="h-14" />
-        ) : requests.length === 0 ? (
-          <EmptyState icon={Inbox} title="No WFH requests yet." variant="card" />
-        ) : (
+        {/* The table renders from the first paint: while `reqLoading` it draws
+            skeleton rows inside its own real <thead>, so the header, column
+            count and S.No column never move when the requests land. */}
+        {reqLoading || requests.length > 0 ? (
           <DataTable
             columns={columns}
             rows={requests}
@@ -215,7 +213,11 @@ export default function MyWfhPage() {
             showSerial
             serialOffset={((pagination?.page ?? 1) - 1) * 10}
             selection={selection}
+            loading={reqLoading}
+            skeletonRows={5}
           />
+        ) : (
+          <EmptyState icon={Inbox} title="No WFH requests yet." variant="card" />
         )}
 
         {pagination && (

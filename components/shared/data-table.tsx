@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/shared/pagination"
 import { cn } from "@/lib/utils"
 
@@ -40,6 +41,16 @@ interface DataTableProps<T> {
   serialOffset?: number
   /** Enable multi-select checkboxes (header select-all + per-row). */
   selection?: DataTableSelection
+  /**
+   * Renders skeleton rows INSIDE the real table (real headers, real column count,
+   * real alignment, real S.No/checkbox columns) instead of the caller guessing
+   * `<TableSkeleton rows={5} cols={5} />`. The placeholder therefore always matches
+   * the table it is standing in for - it is derived from `columns`, so it can never
+   * drift when a column is added or removed.
+   */
+  loading?: boolean
+  /** How many skeleton rows to draw while `loading` (default 8). */
+  skeletonRows?: number
   /** Optional pagination bar rendered directly below the table. Pair `serialOffset`
    *  with `(page - 1) * pageSize` so the S.No stays continuous across pages. */
   pagination?: {
@@ -58,6 +69,19 @@ interface DataTableProps<T> {
  * (`showSerial`) and **multi-select** checkboxes (`selection`, paired with
  * `useRowSelection` + `BulkActionBar`).
  */
+/**
+ * Skeleton bar width per column. The first column is usually the "identity" cell
+ * (name/avatar) so it gets the widest bar; trailing columns are usually short
+ * (status pill, actions) so they get narrow ones. Keeps the placeholder visually
+ * proportional to real content instead of every bar being the same length.
+ */
+function skeletonWidth(index: number, total: number): string {
+  if (index === 0) return "w-40"
+  if (index === total - 1) return "w-12"
+  if (index === total - 2) return "w-16"
+  return "w-24"
+}
+
 export function DataTable<T>({
   columns,
   rows,
@@ -68,13 +92,17 @@ export function DataTable<T>({
   showSerial,
   serialOffset = 0,
   selection,
+  loading = false,
+  skeletonRows = 8,
   pagination,
 }: DataTableProps<T>) {
   const alignClass = (align?: DataTableColumn<T>["align"]) =>
     align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
+  const justifyClass = (align?: DataTableColumn<T>["align"]) =>
+    align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"
 
   const table = (
-    <div className={cn("bg-card rounded-lg border", className)}>
+    <div className={cn("bg-card rounded border", className)}>
       <div className={cn(minWidth && "overflow-x-auto")}>
         <table className={cn("w-full text-sm", minWidth)}>
           <thead>
@@ -112,41 +140,65 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody className="divide-y">
-            {rows.map((row, rowIndex) => {
-              const key = rowKey(row)
-              const selected = selection?.isSelected(key) ?? false
-              return (
-                <tr
-                  key={key}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={cn(
-                    "hover:bg-muted/20 transition-colors",
-                    onRowClick && "cursor-pointer",
-                    selected && "bg-muted/30",
-                  )}
-                >
-                  {selection && (
-                    <td className="w-10 px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={selected}
-                        onCheckedChange={() => selection.toggle(key)}
-                        aria-label="Select row"
-                      />
-                    </td>
-                  )}
-                  {showSerial && (
-                    <td className="text-muted-foreground px-4 py-3 tabular-nums">
-                      {serialOffset + rowIndex + 1}
-                    </td>
-                  )}
-                  {columns.map((col, i) => (
-                    <td key={i} className={cn("px-4 py-3", alignClass(col.align), col.className)}>
-                      {col.cell(row, rowIndex)}
-                    </td>
-                  ))}
-                </tr>
-              )
-            })}
+            {loading
+              ? Array.from({ length: skeletonRows }).map((_, rowIndex) => (
+                  <tr key={`sk-${rowIndex}`}>
+                    {selection && (
+                      <td className="w-10 px-4 py-3">
+                        <Skeleton className="h-4 w-4 rounded" />
+                      </td>
+                    )}
+                    {showSerial && (
+                      <td className="px-4 py-3">
+                        <Skeleton className="h-4 w-4" />
+                      </td>
+                    )}
+                    {columns.map((col, i) => (
+                      <td key={i} className={cn("px-4 py-3", alignClass(col.align))}>
+                        <div className={cn("flex", justifyClass(col.align))}>
+                          <Skeleton className={cn("h-4", skeletonWidth(i, columns.length))} />
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              : null}
+            {!loading &&
+              rows.map((row, rowIndex) => {
+                const key = rowKey(row)
+                const selected = selection?.isSelected(key) ?? false
+                return (
+                  <tr
+                    key={key}
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    className={cn(
+                      "hover:bg-muted/20 transition-colors",
+                      onRowClick && "cursor-pointer",
+                      selected && "bg-muted/30",
+                    )}
+                  >
+                    {selection && (
+                      <td className="w-10 px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selected}
+                          onCheckedChange={() => selection.toggle(key)}
+                          aria-label="Select row"
+                        />
+                      </td>
+                    )}
+                    {showSerial && (
+                      <td className="text-muted-foreground px-4 py-3 tabular-nums">
+                        {serialOffset + rowIndex + 1}
+                      </td>
+                    )}
+                    {columns.map((col, i) => (
+                      <td key={i} className={cn("px-4 py-3", alignClass(col.align), col.className)}>
+                        {col.cell(row, rowIndex)}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
           </tbody>
         </table>
       </div>
@@ -158,7 +210,7 @@ export function DataTable<T>({
   return (
     <div className="space-y-4">
       {table}
-      {pagination.total > 0 && (
+      {!loading && pagination.total > 0 && (
         <Pagination
           page={pagination.page}
           totalPages={pagination.totalPages}
