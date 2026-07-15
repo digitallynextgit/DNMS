@@ -8,6 +8,7 @@ import {
   Trash2,
   Upload,
   Download,
+  Eye,
   FileText,
   Target,
   Megaphone,
@@ -624,35 +625,56 @@ function AssetRow({
   return (
     <div className="mt-4 space-y-1.5 border-t pt-3">
       <Label className="text-muted-foreground text-[11px]">{label}</Label>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="space-y-1.5">
         {files.map((f) => (
-          <span
+          <div
             key={f.id}
-            className="bg-muted/40 group flex items-center gap-2 rounded border px-2.5 py-1.5 text-xs"
+            className="bg-muted/40 flex items-center gap-2 rounded border px-2.5 py-1.5 text-xs"
           >
-            <Icon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-            <a
-              href={f.url}
-              target="_blank"
-              rel="noreferrer"
-              className="max-w-44 truncate font-medium hover:underline"
-            >
+            <Icon className="text-muted-foreground h-4 w-4 shrink-0" />
+            {/* Full file name - breaks across lines instead of truncating. */}
+            <span className="min-w-0 flex-1 font-medium break-all" title={f.fileName}>
               {f.fileName}
-            </a>
-            <a href={f.url} target="_blank" rel="noreferrer" title="Download">
-              <Download className="text-muted-foreground hover:text-foreground h-3.5 w-3.5" />
-            </a>
-            {canManage && (
-              <button
-                className="text-muted-foreground hover:text-destructive opacity-0 transition-opacity group-hover:opacity-100"
-                onClick={() => onDelete(f.id)}
-                title="Remove"
+            </span>
+            <div className="flex shrink-0 items-center gap-0.5">
+              {/* View: opens inline in a new tab. */}
+              <a
+                href={f.url}
+                target="_blank"
+                rel="noreferrer"
+                title="View"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-7 w-7 items-center justify-center rounded"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </span>
+                <Eye className="h-3.5 w-3.5" />
+              </a>
+              {/* Download: saves the file under its real name (signed URL carries a
+                  content-disposition header, so it downloads even cross-origin). */}
+              <a
+                href={f.downloadUrl ?? f.url}
+                download={f.fileName}
+                title="Download"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-7 w-7 items-center justify-center rounded"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </a>
+              {/* Delete: always visible (was hidden until hover). Gated on canManage,
+                  which is admin OR the project's account manager - see the project page. */}
+              {canManage && (
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex h-7 w-7 items-center justify-center rounded"
+                  onClick={() => onDelete(f.id)}
+                  title="Delete"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
         ))}
+        {files.length === 0 && !canManage && (
+          <span className="text-muted-foreground text-xs">No files.</span>
+        )}
         {canManage && (
           <>
             <input
@@ -669,7 +691,7 @@ function AssetRow({
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-1.5 border-dashed"
+              className="h-8 w-full gap-1.5 border-dashed"
               disabled={uploading}
               onClick={() => inputRef.current?.click()}
             >
@@ -677,9 +699,6 @@ function AssetRow({
               Upload file
             </Button>
           </>
-        )}
-        {files.length === 0 && !canManage && (
-          <span className="text-muted-foreground text-xs">No files.</span>
         )}
       </div>
     </div>

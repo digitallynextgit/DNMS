@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withSession } from "@/server/api-handler"
+import { withProjectAccess, withProjectManager } from "@/features/projects/server/project-access"
 import { createNotification } from "@/lib/notifications"
 import type { Session } from "next-auth"
 
-export const GET = withSession(
+export const GET = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { searchParams } = req.nextUrl
@@ -32,7 +32,7 @@ export const GET = withSession(
   },
 )
 
-export const POST = withSession(
+export const POST = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const body = await req.json()

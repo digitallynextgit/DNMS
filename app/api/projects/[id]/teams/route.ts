@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withAuth, withSession } from "@/server/api-handler"
-import { withProjectManager } from "@/features/projects/server/project-access"
+import { withAuth } from "@/server/api-handler"
+import { withProjectManager, withProjectAccess } from "@/features/projects/server/project-access"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
@@ -9,7 +9,7 @@ import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
 // GET /api/projects/[id]/teams - list teams in a project
-export const GET = withSession(
+export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId } = ctx.params

@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withSession, withAuth } from "@/server/api-handler"
+import { withAuth } from "@/server/api-handler"
+import { withProjectAccess } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
 // PATCH /api/projects/[id]/messages/[messageId]
-export const PATCH = withSession(
-  async (
-    req: NextRequest,
-    ctx: { params: Promise<{ id: string; messageId: string }> },
-    session: Session,
-  ) => {
+export const PATCH = withProjectAccess(
+  async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { messageId } = await ctx.params
       const msg = await db.projectMessage.findUnique({
@@ -42,12 +39,8 @@ export const PATCH = withSession(
 )
 
 // DELETE /api/projects/[id]/messages/[messageId]
-export const DELETE = withSession(
-  async (
-    _req: NextRequest,
-    ctx: { params: Promise<{ id: string; messageId: string }> },
-    session: Session,
-  ) => {
+export const DELETE = withProjectAccess(
+  async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { messageId } = await ctx.params
       const msg = await db.projectMessage.findUnique({

@@ -62,7 +62,8 @@ export interface BrandAsset {
   fileName: string
   fileSize: number
   mimeType: string
-  url: string // signed download URL
+  url: string // signed URL that opens inline (View)
+  downloadUrl?: string // signed URL with content-disposition attachment (Download)
   createdAt: string
 }
 

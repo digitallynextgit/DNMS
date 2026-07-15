@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withSession } from "@/server/api-handler"
+import { withProjectAccess } from "@/features/projects/server/project-access"
 import { logActivity } from "@/features/projects/server/activity"
 import type { Session } from "next-auth"
 
@@ -13,8 +13,8 @@ const AUTHOR_SELECT = {
 }
 
 // GET /api/projects/[id]/messages
-export const GET = withSession(
-  async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }, _session: Session) => {
+export const GET = withProjectAccess(
+  async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId } = await ctx.params
       const messages = await db.projectMessage.findMany({
@@ -31,8 +31,8 @@ export const GET = withSession(
 )
 
 // POST /api/projects/[id]/messages
-export const POST = withSession(
-  async (req: NextRequest, ctx: { params: Promise<{ id: string }> }, session: Session) => {
+export const POST = withProjectAccess(
+  async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId } = await ctx.params
       const project = await db.project.findUnique({

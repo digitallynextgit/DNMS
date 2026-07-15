@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { canManageProject } from "@/features/projects/server/project-access"
+import { canManageProject, withProjectAccess } from "@/features/projects/server/project-access"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
@@ -9,7 +9,7 @@ import { getSignedUrl, deleteFile } from "@/lib/storage"
 import type { Session } from "next-auth"
 
 // GET /api/projects/[id]/resources/[fileId] - returns metadata + signed download URL
-export const GET = withSession(
+export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId, fileId } = ctx.params

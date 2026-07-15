@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties } from "react"
 import { ChevronDown, ChevronRight, Users, Minus, Plus, Maximize2 } from "lucide-react"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -74,8 +74,10 @@ function TreeNode({ node, depth = 0 }: { node: OrgNode; depth?: number }) {
       {/* Children */}
       {hasChildren && expanded && (
         <div className="flex flex-col items-center">
-          {/* Vertical line from parent down */}
-          <div className="bg-border h-6 w-px" />
+          {/* Vertical line from parent down. Same line as before - `org-conn-v` only
+              adds a pulse travelling along it (see globals.css); it does not change
+              the geometry. */}
+          <div className="org-conn org-conn-v relative h-6 w-0.5" />
 
           {node.children.length === 1 ? (
             /* Single child: straight line */
@@ -87,18 +89,33 @@ function TreeNode({ node, depth = 0 }: { node: OrgNode; depth?: number }) {
               {node.children.map((child, i) => {
                 const isFirst = i === 0
                 const isLast = i === node.children.length - 1
+                // Stagger sibling pulses (and offset by depth) so the whole tree
+                // doesn't flash in unison.
+                const delay = {
+                  "--org-delay": `${(i * 220 + depth * 120) % 1600}ms`,
+                } as CSSProperties
                 return (
                   <div key={child.id} className="relative flex flex-col items-center px-2 pt-6">
                     {/* Horizontal rail: only the right half for the first child and
-                        the left half for the last, so it spans centre-to-centre. */}
+                        the left half for the last, so it spans centre-to-centre.
+                        The pulse travels OUTWARD from the parent's centre to the
+                        child, so the first child runs reversed. */}
                     <div
                       className={cn(
-                        "bg-border absolute top-0 h-px",
-                        isFirst ? "right-0 left-1/2" : isLast ? "right-1/2 left-0" : "inset-x-0",
+                        "org-conn org-conn-h absolute top-0 h-0.5",
+                        isFirst
+                          ? "org-conn-h-rev right-0 left-1/2"
+                          : isLast
+                            ? "right-1/2 left-0"
+                            : "inset-x-0",
                       )}
+                      style={delay}
                     />
                     {/* Vertical drop into this child (at the card's centre). */}
-                    <div className="bg-border absolute top-0 left-1/2 h-6 w-px -translate-x-1/2" />
+                    <div
+                      className="org-conn org-conn-v absolute top-0 left-1/2 h-6 w-0.5 -translate-x-1/2"
+                      style={delay}
+                    />
                     <TreeNode node={child} depth={depth + 1} />
                   </div>
                 )

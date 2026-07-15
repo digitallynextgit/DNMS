@@ -131,7 +131,9 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   [/^\/analytics(\/|$)/, "analytics:read"],
 
   // --- Projects ----------------------------------------------------------
-  [/^\/projects(\/|$)/, "project:read"],
+  // /projects is reachable by any authenticated user: the list is scoped to the
+  // caller (own + member projects) and each project API read enforces access, so
+  // an account manager who is a plain employee can reach THEIR projects.
 
   // --- Per-employee documents (HR view of another employee's documents) --
   [/^\/documents\/employee(\/|$)/, "employee:read"],
@@ -142,7 +144,11 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   [/^\/admin\/audit-log(\/|$)/, "audit:read"],
   [/^\/admin\/email-templates(\/|$)/, "email_template:read"],
   [/^\/admin\/project-settings(\/|$)/, "project:write"],
-  [/^\/admin(\/|$)/, ["role:read", "audit:read", "email_template:read", "project:write"]],
+  [/^\/admin\/storage(\/|$)/, "settings:write"],
+  [
+    /^\/admin(\/|$)/,
+    ["role:read", "audit:read", "email_template:read", "project:write", "settings:write"],
+  ],
 ]
 
 // First matching rule wins. `undefined` => no rule => open to any signed-in user.

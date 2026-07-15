@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withSession } from "@/server/api-handler"
+import { withProjectAccess, withProjectManager } from "@/features/projects/server/project-access"
 import { encrypt } from "@/lib/crypto"
 import type { Session } from "next-auth"
 
@@ -13,8 +13,8 @@ const CREATOR_SELECT = {
 
 // GET /api/projects/[id]/passwords
 // Returns entries WITHOUT the decrypted password (use single-entry GET for reveal)
-export const GET = withSession(
-  async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }, _session: Session) => {
+export const GET = withProjectAccess(
+  async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId } = await ctx.params
       const entries = await db.projectPasswordEntry.findMany({
@@ -41,8 +41,8 @@ export const GET = withSession(
 )
 
 // POST /api/projects/[id]/passwords
-export const POST = withSession(
-  async (req: NextRequest, ctx: { params: Promise<{ id: string }> }, session: Session) => {
+export const POST = withProjectManager(
+  async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId } = await ctx.params
       const project = await db.project.findUnique({

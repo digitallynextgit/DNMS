@@ -18,15 +18,24 @@ export const GET = withAuth(
         db.brandAsset.findMany({ where: { projectId }, orderBy: { createdAt: "desc" } }),
       ])
       const withUrls = await Promise.all(
-        assets.map(async (a) => ({
-          id: a.id,
-          kind: a.kind,
-          fileName: a.fileName,
-          fileSize: a.fileSize,
-          mimeType: a.mimeType,
-          url: await getSignedUrl(a.objectKey, 3600).catch(() => ""),
-          createdAt: a.createdAt.toISOString(),
-        })),
+        assets.map(async (a) => {
+          const [url, downloadUrl] = await Promise.all([
+            // `url` opens inline (View); `downloadUrl` carries a content-disposition
+            // header so the browser saves it under its real name (Download).
+            getSignedUrl(a.objectKey, 3600).catch(() => ""),
+            getSignedUrl(a.objectKey, 3600, { downloadFileName: a.fileName }).catch(() => ""),
+          ])
+          return {
+            id: a.id,
+            kind: a.kind,
+            fileName: a.fileName,
+            fileSize: a.fileSize,
+            mimeType: a.mimeType,
+            url,
+            downloadUrl,
+            createdAt: a.createdAt.toISOString(),
+          }
+        }),
       )
       return NextResponse.json({
         data: {

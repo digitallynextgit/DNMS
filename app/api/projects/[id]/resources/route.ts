@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { canManageProject } from "@/features/projects/server/project-access"
+import { canManageProject, withProjectAccess } from "@/features/projects/server/project-access"
 import { randomUUID } from "node:crypto"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
@@ -33,7 +33,7 @@ function fileExtension(name: string): string {
 }
 
 // GET /api/projects/[id]/resources - list resources (filterable)
-export const GET = withSession(
+export const GET = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId } = ctx.params

@@ -121,7 +121,9 @@ export default function ProjectDetailPage() {
             {project.code}
           </span>
         }
-        description={project.description ?? undefined}
+        /* The description is NOT passed here: PageHeader's subtitle truncates to one
+           line, but a project description is a full paragraph, so it is rendered in
+           full below the header instead. */
         /* Status + priority are sized to match the Edit button: same height,
            same corner radius, so the row reads as one control group. */
         actions={
@@ -147,6 +149,12 @@ export default function ProjectDetailPage() {
           </>
         }
       />
+
+      {project.description && (
+        <p className="text-muted-foreground -mt-4 max-w-4xl text-sm leading-relaxed whitespace-pre-line">
+          {project.description}
+        </p>
+      )}
 
       <Tabs defaultValue="overview">
         <div className="flex flex-wrap items-center justify-between gap-3">

@@ -436,3 +436,96 @@
     transform: translateX(400%);
   }
 }
+
+/* ─── Org chart connectors ─────────────────────────────────────────────────────
+   The LINE is steady: a solid, clearly-visible rule that never moves. The only
+   thing that animates is a single bright highlight that RUNS ALONG it, entering
+   at one end and leaving at the other, then looping.
+
+   (An earlier version scrolled a repeating gradient over the whole line, which
+   made the line itself look like it was shimmering. One travelling highlight over
+   a static line is what reads as "flow".)
+
+   The highlight is moved with `transform` only - GPU-composited, so it costs
+   nothing on the main thread and cannot disturb layout.
+
+   Must live in @layer components: as plain trailing CSS its `position: relative`
+   would beat Tailwind's `absolute` on the rails and collapse them out of place.  */
+@layer components {
+  .org-conn {
+    position: relative; /* only bites on lines with no position utility */
+    overflow: hidden; /* the highlight is clipped to its own line */
+    border-radius: 9999px;
+    /* The steady line. Bright enough to read on its own, and theme-aware. */
+    background-color: hsl(var(--primary) / 0.4);
+  }
+  .org-conn::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    border-radius: 9999px;
+    /* The travelling highlight: full-strength primary with a glow so it reads as
+       light moving along the wire, not just a lighter patch of it. */
+    box-shadow: 0 0 8px 1px hsl(var(--primary) / 0.7);
+    animation-duration: 1.8s;
+    animation-timing-function: linear; /* constant speed = flow, not a pulse */
+    animation-iteration-count: infinite;
+    /* Staggered per child from the component so siblings don't run in lockstep. */
+    animation-delay: var(--org-delay, 0ms);
+  }
+
+  /* Vertical: highlight runs DOWN the line, manager -> report.
+     50% tall, so -100% starts it fully above the line and 200% carries it fully
+     past the bottom - a true end-to-end run. */
+  .org-conn-v::after {
+    inset-inline: 0;
+    height: 50%;
+    background: linear-gradient(to bottom, transparent, hsl(var(--primary)), transparent);
+    animation-name: org-run-down;
+  }
+
+  /* Horizontal rail: highlight runs OUTWARD from the parent's centre toward the
+     child it feeds - so the first child (left of centre) runs the other way. */
+  .org-conn-h::after {
+    inset-block: 0;
+    width: 40%;
+    background: linear-gradient(to right, transparent, hsl(var(--primary)), transparent);
+    animation-name: org-run-right;
+  }
+  .org-conn-h-rev::after {
+    animation-name: org-run-left;
+  }
+}
+
+@keyframes org-run-down {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(200%);
+  }
+}
+@keyframes org-run-right {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@keyframes org-run-left {
+  from {
+    transform: translateX(250%);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+/* Motion here is decorative - hold the steady line, drop the highlight. */
+@media (prefers-reduced-motion: reduce) {
+  .org-conn::after {
+    animation: none;
+    opacity: 0;
+  }
+}

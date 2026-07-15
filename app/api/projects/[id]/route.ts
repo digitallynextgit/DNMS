@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withAuth, withSession } from "@/server/api-handler"
-import { withProjectManager } from "@/features/projects/server/project-access"
+import { withAuth } from "@/server/api-handler"
+import { withProjectManager, withProjectAccess } from "@/features/projects/server/project-access"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-export const GET = withSession(
+export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const project = await db.project.findUnique({

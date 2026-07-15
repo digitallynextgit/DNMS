@@ -28,6 +28,7 @@ import {
   ListChecks,
   UserMinus,
   Plug,
+  HardDrive,
   PartyPopper,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -162,17 +163,19 @@ const COMPANY_ITEMS: NavItem[] = [
 
 // ── Project: personal project workspace. Shown to anyone with project access. ─
 const PROJECT_ITEMS: NavItem[] = [
+  // No permission gate: everyone gets a personal project workspace. The pages are
+  // scoped to the user's own (owned + member) projects, so a non-participant just
+  // sees an empty list - and an account manager who is a plain employee can reach
+  // the projects they own.
   {
     label: "My Projects",
     href: "/projects",
     icon: FolderKanban,
-    permission: PERMISSIONS.PROJECT_READ,
   },
   {
     label: "My Tasks",
     href: "/projects/my-tasks",
     icon: ListChecks,
-    permission: PERMISSIONS.PROJECT_READ,
   },
 ]
 
@@ -283,6 +286,12 @@ const ADMIN_ITEMS: NavItem[] = [
     label: "Integrations",
     href: "/admin/integrations",
     icon: Plug,
+    permission: PERMISSIONS.SETTINGS_WRITE,
+  },
+  {
+    label: "Storage",
+    href: "/admin/storage",
+    icon: HardDrive,
     permission: PERMISSIONS.SETTINGS_WRITE,
   },
 ]

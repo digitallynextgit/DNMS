@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3"
 import { getSignedUrl as presignUrl } from "@aws-sdk/s3-request-presigner"
 import { getConfig } from "@/server/app-config"
@@ -83,6 +84,35 @@ export async function getSignedUrl(
 export async function deleteFile(objectKey: string): Promise<void> {
   const { s3, bucket } = await getClient()
   await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }))
+}
+
+export interface StorageObject {
+  key: string
+  size: number
+  lastModified: string | null
+}
+
+/** Every object in the bucket, paginated (B2 returns up to 1000 per page). */
+export async function listAllObjects(): Promise<StorageObject[]> {
+  const { s3, bucket } = await getClient()
+  const out: StorageObject[] = []
+  let token: string | undefined
+  do {
+    const res = await s3.send(
+      new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token }),
+    )
+    for (const o of res.Contents ?? []) {
+      if (o.Key) {
+        out.push({
+          key: o.Key,
+          size: o.Size ?? 0,
+          lastModified: o.LastModified ? o.LastModified.toISOString() : null,
+        })
+      }
+    }
+    token = res.IsTruncated ? res.NextContinuationToken : undefined
+  } while (token)
+  return out
 }
 
 export function getObjectKey(prefix: string, originalFileName: string, id: string): string {

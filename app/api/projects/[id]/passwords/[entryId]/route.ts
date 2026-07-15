@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withSession } from "@/server/api-handler"
-import { canManageProject } from "@/features/projects/server/project-access"
+import {
+  canManageProject,
+  withProjectAccess,
+  withProjectManager,
+} from "@/features/projects/server/project-access"
 import { encrypt, tryDecrypt } from "@/lib/crypto"
 import type { Session } from "next-auth"
 
 // GET /api/projects/[id]/passwords/[entryId] - returns decrypted password
-export const GET = withSession(
-  async (_req: NextRequest, ctx: { params: Promise<{ entryId: string }> }, _session: Session) => {
+export const GET = withProjectAccess(
+  async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { entryId } = await ctx.params
       const entry = await db.projectPasswordEntry.findUnique({ where: { id: entryId } })
@@ -21,7 +24,7 @@ export const GET = withSession(
 )
 
 // PATCH /api/projects/[id]/passwords/[entryId]
-export const PATCH = withSession(
+export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, entryId } = ctx.params
@@ -67,7 +70,7 @@ export const PATCH = withSession(
 )
 
 // DELETE /api/projects/[id]/passwords/[entryId]
-export const DELETE = withSession(
+export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, entryId } = ctx.params
