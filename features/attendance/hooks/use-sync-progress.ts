@@ -28,9 +28,9 @@ const IDLE: SyncProgressState = {
   etaMs: null,
 }
 
-/** "1m 42s" / "12s" / "—" */
+/** "1m 42s" / "12s" / "-" */
 export function formatDuration(ms: number | null | undefined): string {
-  if (ms == null || !isFinite(ms)) return "—"
+  if (ms == null || !isFinite(ms)) return "-"
   const total = Math.max(0, Math.round(ms / 1000))
   const m = Math.floor(total / 60)
   const s = total % 60

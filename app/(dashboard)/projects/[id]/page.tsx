@@ -29,13 +29,13 @@ import {
   Calendar,
   Users,
   FolderKanban,
-  FileText,
   Layers,
   Pencil,
   Activity,
   MessageSquare,
   KeyRound,
   Sparkles,
+  HardDrive,
 } from "lucide-react"
 import { ProjectFormDialog } from "@/features/projects"
 
@@ -46,13 +46,13 @@ const tabFallback = () => <Skeleton className="mt-4 h-64 rounded" />
 const BrandTab = dynamic(() => import("@/features/projects").then((m) => m.BrandTab), {
   loading: tabFallback,
 })
+const DriveTab = dynamic(() => import("@/features/projects").then((m) => m.DriveTab), {
+  loading: tabFallback,
+})
 const TeamsTab = dynamic(() => import("@/features/projects").then((m) => m.TeamsTab), {
   loading: tabFallback,
 })
 const TasksTab = dynamic(() => import("@/features/projects").then((m) => m.TasksTab), {
-  loading: tabFallback,
-})
-const ResourcesTab = dynamic(() => import("@/features/projects").then((m) => m.ResourcesTab), {
   loading: tabFallback,
 })
 const ActivityTab = dynamic(() => import("@/features/projects").then((m) => m.ActivityTab), {
@@ -167,6 +167,10 @@ export default function ProjectDetailPage() {
               <Sparkles className="h-3.5 w-3.5" />
               Brand
             </TabsTrigger>
+            <TabsTrigger value="drive" className="gap-1.5">
+              <HardDrive className="h-3.5 w-3.5" />
+              Files
+            </TabsTrigger>
             <TabsTrigger value="teams" className="gap-1.5">
               <Users className="h-3.5 w-3.5" />
               Teams
@@ -186,10 +190,6 @@ export default function ProjectDetailPage() {
             <TabsTrigger value="passwords" className="gap-1.5">
               <KeyRound className="h-3.5 w-3.5" />
               Passwords
-            </TabsTrigger>
-            <TabsTrigger value="resources" className="gap-1.5">
-              <FileText className="h-3.5 w-3.5" />
-              Resources
             </TabsTrigger>
           </TabsList>
         </div>
@@ -253,6 +253,10 @@ export default function ProjectDetailPage() {
           <BrandTab projectId={projectId} canManage={canManage} />
         </TabsContent>
 
+        <TabsContent value="drive">
+          <DriveTab projectId={projectId} canManage={canManage} />
+        </TabsContent>
+
         <TabsContent value="teams" className="mt-4">
           <TeamsTab projectId={projectId} canManage={canManage} currentUserId={userId} />
         </TabsContent>
@@ -271,10 +275,6 @@ export default function ProjectDetailPage() {
 
         <TabsContent value="passwords" className="mt-4">
           <PasswordsTab projectId={projectId} currentUserId={userId} canManage={canManage} />
-        </TabsContent>
-
-        <TabsContent value="resources" className="mt-4">
-          <ResourcesTab projectId={projectId} currentUserId={userId} isProjectAdmin={canManage} />
         </TabsContent>
       </Tabs>
 

@@ -112,11 +112,11 @@ export function StorageManager() {
       },
     },
     { header: "Category", cell: (f) => CATEGORY_LABELS[f.category] },
-    { header: "Owner", cell: (f) => f.owner ?? <span className="text-muted-foreground">—</span> },
+    { header: "Owner", cell: (f) => f.owner ?? <span className="text-muted-foreground">-</span> },
     { header: "Size", align: "right", className: "tabular-nums", cell: (f) => fmtBytes(f.size) },
     {
       header: "Modified",
-      cell: (f) => (f.lastModified ? new Date(f.lastModified).toLocaleDateString("en-IN") : "—"),
+      cell: (f) => (f.lastModified ? new Date(f.lastModified).toLocaleDateString("en-IN") : "-"),
     },
     {
       header: "Status",
@@ -232,7 +232,7 @@ export function StorageManager() {
         <StatCard
           title="Orphaned"
           value={`${data?.orphanCount ?? 0} · ${fmtBytes(data?.orphanBytes ?? 0)}`}
-          description="No DB reference — safe to delete"
+          description="No DB reference - safe to delete"
           icon={AlertTriangle}
           iconColor={(data?.orphanCount ?? 0) > 0 ? "text-amber-600" : undefined}
           iconBg={(data?.orphanCount ?? 0) > 0 ? "bg-amber-500/10" : undefined}

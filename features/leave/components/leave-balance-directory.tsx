@@ -77,7 +77,7 @@ export function LeaveBalanceDirectory({ employees, leaveTypes }: Props) {
       align: "center",
       cell: (emp) => {
         const cell = computeCell(emp.leaveBalances.find((b) => b.leaveTypeId === t.id))
-        if (!cell) return <span className="text-muted-foreground/40">—</span>
+        if (!cell) return <span className="text-muted-foreground/40">-</span>
         return (
           <div className="flex flex-col items-center">
             <span

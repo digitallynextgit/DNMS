@@ -37,7 +37,7 @@ const EXAMPLES = [
     theme: "Thought leadership",
     format: "Carousel",
     hook: "5 lessons from scaling our agency to 50 clients",
-    content: "Slide 1 — Hook · Slide 2 … Slide 6 — CTA",
+    content: "Slide 1 - Hook · Slide 2 … Slide 6 - CTA",
     status: "POSTED",
     link: "https://linkedin.com/…",
   },
@@ -127,7 +127,7 @@ export const GET = withAuth(
     help.addRow({
       c: "NOTE",
       r: "",
-      w: "A row is imported only if it has at least a Theme, Format, Hook or Content — empty days are skipped. Delete the grey example rows before importing. You can add more sheets (e.g. one per month or platform); every sheet with a Date header is read, and the platform is taken from the Platform column (or guessed from the sheet name).",
+      w: "A row is imported only if it has at least a Theme, Format, Hook or Content - empty days are skipped. Delete the grey example rows before importing. You can add more sheets (e.g. one per month or platform); every sheet with a Date header is read, and the platform is taken from the Platform column (or guessed from the sheet name).",
     }).alignment = { vertical: "top", wrapText: true }
 
     const buf = await wb.xlsx.writeBuffer()

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { canManageProject } from "@/features/projects/server/project-access"
+import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
@@ -75,6 +76,9 @@ export const DELETE = withSession(
         entityId: memberId,
         changes: { teamId, employeeId: member.employeeId },
       })
+
+      // Revoke the removed member's Drive access (fire-and-forget).
+      syncProjectFolderAccessAsync(ctx.params.id)
 
       return NextResponse.json({ success: true })
     } catch (error) {

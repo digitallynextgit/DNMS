@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { canManageProject, withProjectAccess } from "@/features/projects/server/project-access"
+import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
@@ -139,6 +140,9 @@ export const POST = withSession(
         entityId: created.id,
         changes: { teamId, employeeId, autoManager: willBeManager },
       })
+
+      // Give the new member access to the project's Drive folder (fire-and-forget).
+      syncProjectFolderAccessAsync(ctx.params.id)
 
       return NextResponse.json({ data: created, isManager: willBeManager }, { status: 201 })
     } catch (error) {
