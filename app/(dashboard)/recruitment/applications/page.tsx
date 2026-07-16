@@ -1,12 +1,24 @@
 "use client"
 
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
 // lucide dropped brand glyphs (no Linkedin export), so LinkedIn/portfolio use
 // generic icons.
-import { Mail, Phone, Briefcase, Globe, FileText, ExternalLink, Search, Users } from "lucide-react"
+import {
+  Mail,
+  Phone,
+  Briefcase,
+  Globe,
+  FileText,
+  ExternalLink,
+  Search,
+  Users,
+  Trash2,
+} from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -26,10 +38,11 @@ import { Badge } from "@/components/ui/badge"
 import {
   useCareerApplications,
   useUpdateApplication,
+  useDeleteApplication,
   type CareerApplication,
   type CareerApplicationStatus,
 } from "@/features/careers/hooks/use-applications"
-import { TONE } from "@/lib/constants"
+import { TONE, SYSTEM_ROLES } from "@/lib/constants"
 import { formatRelativeTime } from "@/lib/utils"
 
 const STATUS_COLORS: Record<string, string> = {
@@ -60,8 +73,20 @@ export default function CareerApplicationsPage() {
   const [mode, setMode] = useUrlState("mode", "all")
   const [q, setQ] = useState("")
   const [selected, setSelected] = useState<CareerApplication | null>(null)
+  const [toDelete, setToDelete] = useState<CareerApplication | null>(null)
+
+  // Deleting a real applicant's submission is admin / HR-manager only - narrower
+  // than `recruitment:write` (hr_employee triages, but must not purge). The API
+  // enforces the same rule; this only hides the affordance.
+  const { data: session } = useSession()
+  const roles = session?.user?.roles ?? []
+  const canDelete =
+    roles.includes(SYSTEM_ROLES.ADMIN) ||
+    roles.includes(SYSTEM_ROLES.ADMIN_) ||
+    roles.includes(SYSTEM_ROLES.HR_MANAGER)
 
   const { data, isLoading } = useCareerApplications({ page, status, mode, q })
+  const del = useDeleteApplication()
   const rows = data?.data ?? []
   const meta = data?.meta
 
@@ -141,9 +166,22 @@ export default function CareerApplicationsPage() {
       header: "",
       align: "right",
       cell: (a) => (
-        <Button variant="ghost" size="sm" onClick={() => setSelected(a)}>
-          View
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setSelected(a)}>
+            View
+          </Button>
+          {canDelete && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-destructive"
+              title="Delete application"
+              onClick={() => setToDelete(a)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
       ),
     },
   ]
@@ -242,6 +280,30 @@ export default function CareerApplicationsPage() {
       )}
 
       <ApplicationSheet application={selected} onClose={() => setSelected(null)} />
+
+      <ConfirmDialog
+        open={!!toDelete}
+        onOpenChange={(o) => !o && setToDelete(null)}
+        title="Delete this application?"
+        description={
+          toDelete
+            ? `This permanently removes ${toDelete.fullName}'s application for ${toDelete.roleTitle}. It cannot be undone, and the candidate has no other record in DNMS.`
+            : ""
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={del.isPending}
+        onConfirm={() => {
+          if (!toDelete) return
+          del.mutate(toDelete.id, {
+            onSuccess: () => {
+              // Close the detail sheet too if we just deleted the open one.
+              setSelected((cur) => (cur?.id === toDelete.id ? null : cur))
+              setToDelete(null)
+            },
+          })
+        }}
+      />
     </div>
   )
 }

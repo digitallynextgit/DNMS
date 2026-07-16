@@ -88,3 +88,16 @@ export function useUpdateApplication() {
     }),
   )
 }
+
+/** Admin / HR-manager only - the API enforces it, this is just the client call. */
+export function useDeleteApplication() {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (id: string) =>
+        apiFetch<{ message: string }>(`/api/recruitment/applications/${id}`, { method: "DELETE" }),
+      invalidate: [["career-applications"]],
+      success: "Application deleted",
+    }),
+  )
+}
