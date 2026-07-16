@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  allowedDevOrigins: ["187.127.159.101", "digitallynext.tech"],
+  allowedDevOrigins: ["187.127.159.101", "digitallynext.tech", "dnms.digitallynext.com"],
   serverExternalPackages: ["exceljs", "sharp"],
   experimental: {
     turbopackFileSystemCacheForDev: true,
