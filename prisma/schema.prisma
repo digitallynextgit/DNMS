@@ -1767,10 +1767,75 @@ model CareerRole {
 
   subDepartment CareerSubDepartment @relation(fields: [subDepartmentId], references: [id], onDelete: Cascade)
   openings      CareerOpening[]
+  applications  CareerApplication[]
 
   @@unique([subDepartmentId, slug])
   @@index([subDepartmentId])
   @@map("career_roles")
+}
+
+// Where a candidate lands in HR's pipeline once they've applied.
+enum CareerApplicationStatus {
+  RECEIVED
+  IN_REVIEW
+  SHORTLISTED
+  REJECTED
+  HIRED
+}
+
+// A careers application posted by the marketing site (server-to-server).
+//
+// The role is stored TWICE on purpose: as the slugs the site published, and as
+// the titles the candidate actually saw. The site serves a cached/snapshotted
+// tree, so an application can arrive for a role that was just closed or deleted -
+// `careerRoleId` then resolves to null but `roleTitle` still tells HR what the
+// person believed they applied to. We never drop the applicant.
+model CareerApplication {
+  id             String @id @map("id")
+  idempotencyKey String @unique @map("idempotency_key")
+
+  mode CareerMode @map("mode")
+
+  // Slugs exactly as published by the read API.
+  groupSlug      String @map("group_slug")
+  departmentSlug String @map("department_slug")
+  roleSlug       String @map("role_slug")
+  // Titles exactly as displayed to the candidate (verbatim, never matched on).
+  groupCode       String  @map("group_code")
+  departmentTitle String  @map("department_title")
+  roleTitle       String  @map("role_title")
+  opening         String? @map("opening")
+
+  // Resolved live role - null when the role was closed/deleted before we got here.
+  careerRoleId String?     @map("career_role_id")
+  careerRole   CareerRole? @relation(fields: [careerRoleId], references: [id], onDelete: SetNull)
+  roleResolved Boolean     @default(false) @map("role_resolved")
+
+  fullName  String  @map("full_name")
+  email     String  @map("email")
+  phone     String  @map("phone")
+  linkedIn  String  @map("linked_in")
+  portfolio String  @map("portfolio")
+  resumeUrl String  @map("resume_url") @db.Text
+  message   String? @map("message") @db.Text
+
+  submittedAt DateTime @map("submitted_at")
+  sourceUrl   String   @map("source_url") @db.Text
+
+  // Same person + role again with a DIFFERENT idempotency key (a real re-apply,
+  // not a network retry).
+  isRepeat Boolean @default(false) @map("is_repeat")
+
+  status    CareerApplicationStatus @default(RECEIVED) @map("status")
+  hrNotes   String?                 @map("hr_notes") @db.Text
+  createdAt DateTime                @default(now()) @map("created_at")
+  updatedAt DateTime                @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([email])
+  @@index([createdAt])
+  @@index([careerRoleId])
+  @@map("career_applications")
 }
 
 model CareerOpening {
