@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmployeeAdminActions } from "@/features/employees"
@@ -38,7 +38,7 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { useEmployee } from "@/features/employees"
 import { usePermissions } from "@/features/admin"
 import { getProbationStatus } from "@/features/employees"
-import { cn, getInitials, getAvatarColor, formatDate } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import {
   EMPLOYEE_STATUS_COLORS,
   EMPLOYEE_STATUS_LABELS,
@@ -110,8 +110,6 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
 
   const emp = data.data
   const fullName = `${emp.firstName} ${emp.lastName}`
-  const initials = getInitials(emp.firstName, emp.lastName)
-  const avatarBg = getAvatarColor(fullName)
   const statusLabel = EMPLOYEE_STATUS_LABELS[emp.status] ?? emp.status
   const probation = getProbationStatus(emp)
   const canUploadDocs = can(PERMISSIONS.DOCUMENT_WRITE)
@@ -131,16 +129,13 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
         backLabel="Back to Employees"
         title={fullName}
         leading={
-          <Avatar className="h-12 w-12 shrink-0">
-            {/* Always mount AvatarImage (src empty when no photo) so Radix resets
-                its loading status and shows the fallback the moment a photo is
-                removed - conditionally unmounting it leaves a stale "loaded"
-                status and a blank avatar until reload. */}
-            <AvatarImage src={emp.profilePhoto ?? undefined} alt={fullName} />
-            <AvatarFallback className={cn("text-base font-bold text-white", avatarBg)}>
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <AvatarDisplay
+            src={emp.profilePhoto}
+            firstName={emp.firstName}
+            lastName={emp.lastName}
+            size="md"
+            className="h-12 w-12 shrink-0"
+          />
         }
         description={
           <span className="flex flex-wrap items-center gap-2">

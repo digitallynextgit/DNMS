@@ -18,7 +18,7 @@ import {
   useReviewResignation,
   type ReviewableResignation,
 } from "@/features/resignations"
-import { cn, getAvatarColor, formatDate } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 
 /**
  * Placeholder card built from the real resignation card's layout (bordered
@@ -134,10 +134,6 @@ export default function ResignationsPage() {
                     firstName={r.employee.firstName}
                     lastName={r.employee.lastName}
                     size="md"
-                    fallbackClassName={cn(
-                      "text-xs font-semibold text-white",
-                      getAvatarColor(fullName),
-                    )}
                     className="shrink-0"
                   />
                   <div className="min-w-0 space-y-1">

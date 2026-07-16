@@ -659,7 +659,10 @@ export function useProjectMessages(projectId: string | undefined) {
     queryKey: ["project-messages", projectId],
     queryFn: () => apiFetch<{ data: ProjectMessage[] }>(`/api/projects/${projectId}/messages`),
     enabled: !!projectId,
-    staleTime: 30_000,
+    staleTime: 10_000,
+    // Near real-time: refresh while the tab is open and whenever the user returns.
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -734,8 +737,9 @@ export function useUnreadMessageCount(projectId: string | undefined) {
         (r) => r.data.count,
       ),
     enabled: !!projectId,
-    staleTime: 30_000,
-    refetchInterval: 60_000, // keep the badge roughly live while the project is open
+    staleTime: 10_000,
+    refetchInterval: 15_000, // keep the badge live while the project is open
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -759,7 +763,9 @@ export function useMessageReplies(projectId: string, messageId: string, enabled:
         `/api/projects/${projectId}/messages/${messageId}/replies`,
       ),
     enabled: enabled && !!messageId,
-    staleTime: 15_000,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   })
 }
 

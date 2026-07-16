@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { db } from "@/server/db"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Topbar } from "@/components/layout/topbar"
+import { RealtimeNotifications } from "@/components/providers/realtime-notifications"
 import { AccountDeactivated } from "@/features/auth"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -25,6 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* Vibrant-theme ambient background (gradient + grid + animated glow). Only
           painted when a vibrant theme is active; sits behind all content. */}
       <div className="vibrant-aura pointer-events-none absolute inset-0 -z-10" aria-hidden />
+      <RealtimeNotifications />
       <Sidebar session={session} />
       <div className="grid h-full min-h-0 min-w-0 grid-rows-[auto_1fr] overflow-hidden">
         <Topbar session={session} />
