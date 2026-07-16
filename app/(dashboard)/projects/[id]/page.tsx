@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import dynamic from "next/dynamic"
-import { useParams } from "next/navigation"
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -73,13 +73,41 @@ const PasswordsTab = dynamic(() => import("@/features/projects").then((m) => m.P
   loading: tabFallback,
 })
 
+const PROJECT_TABS = [
+  "overview",
+  "brand",
+  "drive",
+  "integration",
+  "insights",
+  "teams",
+  "tasks",
+  "messages",
+  "activity",
+  "passwords",
+] as const
+
 export default function ProjectDetailPage() {
   const params = useParams()
   const projectId = params.id as string
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { data: session } = useSession()
   const { can } = usePermissions()
 
   const userId = session?.user?.id ?? ""
+
+  // Keep the active tab in the URL so a reload (or a shared/deep link) lands on
+  // the same tab instead of snapping back to Overview.
+  const tabParam = searchParams.get("tab")
+  const activeTab = PROJECT_TABS.includes(tabParam as (typeof PROJECT_TABS)[number])
+    ? (tabParam as string)
+    : "overview"
+  const handleTabChange = (value: string) => {
+    const next = new URLSearchParams(Array.from(searchParams.entries()))
+    next.set("tab", value)
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+  }
 
   const { data, isLoading } = useProject(projectId)
   const project = data?.data
@@ -166,7 +194,7 @@ export default function ProjectDetailPage() {
         </p>
       )}
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <TabsList>
             <TabsTrigger value="overview" className="gap-1.5">
@@ -201,7 +229,7 @@ export default function ProjectDetailPage() {
               <MessageSquare className="h-3.5 w-3.5" />
               Messages
               {unreadMessages > 0 && (
-                <span className="bg-primary text-primary-foreground ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold">
+                <span className="bg-destructive ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold text-white">
                   {unreadMessages > 99 ? "99+" : unreadMessages}
                 </span>
               )}

@@ -49,7 +49,7 @@ export const PATCH = withProjectAccess(
             title: "You were mentioned",
             message: `${updated.author.firstName} ${updated.author.lastName} mentioned you in "${updated.title}".`,
             type: "info",
-            link: `/projects/${projectId}`,
+            link: `/projects/${projectId}?tab=messages`,
           })),
           { force: true },
         )

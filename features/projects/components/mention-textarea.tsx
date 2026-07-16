@@ -22,6 +22,7 @@ export function MentionTextarea({
   placeholder,
   autoFocus,
   id,
+  initialMentions,
 }: {
   value: string
   onChange: (value: string, mentionIds: string[]) => void
@@ -30,11 +31,16 @@ export function MentionTextarea({
   placeholder?: string
   autoFocus?: boolean
   id?: string
+  /** Seed already-known mentions (e.g. when restoring a recalled draft) so their
+   *  "@Name" tokens keep resolving to ids without the user re-picking them. */
+  initialMentions?: { id: string; label: string }[]
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   // Everyone ever picked in this editor; the live mention set is derived by
   // checking which "@Label" tokens still survive in the text.
-  const pickedRef = useRef<{ id: string; label: string }[]>([])
+  const pickedRef = useRef<{ id: string; label: string }[]>(
+    initialMentions ? [...initialMentions] : [],
+  )
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [atIndex, setAtIndex] = useState(-1)

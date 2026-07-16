@@ -29,12 +29,26 @@ export function RealtimeNotifications() {
   const qc = useQueryClient()
   const baselineRef = useRef<number | null>(null)
 
-  // Ask for permission once (browsers grant/deny silently if already decided).
+  // Ask for permission. Most browsers ignore requestPermission() unless it runs
+  // inside a user gesture, so try on mount AND (if still undecided) on the very
+  // first click/keypress, then stop listening.
   useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
+    if (typeof window === "undefined" || !("Notification" in window)) return
+    if (Notification.permission !== "default") return
+
+    const ask = () => {
       if (Notification.permission === "default") {
         Notification.requestPermission().catch(() => {})
       }
+      window.removeEventListener("pointerdown", ask)
+      window.removeEventListener("keydown", ask)
+    }
+    Notification.requestPermission().catch(() => {}) // works on Chrome desktop
+    window.addEventListener("pointerdown", ask, { once: true })
+    window.addEventListener("keydown", ask, { once: true })
+    return () => {
+      window.removeEventListener("pointerdown", ask)
+      window.removeEventListener("keydown", ask)
     }
   }, [])
 

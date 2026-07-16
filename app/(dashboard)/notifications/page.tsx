@@ -83,6 +83,9 @@ export default function NotificationsPage() {
       if (!res.ok) throw new Error("Failed to load notifications")
       return res.json()
     },
+    // Keep the feed live without a manual reload.
+    refetchInterval: 20_000,
+    refetchOnWindowFocus: true,
   })
 
   const markReadMutation = useMutation({
@@ -155,9 +158,12 @@ export default function NotificationsPage() {
               type="button"
               onClick={() => handleNotificationClick(notification)}
               className={cn(
-                "bg-card hover:bg-muted/40 focus-visible:ring-ring flex w-full items-start gap-3 rounded border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2",
+                "bg-card hover:bg-muted/50 focus-visible:ring-ring flex w-full items-start gap-3 rounded border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2",
+                // Unread: a translucent tint + left accent that stays readable in
+                // BOTH light and dark themes (a solid bg-blue-50 turned the text
+                // unreadable in dark mode).
                 !notification.isRead &&
-                  "border-l-4 border-l-blue-500 bg-blue-50/30 hover:bg-blue-50/50",
+                  "border-l-4 border-l-blue-500 bg-blue-500/10 hover:bg-blue-500/15",
               )}
             >
               <div className="bg-muted mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full">

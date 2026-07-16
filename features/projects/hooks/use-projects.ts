@@ -690,7 +690,7 @@ export function useCreateMessage(projectId: string) {
         ["project-messages", projectId],
         ["project-activity", projectId],
       ],
-      success: "Message posted",
+      // No default toast: the caller shows a custom "posted + Undo" toast instead.
     }),
   )
 }

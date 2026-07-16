@@ -25,6 +25,7 @@ import { FormDialog } from "@/components/shared/form-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { formatDate, formatRelativeTime } from "@/lib/utils"
+import { toast } from "sonner"
 import {
   Pin,
   PinOff,
@@ -45,6 +46,38 @@ interface Props {
   canManage: boolean
 }
 
+// You can recall/change a just-sent message or reply for this long; after it
+// lapses the Undo option (and the edit affordance) go away.
+const UNDO_MS = 60_000
+
+type ComposeDraft = { title: string; content: string; mentionIds: string[] }
+
+/** True until `ms` after `createdAt`, then flips to false (re-renders at the boundary). */
+function useWithinWindow(createdAt: string, ms = UNDO_MS) {
+  const [within, setWithin] = useState(() => Date.now() - new Date(createdAt).getTime() < ms)
+  useEffect(() => {
+    const remaining = ms - (Date.now() - new Date(createdAt).getTime())
+    if (remaining <= 0) {
+      setWithin(false)
+      return
+    }
+    setWithin(true)
+    const t = setTimeout(() => setWithin(false), remaining)
+    return () => clearTimeout(t)
+  }, [createdAt, ms])
+  return within
+}
+
+/** Turn stored mention ids back into {id,label} pairs for restoring a draft. */
+function toMentionPairs(ids: string[], members: ProjectMember[]) {
+  return ids
+    .map((id) => {
+      const m = members.find((mm) => mm.id === id)
+      return m ? { id, label: `${m.firstName} ${m.lastName}`.trim() } : null
+    })
+    .filter((x): x is { id: string; label: string } => x !== null)
+}
+
 export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
   const { data, isLoading } = useProjectMessages(projectId)
   const { data: membersData } = useProjectMembers(projectId)
@@ -55,6 +88,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
   )
   const messages = data?.data ?? []
   const [composeOpen, setComposeOpen] = useState(false)
+  const [composeInitial, setComposeInitial] = useState<ComposeDraft | null>(null)
 
   // Opening the tab (mounting this component) clears the unread badge. Runs once
   // per open; if new messages arrive while viewing, the badge reappears on return.
@@ -74,7 +108,13 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
         <p className="text-muted-foreground text-xs">
           {messages.length} message{messages.length !== 1 ? "s" : ""}
         </p>
-        <Button size="sm" onClick={() => setComposeOpen(true)}>
+        <Button
+          size="sm"
+          onClick={() => {
+            setComposeInitial(null)
+            setComposeOpen(true)
+          }}
+        >
           <Plus className="mr-1.5 h-4 w-4" />
           New Message
         </Button>
@@ -108,6 +148,11 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
         onClose={() => setComposeOpen(false)}
         projectId={projectId}
         members={members}
+        initial={composeInitial}
+        onReopenWithDraft={(draft) => {
+          setComposeInitial(draft)
+          setComposeOpen(true)
+        }}
       />
     </div>
   )
@@ -135,6 +180,9 @@ function MessageCard({
   const [expanded, setExpanded] = useState(false)
   const isOwner = message.authorId === currentUserId
   const replyCount = message._count?.replies ?? 0
+  // Content can only be changed within 60s of posting.
+  const withinEditWindow = useWithinWindow(message.createdAt)
+  const canEdit = isOwner && withinEditWindow
 
   return (
     <Card className={message.isPinned ? "border-amber-300 dark:border-amber-700" : ""}>
@@ -186,25 +234,27 @@ function MessageCard({
                 )}
               </Button>
             )}
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground"
+                title="Edit (within 1 min of posting)"
+                onClick={() => setEditOpen(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
             {isOwner && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => setEditOpen(true)}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-destructive"
+                title="Delete"
+                onClick={() => setConfirmOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
             )}
           </div>
         </div>
@@ -283,12 +333,26 @@ function MessageThread({
 
   function send() {
     if (!content.trim()) return
+    const draft = { content: content.trim(), mentionIds }
     create.mutate(
-      { content: content.trim(), mentionedIds: mentionIds },
+      { content: draft.content, mentionedIds: draft.mentionIds },
       {
-        onSuccess: () => {
+        onSuccess: (res) => {
+          const created = res.data
           setContent("")
           setMentionIds([])
+          // 1-minute window to recall + change the reply.
+          toast("Reply posted", {
+            duration: UNDO_MS,
+            action: {
+              label: "Undo",
+              onClick: () => {
+                del.mutate(created.id)
+                setContent(draft.content)
+                setMentionIds(draft.mentionIds)
+              },
+            },
+          })
         },
       },
     )
@@ -368,27 +432,61 @@ function ComposeDialog({
   onClose,
   projectId,
   members,
+  initial,
+  onReopenWithDraft,
 }: {
   open: boolean
   onClose: () => void
   projectId: string
   members: ProjectMember[]
+  initial: ComposeDraft | null
+  onReopenWithDraft: (draft: ComposeDraft) => void
 }) {
-  const [title, setTitle] = useState("")
-  const [content, setContent] = useState("")
-  const [mentionIds, setMentionIds] = useState<string[]>([])
+  const [title, setTitle] = useState(initial?.title ?? "")
+  const [content, setContent] = useState(initial?.content ?? "")
+  const [mentionIds, setMentionIds] = useState<string[]>(initial?.mentionIds ?? [])
   const create = useCreateMessage(projectId)
+  const del = useDeleteMessage(projectId)
+
+  // Reset the fields whenever the dialog opens - fresh (initial=null) or restored
+  // from an Undo (initial carries the recalled draft).
+  useEffect(() => {
+    if (open) {
+      setTitle(initial?.title ?? "")
+      setContent(initial?.content ?? "")
+      setMentionIds(initial?.mentionIds ?? [])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const initialMentions = useMemo(
+    () => toMentionPairs(initial?.mentionIds ?? [], members),
+    [initial, members],
+  )
 
   function handleSubmit() {
     if (!title.trim() || !content.trim()) return
+    const draft: ComposeDraft = { title: title.trim(), content: content.trim(), mentionIds }
     create.mutate(
-      { title: title.trim(), content: content.trim(), mentionedIds: mentionIds },
+      { title: draft.title, content: draft.content, mentionedIds: draft.mentionIds },
       {
-        onSuccess: () => {
+        onSuccess: (res) => {
+          const created = res.data
           setTitle("")
           setContent("")
           setMentionIds([])
           onClose()
+          // 1-minute window to recall the message and change it.
+          toast("Message posted", {
+            duration: UNDO_MS,
+            action: {
+              label: "Undo",
+              onClick: () => {
+                del.mutate(created.id)
+                onReopenWithDraft(draft)
+              },
+            },
+          })
         },
       },
     )
@@ -427,12 +525,13 @@ function ComposeDialog({
             setMentionIds(ids)
           }}
           members={members}
+          initialMentions={initialMentions}
           rows={5}
           placeholder="Write your message… Type @ to tag a team member."
         />
         <p className="text-muted-foreground text-[11px]">
           Type <span className="font-medium">@</span> to mention a teammate — they&apos;ll get a
-          notification.
+          notification. You&apos;ll have a minute to undo after posting.
         </p>
       </div>
     </FormDialog>
