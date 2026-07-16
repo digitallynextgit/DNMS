@@ -23,6 +23,8 @@ import { PERMISSIONS } from "@/lib/constants"
 import { cn, formatWorkHours, employeeSlug } from "@/lib/utils"
 import { format } from "date-fns"
 
+const PAGE_SIZE = 10
+
 function fmtTime(iso: string | null): string {
   if (!iso) return "-"
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
@@ -44,6 +46,7 @@ export function AttendanceDirectoryClient() {
   const [to, setTo] = useState(today)
   const [search, setSearch] = useState("")
   const [correctOpen, setCorrectOpen] = useState(false)
+  const [page, setPage] = useState(1)
 
   const { data, isLoading } = useAttendanceDirectory(from, to)
   const isSingleDay = data?.isSingleDay ?? from === to
@@ -56,18 +59,28 @@ export function AttendanceDirectoryClient() {
       )
     : allRows
 
+  // The roster is fetched whole (one row per active employee), so paging is a
+  // client-side slice. Clamping to totalPages keeps the view valid when filtering
+  // shrinks the list below the current page.
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pagedRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
   function changeFrom(v: string) {
     setFrom(v)
+    setPage(1)
     if (v && to && v > to) setTo(v)
   }
   function changeTo(v: string) {
     setTo(v)
+    setPage(1)
     if (v && from && v < from) setFrom(v)
   }
   function clearFilters() {
     setFrom(today)
     setTo(today)
     setSearch("")
+    setPage(1)
   }
 
   if (sessionStatus === "authenticated" && !canWrite) return null
@@ -198,7 +211,10 @@ export function AttendanceDirectoryClient() {
             id="dir-search"
             placeholder="Search by name or ID..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
           />
         </div>
         <div className="w-44 space-y-1.5">
@@ -223,11 +239,19 @@ export function AttendanceDirectoryClient() {
       {isLoading || rows.length > 0 ? (
         <DataTable
           columns={columns}
-          rows={rows}
+          rows={pagedRows}
           rowKey={(r) => r.employeeId}
           showSerial
+          serialOffset={(currentPage - 1) * PAGE_SIZE}
           minWidth="min-w-[720px]"
           loading={isLoading}
+          pagination={{
+            page: currentPage,
+            totalPages,
+            total: rows.length,
+            onPageChange: setPage,
+            itemLabel: "employee",
+          }}
         />
       ) : (
         <EmptyState variant="card" title="No employees found." />

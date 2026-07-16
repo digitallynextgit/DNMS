@@ -1,5 +1,6 @@
 import "server-only"
 
+import type { AttendanceStatus } from "@prisma/client"
 import { db } from "@/server/db"
 import { fetchAttendanceEvents, testDeviceConnection } from "@/features/attendance/server/hikvision"
 import { computeAttendanceStatus } from "@/features/attendance/attendance"
@@ -32,6 +33,13 @@ const MAX_BACKFILL_DAYS = 730
 // employees x ~20 punches/day, 2 days ≈ 1000 events, a comfortable margin.
 // (Mirrors scripts/export-hikvision-punches.ts, which fetches the same way.)
 const BATCH_DAYS = 2
+// How far back an INCREMENTAL sync re-reads, counting from the device's last
+// successful sync day. This is a self-healing window: a day is only correct once
+// everyone has punched out, so a sync that ran mid-afternoon recorded a truncated
+// check-out for that day. Re-reading the last week lets those days settle to the
+// real first/last punch, and fills any day a failed/skipped sync left empty.
+// (Manually corrected days are still never overwritten - see upsertDay.)
+const INCREMENTAL_LOOKBACK_DAYS = 7
 // If a single window returns at least this many raw events, warn loudly - a sign
 // BATCH_DAYS is nearing the pagination ceiling and should be lowered before data
 // silently goes missing.
@@ -113,36 +121,62 @@ function daysBetween(from: string, to: string): number {
   return Math.max(0, Math.round((b - a) / 86_400_000))
 }
 
+/** An existing row's per-field manual locks + the values HR pinned. */
+export interface ManualDayLocks {
+  checkIn: Date | null
+  checkOut: Date | null
+  status: AttendanceStatus
+  checkInManual: boolean
+  checkOutManual: boolean
+  statusManual: boolean
+}
+
 /**
  * Upsert one attendance row for an employee + IST day from that day's punches.
  * The day's FIRST punch is the check-in and the LAST is the check-out.
  *
- * A manually corrected record (isManual) is NEVER overwritten - HR's "Correct
- * Punch" edits always win over the device sync.
+ * Manual corrections are honoured PER FIELD, not per row: if HR fixed only the
+ * check-in, that check-in is pinned but the check-out still follows the device
+ * (and vice versa). Work hours / status are then recomputed from whatever the
+ * merged pair actually is, so a corrected check-in plus a real device check-out
+ * yields the right total. Only a day where every field is pinned is skipped.
  */
 async function upsertDay(
   employeeId: string,
   deviceId: string,
   istDay: string,
   punches: Date[],
-  manualDays: ReadonlySet<string>,
+  manualByDay: ReadonlyMap<string, ManualDayLocks>,
 ): Promise<"written" | "skipped"> {
   const date = new Date(`${istDay}T00:00:00.000Z`)
 
   // The caller fetches every manual day for this employee ONCE (see below), so this
   // no longer costs a findUnique per employee-day. A full 730-day backfill used to be
   // 2 queries x days x employees, all sequential.
-  if (manualDays.has(istDay)) return "skipped" // don't clobber a manual correction
+  const locks = manualByDay.get(istDay)
+  // Nothing the device can contribute - every field is pinned by HR.
+  if (locks?.checkInManual && locks.checkOutManual && locks.statusManual) return "skipped"
 
   punches.sort((a, b) => a.getTime() - b.getTime())
-  const checkIn = punches[0]
-  const checkOut = punches.length > 1 ? punches[punches.length - 1] : null
+  const deviceIn: Date | null = punches[0] ?? null
+  const deviceOut: Date | null = punches.length > 1 ? punches[punches.length - 1]! : null
+
+  // Pinned field wins; everything else takes the device's value.
+  const checkIn = locks?.checkInManual ? locks.checkIn : deviceIn
+  const checkOut = locks?.checkOutManual ? locks.checkOut : deviceOut
+
   let workHours: number | null = null
   if (checkIn && checkOut && checkOut > checkIn) {
     workHours =
       Math.round(((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60)) * 100) / 100
   }
-  const status = computeAttendanceStatus({ checkIn, workHours })
+  const status = locks?.statusManual
+    ? locks.status
+    : computeAttendanceStatus({ checkIn, workHours })
+
+  // A partially-corrected row keeps its "manual" provenance; only a fully
+  // device-derived row is (re)labelled as such.
+  const hasManual = !!(locks?.checkInManual || locks?.checkOutManual || locks?.statusManual)
 
   await db.attendanceLog.upsert({
     where: { employeeId_date: { employeeId, date } },
@@ -164,8 +198,7 @@ async function upsertDay(
       checkOut,
       workHours,
       status,
-      source: "device",
-      notes: "Synced from device",
+      ...(hasManual ? {} : { source: "device", notes: "Synced from device" }),
     },
   })
   return "written"
@@ -183,8 +216,11 @@ async function upsertDay(
  *
  *  - Full backfill (`full`, or a never-synced employee): from the joining date
  *    (capped at the device's retention window).
- *  - Incremental (Refresh / Sync button, cron): from the device's last successful
- *    sync day, so any days missed between syncs are recovered - not just today.
+ *  - Incremental (Refresh / Sync button, cron): re-reads the last
+ *    INCREMENTAL_LOOKBACK_DAYS days before the device's last successful sync, so
+ *    days that were still incomplete when we last looked (e.g. synced before
+ *    everyone punched out) settle to the real times, and any day a previous sync
+ *    missed is filled in - not just today.
  *
  * Days are grouped in IST; the day's first punch = check-in, last = check-out.
  * Manual corrections are preserved. Pass `onlyEmployeeNo` to target one person.
@@ -298,9 +334,10 @@ export async function syncDeviceSmart(
       const joinDay = emp.dateOfJoining ? istDayStr(emp.dateOfJoining) : null
       floor = joinDay && joinDay > retentionFloor ? joinDay : retentionFloor
     } else {
-      // Step one day BACK from the last sync so a punch that landed late (or a day
-      // that was still incomplete when we last looked) is re-read and corrected.
-      const s = addDaysStr(since ?? today, -1)
+      // Step a WEEK back from the last sync so punches that landed after the last
+      // sync (or days that were still incomplete when we last looked) are re-read
+      // and corrected, and any day a previous sync missed gets filled in.
+      const s = addDaysStr(since ?? today, -INCREMENTAL_LOOKBACK_DAYS)
       floor = s < retentionFloor ? retentionFloor : s > today ? today : s
     }
     acc.set(emp.id, { emp, floor, doFull, punchesByDay: new Map(), seen: new Set() })
@@ -447,17 +484,28 @@ export async function syncDeviceSmart(
     let synced = 0
 
     // ONE query for every manual correction in this employee's punch range, instead
-    // of a findUnique per day inside the loop.
+    // of a findUnique per day inside the loop. Pulls the per-field locks + the
+    // pinned values so upsertDay can merge them with the device's punches.
     const dayKeys = [...punchesByDay.keys()]
     const manualRows = await db.attendanceLog.findMany({
       where: {
         employeeId: emp.id,
-        isManual: true,
+        OR: [{ checkInManual: true }, { checkOutManual: true }, { statusManual: true }],
         date: { in: dayKeys.map((d) => new Date(`${d}T00:00:00.000Z`)) },
       },
-      select: { date: true },
+      select: {
+        date: true,
+        checkIn: true,
+        checkOut: true,
+        status: true,
+        checkInManual: true,
+        checkOutManual: true,
+        statusManual: true,
+      },
     })
-    const manualDays = new Set(manualRows.map((r) => r.date.toISOString().slice(0, 10)))
+    const manualByDay = new Map<string, ManualDayLocks>(
+      manualRows.map((r) => [r.date.toISOString().slice(0, 10), r]),
+    )
 
     // Writes go out with bounded concurrency rather than strictly one-at-a-time.
     // The chunk stays at/below the pg pool size so we queue rather than thrash it.
@@ -466,7 +514,7 @@ export async function syncDeviceSmart(
     for (let i = 0; i < entries.length; i += WRITE_CHUNK) {
       const slice = entries.slice(i, i + WRITE_CHUNK)
       const settled = await Promise.allSettled(
-        slice.map(([day, punches]) => upsertDay(emp.id, deviceId, day, punches, manualDays)),
+        slice.map(([day, punches]) => upsertDay(emp.id, deviceId, day, punches, manualByDay)),
       )
       settled.forEach((res, j) => {
         if (res.status === "fulfilled") {

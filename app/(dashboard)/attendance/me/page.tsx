@@ -2,12 +2,11 @@
 
 import { useState } from "react"
 import { Spinner } from "@/components/shared/spinner"
-import { CheckCircle2, AlertTriangle, Clock, Timer, RefreshCw } from "lucide-react"
+import { CheckCircle2, AlertTriangle, Clock, Timer } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
 import { MonthNav, MONTH_NAMES } from "@/components/shared/month-nav"
-import { Button } from "@/components/ui/button"
-import { useMyAttendanceCalendar, useSyncAttendance } from "@/features/attendance"
+import { useMyAttendanceCalendar } from "@/features/attendance"
 import { AttendanceCalendar } from "@/features/attendance/components/attendance-calendar"
 import { formatWorkHours } from "@/lib/utils"
 
@@ -20,7 +19,6 @@ export default function MyAttendancePage() {
   const [month, setMonth] = useState(curM)
 
   const { data, isLoading } = useMyAttendanceCalendar(year, month)
-  const sync = useSyncAttendance()
 
   const days = data?.data.days ?? []
   const firstPunch = data?.data.firstPunchDate ?? null // "YYYY-MM-DD"
@@ -62,20 +60,9 @@ export default function MyAttendancePage() {
         description={`${MONTH_NAMES[month - 1]} ${year}`}
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => sync.mutate()}
-              disabled={sync.isPending}
-              title="Pull the latest punches from the attendance device"
-            >
-              {sync.isPending ? (
-                <Spinner className="mr-2" />
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Refresh
-            </Button>
+            {/* No device "Refresh" here: pulling punches is an HR/admin action (see
+                Attendance Directory). Employees just read their own calendar, which
+                the scheduled sync keeps current. */}
             {/* The header already prints the month, so the stepper is arrows only. */}
             <MonthNav
               year={year}

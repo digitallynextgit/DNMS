@@ -24,6 +24,7 @@ export function MentionTextarea({
   id,
   initialMentions,
   onSubmit,
+  dropup,
 }: {
   value: string
   onChange: (value: string, mentionIds: string[]) => void

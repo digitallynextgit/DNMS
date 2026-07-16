@@ -104,6 +104,8 @@ export const POST = withAuth(
             date: dateObj,
           },
         },
+        // A hand-entered row pins exactly the values HR supplied; anything left
+        // blank stays free for the device sync to fill in later.
         create: {
           employeeId,
           date: dateObj,
@@ -112,6 +114,9 @@ export const POST = withAuth(
           workHours,
           status: resolvedStatus,
           isManual: true,
+          checkInManual: !!checkIn,
+          checkOutManual: !!checkOut,
+          statusManual: status !== undefined,
           notes: notes ?? null,
         },
         update: {
@@ -120,6 +125,9 @@ export const POST = withAuth(
           workHours,
           status: resolvedStatus,
           isManual: true,
+          checkInManual: !!checkIn,
+          checkOutManual: !!checkOut,
+          statusManual: status !== undefined,
           notes: notes ?? null,
         },
         include: {

@@ -692,7 +692,15 @@ model AttendanceLog {
   checkOut   DateTime?        @map("check_out")
   workHours  Float?           @map("work_hours")
   status     AttendanceStatus @default(PRESENT) @map("status")
-  isManual   Boolean          @default(false) @map("is_manual")
+  // `isManual` = "this row carries at least one HR correction" (drives the Manual
+  // badge / export / delete-guard). The three flags below are PER-FIELD locks: only
+  // the value HR actually changed is pinned; every other field keeps syncing from
+  // the device. (A row-level lock froze the whole day, so fixing a check-in also
+  // froze that day's check-out.)
+  isManual       Boolean      @default(false) @map("is_manual")
+  checkInManual  Boolean      @default(false) @map("check_in_manual")
+  checkOutManual Boolean      @default(false) @map("check_out_manual")
+  statusManual   Boolean      @default(false) @map("status_manual")
   source     String?          @map("source")
   notes      String?          @map("notes")
   createdAt  DateTime         @default(now()) @map("created_at")

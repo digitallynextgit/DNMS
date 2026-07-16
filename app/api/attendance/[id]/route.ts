@@ -93,10 +93,37 @@ export const PATCH = withAuth(
         })
       }
 
-      // Any HR edit is a manual correction: flag it so a later device sync never
-      // overwrites it (upsertDay skips rows where isManual is true).
-      updateData.isManual = true
-      updateData.source = "manual"
+      // Pin ONLY the fields HR actually changed. The device sync honours these
+      // per-field (see upsertDay), so correcting a check-in leaves that day's
+      // check-out free to keep syncing from the device - and vice versa.
+      const sameTime = (a: Date | null, b: Date | null) =>
+        (a ? a.getTime() : null) === (b ? b.getTime() : null)
+
+      if (body.checkIn !== undefined && !sameTime(resolvedCheckIn, existing.checkIn)) {
+        updateData.checkInManual = true
+      }
+      if (body.checkOut !== undefined && !sameTime(resolvedCheckOut, existing.checkOut)) {
+        updateData.checkOutManual = true
+      }
+      // Only an EXPLICIT status override pins the status; a status re-derived from
+      // changed times above must stay free to follow the device.
+      if (body.status !== undefined && body.status !== existing.status) {
+        updateData.statusManual = true
+      }
+
+      // Row-level flag = "carries at least one correction" (Manual badge / export /
+      // delete-guard). It no longer freezes the whole day.
+      const pinsAnything =
+        updateData.checkInManual === true ||
+        updateData.checkOutManual === true ||
+        updateData.statusManual === true ||
+        existing.checkInManual ||
+        existing.checkOutManual ||
+        existing.statusManual
+      if (pinsAnything) {
+        updateData.isManual = true
+        updateData.source = "manual"
+      }
 
       const updated = await db.attendanceLog.update({
         where: { id },
