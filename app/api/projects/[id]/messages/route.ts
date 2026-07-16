@@ -48,9 +48,42 @@ export const GET = withProjectAccess(
         include: {
           author: { select: AUTHOR_SELECT },
           _count: { select: { replies: true } },
+          // Last reply powers the chat-list preview + "last activity" ordering.
+          replies: {
+            take: 1,
+            orderBy: { createdAt: "desc" },
+            select: {
+              content: true,
+              createdAt: true,
+              author: { select: { firstName: true, lastName: true } },
+            },
+          },
         },
       })
-      return NextResponse.json({ data: messages })
+
+      // Decorate each thread with a compact last-message preview + last-activity
+      // timestamp, then order chats by most-recent activity (pinned first).
+      const data = messages
+        .map(({ replies, ...m }) => {
+          const last = replies[0]
+          return {
+            ...m,
+            lastReply: last
+              ? {
+                  content: last.content,
+                  createdAt: last.createdAt,
+                  authorName: `${last.author.firstName} ${last.author.lastName}`.trim(),
+                }
+              : null,
+            lastActivityAt: last ? last.createdAt : m.createdAt,
+          }
+        })
+        .sort((a, b) => {
+          if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
+          return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
+        })
+
+      return NextResponse.json({ data })
     } catch (error) {
       console.error("[PROJECT_MESSAGES_GET]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })

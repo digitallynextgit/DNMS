@@ -23,6 +23,7 @@ export function MentionTextarea({
   autoFocus,
   id,
   initialMentions,
+  onSubmit,
 }: {
   value: string
   onChange: (value: string, mentionIds: string[]) => void
@@ -34,6 +35,11 @@ export function MentionTextarea({
   /** Seed already-known mentions (e.g. when restoring a recalled draft) so their
    *  "@Name" tokens keep resolving to ids without the user re-picking them. */
   initialMentions?: { id: string; label: string }[]
+  /** Chat-style send: Enter submits (Shift+Enter = newline). Ignored while the
+   *  mention dropdown is open, where Enter picks the highlighted member. */
+  onSubmit?: () => void
+  /** Open the suggestion list ABOVE the field (for inputs pinned to the bottom). */
+  dropup?: boolean
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   // Everyone ever picked in this editor; the live mention set is derived by
@@ -109,7 +115,14 @@ export function MentionTextarea({
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (!open || suggestions.length === 0) return
+    // When the mention dropdown is closed, Enter (no Shift) submits chat-style.
+    if (!open || suggestions.length === 0) {
+      if (onSubmit && e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault()
+        onSubmit()
+      }
+      return
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault()
       setActive((i) => (i + 1) % suggestions.length)
@@ -139,7 +152,12 @@ export function MentionTextarea({
         autoFocus={autoFocus}
       />
       {open && suggestions.length > 0 && (
-        <div className="bg-popover absolute z-50 mt-1 w-72 overflow-hidden rounded-md border shadow-md">
+        <div
+          className={cn(
+            "bg-popover absolute z-50 w-72 overflow-hidden rounded-md border shadow-md",
+            dropup ? "bottom-full mb-1" : "mt-1",
+          )}
+        >
           <p className="text-muted-foreground border-b px-2.5 py-1.5 text-[11px]">
             Mention a team member
           </p>

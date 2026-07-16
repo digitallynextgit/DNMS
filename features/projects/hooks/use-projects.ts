@@ -123,6 +123,9 @@ export interface ProjectMessage {
   updatedAt: string
   author: EmployeeSnippet
   _count?: { replies: number }
+  // Chat-list decorations added by the messages list endpoint.
+  lastReply?: { content: string; createdAt: string; authorName: string } | null
+  lastActivityAt?: string
 }
 
 export interface ProjectMessageReply {
