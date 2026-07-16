@@ -65,9 +65,7 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
         <>
           <p className="font-medium">{team.name}</p>
           {team.description && (
-            <p className="text-muted-foreground max-w-[300px] truncate text-xs">
-              {team.description}
-            </p>
+            <p className="text-muted-foreground max-w-75 truncate text-xs">{team.description}</p>
           )}
         </>
       ),

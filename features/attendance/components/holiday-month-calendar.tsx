@@ -107,7 +107,7 @@ export function HolidayMonthCalendar({
                       : undefined
                 }
                 className={cn(
-                  "flex min-h-[76px] flex-col rounded p-1.5 text-left",
+                  "flex min-h-19 flex-col rounded p-1.5 text-left",
                   isBirthday
                     ? "bg-rose-100 text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200"
                     : h

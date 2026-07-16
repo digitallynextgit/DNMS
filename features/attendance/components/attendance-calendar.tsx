@@ -60,7 +60,7 @@ function DayCell({ d }: { d: CalendarDay }) {
   return (
     <div
       title={d.label ?? d.status}
-      className={cn("flex min-h-[76px] flex-col rounded p-1.5 text-left", cellStyle(d.status))}
+      className={cn("flex min-h-19 flex-col rounded p-1.5 text-left", cellStyle(d.status))}
     >
       <div className="flex items-start justify-between gap-1">
         <span className="text-xs font-semibold">{d.day}</span>

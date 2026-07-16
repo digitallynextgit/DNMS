@@ -1864,12 +1864,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               <ChevronRight className="h-4 w-4" />
             </Button>
           ) : (
-            <Button
-              key="nav-submit"
-              type="submit"
-              disabled={isSubmitting}
-              className="min-w-[140px]"
-            >
+            <Button key="nav-submit" type="submit" disabled={isSubmitting} className="min-w-35">
               {isSubmitting ? (
                 <>
                   <Spinner className="mr-2" />

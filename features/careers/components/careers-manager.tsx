@@ -103,7 +103,7 @@ function CareerTile({
         }
       }}
       className={cn(
-        "bg-card hover:border-primary/40 focus-visible:ring-ring relative flex min-h-[190px] cursor-pointer flex-col rounded border p-6 shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2",
+        "bg-card hover:border-primary/40 focus-visible:ring-ring relative flex min-h-47.5 cursor-pointer flex-col rounded border p-6 shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2",
         !live && "opacity-95",
       )}
     >

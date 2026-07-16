@@ -530,7 +530,7 @@ function ComposeDialog({
           placeholder="Write your message… Type @ to tag a team member."
         />
         <p className="text-muted-foreground text-[11px]">
-          Type <span className="font-medium">@</span> to mention a teammate — they&apos;ll get a
+          Type <span className="font-medium">@</span> to mention a teammate - they&apos;ll get a
           notification. You&apos;ll have a minute to undo after posting.
         </p>
       </div>

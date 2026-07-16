@@ -523,7 +523,7 @@ function StrategySection({ projectId, canManage }: Props) {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-[46px] gap-1.5 border-dashed"
+                  className="h-11.5 gap-1.5 border-dashed"
                   onClick={() =>
                     setGuidelines((g) => ({
                       ...g,
