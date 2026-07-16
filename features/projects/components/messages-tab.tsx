@@ -1,17 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   useProjectMessages,
+  useProjectMembers,
   useCreateMessage,
   useUpdateMessage,
   useDeleteMessage,
+  useMessageReplies,
+  useCreateReply,
+  useDeleteReply,
+  useMarkMessagesSeen,
   type ProjectMessage,
+  type ProjectMember,
 } from "@/features/projects/hooks/use-projects"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
@@ -19,8 +24,20 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { FormDialog } from "@/components/shared/form-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
-import { formatDate } from "@/lib/utils"
-import { Pin, PinOff, Plus, Trash2, Pencil, MessageSquare } from "lucide-react"
+import { formatDate, formatRelativeTime } from "@/lib/utils"
+import {
+  Pin,
+  PinOff,
+  Plus,
+  Trash2,
+  Pencil,
+  MessageSquare,
+  ChevronDown,
+  ChevronRight,
+  CornerDownRight,
+  Send,
+} from "lucide-react"
+import { MentionTextarea, renderWithMentions } from "./mention-textarea"
 
 interface Props {
   projectId: string
@@ -30,8 +47,22 @@ interface Props {
 
 export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
   const { data, isLoading } = useProjectMessages(projectId)
+  const { data: membersData } = useProjectMembers(projectId)
+  const members = useMemo(() => membersData?.data ?? [], [membersData])
+  const memberNames = useMemo(
+    () => new Set(members.map((m) => `${m.firstName} ${m.lastName}`.trim())),
+    [members],
+  )
   const messages = data?.data ?? []
   const [composeOpen, setComposeOpen] = useState(false)
+
+  // Opening the tab (mounting this component) clears the unread badge. Runs once
+  // per open; if new messages arrive while viewing, the badge reappears on return.
+  const markSeen = useMarkMessagesSeen(projectId)
+  useEffect(() => {
+    markSeen.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId])
 
   if (isLoading) {
     return <ListSkeleton rows={3} height="h-28" className="space-y-3" />
@@ -65,6 +96,8 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
               projectId={projectId}
               currentUserId={currentUserId}
               canManage={canManage}
+              members={members}
+              memberNames={memberNames}
             />
           ))}
         </div>
@@ -74,6 +107,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
         open={composeOpen}
         onClose={() => setComposeOpen(false)}
         projectId={projectId}
+        members={members}
       />
     </div>
   )
@@ -84,17 +118,23 @@ function MessageCard({
   projectId,
   currentUserId,
   canManage,
+  members,
+  memberNames,
 }: {
   message: ProjectMessage
   projectId: string
   currentUserId: string
   canManage: boolean
+  members: ProjectMember[]
+  memberNames: Set<string>
 }) {
   const update = useUpdateMessage(projectId)
   const del = useDeleteMessage(projectId)
   const [editOpen, setEditOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const isOwner = message.authorId === currentUserId
+  const replyCount = message._count?.replies ?? 0
 
   return (
     <Card className={message.isPinned ? "border-amber-300 dark:border-amber-700" : ""}>
@@ -170,8 +210,33 @@ function MessageCard({
         </div>
 
         <div className="text-muted-foreground mt-3 text-sm leading-relaxed whitespace-pre-wrap">
-          {message.content}
+          {renderWithMentions(message.content, memberNames)}
         </div>
+
+        {/* Thread toggle */}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-muted-foreground hover:text-foreground mt-3 flex items-center gap-1.5 text-xs font-medium transition-colors"
+        >
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
+          <MessageSquare className="h-3.5 w-3.5" />
+          {replyCount > 0 ? `${replyCount} ${replyCount === 1 ? "reply" : "replies"}` : "Reply"}
+        </button>
+
+        {expanded && (
+          <MessageThread
+            projectId={projectId}
+            messageId={message.id}
+            currentUserId={currentUserId}
+            members={members}
+            memberNames={memberNames}
+          />
+        )}
       </CardContent>
 
       <EditMessageDialog
@@ -179,6 +244,7 @@ function MessageCard({
         onClose={() => setEditOpen(false)}
         message={message}
         projectId={projectId}
+        members={members}
       />
 
       <ConfirmDialog
@@ -195,27 +261,133 @@ function MessageCard({
   )
 }
 
+function MessageThread({
+  projectId,
+  messageId,
+  currentUserId,
+  members,
+  memberNames,
+}: {
+  projectId: string
+  messageId: string
+  currentUserId: string
+  members: ProjectMember[]
+  memberNames: Set<string>
+}) {
+  const { data, isLoading } = useMessageReplies(projectId, messageId, true)
+  const replies = data?.data ?? []
+  const create = useCreateReply(projectId, messageId)
+  const del = useDeleteReply(projectId, messageId)
+  const [content, setContent] = useState("")
+  const [mentionIds, setMentionIds] = useState<string[]>([])
+
+  function send() {
+    if (!content.trim()) return
+    create.mutate(
+      { content: content.trim(), mentionedIds: mentionIds },
+      {
+        onSuccess: () => {
+          setContent("")
+          setMentionIds([])
+        },
+      },
+    )
+  }
+
+  return (
+    <div className="border-muted mt-3 space-y-3 border-l-2 pl-4">
+      {isLoading ? (
+        <p className="text-muted-foreground text-xs">Loading replies…</p>
+      ) : (
+        replies.map((r) => (
+          <div key={r.id} className="group flex items-start gap-2.5">
+            <AvatarDisplay
+              src={r.author.profilePhoto}
+              firstName={r.author.firstName}
+              lastName={r.author.lastName}
+              size="xs"
+              className="mt-0.5 shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px]">
+                <span className="text-foreground font-medium">
+                  {r.author.firstName} {r.author.lastName}
+                </span>
+                <span className="text-muted-foreground"> · {formatRelativeTime(r.createdAt)}</span>
+              </p>
+              <div className="text-muted-foreground mt-0.5 text-sm leading-relaxed whitespace-pre-wrap">
+                {renderWithMentions(r.content, memberNames)}
+              </div>
+            </div>
+            {r.authorId === currentUserId && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-destructive shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                title="Delete reply"
+                onClick={() => del.mutate(r.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        ))
+      )}
+
+      {/* Reply composer */}
+      <div className="flex items-start gap-2 pt-1">
+        <CornerDownRight className="text-muted-foreground mt-2 h-4 w-4 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <MentionTextarea
+            value={content}
+            onChange={(v, ids) => {
+              setContent(v)
+              setMentionIds(ids)
+            }}
+            members={members}
+            rows={2}
+            placeholder="Write a reply… Type @ to mention someone."
+          />
+        </div>
+        <Button
+          size="icon-sm"
+          className="mt-1 shrink-0"
+          disabled={!content.trim() || create.isPending}
+          onClick={send}
+          title="Send reply"
+        >
+          <Send className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function ComposeDialog({
   open,
   onClose,
   projectId,
+  members,
 }: {
   open: boolean
   onClose: () => void
   projectId: string
+  members: ProjectMember[]
 }) {
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
+  const [mentionIds, setMentionIds] = useState<string[]>([])
   const create = useCreateMessage(projectId)
 
   function handleSubmit() {
     if (!title.trim() || !content.trim()) return
     create.mutate(
-      { title: title.trim(), content: content.trim() },
+      { title: title.trim(), content: content.trim(), mentionedIds: mentionIds },
       {
         onSuccess: () => {
           setTitle("")
           setContent("")
+          setMentionIds([])
           onClose()
         },
       },
@@ -248,12 +420,20 @@ function ComposeDialog({
       </div>
       <div className="space-y-2">
         <Label>Message *</Label>
-        <Textarea
+        <MentionTextarea
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(v, ids) => {
+            setContent(v)
+            setMentionIds(ids)
+          }}
+          members={members}
           rows={5}
-          placeholder="Write your message…"
+          placeholder="Write your message… Type @ to tag a team member."
         />
+        <p className="text-muted-foreground text-[11px]">
+          Type <span className="font-medium">@</span> to mention a teammate — they&apos;ll get a
+          notification.
+        </p>
       </div>
     </FormDialog>
   )
@@ -264,19 +444,26 @@ function EditMessageDialog({
   onClose,
   message,
   projectId,
+  members,
 }: {
   open: boolean
   onClose: () => void
   message: ProjectMessage
   projectId: string
+  members: ProjectMember[]
 }) {
   const [title, setTitle] = useState(message.title)
   const [content, setContent] = useState(message.content)
+  // Start from the mentions already on the message so an untouched edit keeps them.
+  const [mentionIds, setMentionIds] = useState<string[]>(message.mentionedIds ?? [])
   const update = useUpdateMessage(projectId)
 
   function handleSave() {
     update.mutate(
-      { messageId: message.id, body: { title: title.trim(), content: content.trim() } },
+      {
+        messageId: message.id,
+        body: { title: title.trim(), content: content.trim(), mentionedIds: mentionIds },
+      },
       {
         onSuccess: () => onClose(),
       },
@@ -305,7 +492,24 @@ function EditMessageDialog({
       </div>
       <div className="space-y-2">
         <Label>Message</Label>
-        <Textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} />
+        <MentionTextarea
+          value={content}
+          onChange={(v, ids) => {
+            setContent(v)
+            // Union with existing so mentions already saved (but not re-picked in
+            // this session) are preserved as long as their @token stays in the text.
+            setMentionIds((prev) => {
+              const kept = (message.mentionedIds ?? []).filter((id) => {
+                const m = members.find((mm) => mm.id === id)
+                return m && v.includes(`@${m.firstName} ${m.lastName}`.trim())
+              })
+              return [...new Set([...kept, ...ids])]
+            })
+          }}
+          members={members}
+          rows={5}
+          placeholder="Write your message… Type @ to tag a team member."
+        />
       </div>
     </FormDialog>
   )

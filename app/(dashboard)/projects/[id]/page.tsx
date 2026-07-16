@@ -14,7 +14,7 @@ import { InfoRow } from "@/components/shared/info-row"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
-import { useProject, useProjectTeams } from "@/features/projects"
+import { useProject, useProjectTeams, useUnreadMessageCount } from "@/features/projects"
 import { usePermissions } from "@/features/admin"
 import {
   PERMISSIONS,
@@ -36,6 +36,8 @@ import {
   KeyRound,
   Sparkles,
   HardDrive,
+  Plug,
+  BarChart3,
 } from "lucide-react"
 import { ProjectFormDialog } from "@/features/projects"
 
@@ -47,6 +49,12 @@ const BrandTab = dynamic(() => import("@/features/projects").then((m) => m.Brand
   loading: tabFallback,
 })
 const DriveTab = dynamic(() => import("@/features/projects").then((m) => m.DriveTab), {
+  loading: tabFallback,
+})
+const IntegrationTab = dynamic(() => import("@/features/projects").then((m) => m.IntegrationTab), {
+  loading: tabFallback,
+})
+const InsightsTab = dynamic(() => import("@/features/projects").then((m) => m.InsightsTab), {
   loading: tabFallback,
 })
 const TeamsTab = dynamic(() => import("@/features/projects").then((m) => m.TeamsTab), {
@@ -77,6 +85,7 @@ export default function ProjectDetailPage() {
   const project = data?.data
   const { data: teamsData } = useProjectTeams(projectId)
   const teams = teamsData?.data ?? []
+  const { data: unreadMessages = 0 } = useUnreadMessageCount(projectId)
 
   // Admins/PMs with project:write can manage any project; the project's ACCOUNT
   // MANAGER (owner) can fully manage their own project too.
@@ -113,6 +122,7 @@ export default function ProjectDetailPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        className="space-y-4"
         backHref="/projects"
         backLabel="Back to projects"
         title={project.name}
@@ -151,7 +161,7 @@ export default function ProjectDetailPage() {
       />
 
       {project.description && (
-        <p className="text-muted-foreground -mt-4 max-w-4xl text-sm leading-relaxed whitespace-pre-line">
+        <p className="text-muted-foreground -mt-7 max-w-4xl text-sm leading-relaxed whitespace-pre-line">
           {project.description}
         </p>
       )}
@@ -171,6 +181,14 @@ export default function ProjectDetailPage() {
               <HardDrive className="h-3.5 w-3.5" />
               Files
             </TabsTrigger>
+            <TabsTrigger value="integration" className="gap-1.5">
+              <Plug className="h-3.5 w-3.5" />
+              Integration
+            </TabsTrigger>
+            <TabsTrigger value="insights" className="gap-1.5">
+              <BarChart3 className="h-3.5 w-3.5" />
+              Insights
+            </TabsTrigger>
             <TabsTrigger value="teams" className="gap-1.5">
               <Users className="h-3.5 w-3.5" />
               Teams
@@ -182,6 +200,11 @@ export default function ProjectDetailPage() {
             <TabsTrigger value="messages" className="gap-1.5">
               <MessageSquare className="h-3.5 w-3.5" />
               Messages
+              {unreadMessages > 0 && (
+                <span className="bg-primary text-primary-foreground ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold">
+                  {unreadMessages > 99 ? "99+" : unreadMessages}
+                </span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="activity" className="gap-1.5">
               <Activity className="h-3.5 w-3.5" />
@@ -255,6 +278,14 @@ export default function ProjectDetailPage() {
 
         <TabsContent value="drive">
           <DriveTab projectId={projectId} canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="integration">
+          <IntegrationTab projectId={projectId} canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="insights">
+          <InsightsTab projectId={projectId} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="teams" className="mt-4">

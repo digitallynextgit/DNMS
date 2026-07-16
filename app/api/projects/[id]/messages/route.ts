@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import { logActivity } from "@/features/projects/server/activity"
+import { createNotifications } from "@/lib/notifications"
 import type { Session } from "next-auth"
 
 const AUTHOR_SELECT = {
@@ -12,6 +13,30 @@ const AUTHOR_SELECT = {
   designation: { select: { title: true } },
 }
 
+/**
+ * Keeps only the ids that genuinely belong to the project (Account Manager or a
+ * member of any team) so a mention can never notify someone off the project.
+ */
+export async function resolveProjectMemberIds(
+  projectId: string,
+  candidateIds: string[],
+): Promise<string[]> {
+  const ids = [...new Set(candidateIds.filter(Boolean))]
+  if (ids.length === 0) return []
+  const project = await db.project.findUnique({
+    where: { id: projectId },
+    select: {
+      ownerId: true,
+      teams: { select: { members: { select: { employeeId: true } } } },
+    },
+  })
+  if (!project) return []
+  const valid = new Set<string>()
+  if (project.ownerId) valid.add(project.ownerId)
+  for (const t of project.teams) for (const m of t.members) valid.add(m.employeeId)
+  return ids.filter((id) => valid.has(id))
+}
+
 // GET /api/projects/[id]/messages
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
@@ -20,7 +45,10 @@ export const GET = withProjectAccess(
       const messages = await db.projectMessage.findMany({
         where: { projectId },
         orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-        include: { author: { select: AUTHOR_SELECT } },
+        include: {
+          author: { select: AUTHOR_SELECT },
+          _count: { select: { replies: true } },
+        },
       })
       return NextResponse.json({ data: messages })
     } catch (error) {
@@ -47,8 +75,13 @@ export const POST = withProjectAccess(
       if (!title || !content)
         return NextResponse.json({ error: "Title and content are required" }, { status: 400 })
 
+      const mentionedIds = await resolveProjectMemberIds(
+        projectId,
+        Array.isArray(body.mentionedIds) ? body.mentionedIds : [],
+      )
+
       const message = await db.projectMessage.create({
-        data: { projectId, authorId: session.user.id, title, content },
+        data: { projectId, authorId: session.user.id, title, content, mentionedIds },
         include: { author: { select: AUTHOR_SELECT } },
       })
 
@@ -60,6 +93,22 @@ export const POST = withProjectAccess(
         entityId: message.id,
         meta: { title },
       })
+
+      // Notify everyone tagged (never the author themselves).
+      const toNotify = mentionedIds.filter((id) => id !== session.user.id)
+      if (toNotify.length > 0) {
+        const author = message.author
+        await createNotifications(
+          toNotify.map((employeeId) => ({
+            employeeId,
+            title: "You were mentioned",
+            message: `${author.firstName} ${author.lastName} mentioned you in "${title}".`,
+            type: "info",
+            link: `/projects/${projectId}`,
+          })),
+          { force: true },
+        )
+      }
 
       return NextResponse.json({ data: message }, { status: 201 })
     } catch (error) {

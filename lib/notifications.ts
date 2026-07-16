@@ -23,13 +23,23 @@ interface CreateNotificationOptions {
   link?: string
 }
 
+// A direct, intentional ping (an @mention or a thread reply) must reach its
+// recipient even when the actor is the silent admin_ account - the admin_
+// suppression only exists to mute the CEO's routine/administrative side-effects.
+interface NotifyControl {
+  force?: boolean
+}
+
 /**
  * Creates a single in-app notification for an employee.
  * Always non-blocking - errors are swallowed so the caller's main operation
  * is never disrupted by a notification failure.
  */
-export async function createNotification(opts: CreateNotificationOptions): Promise<void> {
-  if (await suppressedForAdmin_()) return
+export async function createNotification(
+  opts: CreateNotificationOptions,
+  control: NotifyControl = {},
+): Promise<void> {
+  if (!control.force && (await suppressedForAdmin_())) return
   try {
     await db.notification.create({
       data: {
@@ -95,8 +105,9 @@ export async function notifyApprovers(opts: {
  */
 export async function createNotifications(
   notifications: CreateNotificationOptions[],
+  control: NotifyControl = {},
 ): Promise<void> {
-  if (await suppressedForAdmin_()) return
+  if (!control.force && (await suppressedForAdmin_())) return
   try {
     await db.notification.createMany({
       data: notifications.map((n) => ({

@@ -161,6 +161,27 @@ export const SETTING_FIELDS: SettingField[] = [
     group: "Storage (B2)",
     secret: true,
   },
+
+  // ── Google Drive (service account -> company Shared Drive) ───────────────────
+  // Stored here so the DEPLOYED server can read them (the local key FILE is
+  // gitignored and never deployed). Config resolves DB -> env, so pasting these on
+  // the Integrations page makes project Drive files work in production.
+  {
+    key: "GOOGLE_DRIVE_SHARED_DRIVE_ID",
+    label: "Shared Drive ID",
+    type: "text",
+    group: "Google Drive",
+    placeholder: "0ALcE76yNtuFUUk9PVA",
+    help: "The company Shared Drive that holds project files (the id in its Drive URL).",
+  },
+  {
+    key: "GOOGLE_DRIVE_CREDENTIALS",
+    label: "Service account JSON",
+    type: "password",
+    group: "Google Drive",
+    secret: true,
+    help: "Paste the whole service-account key JSON on ONE line (minified). Stored encrypted.",
+  },
 ]
 
 export const SETTING_KEYS = SETTING_FIELDS.map((f) => f.key)

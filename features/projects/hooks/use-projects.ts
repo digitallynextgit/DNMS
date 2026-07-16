@@ -118,9 +118,31 @@ export interface ProjectMessage {
   title: string
   content: string
   isPinned: boolean
+  mentionedIds: string[]
   createdAt: string
   updatedAt: string
   author: EmployeeSnippet
+  _count?: { replies: number }
+}
+
+export interface ProjectMessageReply {
+  id: string
+  messageId: string
+  authorId: string
+  content: string
+  mentionedIds: string[]
+  createdAt: string
+  updatedAt: string
+  author: EmployeeSnippet
+}
+
+export interface ProjectMember {
+  id: string
+  firstName: string
+  lastName: string
+  profilePhoto: string | null
+  designation?: { title: string } | null
+  isManager?: boolean
 }
 
 export interface ProjectResource {
@@ -641,11 +663,21 @@ export function useProjectMessages(projectId: string | undefined) {
   })
 }
 
+// Everyone on the project (Account Manager + all team members) - powers @mentions.
+export function useProjectMembers(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-members", projectId],
+    queryFn: () => apiFetch<{ data: ProjectMember[] }>(`/api/projects/${projectId}/members`),
+    enabled: !!projectId,
+    staleTime: 60_000,
+  })
+}
+
 export function useCreateMessage(projectId: string) {
   const qc = useQueryClient()
   return useMutation(
     mutationWithToast(qc, {
-      mutationFn: (body: { title: string; content: string }) =>
+      mutationFn: (body: { title: string; content: string; mentionedIds?: string[] }) =>
         apiFetch<{ data: ProjectMessage }>(`/api/projects/${projectId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -669,7 +701,7 @@ export function useUpdateMessage(projectId: string) {
         body,
       }: {
         messageId: string
-        body: Partial<{ title: string; content: string; isPinned: boolean }>
+        body: Partial<{ title: string; content: string; isPinned: boolean; mentionedIds: string[] }>
       }) =>
         apiFetch(`/api/projects/${projectId}/messages/${messageId}`, {
           method: "PATCH",
@@ -689,6 +721,84 @@ export function useDeleteMessage(projectId: string) {
         apiFetch(`/api/projects/${projectId}/messages/${messageId}`, { method: "DELETE" }),
       invalidate: [["project-messages", projectId]],
       success: "Message deleted",
+    }),
+  )
+}
+
+// Count of messages/replies posted by others since this user last opened the tab.
+export function useUnreadMessageCount(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-unread-messages", projectId],
+    queryFn: () =>
+      apiFetch<{ data: { count: number } }>(`/api/projects/${projectId}/messages/unread`).then(
+        (r) => r.data.count,
+      ),
+    enabled: !!projectId,
+    staleTime: 30_000,
+    refetchInterval: 60_000, // keep the badge roughly live while the project is open
+  })
+}
+
+export function useMarkMessagesSeen(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiFetch(`/api/projects/${projectId}/messages/unread`, { method: "POST" }),
+    onSuccess: () => {
+      qc.setQueryData(["project-unread-messages", projectId], 0)
+    },
+  })
+}
+
+// ─── Message thread replies ─────────────────────────────────────────────────
+
+export function useMessageReplies(projectId: string, messageId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["project-message-replies", projectId, messageId],
+    queryFn: () =>
+      apiFetch<{ data: ProjectMessageReply[] }>(
+        `/api/projects/${projectId}/messages/${messageId}/replies`,
+      ),
+    enabled: enabled && !!messageId,
+    staleTime: 15_000,
+  })
+}
+
+export function useCreateReply(projectId: string, messageId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (body: { content: string; mentionedIds?: string[] }) =>
+        apiFetch<{ data: ProjectMessageReply }>(
+          `/api/projects/${projectId}/messages/${messageId}/replies`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          },
+        ),
+      // Refresh the thread + the list (its reply count) + activity feed.
+      invalidate: [
+        ["project-message-replies", projectId, messageId],
+        ["project-messages", projectId],
+        ["project-activity", projectId],
+      ],
+    }),
+  )
+}
+
+export function useDeleteReply(projectId: string, messageId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (replyId: string) =>
+        apiFetch(`/api/projects/${projectId}/messages/${messageId}/replies/${replyId}`, {
+          method: "DELETE",
+        }),
+      invalidate: [
+        ["project-message-replies", projectId, messageId],
+        ["project-messages", projectId],
+      ],
+      success: "Reply deleted",
     }),
   )
 }

@@ -69,7 +69,7 @@ interface UnifiedFile {
 }
 
 function fmtBytes(b: number | null): string {
-  if (!b) return "—"
+  if (!b) return "-"
   if (b < 1024) return `${b} B`
   const u = ["KB", "MB", "GB"]
   let n = b / 1024
@@ -211,7 +211,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     { header: "Size", align: "right", className: "tabular-nums", cell: (f) => fmtBytes(f.size) },
     {
       header: "Modified",
-      cell: (f) => (f.modified ? new Date(f.modified).toLocaleDateString("en-IN") : "—"),
+      cell: (f) => (f.modified ? new Date(f.modified).toLocaleDateString("en-IN") : "-"),
     },
     {
       header: "",

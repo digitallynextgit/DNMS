@@ -511,6 +511,8 @@ model Employee {
   taskComments           TaskComment[]          @relation("CommentAuthor")
   projectActivities      ProjectActivity[]      @relation("ActivityActor")
   projectMessages        ProjectMessage[]       @relation("MessageAuthor")
+  messageReplies         ProjectMessageReply[]  @relation("MessageReplyAuthor")
+  messageReads           ProjectMessageRead[]
   createdPasswords       ProjectPasswordEntry[] @relation("PasswordCreator")
 
   // Employee had NO indexes at all. These serve the manager/team queues and the
@@ -1068,14 +1070,85 @@ model Project {
   timesheets      Timesheet[]
   activities      ProjectActivity[]
   messages        ProjectMessage[]
+  messageReads    ProjectMessageRead[]
   passwordEntries ProjectPasswordEntry[]
   brand           ProjectBrand?
   brandAssets     BrandAsset[]
   contentCalendar ContentCalendarEntry[]
+  integration     ProjectIntegration?
+  metaCampaigns   MetaCampaign[]
 
   @@index([status])
   @@index([ownerId])
   @@map("projects")
+}
+
+// Per-project ad-platform connection (currently Meta Ads). Secrets are stored
+// ENCRYPTED (lib/crypto) - the app decrypts them server-side only to call the API.
+model ProjectIntegration {
+  id              String    @id @default(uuid())
+  projectId       String    @unique @map("project_id")
+  provider        String    @default("META") @map("provider")
+  metaAppId       String?   @map("meta_app_id")
+  metaAppSecret   String?   @map("meta_app_secret") // encrypted
+  metaAccessToken String?   @map("meta_access_token") @db.Text // encrypted
+  metaAdAccountId String?   @map("meta_ad_account_id")
+  status          String    @default("pending") @map("status") // "connected" | "pending"
+  lastSyncedAt    DateTime? @map("last_synced_at")
+  lastSyncError   String?   @map("last_sync_error") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_integrations")
+}
+
+// A Meta ad campaign synced for a project.
+model MetaCampaign {
+  id         String   @id @default(uuid())
+  projectId  String   @map("project_id")
+  campaignId String   @map("campaign_id") // Meta's campaign id
+  name       String   @map("name")
+  status     String   @map("status")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  project Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  metrics MetaCampaignMetric[]
+
+  @@unique([projectId, campaignId])
+  @@index([projectId])
+  @@map("meta_campaigns")
+}
+
+// One row per campaign per day (Meta insights, time_increment=1).
+model MetaCampaignMetric {
+  id                String   @id @default(uuid())
+  campaignId        String   @map("campaign_id") // FK -> MetaCampaign.id
+  date              DateTime @map("date") @db.Date
+  spend             Decimal  @default(0) @map("spend") @db.Decimal(14, 2)
+  impressions       BigInt   @default(0) @map("impressions")
+  clicks            BigInt   @default(0) @map("clicks")
+  ctr               Decimal  @default(0) @map("ctr") @db.Decimal(8, 4)
+  cpc               Decimal  @default(0) @map("cpc") @db.Decimal(10, 2)
+  cpm               Decimal  @default(0) @map("cpm") @db.Decimal(10, 2)
+  reach             BigInt   @default(0) @map("reach")
+  conversions       Int      @default(0) @map("conversions")
+  costPerConversion Decimal  @default(0) @map("cost_per_conversion") @db.Decimal(10, 2)
+  purchases         Int      @default(0) @map("purchases")
+  purchaseValue     Decimal  @default(0) @map("purchase_value") @db.Decimal(14, 2)
+  roas              Decimal  @default(0) @map("roas") @db.Decimal(10, 2)
+  addToCart         Int      @default(0) @map("add_to_cart")
+  landingPageViews  Int      @default(0) @map("landing_page_views")
+  currency          String   @default("INR") @map("currency")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  campaign MetaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, date])
+  @@index([date])
+  @@map("meta_campaign_metrics")
 }
 
 // DEPRECATED (kept for deploy-compat, see Project.currentPhaseId).
@@ -1339,14 +1412,48 @@ model ProjectMessage {
   title     String   @map("title")
   content   String   @map("content") @db.Text
   isPinned  Boolean  @default(false) @map("is_pinned")
+  // Employee ids tagged via @mention in the content; drives notifications + highlighting.
+  mentionedIds String[] @default([]) @map("mentioned_ids")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  author  Employee @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  project Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  Employee              @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  replies ProjectMessageReply[]
 
   @@index([projectId])
   @@map("project_messages")
+}
+
+// A reply in a message thread - lets a single message hold an ongoing conversation.
+model ProjectMessageReply {
+  id           String   @id @default(uuid()) @map("id")
+  messageId    String   @map("message_id")
+  authorId     String   @map("author_id")
+  content      String   @map("content") @db.Text
+  mentionedIds String[] @default([]) @map("mentioned_ids")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  message ProjectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  author  Employee       @relation("MessageReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("project_message_replies")
+}
+
+// Per-user "last time I opened this project's Messages tab" - powers the unread badge.
+model ProjectMessageRead {
+  id         String   @id @default(uuid()) @map("id")
+  projectId  String   @map("project_id")
+  employeeId String   @map("employee_id")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, employeeId])
+  @@map("project_message_reads")
 }
 
 model ProjectPasswordEntry {
