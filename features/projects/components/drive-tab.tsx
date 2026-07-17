@@ -69,9 +69,10 @@ interface UnifiedFile {
   type: FileType
 }
 
-// Must stay <= the server caps (drive/route.ts + resources/route.ts) AND <=
+// Must match the server caps (drive/route.ts + resources/route.ts) AND stay <=
 // nginx's client_max_body_size, or the upload dies at the proxy with a 413.
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB
+const MAX_UPLOAD_MB = 250
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 function fmtBytes(b: number | null): string {
   if (!b) return "-"
@@ -178,9 +179,11 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     const tooBig = files.filter((f) => f.size > MAX_UPLOAD_BYTES)
     const queue = files.filter((f) => f.size <= MAX_UPLOAD_BYTES)
     if (tooBig.length === 1) {
-      toast.error(`"${tooBig[0]!.name}" is ${fmtBytes(tooBig[0]!.size)} - the limit is 100 MB.`)
+      toast.error(
+        `"${tooBig[0]!.name}" is ${fmtBytes(tooBig[0]!.size)} - the limit is ${MAX_UPLOAD_MB} MB.`,
+      )
     } else if (tooBig.length > 1) {
-      toast.error(`${tooBig.length} files are over the 100 MB limit and were skipped.`)
+      toast.error(`${tooBig.length} files are over the ${MAX_UPLOAD_MB} MB limit and were skipped.`)
     }
     if (queue.length === 0) return
 
