@@ -430,8 +430,20 @@ export function useUploadResource(projectId: string) {
           body: fd,
         })
         if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: "Upload failed" }))
-          throw new Error(err.error?.message || "Upload failed")
+          // The API sends `{ error: "<message>" }` - a STRING. Reading
+          // `err.error?.message` always yielded undefined, so every failure
+          // surfaced as a bare "Upload failed" and the real cause was lost.
+          // A non-JSON body means the request never reached the app (e.g. nginx
+          // returning its own 413/504 page), so fall back to the status code -
+          // that alone says whether it was too large, timed out, or crashed.
+          const body = await res.json().catch(() => null)
+          const msg =
+            typeof body?.error === "string"
+              ? body.error
+              : typeof body?.error?.message === "string"
+                ? body.error.message
+                : null
+          throw new Error(msg ?? `Upload failed (HTTP ${res.status})`)
         }
         return res.json()
       },

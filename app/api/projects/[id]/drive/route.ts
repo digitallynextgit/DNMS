@@ -46,7 +46,11 @@ export const POST = withProjectAccess(
       return NextResponse.json({ data: uploaded })
     } catch (error) {
       console.error("[PROJECT_DRIVE_POST]", error)
-      return NextResponse.json({ error: "Upload failed" }, { status: 500 })
+      // Surface the real reason (Drive quota, permissions, size, network). This
+      // is an internal HRMS - a generic "Upload failed" just hid the cause and
+      // made every failure unactionable.
+      const msg = error instanceof Error ? error.message : "Upload failed"
+      return NextResponse.json({ error: msg }, { status: 500 })
     }
   },
 )
