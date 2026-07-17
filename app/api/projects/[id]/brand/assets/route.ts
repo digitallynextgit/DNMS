@@ -7,7 +7,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { uploadFile, getObjectKey, ensureBucket } from "@/lib/storage"
 import type { Session } from "next-auth"
 
-const MAX_BYTES = 25 * 1024 * 1024 // 25 MB
+const MAX_BYTES = 250 * 1024 * 1024 // 250 MB
 const BLOCKED = ["exe", "bat", "cmd", "sh", "msi", "com", "scr", "js", "jar", "vbs"]
 
 // POST - upload a brand file (kind = "BRIEF" | "LOGO"). multipart/form-data.

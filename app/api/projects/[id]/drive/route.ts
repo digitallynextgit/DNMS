@@ -6,7 +6,10 @@ import {
 } from "@/features/projects/server/project-drive.service"
 import type { Session } from "next-auth"
 
-const MAX_BYTES = 50 * 1024 * 1024 // 50 MB per upload
+// Matches the Backblaze path (resources/route.ts) so both halves of the Files
+// tab share one limit. NOTE: nginx's `client_max_body_size` must be >= this or
+// the request is rejected with a 413 before it ever reaches Next.
+const MAX_BYTES = 250 * 1024 * 1024 // 250 MB per upload
 
 // GET /api/projects/[id]/drive - the project's Drive folder + its files.
 // Any project member (owner / team member / project:read) may view.
@@ -31,7 +34,7 @@ export const POST = withProjectAccess(
         return NextResponse.json({ error: "No file uploaded" }, { status: 400 })
       }
       if (file.size > MAX_BYTES) {
-        return NextResponse.json({ error: "File must be 50 MB or smaller" }, { status: 413 })
+        return NextResponse.json({ error: "File must be 100 MB or smaller" }, { status: 413 })
       }
       const buffer = Buffer.from(await file.arrayBuffer())
       const uploaded = await uploadProjectFile(

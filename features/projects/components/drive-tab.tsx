@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
 import {
   Upload,
   FileText,
@@ -68,6 +69,10 @@ interface UnifiedFile {
   type: FileType
 }
 
+// Must stay <= the server caps (drive/route.ts + resources/route.ts) AND <=
+// nginx's client_max_body_size, or the upload dies at the proxy with a 413.
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB
+
 function fmtBytes(b: number | null): string {
   if (!b) return "-"
   if (b < 1024) return `${b} B`
@@ -115,6 +120,8 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const inputRef = useRef<HTMLInputElement>(null)
   const targetRef = useRef<Source>("b2")
   const [deleteTarget, setDeleteTarget] = useState<UnifiedFile | null>(null)
+  // Batch upload progress; null when idle.
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
 
   // Filters
   const [search, setSearch] = useState("")
@@ -164,9 +171,44 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     targetRef.current = source
     inputRef.current?.click()
   }
-  function onFilePicked(file: File) {
-    if (targetRef.current === "drive") uploadDrive.mutate(file)
-    else uploadB2.mutate({ file, category: "OTHER" })
+
+  async function onFilesPicked(files: File[]) {
+    // Reject oversize files up front - otherwise the browser uploads the whole
+    // thing before the server can say no.
+    const tooBig = files.filter((f) => f.size > MAX_UPLOAD_BYTES)
+    const queue = files.filter((f) => f.size <= MAX_UPLOAD_BYTES)
+    if (tooBig.length === 1) {
+      toast.error(`"${tooBig[0]!.name}" is ${fmtBytes(tooBig[0]!.size)} - the limit is 100 MB.`)
+    } else if (tooBig.length > 1) {
+      toast.error(`${tooBig.length} files are over the 100 MB limit and were skipped.`)
+    }
+    if (queue.length === 0) return
+
+    const target = targetRef.current
+    const failed: string[] = []
+    setProgress({ done: 0, total: queue.length })
+
+    // Sequential ON PURPOSE: the server buffers each file fully in memory, so
+    // uploading several 100 MB files at once could exhaust the box's RAM.
+    for (let i = 0; i < queue.length; i++) {
+      const file = queue[i]!
+      try {
+        if (target === "drive") await uploadDrive.mutateAsync(file)
+        else await uploadB2.mutateAsync({ file, category: "OTHER" })
+      } catch {
+        // The hook already toasted the reason; just track it for the summary.
+        failed.push(file.name)
+      }
+      setProgress({ done: i + 1, total: queue.length })
+    }
+    setProgress(null)
+
+    const ok = queue.length - failed.length
+    if (ok > 0 && failed.length === 0) {
+      toast.success(ok === 1 ? `Uploaded "${queue[0]!.name}"` : `Uploaded ${ok} files`)
+    } else if (ok > 0) {
+      toast.warning(`${ok} uploaded · ${failed.length} failed`)
+    }
   }
   async function openFile(f: UnifiedFile) {
     if (f.source === "drive") {
@@ -177,7 +219,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     if (url) window.open(url, "_blank")
   }
 
-  const uploading = uploadB2.isPending || uploadDrive.isPending
+  const uploading = progress !== null || uploadB2.isPending || uploadDrive.isPending
 
   const columns: DataTableColumn<UnifiedFile>[] = [
     {
@@ -248,11 +290,13 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       <input
         ref={inputRef}
         type="file"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const f = e.target.files?.[0]
-          if (f) onFilePicked(f)
+          const files = Array.from(e.target.files ?? [])
+          // Reset first: the picker won't re-fire for the same selection otherwise.
           e.target.value = ""
+          if (files.length) void onFilesPicked(files)
         }}
       />
 
@@ -260,8 +304,9 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       <div className="flex flex-wrap items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" loading={uploading}>
-              <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload
+            <Button size="sm" loading={uploading} disabled={uploading}>
+              <Upload className="mr-1.5 h-3.5 w-3.5" />
+              {progress ? `Uploading ${progress.done}/${progress.total}` : "Upload"}
               <ChevronDown className="ml-1 h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>

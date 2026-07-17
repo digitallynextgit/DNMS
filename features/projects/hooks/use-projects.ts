@@ -436,7 +436,7 @@ export function useUploadResource(projectId: string) {
         return res.json()
       },
       invalidate: [["project-resources", projectId]],
-      success: "File uploaded",
+      // No per-file toast: uploads are batched and the caller shows one summary.
     }),
   )
 }

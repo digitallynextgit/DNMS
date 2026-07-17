@@ -10,7 +10,7 @@ const RESUME_TYPES = [
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]
-const MAX_BYTES = 10 * 1024 * 1024
+const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 const ONE_YEAR = 60 * 60 * 24 * 365
 
 // POST /api/recruitment/applicants/[id]/resume - upload a resume file.

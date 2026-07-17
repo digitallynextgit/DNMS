@@ -9,7 +9,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { uploadFile, getObjectKey, ensureBucket } from "@/lib/storage"
 import type { Session } from "next-auth"
 
-const MAX_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
+const MAX_SIZE_BYTES = 250 * 1024 * 1024 // 250 MB
 const BLOCKED_EXTENSIONS = [".exe", ".bat", ".sh", ".cmd", ".msi", ".com", ".scr", ".ps1"]
 const ALLOWED_CATEGORIES = ["BRIEFS", "ASSETS", "DELIVERABLES", "REFERENCES", "OTHER"] as const
 type Category = (typeof ALLOWED_CATEGORIES)[number]
