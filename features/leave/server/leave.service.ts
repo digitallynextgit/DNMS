@@ -3,7 +3,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
-import { addEmailJob } from "@/lib/queue"
+import { addEmailJob, addEmailAsJob } from "@/lib/queue"
 import { createNotification } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
 import { requireSession, requirePermission } from "@/server/action-guard"
@@ -222,6 +222,19 @@ export async function resolveLeaveMailEnvelope(
   return { autoApprove: false, to, ccHr, notifyIds }
 }
 
+/** Deterministic Message-ID for a leave request's application email, so the
+ *  approve/reject reply can thread onto the same conversation without us having
+ *  to capture the async-sent message's id. */
+function buildLeaveThreadMessageId(requestId: string): string {
+  let host = "dnms.digitallynext.com"
+  try {
+    if (process.env.NEXTAUTH_URL) host = new URL(process.env.NEXTAUTH_URL).host
+  } catch {
+    // keep the fallback host
+  }
+  return `<leave-${requestId}@${host}>`
+}
+
 /** Notify on apply: in-app to every approver, plus ONE letter to the manager. */
 async function notifyApprovers(
   route: ApprovalRoute,
@@ -299,16 +312,39 @@ async function notifyApprovers(
       subjectText: customSubject,
       reviewUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/leave/leave-directory` : undefined,
     })
-    addEmailJob({
+    // Cc the applicant so the letter lands in their mailbox too - that's what
+    // gives the approve/reject reply an existing thread to attach to.
+    const cc = [envelope.ccHr, applicant?.email].filter(
+      (v): v is string => Boolean(v) && v !== envelope.to!.email,
+    )
+    const messageId = buildLeaveThreadMessageId(request.id)
+
+    // Send AS the employee from their own Gmail (via their stored App Password) so
+    // the letter genuinely comes from them - and lands in their Gmail "Sent",
+    // which anchors the approve/reject reply thread. Falls back to the system
+    // "notifications" mailer automatically if they have no App Password on file.
+    addEmailAsJob(applicantId, {
       to: envelope.to.email,
-      cc: envelope.ccHr ?? undefined,
+      cc: cc.length ? cc : undefined,
       subject: email.subject,
       html: email.html,
       text: email.text,
       // It reads as the employee's letter, so Reply should reach the employee.
       replyTo: applicant?.email ?? undefined,
+      messageId,
       profile: "notifications",
     })
+
+    // Remember the Message-ID + subject so the decision reply threads onto this
+    // exact conversation.
+    await db.leaveRequest
+      .update({
+        where: { id: request.id },
+        data: { requestMailMessageId: messageId, requestMailSubject: email.subject },
+      })
+      .catch(() => {
+        // Non-blocking - threading is a nicety, not worth failing the request.
+      })
   } catch {
     // Non-blocking - email must never fail the request.
   }
@@ -1249,11 +1285,24 @@ export async function updateLeaveRequest(
             detailLine,
             reason: !isApproved && rejectionReason ? rejectionReason : null,
           })
+          // Thread the decision onto the original application email when we
+          // captured its Message-ID at apply time. Subject becomes "Re: <the
+          // exact subject that was sent>"; Cc HR so their copy threads too.
+          const threadId = request.requestMailMessageId ?? undefined
+          const hrEmail = (await getConfig("HR_EMAIL"))?.trim() || null
+          const cc = threadId && hrEmail && hrEmail !== emp.email ? hrEmail : undefined
+          const subject =
+            threadId && request.requestMailSubject
+              ? `Re: ${request.requestMailSubject}`
+              : email.subject
           addEmailJob({
             to: emp.email,
-            subject: email.subject,
+            cc,
+            subject,
             html: email.html,
             text: email.text,
+            inReplyTo: threadId,
+            references: threadId,
           })
         }
       }

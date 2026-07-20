@@ -150,6 +150,9 @@ interface SendEmailOptions {
   // replies on the same email thread (Gmail conversation).
   inReplyTo?: string
   references?: string | string[]
+  // Explicit Message-ID for THIS email (else nodemailer auto-generates one). Set
+  // it when a later email needs to reply onto this one's thread.
+  messageId?: string
   // Which configured mailbox to send from (default: "default").
   profile?: MailerProfile
   // Explicit From override; wins over the profile's configured From.
@@ -178,6 +181,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<string | nul
     replyTo: options.replyTo,
     inReplyTo: options.inReplyTo,
     references: options.references,
+    messageId: options.messageId,
   })
   return info.messageId ?? null
 }
@@ -236,6 +240,7 @@ export async function sendEmailAs(
     replyTo: options.replyTo,
     inReplyTo: options.inReplyTo,
     references: options.references,
+    messageId: options.messageId,
   })
   return info.messageId ?? null
 }

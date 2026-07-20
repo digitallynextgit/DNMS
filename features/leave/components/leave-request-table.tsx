@@ -11,8 +11,8 @@ import {
   type DataTableSelection,
 } from "@/components/shared/data-table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { RejectDialog } from "@/features/leave/components/reject-dialog"
-import { useCancelLeave, useApproveLeave } from "@/features/leave/hooks/use-leave"
+import { LeaveDecisionDialog } from "@/features/leave/components/leave-decision-dialog"
+import { useCancelLeave } from "@/features/leave/hooks/use-leave"
 import type { LeaveRequest } from "@/features/leave/hooks/use-leave"
 import { formatDate } from "@/lib/utils"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
@@ -40,16 +40,12 @@ export function LeaveRequestTable({
   serialOffset = 0,
   selection,
 }: LeaveRequestTableProps) {
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
-  const [rejectingId, setRejectingId] = useState<string | null>(null)
+  const [decision, setDecision] = useState<{
+    action: "APPROVE" | "REJECT"
+    request: LeaveRequest
+  } | null>(null)
 
   const cancelLeave = useCancelLeave()
-  const approveLeave = useApproveLeave()
-
-  function openRejectDialog(id: string) {
-    setRejectingId(id)
-    setRejectDialogOpen(true)
-  }
 
   if (requests.length === 0) {
     return <EmptyState compact title="No leave requests found." />
@@ -200,8 +196,7 @@ export function LeaveRequestTable({
                       variant="ghost"
                       size="icon-sm"
                       className="text-muted-foreground hover:text-green-600"
-                      disabled={approveLeave.isPending}
-                      onClick={() => approveLeave.mutate(request.id)}
+                      onClick={() => setDecision({ action: "APPROVE", request })}
                     >
                       <Check className="h-3.5 w-3.5" />
                       <span className="sr-only">Approve</span>
@@ -215,7 +210,7 @@ export function LeaveRequestTable({
                       variant="ghost"
                       size="icon-sm"
                       className="text-muted-foreground hover:text-destructive"
-                      onClick={() => openRejectDialog(request.id)}
+                      onClick={() => setDecision({ action: "REJECT", request })}
                     >
                       <X className="h-3.5 w-3.5" />
                       <span className="sr-only">Reject</span>
@@ -246,10 +241,11 @@ export function LeaveRequestTable({
         selection={selection}
       />
 
-      <RejectDialog
-        open={rejectDialogOpen}
-        onOpenChange={setRejectDialogOpen}
-        requestId={rejectingId}
+      <LeaveDecisionDialog
+        open={!!decision}
+        onOpenChange={(o) => !o && setDecision(null)}
+        action={decision?.action ?? "APPROVE"}
+        request={decision?.request ?? null}
       />
     </TooltipProvider>
   )

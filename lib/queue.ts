@@ -11,6 +11,8 @@ export interface EmailJobData {
   // Threading headers, so a decision email replies on the original thread.
   inReplyTo?: string
   references?: string | string[]
+  // Explicit Message-ID for this email (so a later reply can thread onto it).
+  messageId?: string
   attachments?: Array<{ filename: string; content: Buffer; contentType: string }>
   // Which configured mailbox to send from (default "default"). Use "notifications"
   // for system mail (credentials, alerts) so it goes out via the Brevo relay.
@@ -37,6 +39,7 @@ export function addEmailJob(data: EmailJobData): void {
     replyTo: data.replyTo,
     inReplyTo: data.inReplyTo,
     references: data.references,
+    messageId: data.messageId,
     attachments: data.attachments,
     profile: data.profile,
   }).catch((err) => console.error("[email] Failed to send to", data.to, ":", err))
@@ -53,6 +56,7 @@ export function addEmailAsJob(employeeId: string, data: EmailJobData): void {
     replyTo: data.replyTo,
     inReplyTo: data.inReplyTo,
     references: data.references,
+    messageId: data.messageId,
     attachments: data.attachments,
     profile: data.profile,
   }).catch((err) => console.error("[email] Failed to send as", employeeId, "to", data.to, ":", err))

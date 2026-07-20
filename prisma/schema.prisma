@@ -956,6 +956,11 @@ model LeaveRequest {
   // role queue (any HR / any Admin, per approvalStage).
   approvalStage     LeaveApprovalStage? @map("approval_stage")
   currentApproverId String?             @map("current_approver_id")
+  // The application email's Message-ID + subject, captured when the request
+  // letter is sent, so the approve/reject reply threads onto the same email
+  // conversation (Gmail).
+  requestMailMessageId String?          @map("request_mail_message_id")
+  requestMailSubject   String?          @map("request_mail_subject")
   createdAt         DateTime            @default(now()) @map("created_at")
   updatedAt         DateTime            @updatedAt @map("updated_at")
 
