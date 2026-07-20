@@ -8,6 +8,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest, ctx: { params: { 
   const body = (await req.json()) as {
     action: "CANCEL" | "APPROVE" | "REJECT"
     rejectionReason?: string
+    emailBody?: string
   }
-  return respond(await updateLeaveRequest(id, body.action, body.rejectionReason))
+  return respond(await updateLeaveRequest(id, body.action, body.rejectionReason, body.emailBody))
 })

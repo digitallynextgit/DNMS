@@ -11,7 +11,7 @@ import { ok, fail, runAction, serialize, type ActionResult } from "@/server/acti
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC } from "@/lib/dates"
-import { renderDecisionEmail, renderLeaveRequestEmail } from "@/lib/email-layout"
+import { renderLeaveDecisionLetter, renderLeaveRequestEmail } from "@/lib/email-layout"
 import { getConfig } from "@/server/app-config"
 import { recomputeAccrued } from "./leave-accrual.service"
 // Canonical probation rule (pure helpers) - keep leave eligibility in lockstep
@@ -1133,6 +1133,8 @@ export async function updateLeaveRequest(
   id: string,
   action: "CANCEL" | "APPROVE" | "REJECT",
   rejectionReason?: string,
+  /** The approver's edited reply letter (from the approve/reject dialog). */
+  emailBody?: string,
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
@@ -1276,15 +1278,6 @@ export async function updateLeaveRequest(
             type: isApproved ? "success" : "error",
             link: "/leave",
           })
-          const endDate = new Date(request.endDate).toDateString()
-          const detailLine = `${leaveType?.name ?? "Leave"} · ${startDate} – ${endDate} (${request.totalDays} day${request.totalDays !== 1 ? "s" : ""})`
-          const email = renderDecisionEmail({
-            kind: "Leave request",
-            approved: isApproved,
-            firstName: emp.firstName,
-            detailLine,
-            reason: !isApproved && rejectionReason ? rejectionReason : null,
-          })
           // Thread the decision onto the original application email when we
           // captured its Message-ID at apply time. Subject becomes "Re: <the
           // exact subject that was sent>"; Cc HR so their copy threads too.
@@ -1294,14 +1287,44 @@ export async function updateLeaveRequest(
           const subject =
             threadId && request.requestMailSubject
               ? `Re: ${request.requestMailSubject}`
-              : email.subject
-          // Send AS the finaliser (the admin/HR who actually decided) from their
-          // own Gmail, so the reply is authentic and threads in their Sent too.
-          // Falls back to the system mailer if they have no App Password on file.
+              : `Leave ${isApproved ? "approved" : "declined"} - ${emp.firstName}`
+
+          // The finaliser (admin/HR/manager who decided) signs the reply.
+          const approver = await db.employee.findUnique({
+            where: { id: session.user.id },
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+              jobRole: { select: { name: true } },
+              designation: { select: { title: true } },
+            },
+          })
+          const email = renderLeaveDecisionLetter({
+            employeeFirstName: emp.firstName,
+            approved: isApproved,
+            leaveType: leaveType?.name ?? "leave",
+            startDate: new Date(request.startDate).toISOString().slice(0, 10),
+            endDate: new Date(request.endDate).toISOString().slice(0, 10),
+            totalDays: request.totalDays,
+            reason: !isApproved && rejectionReason ? rejectionReason : null,
+            bodyText: emailBody?.trim() || null,
+            subject,
+            approverName: approver
+              ? `${approver.firstName} ${approver.lastName}`.trim()
+              : "Digitally Next",
+            approverDesignation: approver?.jobRole?.name ?? approver?.designation?.title ?? null,
+            approverEmail: approver?.email ?? null,
+            approverPhone: approver?.phone ?? null,
+          })
+          // Send AS the finaliser from their own Gmail, so the reply is authentic
+          // and threads in their Sent too. Falls back to the system mailer if they
+          // have no App Password on file.
           addEmailAsJob(session.user.id, {
             to: emp.email,
             cc,
-            subject,
+            subject: email.subject,
             html: email.html,
             text: email.text,
             inReplyTo: threadId,

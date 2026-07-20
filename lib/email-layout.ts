@@ -21,6 +21,13 @@ export function signatureLogoUrl(): string {
   return `${base}/brand-mark.png`
 }
 
+/** Hosted PNG icons for the signature (mail clients strip inline SVG, so the
+ *  little phone/mail/social glyphs must be real images). See public/email-icons. */
+export function signatureIconUrl(name: string): string {
+  const base = (process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "")
+  return `${base}/email-icons/${name}.png`
+}
+
 /** A single "Label / value" row for a details card (omitted when value is empty). */
 export function detailRow(label: string, value?: string | null): string {
   if (!value) return ""
@@ -326,25 +333,35 @@ export function renderSignature(input: {
   const link = `color:${BODY}; text-decoration:none;`
   const websiteHref = website.startsWith("http") ? website : `https://${website}`
 
-  // Teal social pills, top-right, in the reference's order (only the ones with a
-  // configured URL - an email shouldn't link a pill to nowhere).
+  void TEAL // palette is baked into the icon PNGs now
+
+  // Social icons: real teal-square PNGs (only the ones with a configured URL).
+  const iconMap: Record<string, string> = {
+    YouTube: "youtube",
+    Instagram: "instagram",
+    LinkedIn: "linkedin",
+  }
   const order = ["YouTube", "Instagram", "LinkedIn"]
-  const socialPills = order
+  const socialIcons = order
     .map((label) => socials.find((s) => s.label.toLowerCase() === label.toLowerCase()))
     .filter((s): s is { label: string; url: string } => Boolean(s?.url))
     .map(
       (s) =>
-        `<a href="${s.url}" style="display:inline-block; background:${TEAL}; color:#ffffff; font-size:11px; font-weight:600; text-decoration:none; padding:3px 9px; margin-left:6px;">${escapeHtml(s.label)}</a>`,
+        `<a href="${s.url}" style="display:inline-block; margin-left:6px; text-decoration:none;"><img src="${signatureIconUrl(iconMap[s.label]!)}" alt="${escapeHtml(s.label)}" width="20" height="20" style="display:inline-block; border:0;" /></a>`,
     )
     .join("")
 
-  // Phone and website share a row, like the reference.
+  // A "<icon> value" cell - icon PNG + text, both vertically centred.
+  const iconText = (icon: string, inner: string) =>
+    `<span style="white-space:nowrap;"><img src="${signatureIconUrl(icon)}" width="13" height="13" alt="" style="border:0; vertical-align:-2px; margin-right:5px;" />${inner}</span>`
+
+  // Phone + website share a row, like the reference.
   const contactLine = [
-    phone ? `<span style="${body}">${escapeHtml(phone)}</span>` : "",
-    website ? `<a href="${websiteHref}" style="${link}">${escapeHtml(website)}</a>` : "",
+    phone ? iconText("phone", `<span style="${body}">${escapeHtml(phone)}</span>`) : "",
+    website ? iconText("globe", `<a href="${websiteHref}" style="${link}">${escapeHtml(website)}</a>`) : "",
   ]
     .filter(Boolean)
-    .join(`<span style="${body}">&nbsp;&nbsp;&nbsp;&nbsp;</span>`)
+    .join(`<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>`)
 
   return `
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 0;">
@@ -361,13 +378,13 @@ export function renderSignature(input: {
                   designation ? `${escapeHtml(designation)}, ${BRAND_NAME}` : BRAND_NAME
                 }</div>
               </td>
-              ${socialPills ? `<td align="right" style="vertical-align:top; white-space:nowrap;">${socialPills}</td>` : ""}
+              ${socialIcons ? `<td align="right" style="vertical-align:top; white-space:nowrap;">${socialIcons}</td>` : ""}
             </tr>
           </table>
           <div style="border-top:1.5px solid ${RED}; margin:10px 0;"></div>
           ${contactLine ? `<div style="margin:0 0 5px;">${contactLine}</div>` : ""}
-          ${email ? `<div style="margin:0 0 5px;"><a href="mailto:${escapeHtml(email)}" style="${link}">${escapeHtml(email)}</a></div>` : ""}
-          ${address ? `<div style="${body} max-width:440px;">${escapeHtml(address)}</div>` : ""}
+          ${email ? `<div style="margin:0 0 5px;">${iconText("mail", `<a href="mailto:${escapeHtml(email)}" style="${link}">${escapeHtml(email)}</a>`)}</div>` : ""}
+          ${address ? `<div style="margin:0 0 2px;">${iconText("pin", `<span style="${body}">${escapeHtml(address)}</span>`)}</div>` : ""}
           <div style="border-top:1.5px solid ${RED}; margin-top:12px;"></div>
         </td>
       </tr>
@@ -514,6 +531,104 @@ Approve or decline in ${BRAND_NAME}: ${reviewUrl}`
       : "",
   ]
     .filter((l) => l !== undefined)
+    .join("\n")
+
+  return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
+}
+
+/**
+ * The approve/reject reply, written AS THE APPROVER (manager/HR/admin) and
+ * addressed to the employee - a proper letter, not a system "approved" box. It
+ * threads onto the original application (the service sets Re: + References) and
+ * carries the APPROVER's signature. The approver can edit the body in the UI;
+ * their text arrives as `bodyText` and replaces the auto-composed letter.
+ */
+export function renderLeaveDecisionLetter(input: {
+  employeeFirstName: string
+  approved: boolean
+  leaveType: string
+  /** "yyyy-MM-dd" */
+  startDate: string
+  endDate: string
+  totalDays: number
+  /** Rejection reason (rejections only). */
+  reason?: string | null
+  /** The approver's edited letter body; overrides the auto-composed one. */
+  bodyText?: string | null
+  /** Subject (the service passes "Re: <original>"). */
+  subject: string
+  /** Approver signature fields. */
+  approverName: string
+  approverDesignation?: string | null
+  approverEmail?: string | null
+  approverPhone?: string | null
+}): { subject: string; html: string; text: string } {
+  const {
+    employeeFirstName,
+    approved,
+    leaveType,
+    startDate,
+    endDate,
+    totalDays,
+    reason,
+    bodyText,
+    subject,
+    approverName,
+    approverDesignation,
+    approverEmail,
+    approverPhone,
+  } = input
+
+  const start = formatEmailDate(startDate) ?? startDate
+  const end = formatEmailDate(endDate) ?? endDate
+  const dates = start === end ? start : `${start} to ${end}`
+  const dayLabel = `${totalDays} day${totalDays === 1 ? "" : "s"}`
+  const type = cleanLeaveTypeForLetter(leaveType)
+  const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
+  const reasonTrimmed = reason?.trim() || ""
+
+  // Default letter (used when the approver didn't edit it). Kept in sync with the
+  // client-side composer in the approve/reject dialog.
+  const defaultLines = approved
+    ? [
+        `Dear ${employeeFirstName},`,
+        ``,
+        `I am pleased to inform you that your application for ${type} for ${dayLabel}, from ${dates}, has been approved.`,
+        ``,
+        `Please ensure your responsibilities are handed over before you go. Do reach out if anything needs to be sorted beforehand.`,
+        ``,
+        `Best Regards,`,
+      ]
+    : [
+        `Dear ${employeeFirstName},`,
+        ``,
+        `Thank you for your application for ${type} for ${dayLabel}, from ${dates}. After review, I am unable to approve it at this time.`,
+        ``,
+        ...(reasonTrimmed ? [`Reason: ${reasonTrimmed}`, ``] : []),
+        `Please feel free to reach out if you would like to discuss this further.`,
+        ``,
+        `Best Regards,`,
+      ]
+
+  const edited = bodyText?.trim() || ""
+  const paras = (edited ? edited.split(/\n{2,}/) : defaultLines.join("\n").split(/\n{2,}/)).map(
+    (p) => `<p style="${para}">${escapeHtml(p).replace(/\n/g, "<br />")}</p>`,
+  )
+
+  const body = `
+    ${paras.join("\n")}
+    ${renderSignature({
+      name: approverName,
+      designation: approverDesignation,
+      email: approverEmail,
+      phone: approverPhone,
+    })}`
+
+  const text = (edited ? edited.split("\n") : defaultLines)
+    .concat([
+      approverName,
+      approverDesignation ? `${approverDesignation}, ${BRAND_NAME}` : BRAND_NAME,
+    ])
     .join("\n")
 
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }

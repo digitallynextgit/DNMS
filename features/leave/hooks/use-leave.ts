@@ -253,12 +253,18 @@ async function cancelLeave(id: string): Promise<{ data: LeaveRequest }> {
   ).data
 }
 
-async function approveLeave(id: string): Promise<{ data: LeaveRequest }> {
+async function approveLeave({
+  id,
+  emailBody,
+}: {
+  id: string
+  emailBody?: string
+}): Promise<{ data: LeaveRequest }> {
   return (
     await apiFetch<{ data: { data: LeaveRequest } }>(`/api/leave/requests/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "APPROVE" }),
+      body: JSON.stringify({ action: "APPROVE", emailBody }),
     })
   ).data
 }
@@ -266,15 +272,17 @@ async function approveLeave(id: string): Promise<{ data: LeaveRequest }> {
 async function rejectLeave({
   id,
   rejectionReason,
+  emailBody,
 }: {
   id: string
   rejectionReason: string
+  emailBody?: string
 }): Promise<{ data: LeaveRequest }> {
   return (
     await apiFetch<{ data: { data: LeaveRequest } }>(`/api/leave/requests/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "REJECT", rejectionReason }),
+      body: JSON.stringify({ action: "REJECT", rejectionReason, emailBody }),
     })
   ).data
 }
