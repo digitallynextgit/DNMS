@@ -3,7 +3,7 @@ import "server-only"
 import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
-import { addEmailJob, addEmailAsJob } from "@/lib/queue"
+import { addEmailAsJob } from "@/lib/queue"
 import { createNotification } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
 import { requireSession, requirePermission } from "@/server/action-guard"
@@ -1295,7 +1295,10 @@ export async function updateLeaveRequest(
             threadId && request.requestMailSubject
               ? `Re: ${request.requestMailSubject}`
               : email.subject
-          addEmailJob({
+          // Send AS the finaliser (the admin/HR who actually decided) from their
+          // own Gmail, so the reply is authentic and threads in their Sent too.
+          // Falls back to the system mailer if they have no App Password on file.
+          addEmailAsJob(session.user.id, {
             to: emp.email,
             cc,
             subject,
