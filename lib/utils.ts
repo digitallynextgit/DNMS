@@ -93,3 +93,18 @@ export function getAvatarColor(name: string): string {
   }
   return colors[Math.abs(hash) % colors.length]
 }
+
+/**
+ * Clean a leave-type name for use inside a request letter. Drops parentheticals
+ * and payroll qualifiers so "Leave Without Pay (Unpaid)" reads simply as "leave",
+ * while ordinary types stay natural (e.g. "Casual Leave" -> "casual leave").
+ */
+export function cleanLeaveTypeForLetter(name?: string | null): string {
+  const cleaned = (name ?? "leave")
+    .replace(/\([^)]*\)/g, " ") // drop "(Unpaid)", "(Paid)" etc.
+    .replace(/without pay/gi, " ") // drop the payroll qualifier
+    .replace(/unpaid/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  return (cleaned || "leave").toLowerCase()
+}

@@ -5,12 +5,20 @@
 // =============================================================================
 
 import { getConfigSync } from "@/server/app-config"
+import { cleanLeaveTypeForLetter } from "@/lib/utils"
 
 export const BRAND_NAME = "Digitally Next"
 
 export function logoUrl(): string {
   const base = (process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "")
   return getConfigSync("EMAIL_LOGO_URL") || `${base}/logo_dark_bg.webp`
+}
+
+/** The signature uses the standalone brand mark (public/brand-mark.png), not the
+ *  wordmark used in the email header. */
+export function signatureLogoUrl(): string {
+  const base = (process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "")
+  return `${base}/brand-mark.png`
 }
 
 /** A single "Label / value" row for a details card (omitted when value is empty). */
@@ -280,6 +288,233 @@ export function renderDecisionEmail(input: {
   const text = `Hi ${firstName}, your ${kind.toLowerCase()} has been ${verb}.${
     detailLine ? `\n\n${detailLine}` : ""
   }${reason ? `\n\nReason: ${reason}` : ""}\n\n- ${BRAND_NAME}`
+
+  return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
+}
+
+/**
+ * The employee's email signature block, mirroring the one staff use in Gmail:
+ * logo | name / designation / socials / phone / website / email / address.
+ *
+ * Company-level bits (website, address, socials) come from app settings, so they
+ * can be corrected without a redeploy; a blank social is simply omitted rather
+ * than rendering a dead link. Table-based + inline styles because Gmail/Outlook
+ * strip <style> blocks and ignore flexbox.
+ */
+export function renderSignature(input: {
+  name: string
+  designation?: string | null
+  email?: string | null
+  phone?: string | null
+}): string {
+  const { name, designation, email, phone } = input
+  const website = getConfigSync("COMPANY_WEBSITE") || ""
+  const address = getConfigSync("COMPANY_ADDRESS") || ""
+  const socials = [
+    { label: "LinkedIn", url: getConfigSync("SOCIAL_LINKEDIN") || "" },
+    { label: "Instagram", url: getConfigSync("SOCIAL_INSTAGRAM") || "" },
+    { label: "YouTube", url: getConfigSync("SOCIAL_YOUTUBE") || "" },
+  ].filter((s) => s.url)
+
+  // Reference palette.
+  const RED = "#e5231b"
+  const TEAL = "#25c1c1"
+  const INK = "#1a1a1a"
+  const BODY = "#374151"
+
+  const body = `font-size:12px; color:${BODY};`
+  const link = `color:${BODY}; text-decoration:none;`
+  const websiteHref = website.startsWith("http") ? website : `https://${website}`
+
+  // Teal social pills, top-right, in the reference's order (only the ones with a
+  // configured URL - an email shouldn't link a pill to nowhere).
+  const order = ["YouTube", "Instagram", "LinkedIn"]
+  const socialPills = order
+    .map((label) => socials.find((s) => s.label.toLowerCase() === label.toLowerCase()))
+    .filter((s): s is { label: string; url: string } => Boolean(s?.url))
+    .map(
+      (s) =>
+        `<a href="${s.url}" style="display:inline-block; background:${TEAL}; color:#ffffff; font-size:11px; font-weight:600; text-decoration:none; padding:3px 9px; margin-left:6px;">${escapeHtml(s.label)}</a>`,
+    )
+    .join("")
+
+  // Phone and website share a row, like the reference.
+  const contactLine = [
+    phone ? `<span style="${body}">${escapeHtml(phone)}</span>` : "",
+    website ? `<a href="${websiteHref}" style="${link}">${escapeHtml(website)}</a>` : "",
+  ]
+    .filter(Boolean)
+    .join(`<span style="${body}">&nbsp;&nbsp;&nbsp;&nbsp;</span>`)
+
+  return `
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 0;">
+      <tr>
+        <td style="padding-right:16px; vertical-align:top;">
+          <img src="${signatureLogoUrl()}" alt="${BRAND_NAME}" height="52" style="height:52px; width:auto; display:block; border:0;" />
+        </td>
+        <td style="vertical-align:top;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width:100%;">
+            <tr>
+              <td style="vertical-align:top;">
+                <div style="font-size:15px; font-weight:700; color:${INK};">${escapeHtml(name)}</div>
+                <div style="font-size:13px; font-weight:700; color:${INK}; margin-top:1px;">${
+                  designation ? `${escapeHtml(designation)}, ${BRAND_NAME}` : BRAND_NAME
+                }</div>
+              </td>
+              ${socialPills ? `<td align="right" style="vertical-align:top; white-space:nowrap;">${socialPills}</td>` : ""}
+            </tr>
+          </table>
+          <div style="border-top:1.5px solid ${RED}; margin:10px 0;"></div>
+          ${contactLine ? `<div style="margin:0 0 5px;">${contactLine}</div>` : ""}
+          ${email ? `<div style="margin:0 0 5px;"><a href="mailto:${escapeHtml(email)}" style="${link}">${escapeHtml(email)}</a></div>` : ""}
+          ${address ? `<div style="${body} max-width:440px;">${escapeHtml(address)}</div>` : ""}
+          <div style="border-top:1.5px solid ${RED}; margin-top:12px;"></div>
+        </td>
+      </tr>
+    </table>`
+}
+
+/**
+ * The leave application, written AS THE EMPLOYEE and addressed to their manager
+ * (HR is CC'd). It reads like a letter the employee sent, not a system alert -
+ * the previous version was an unbranded one-liner that didn't even include the
+ * reason, so the manager was asked to decide without being told why.
+ */
+export function renderLeaveRequestEmail(input: {
+  /** First name of the manager the letter is addressed to. */
+  approverFirstName: string
+  applicantName: string
+  employeeNo?: string | null
+  designation?: string | null
+  department?: string | null
+  /** For the signature block. */
+  applicantEmail?: string | null
+  applicantPhone?: string | null
+  leaveType: string
+  /** "yyyy-MM-dd" */
+  startDate: string
+  endDate: string
+  totalDays: number
+  reason?: string | null
+  /** When set, this REPLACES the auto-composed letter body (the greeting through
+   *  "Best Regards,") - it's the text the employee edited in the preview. The
+   *  signature and review link are still appended automatically. */
+  bodyText?: string | null
+  /** When set, REPLACES the auto subject line (edited in the preview). */
+  subjectText?: string | null
+  reviewUrl?: string
+}): { subject: string; html: string; text: string } {
+  const {
+    approverFirstName,
+    applicantName,
+    employeeNo,
+    designation,
+    department,
+    applicantEmail,
+    applicantPhone,
+    leaveType,
+    startDate,
+    endDate,
+    totalDays,
+    reason,
+    bodyText,
+    subjectText,
+    reviewUrl,
+  } = input
+
+  const start = formatEmailDate(startDate) ?? startDate
+  const end = formatEmailDate(endDate) ?? endDate
+  const dates = start === end ? start : `${start} to ${end}`
+  const dayLabel = `${totalDays} day${totalDays === 1 ? "" : "s"}`
+  // The letter to the manager shouldn't expose payroll qualifiers - "Leave
+  // Without Pay (Unpaid)" reads simply as "leave". Other types stay natural
+  // (e.g. "casual leave", "sick leave").
+  const type = cleanLeaveTypeForLetter(leaveType)
+  const subject = subjectText?.trim() || `Leave application - ${applicantName} - ${dates}`
+
+  const reasonTrimmed = reason?.trim() || ""
+  const reasonHtml = reasonTrimmed ? escapeHtml(reasonTrimmed).replace(/\n/g, "<br />") : ""
+  const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
+
+  // Signature block: "Designation · EMP-01 · Department" (only what exists).
+  const sigParts = [designation, employeeNo, department].filter(Boolean) as string[]
+
+  const edited = bodyText?.trim() || ""
+  // The employee's edited letter -> escaped HTML paragraphs (blank line = new
+  // paragraph, single newline = <br>). Falls back to the auto-composed letter.
+  const letterHtml = edited
+    ? edited
+        .split(/\n{2,}/)
+        .map((p) => `<p style="${para}">${escapeHtml(p).replace(/\n/g, "<br />")}</p>`)
+        .join("\n")
+    : `
+    <p style="margin:0 0 18px; font-size:15px; color:#111827;">Dear ${escapeHtml(approverFirstName)},</p>
+
+    <p style="${para}">
+      I would like to apply for <strong style="color:#111827;">${escapeHtml(type)}</strong> for
+      <strong style="color:#111827;">${dayLabel}</strong>, from
+      <strong style="color:#111827;">${dates}</strong>.
+    </p>
+
+    ${
+      reasonHtml
+        ? `<p style="${para}">${reasonHtml}</p>`
+        : `<p style="${para}">I have submitted this request in ${BRAND_NAME} for your consideration.</p>`
+    }
+
+    <p style="${para}">
+      I will ensure my responsibilities are handed over before I leave and can be reached if
+      anything urgent comes up. Kindly approve the request at your convenience.
+    </p>
+
+    <p style="${para}">Thank you for your consideration.</p>
+
+    <p style="margin:24px 0 0; font-size:15px; color:#111827;">Best Regards,</p>`
+
+  const body = `
+    ${letterHtml}
+    ${renderSignature({
+      name: applicantName,
+      designation,
+      email: applicantEmail,
+      phone: applicantPhone,
+    })}
+
+    ${
+      reviewUrl
+        ? `<p style="margin:24px 0 0; padding-top:16px; border-top:1px solid #f0f0f0; font-size:12px; color:#9ca3af;">
+             Approve or decline in <a href="${reviewUrl}" style="color:#2563eb;">${BRAND_NAME}</a>. HR is copied on this email.
+           </p>`
+        : ""
+    }`
+
+  const letterText = edited
+    ? edited.split("\n")
+    : [
+        `Dear ${approverFirstName},`,
+        ``,
+        `I would like to apply for ${type} for ${dayLabel}, from ${dates}.`,
+        ``,
+        reasonTrimmed || `I have submitted this request in ${BRAND_NAME} for your consideration.`,
+        ``,
+        `I will ensure my responsibilities are handed over before I leave and can be reached if anything urgent comes up. Kindly approve the request at your convenience.`,
+        ``,
+        `Thank you for your consideration.`,
+        ``,
+        `Best Regards,`,
+      ]
+
+  const text = [
+    ...letterText,
+    applicantName,
+    sigParts.join(" · "),
+    reviewUrl
+      ? `
+Approve or decline in ${BRAND_NAME}: ${reviewUrl}`
+      : "",
+  ]
+    .filter((l) => l !== undefined)
+    .join("\n")
 
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }

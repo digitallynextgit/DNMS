@@ -214,7 +214,7 @@ export async function getResignationsToReview(
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
-    const canReviewAll = hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)
+    const canReviewAll = hasPermission(session, PERMISSIONS.RESIGNATION_APPROVE)
 
     // Only HR/admin (canReviewAll) or a manager with at least one direct report
     // may access this page. Regular employees are not authorized; the client
@@ -279,7 +279,7 @@ export async function getResignationsToReview(
 export async function getPendingResignationCount(): Promise<ActionResult<{ count: number }>> {
   return runAction(async () => {
     const session = await requireSession()
-    const canReviewAll = hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)
+    const canReviewAll = hasPermission(session, PERMISSIONS.RESIGNATION_APPROVE)
     const where = canReviewAll
       ? { status: "PENDING" as const }
       : { status: "PENDING" as const, employee: { managerId: session.user.id } }
@@ -325,7 +325,7 @@ export async function reviewResignation(
       return fail("You cannot review your own resignation")
 
     const isManager = resignation.employee.managerId === session.user.id
-    const canReviewAll = hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)
+    const canReviewAll = hasPermission(session, PERMISSIONS.RESIGNATION_APPROVE)
     if (!isManager && !canReviewAll)
       return fail("Only the employee's manager or HR can review this resignation")
 

@@ -198,7 +198,7 @@ const HRMS_ITEMS: NavItem[] = [
     label: "Resignations",
     href: "/resignations",
     icon: UserMinus,
-    permission: PERMISSIONS.EMPLOYEE_READ,
+    permission: PERMISSIONS.RESIGNATION_READ,
     badge: "pending-resignations",
   },
   {
@@ -214,7 +214,7 @@ const HRMS_ITEMS: NavItem[] = [
     label: "Holiday Calendar",
     href: "/holidays",
     icon: PartyPopper,
-    permission: PERMISSIONS.ATTENDANCE_WRITE,
+    permission: PERMISSIONS.HOLIDAY_WRITE,
   },
   {
     label: "Leave",

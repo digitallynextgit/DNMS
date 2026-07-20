@@ -3,6 +3,8 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS, HIDDEN_ROLES } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
+import { createNotifications } from "@/lib/notifications"
+import { employeeSlug } from "@/lib/utils"
 import type { Session } from "next-auth"
 
 /**
@@ -31,10 +33,20 @@ export const PUT = withAuth(
       }
       const uniqueIds = [...new Set(roleIds)]
 
-      const employee = await db.employee.findUnique({ where: { id }, select: { id: true } })
+      const employee = await db.employee.findUnique({
+        where: { id },
+        select: { id: true, firstName: true, lastName: true, employeeNo: true },
+      })
       if (!employee) {
         return NextResponse.json({ error: "Employee not found" }, { status: 404 })
       }
+
+      // Snapshot the assignable roles BEFORE the swap so we can tell whether
+      // anything actually changed (and say what it changed to).
+      const rolesBefore = await db.employeeRole.findMany({
+        where: { employeeId: id, scopeType: null, role: { name: { notIn: [...HIDDEN_ROLES] } } },
+        select: { role: { select: { displayName: true, name: true } } },
+      })
 
       // Validate every incoming role exists and is assignable (not hidden).
       if (uniqueIds.length > 0) {
@@ -76,6 +88,63 @@ export const PUT = withAuth(
         where: { employeeId: id },
         include: { role: { select: { id: true, name: true, displayName: true } } },
       })
+
+      // A role change alters what someone can DO, so it shouldn't happen silently.
+      // Notify the employee (they also need to re-login for it to take effect) and
+      // every other admin, since this is a security-relevant event.
+      try {
+        const label = (r: { displayName: string | null; name: string }) => r.displayName || r.name
+        const beforeNames = rolesBefore.map((r) => label(r.role)).sort()
+        const afterNames = updated
+          .filter((er) => !(HIDDEN_ROLES as readonly string[]).includes(er.role.name))
+          .map((er) => label(er.role))
+          .sort()
+
+        // No-op saves (same roles re-submitted) must not spam anyone.
+        if (beforeNames.join("|") !== afterNames.join("|")) {
+          const rolesText = afterNames.length ? afterNames.join(", ") : "no roles"
+          const fullName = `${employee.firstName} ${employee.lastName}`.trim()
+          const slug = employeeSlug(employee.employeeNo, employee.firstName, employee.lastName)
+
+          const recipients: Parameters<typeof createNotifications>[0] = []
+
+          // The employee themselves - unless they changed their own roles.
+          if (id !== session.user.id) {
+            recipients.push({
+              employeeId: id,
+              title: "Your access was updated",
+              message: `Your role is now: ${rolesText}. Sign out and back in for it to take effect.`,
+              type: "warning",
+              link: `/employees/${slug}`,
+            })
+          }
+
+          // Other admins - role changes are security events worth witnessing.
+          const admins = await db.employee.findMany({
+            where: {
+              isActive: true,
+              status: "ACTIVE",
+              id: { notIn: [session.user.id, id] },
+              employeeRoles: { some: { role: { name: "admin" } } },
+            },
+            select: { id: true },
+          })
+          for (const a of admins) {
+            recipients.push({
+              employeeId: a.id,
+              title: "Employee roles changed",
+              message: `${fullName} (${employee.employeeNo}) is now: ${rolesText}.`,
+              type: "info",
+              link: `/employees/${slug}`,
+            })
+          }
+
+          if (recipients.length > 0) await createNotifications(recipients)
+        }
+      } catch (e) {
+        // Never let a notification failure undo a completed role change.
+        console.error("[EMPLOYEE_ROLES_PUT] notification failed", e)
+      }
 
       return NextResponse.json({ data: updated })
     } catch (error) {

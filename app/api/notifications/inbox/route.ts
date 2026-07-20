@@ -91,3 +91,38 @@ export const PATCH = withSession(
     }
   },
 )
+
+// DELETE - permanently remove notifications. Always scoped to the caller's OWN
+// rows: `employeeId` is taken from the session and used in the where clause, so
+// passing someone else's id simply deletes nothing rather than their inbox.
+//   ?id=<id>   remove one
+//   ?all=true  clear the whole inbox
+export const DELETE = withSession(
+  async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
+    try {
+      const employeeId = session.user.id
+      const sp = req.nextUrl.searchParams
+      const id = sp.get("id")
+
+      if (sp.get("all") === "true") {
+        const { count } = await db.notification.deleteMany({ where: { employeeId } })
+        return NextResponse.json({ data: { deleted: count } })
+      }
+
+      if (id) {
+        // deleteMany (not delete) so a wrong/foreign id is a no-op instead of a
+        // 500 - and it can never touch another user's row.
+        const { count } = await db.notification.deleteMany({ where: { id, employeeId } })
+        if (count === 0) {
+          return NextResponse.json({ error: "Notification not found" }, { status: 404 })
+        }
+        return NextResponse.json({ data: { deleted: count } })
+      }
+
+      return NextResponse.json({ error: "Provide ?id=<id> or ?all=true" }, { status: 400 })
+    } catch (error) {
+      console.error("[notifications/inbox] DELETE error:", error)
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    }
+  },
+)

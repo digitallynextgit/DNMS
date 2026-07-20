@@ -681,6 +681,21 @@ export function useProjectMessages(projectId: string | undefined) {
   })
 }
 
+/**
+ * Employees the "Add member" picker can choose from, scoped to this project.
+ * Uses the project-scoped route rather than /api/employees, which needs the
+ * global `employee:read` an Account Manager typically doesn't have.
+ */
+export function useAssignableEmployees(projectId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["project-assignable-employees", projectId],
+    queryFn: () =>
+      apiFetch<{ data: EmployeeSnippet[] }>(`/api/projects/${projectId}/assignable-employees`),
+    enabled: enabled && !!projectId,
+    staleTime: 60_000,
+  })
+}
+
 // Everyone on the project (Account Manager + all team members) - powers @mentions.
 export function useProjectMembers(projectId: string | undefined) {
   return useQuery({

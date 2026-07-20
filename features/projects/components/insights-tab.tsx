@@ -239,7 +239,7 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
         />
         <StatCard
           title="Avg CPC"
-          value={t.clicks > 0 ? inr(t.spend / t.clicks) : "—"}
+          value={t.clicks > 0 ? inr(t.spend / t.clicks) : "-"}
           icon={IndianRupee}
           loading={isLoading}
         />

@@ -26,9 +26,9 @@ import {
   useAddTeamMember,
   useRemoveTeamMember,
   usePromoteTeamMember,
+  useAssignableEmployees,
   type ProjectTeam,
 } from "@/features/projects/hooks/use-projects"
-import { useEmployees } from "@/features/employees"
 import {
   Plus,
   Crown,
@@ -495,7 +495,10 @@ function AddMemberDialog({
 }) {
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<string>("")
-  const { data: empsData } = useEmployees({ status: "ACTIVE", limit: 100 })
+  // Project-scoped roster: /api/employees needs global `employee:read`, which an
+  // Account Manager (a plain employee who owns the project) doesn't have - that
+  // 403 was what left this picker empty. Only fetched while the dialog is open.
+  const { data: empsData } = useAssignableEmployees(projectId, open)
   const add = useAddTeamMember(projectId, teamId)
 
   const employees = (empsData?.data ?? []).filter(

@@ -3,12 +3,13 @@
 import { useState } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
 import { useRouter } from "next/navigation"
-import { CheckCircle, Info, AlertCircle, CheckCheck } from "lucide-react"
+import { CheckCircle, Info, AlertCircle, CheckCheck, Trash2 } from "lucide-react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/shared/pagination"
@@ -75,6 +76,7 @@ export default function NotificationsPage() {
   const router = useRouter()
   const qc = useQueryClient()
   const [page, setPage] = useUrlPage()
+  const [confirmClear, setConfirmClear] = useState(false)
 
   const { data, isLoading } = useQuery<NotificationsResponse>({
     queryKey: ["notifications", page],
@@ -106,6 +108,19 @@ export default function NotificationsPage() {
     },
   })
 
+  // Permanent - notifications are a personal feed, so there's nothing to soft
+  // delete or recover. Scoped server-side to the caller's own rows.
+  const deleteMutation = useMutation({
+    mutationFn: async (params: { id?: string; all?: boolean }) => {
+      const qs = params.all ? "all=true" : `id=${encodeURIComponent(params.id ?? "")}`
+      const res = await fetch(`/api/notifications/inbox?${qs}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete")
+      return res.json()
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+    onError: () => toast.error("Couldn't delete the notification"),
+  })
+
   const handleMarkAllRead = () => {
     markReadMutation.mutate({ all: true })
   }
@@ -129,16 +144,29 @@ export default function NotificationsPage() {
         title="Notifications"
         description="Your activity feed and system notifications."
         actions={
-          hasUnread ? (
-            <Button
-              variant="outline"
-              onClick={handleMarkAllRead}
-              disabled={markReadMutation.isPending}
-            >
-              <CheckCheck className="mr-2 h-4 w-4" />
-              Mark all as read
-            </Button>
-          ) : undefined
+          <>
+            {hasUnread && (
+              <Button
+                variant="outline"
+                onClick={handleMarkAllRead}
+                disabled={markReadMutation.isPending}
+              >
+                <CheckCheck className="mr-2 h-4 w-4" />
+                Mark all as read
+              </Button>
+            )}
+            {notifications.length > 0 && (
+              <Button
+                variant="outline"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={() => setConfirmClear(true)}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Clear all
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -153,12 +181,13 @@ export default function NotificationsPage() {
           />
         ) : (
           notifications.map((notification) => (
-            <button
+            // A <div> row, not a <button>: the delete control lives inside it, and
+            // a button nested in a button is invalid HTML (the inner click never
+            // fires reliably). The body below is the clickable target instead.
+            <div
               key={notification.id}
-              type="button"
-              onClick={() => handleNotificationClick(notification)}
               className={cn(
-                "bg-card hover:bg-muted/50 focus-visible:ring-ring flex w-full items-start gap-3 rounded border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2",
+                "group bg-card hover:bg-muted/50 flex w-full items-start gap-3 rounded border p-4 transition-colors",
                 // Unread: a translucent tint + left accent that stays readable in
                 // BOTH light and dark themes (a solid bg-blue-50 turned the text
                 // unreadable in dark mode).
@@ -170,7 +199,11 @@ export default function NotificationsPage() {
                 {getNotificationIcon(notification.type)}
               </div>
 
-              <div className="min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => handleNotificationClick(notification)}
+                className="focus-visible:ring-ring min-w-0 flex-1 text-left focus:outline-none focus-visible:ring-2"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <p
                     className={cn(
@@ -189,12 +222,23 @@ export default function NotificationsPage() {
                 <p className="text-muted-foreground mt-0.5 text-sm">
                   {truncate(notification.message, 100)}
                 </p>
-              </div>
+              </button>
 
               {!notification.isRead && (
                 <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
               )}
-            </button>
+
+              <button
+                type="button"
+                title="Delete permanently"
+                aria-label="Delete notification"
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate({ id: notification.id })}
+                className="text-muted-foreground hover:text-destructive mt-0.5 shrink-0 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
           ))
         )}
       </div>
@@ -209,6 +253,19 @@ export default function NotificationsPage() {
           itemLabel="notification"
         />
       )}
+
+      <ConfirmDialog
+        open={confirmClear}
+        onOpenChange={setConfirmClear}
+        title="Clear all notifications?"
+        description={`This permanently deletes all ${meta?.total ?? ""} of your notifications. It cannot be undone.`}
+        confirmLabel="Clear all"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() =>
+          deleteMutation.mutate({ all: true }, { onSuccess: () => setConfirmClear(false) })
+        }
+      />
     </div>
   )
 }

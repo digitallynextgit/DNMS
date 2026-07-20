@@ -33,7 +33,7 @@ export const GET = withAuth(
 )
 
 export const POST = withAuth(
-  PERMISSIONS.ATTENDANCE_WRITE,
+  PERMISSIONS.HOLIDAY_WRITE,
   async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const body = await req.json()

@@ -26,6 +26,14 @@ export const PERMISSIONS = {
   LEAVE_READ: "leave:read",
   LEAVE_WRITE: "leave:write",
   LEAVE_APPROVE: "leave:approve",
+  // Leave types + the entitlement matrix. Split out of `leave:approve` so
+  // approving someone's leave no longer implies rewriting company leave policy.
+  LEAVE_POLICY: "leave:policy",
+  // Company holiday calendar (was borrowing `attendance:write`).
+  HOLIDAY_WRITE: "holiday:write",
+  // Resignations (was borrowing employee:read / employee:write).
+  RESIGNATION_READ: "resignation:read",
+  RESIGNATION_APPROVE: "resignation:approve",
   // Work From Home
   WFH_READ: "wfh:read",
   WFH_WRITE: "wfh:write",
@@ -147,6 +155,40 @@ export const PERMISSION_DEFINITIONS = [
     module: "email_template",
     action: "write",
     description: "Create and edit email templates",
+  },
+  // Gates Admin -> Integrations and Admin -> Storage. This was declared in
+  // PERMISSIONS above and enforced in the routes/sidebar, but was missing from
+  // this catalogue - so the row was never seeded, no role could hold it, and only
+  // `admin_` (which short-circuits hasPermission) could reach those pages.
+  {
+    scope: "settings:write",
+    module: "settings",
+    action: "write",
+    description: "Configure integrations and storage",
+  },
+  {
+    scope: "leave:policy",
+    module: "leave",
+    action: "policy",
+    description: "Manage leave types and the entitlement matrix",
+  },
+  {
+    scope: "holiday:write",
+    module: "holiday",
+    action: "write",
+    description: "Manage the company holiday calendar",
+  },
+  {
+    scope: "resignation:read",
+    module: "resignation",
+    action: "read",
+    description: "View resignation requests",
+  },
+  {
+    scope: "resignation:approve",
+    module: "resignation",
+    action: "approve",
+    description: "Review and decide resignation requests",
   },
   {
     scope: "dashboard:read",

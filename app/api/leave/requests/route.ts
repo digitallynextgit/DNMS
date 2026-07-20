@@ -32,6 +32,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     endDate: string
     reason?: string
     isHalfDay?: boolean
+    emailBody?: string
+    emailSubject?: string
   }
   return respond(await applyLeave(body))
 })

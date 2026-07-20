@@ -7,8 +7,9 @@ import {
   updateEmployeeSchema,
   employeeFilterSchema,
 } from "@/features/employees/schemas/employee.schema"
-import { generateEmployeeNo } from "@/lib/utils"
+import { generateEmployeeNo, employeeSlug } from "@/lib/utils"
 import { addEmailJob } from "@/lib/queue"
+import { createNotifications } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
 import { getConfig } from "@/server/app-config"
 import { canAccessEmployee } from "@/lib/permissions"
@@ -133,6 +134,41 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
       }),
     )
   })
+}
+
+/** Turn changed DB field names into something a human wants to read.
+ *  ("dateOfJoining" -> "Date of joining"; caps the list so a bulk edit doesn't
+ *  produce a 40-field wall of text.) */
+function humanFieldList(fields: string[], max = 4): string {
+  const LABELS: Record<string, string> = {
+    employeeNo: "Employee code",
+    deviceId: "Biometric code",
+    firstName: "First name",
+    lastName: "Last name",
+    email: "Work email",
+    personalEmail: "Personal email",
+    phone: "Phone",
+    personalPhone: "Personal phone",
+    dateOfBirth: "Date of birth",
+    departmentId: "Department",
+    designationId: "Designation",
+    jobRoleId: "Job role",
+    managerId: "Reporting manager",
+    dottedManagerId: "Dotted-line manager",
+    employmentType: "Employment type",
+    status: "Status",
+    dateOfJoining: "Date of joining",
+    probationEndDate: "Probation end date",
+    confirmationDate: "Confirmation date",
+    probationMonths: "Probation months",
+    workLocation: "Work location",
+  }
+  const pretty = fields.map(
+    (f) => LABELS[f] ?? f.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()),
+  )
+  const shown = pretty.slice(0, max)
+  const rest = pretty.length - shown.length
+  return rest > 0 ? `${shown.join(", ")} and ${rest} more` : shown.join(", ")
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -350,6 +386,41 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         ...meta,
       })
 
+      // Tell HR + admins someone was onboarded. Until now employee creation was
+      // the only major event that notified nobody internally - only the new hire
+      // got an email. Never notify the person who did the creating.
+      try {
+        const staff = await db.employee.findMany({
+          where: {
+            isActive: true,
+            status: "ACTIVE",
+            id: { not: session.user.id },
+            employeeRoles: { some: { role: { name: { in: ["hr_manager", "admin"] } } } },
+          },
+          select: { id: true },
+        })
+        if (staff.length > 0) {
+          const fullName = `${employee.firstName} ${employee.lastName}`.trim()
+          const where = [employee.designation?.title, employee.department?.name]
+            .filter(Boolean)
+            .join(", ")
+          await createNotifications(
+            staff.map((s) => ({
+              employeeId: s.id,
+              title: "New employee onboarded",
+              message: `${fullName} (${employee.employeeNo}) was added${where ? ` as ${where}` : ""}.`,
+              type: "info" as const,
+              // Deep-link straight to the profile. getEmployee() accepts a slug,
+              // which is what the directory links with.
+              link: `/employees/${employeeSlug(employee.employeeNo, employee.firstName, employee.lastName)}`,
+            })),
+          )
+        }
+      } catch (e) {
+        // A notification failure must never cost us the created employee.
+        console.error("[createEmployee] HR notification failed", e)
+      }
+
       // One branded welcome + credentials email to the work + personal address
       // (both when available), via the notifications relay.
       const recipients = [employee.email, employee.personalEmail].filter(Boolean).join(", ")
@@ -505,6 +576,28 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
         changes: changedFields,
         ...meta,
       })
+
+      // Tell the employee their profile was edited, so an HR mistake surfaces
+      // immediately instead of silently. Skipped when nothing actually changed,
+      // or when they edited their own profile (they already know).
+      const fieldNames = Object.keys(changedFields)
+      if (fieldNames.length > 0 && id !== session.user.id) {
+        try {
+          await createNotifications([
+            {
+              employeeId: id,
+              title: "Your profile was updated",
+              message: `${humanFieldList(fieldNames)} ${
+                fieldNames.length === 1 ? "was" : "were"
+              } changed by HR. Please check it's correct.`,
+              type: "info",
+              link: `/employees/${employeeSlug(employee.employeeNo, employee.firstName, employee.lastName)}`,
+            },
+          ])
+        } catch (e) {
+          console.error("[updateEmployee] notification failed", e)
+        }
+      }
 
       return ok(serialize({ data: employee }))
     } catch (e) {

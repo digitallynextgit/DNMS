@@ -122,37 +122,14 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="space-y-6">
-      {/* Title, avatar, back link and the admin actions all now live in the shared
-          PageHeader, so this page's title is the same size/offset as every other. */}
+      {/* Mirrors /profile: a generic header, then one identity card carrying the
+          big avatar, name, role, badges and contact - so viewing a colleague and
+          viewing yourself look like the same page. */}
       <PageHeader
         backHref="/employees/employee-directory"
         backLabel="Back to Employees"
-        title={fullName}
-        leading={
-          <AvatarDisplay
-            src={emp.profilePhoto}
-            firstName={emp.firstName}
-            lastName={emp.lastName}
-            size="md"
-            className="h-12 w-12 shrink-0"
-          />
-        }
-        description={
-          <span className="flex flex-wrap items-center gap-2">
-            {emp.designation?.title && (
-              <span className="flex items-center gap-1">
-                <Briefcase className="h-3.5 w-3.5" />
-                {emp.designation.title}
-              </span>
-            )}
-            {emp.department?.name && (
-              <span className="flex items-center gap-1">
-                <Building2 className="h-3.5 w-3.5" />
-                {emp.department.name}
-              </span>
-            )}
-          </span>
-        }
+        title="Employee Profile"
+        description="View and manage this employee's profile"
         actions={
           (can(PERMISSIONS.EMPLOYEE_WRITE) || userId === emp.id) && (
             <div className="flex flex-wrap items-center gap-2">
@@ -168,48 +145,77 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
         }
       />
 
-      {/* Identity + contact card */}
+      {/* Top card */}
       <Card>
-        <CardContent className="space-y-3 pt-6 pb-6">
-          {/* Badges row */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="font-mono text-xs">
-              {emp.employeeNo}
-            </Badge>
-            <StatusBadge
-              status={emp.status}
-              colorMap={EMPLOYEE_STATUS_COLORS}
-              labelMap={EMPLOYEE_STATUS_LABELS}
+        <CardContent className="pt-6 pb-6">
+          <div className="flex flex-col items-start gap-6 sm:flex-row">
+            <AvatarDisplay
+              src={emp.profilePhoto}
+              firstName={emp.firstName}
+              lastName={emp.lastName}
+              size="2xl"
+              className="shrink-0"
             />
-            {probation.onProbation && (
-              <StatusBadge
-                status="Probation"
-                label={`On Probation${
-                  probation.endDate ? ` · until ${formatDate(probation.endDate.toISOString())}` : ""
-                }`}
-                colorMap={{ Probation: PROBATION_BADGE }}
-              />
-            )}
-          </div>
 
-          {/* Contact row */}
-          <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
-            <a
-              href={`mailto:${emp.email}`}
-              className="hover:text-foreground flex items-center gap-1.5 transition-colors"
-            >
-              <Mail className="h-3.5 w-3.5 shrink-0" />
-              {emp.email}
-            </a>
-            {emp.phone && (
-              <a
-                href={`tel:${emp.phone}`}
-                className="hover:text-foreground flex items-center gap-1.5 transition-colors"
-              >
-                <Phone className="h-3.5 w-3.5 shrink-0" />
-                {emp.phone}
-              </a>
-            )}
+            <div className="min-w-0 flex-1">
+              <h2 className="text-2xl font-bold tracking-tight">{fullName}</h2>
+
+              <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm">
+                {emp.designation?.title && (
+                  <span className="flex items-center gap-1">
+                    <Briefcase className="h-3.5 w-3.5" />
+                    {emp.designation.title}
+                  </span>
+                )}
+                {emp.department?.name && (
+                  <span className="flex items-center gap-1">
+                    <Building2 className="h-3.5 w-3.5" />
+                    {emp.department.name}
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="font-mono text-xs">
+                  {emp.employeeNo}
+                </Badge>
+                <StatusBadge
+                  status={emp.status}
+                  colorMap={EMPLOYEE_STATUS_COLORS}
+                  labelMap={EMPLOYEE_STATUS_LABELS}
+                />
+                {probation.onProbation && (
+                  <StatusBadge
+                    status="Probation"
+                    label={`On Probation${
+                      probation.endDate
+                        ? ` · until ${formatDate(probation.endDate.toISOString())}`
+                        : ""
+                    }`}
+                    colorMap={{ Probation: PROBATION_BADGE }}
+                  />
+                )}
+              </div>
+
+              <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-4 text-sm">
+                <a
+                  href={`mailto:${emp.email}`}
+                  className="hover:text-foreground flex items-center gap-1.5 transition-colors"
+                >
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  {emp.email}
+                </a>
+                {emp.phone && (
+                  <a
+                    href={`tel:${emp.phone}`}
+                    className="hover:text-foreground flex items-center gap-1.5 transition-colors"
+                  >
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
+                    {emp.phone}
+                  </a>
+                )}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

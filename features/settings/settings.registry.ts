@@ -18,6 +18,48 @@ export interface SettingField {
 }
 
 export const SETTING_FIELDS: SettingField[] = [
+  // ── Company (email signature) ──────────────────────────────────────────────
+  // Used to build the signature block on staff-authored emails (e.g. a leave
+  // application). Settings rather than constants so they can be corrected without
+  // a redeploy. A blank social simply hides that link.
+  {
+    key: "COMPANY_WEBSITE",
+    label: "Website",
+    type: "text",
+    group: "Company",
+    placeholder: "www.digitallynext.com",
+    help: "Shown in the email signature.",
+  },
+  {
+    key: "COMPANY_ADDRESS",
+    label: "Office address",
+    type: "text",
+    group: "Company",
+    placeholder: "268 Business India Complex, Uday Park, New Delhi 110 049, India",
+  },
+  {
+    key: "SOCIAL_LINKEDIN",
+    label: "LinkedIn URL",
+    type: "url",
+    group: "Company",
+    placeholder: "https://www.linkedin.com/company/...",
+    help: "Leave blank to hide it from the signature.",
+  },
+  {
+    key: "SOCIAL_INSTAGRAM",
+    label: "Instagram URL",
+    type: "url",
+    group: "Company",
+    placeholder: "https://www.instagram.com/...",
+  },
+  {
+    key: "SOCIAL_YOUTUBE",
+    label: "YouTube URL",
+    type: "url",
+    group: "Company",
+    placeholder: "https://www.youtube.com/@...",
+  },
+
   // ── General ────────────────────────────────────────────────────────────────
   { key: "APP_NAME", label: "App name", type: "text", group: "General", placeholder: "DNMS" },
   {

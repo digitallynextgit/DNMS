@@ -11,7 +11,8 @@ import { ok, fail, runAction, serialize, type ActionResult } from "@/server/acti
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC } from "@/lib/dates"
-import { renderDecisionEmail } from "@/lib/email-layout"
+import { renderDecisionEmail, renderLeaveRequestEmail } from "@/lib/email-layout"
+import { getConfig } from "@/server/app-config"
 import { recomputeAccrued } from "./leave-accrual.service"
 // Canonical probation rule (pure helpers) - keep leave eligibility in lockstep
 // with how the rest of the app decides who is on probation.
@@ -63,7 +64,10 @@ type ApprovalRoute = {
   autoApprove: boolean
 }
 
-async function resolveApprovalRoute(
+/** Exported so the apply screen can PREVIEW who a request will go to, using the
+ *  exact same routing the submit path uses - a preview that recomputed the rule
+ *  separately would drift from reality the moment either changed. */
+export async function resolveApprovalRoute(
   applicantId: string,
   roles: string[],
   permissions: string[],
@@ -132,59 +136,181 @@ function canAdviseRequest(
   return !isHrOrAdmin && request.approvalStage === "HR" && request.currentApproverId === userId
 }
 
-/** Notify the routed approver(s) on apply (in-app + best-effort email). */
+export interface LeaveMailEnvelope {
+  /** Nobody is mailed - the request self-approves. */
+  autoApprove: boolean
+  /** The addressee of the letter: the applicant's manager when they have one. */
+  to: { id: string; name: string; email: string; firstName: string } | null
+  /** The single HR mailbox (HR_EMAIL), or null when HR is already the addressee. */
+  ccHr: string | null
+  /** Everyone who gets an in-app notification (approval queue + manager, minus self). */
+  notifyIds: string[]
+}
+
+/**
+ * Who a leave request's mail actually goes to. ONE function, used by both the
+ * sender and the apply-screen preview, so the preview can never promise a
+ * different recipient than we send to.
+ *
+ * The letter is addressed to the applicant's REPORTING MANAGER whenever they have
+ * one - including for admins/HR. `resolveApprovalRoute` deliberately routes an
+ * admin's own leave to the Admin tier with no named approver, which previously
+ * made the addressee "whichever admin the DB returned first" (and could even be
+ * the applicant themselves). Approval *rights* are unchanged - this only decides
+ * who the mail is addressed to.
+ */
+export async function resolveLeaveMailEnvelope(
+  applicantId: string,
+  route: ApprovalRoute,
+): Promise<LeaveMailEnvelope> {
+  if (route.autoApprove) {
+    return { autoApprove: true, to: null, ccHr: null, notifyIds: [] }
+  }
+
+  const applicant = await db.employee.findUnique({
+    where: { id: applicantId },
+    select: {
+      manager: {
+        select: { id: true, firstName: true, lastName: true, email: true, isActive: true },
+      },
+    },
+  })
+  const mgr = applicant?.manager?.isActive ? applicant.manager : null
+
+  // The role queue that makes the final call - always minus the applicant, since
+  // nobody should be asked to approve (or be emailed about) their own leave.
+  const queue = route.stage
+    ? await db.employee.findMany({
+        where: {
+          isActive: true,
+          id: { not: applicantId },
+          employeeRoles: {
+            some: {
+              role: {
+                name: route.stage === "HR" ? SYSTEM_ROLES.HR_MANAGER : SYSTEM_ROLES.ADMIN,
+              },
+            },
+          },
+        },
+        select: { id: true, firstName: true, lastName: true, email: true },
+      })
+    : []
+
+  const pick = mgr ?? queue[0] ?? null
+  const to = pick
+    ? {
+        id: pick.id,
+        name: `${pick.firstName} ${pick.lastName}`.trim(),
+        email: pick.email,
+        firstName: pick.firstName,
+      }
+    : null
+
+  const hrInbox = (await getConfig("HR_EMAIL"))?.trim() || null
+  const ccHr =
+    hrInbox && to && hrInbox.toLowerCase() !== to.email.toLowerCase()
+      ? hrInbox
+      : hrInbox && !to
+        ? hrInbox
+        : null
+
+  // In-app: the approval queue plus the manager, deduped, never the applicant.
+  const notifyIds = [...new Set([...queue.map((q) => q.id), ...(mgr ? [mgr.id] : [])])].filter(
+    (id) => id !== applicantId,
+  )
+
+  return { autoApprove: false, to, ccHr, notifyIds }
+}
+
+/** Notify on apply: in-app to every approver, plus ONE letter to the manager. */
 async function notifyApprovers(
   route: ApprovalRoute,
-  request: { id: string; startDate: Date; endDate: Date; totalDays: number },
+  request: {
+    id: string
+    startDate: Date
+    endDate: Date
+    totalDays: number
+    reason?: string | null
+  },
   applicantName: string,
   leaveTypeName: string,
+  employeeNo: string | null,
+  applicantId: string,
+  /** The employee's edited letter; overrides the auto-composed body when set. */
+  customBody: string | null = null,
+  /** The employee's edited subject; overrides the auto subject when set. */
+  customSubject: string | null = null,
 ): Promise<void> {
-  // Notify BOTH the advisory reporting manager (if any) AND the role queue that
-  // makes the final call (HR or Admin), deduped - so a regular employee's
-  // request reaches their manager and HR at the same time.
-  const byId = new Map<string, { id: string; email: string; firstName: string }>()
-  if (route.currentApproverId) {
-    const m = await db.employee.findUnique({
-      where: { id: route.currentApproverId },
-      select: { id: true, email: true, firstName: true },
-    })
-    if (m) byId.set(m.id, m)
-  }
-  if (route.stage) {
-    const roleNames = route.stage === "HR" ? [SYSTEM_ROLES.HR_MANAGER] : [SYSTEM_ROLES.ADMIN]
-    const staff = await db.employee.findMany({
-      where: {
-        isActive: true,
-        employeeRoles: { some: { role: { name: { in: roleNames } } } },
-      },
-      select: { id: true, email: true, firstName: true },
-    })
-    for (const s of staff) byId.set(s.id, s)
-  }
-  const recipients = Array.from(byId.values())
+  const envelope = await resolveLeaveMailEnvelope(applicantId, route)
+  if (envelope.autoApprove) return
 
   const start = new Date(request.startDate).toDateString()
   const end = new Date(request.endDate).toDateString()
   const detail = `${applicantName} · ${leaveTypeName} · ${start} – ${end} (${request.totalDays} day${request.totalDays !== 1 ? "s" : ""})`
 
-  for (const r of recipients) {
+  // In-app to every approver + the manager (never the applicant). Each is its own
+  // <1s push.
+  for (const employeeId of envelope.notifyIds) {
     try {
       await createNotification({
-        employeeId: r.id,
+        employeeId,
         title: "Leave approval needed",
         message: `${detail} is awaiting your approval.`,
         type: "info",
         link: "/leave/leave-directory",
       })
-      addEmailJob({
-        to: r.email,
-        subject: "Leave request awaiting your approval",
-        html: `<p>Hi ${r.firstName},</p><p>A leave request needs your review:</p><p><strong>${detail}</strong></p><p>Please review it in DNMS.</p>`,
-        text: `Hi ${r.firstName}, a leave request needs your review: ${detail}. Please review it in DNMS.`,
-      })
     } catch {
-      // Non-blocking - notifications/email must not fail the request.
+      // Non-blocking - a notification must never fail the request.
     }
+  }
+
+  if (!envelope.to) return
+
+  // ONE letter: TO the manager, CC the HR mailbox.
+  try {
+    const appUrl = (await getConfig("APP_URL")) ?? process.env.NEXTAUTH_URL ?? ""
+    const applicant = await db.employee.findUnique({
+      where: { id: applicantId },
+      select: {
+        email: true,
+        phone: true,
+        jobRole: { select: { name: true } },
+        designation: { select: { title: true } },
+        department: { select: { name: true } },
+      },
+    })
+
+    const email = renderLeaveRequestEmail({
+      approverFirstName: envelope.to.firstName,
+      applicantName,
+      employeeNo,
+      // Job role in the signature; fall back to the L-grade designation when no
+      // job role is set.
+      designation: applicant?.jobRole?.name ?? applicant?.designation?.title ?? null,
+      department: applicant?.department?.name ?? null,
+      applicantEmail: applicant?.email ?? null,
+      applicantPhone: applicant?.phone ?? null,
+      leaveType: leaveTypeName,
+      startDate: request.startDate.toISOString().slice(0, 10),
+      endDate: request.endDate.toISOString().slice(0, 10),
+      totalDays: request.totalDays,
+      reason: request.reason ?? null,
+      bodyText: customBody,
+      subjectText: customSubject,
+      reviewUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/leave/leave-directory` : undefined,
+    })
+    addEmailJob({
+      to: envelope.to.email,
+      cc: envelope.ccHr ?? undefined,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      // It reads as the employee's letter, so Reply should reach the employee.
+      replyTo: applicant?.email ?? undefined,
+      profile: "notifications",
+    })
+  } catch {
+    // Non-blocking - email must never fail the request.
   }
 }
 
@@ -231,7 +357,7 @@ export async function createLeaveType(
   body: Record<string, unknown>,
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
-    const session = await requirePermission(PERMISSIONS.LEAVE_APPROVE)
+    const session = await requirePermission(PERMISSIONS.LEAVE_POLICY)
     const {
       name,
       code,
@@ -277,7 +403,7 @@ export async function updateLeaveType(
   body: Record<string, unknown>,
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
-    const session = await requirePermission(PERMISSIONS.LEAVE_APPROVE)
+    const session = await requirePermission(PERMISSIONS.LEAVE_POLICY)
     const existing = await db.leaveType.findUnique({ where: { id } })
     if (!existing) return fail("Leave type not found")
 
@@ -317,7 +443,7 @@ export async function deleteLeaveType(
   permanent = false,
 ): Promise<ActionResult<{ message: string }>> {
   return runAction(async () => {
-    const session = await requirePermission(PERMISSIONS.LEAVE_APPROVE)
+    const session = await requirePermission(PERMISSIONS.LEAVE_POLICY)
     const existing = await db.leaveType.findUnique({ where: { id } })
     if (!existing) return fail("Leave type not found")
 
@@ -672,10 +798,15 @@ export async function applyLeave(body: {
   endDate: string
   reason?: string
   isHalfDay?: boolean
+  /** The exact letter the employee composed/edited in the preview. When present
+   *  it's what gets emailed to the manager (signature still auto-appended). */
+  emailBody?: string
+  /** The subject line the employee edited in the preview. */
+  emailSubject?: string
 }): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
-    const { leaveTypeId, startDate, endDate, reason, isHalfDay } = body
+    const { leaveTypeId, startDate, endDate, reason, isHalfDay, emailBody, emailSubject } = body
     if (!leaveTypeId || !startDate || !endDate)
       return fail("leaveTypeId, startDate, and endDate are required")
 
@@ -951,6 +1082,10 @@ export async function applyLeave(body: {
         result,
         `${result.employee.firstName} ${result.employee.lastName}`,
         result.leaveType.name,
+        result.employee.employeeNo,
+        result.employee.id,
+        emailBody?.trim() || null,
+        emailSubject?.trim() || null,
       )
     }
 

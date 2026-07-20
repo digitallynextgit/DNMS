@@ -231,6 +231,8 @@ async function applyLeave(body: {
   endDate: string
   reason?: string
   isHalfDay?: boolean
+  emailBody?: string
+  emailSubject?: string
 }): Promise<{ data: LeaveRequest }> {
   return (
     await apiFetch<{ data: { data: LeaveRequest } }>("/api/leave/requests", {

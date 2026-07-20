@@ -350,7 +350,7 @@ function ApplicationSheet({
             {!a.roleResolved && (
               <p className="mt-2 rounded border border-amber-400/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-600 dark:text-amber-400">
                 This role was closed or removed before the application arrived. The candidate
-                applied in good faith — the titles above are what they saw.
+                applied in good faith - the titles above are what they saw.
               </p>
             )}
           </div>

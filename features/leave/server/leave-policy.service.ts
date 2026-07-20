@@ -1,13 +1,15 @@
 import "server-only"
 
 import { db } from "@/server/db"
-import { SYSTEM_ROLES } from "@/lib/constants"
-import { requireAnyRole } from "@/server/action-guard"
+import { PERMISSIONS } from "@/lib/constants"
+import { requirePermission } from "@/server/action-guard"
 import { createAuditLog } from "@/lib/audit"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 
-// Company-wide leave policy is created/edited by HR Manager or Admin only.
-const POLICY_ROLES = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN]
+// Company-wide leave policy is gated by `leave:policy`, not a hardcoded role
+// list. It previously required HR Manager or Admin literally, which meant the
+// Roles & Permissions UI could never grant or revoke it - the toggle was a lie.
+// `leave:policy` is granted to exactly those roles, so access is unchanged.
 
 // =============================================================================
 // Leave policy matrix: (employmentType -> leaveType -> daysPerYear)
@@ -19,7 +21,7 @@ type EmploymentTypeKey = (typeof EMPLOYMENT_TYPES)[number]
 /** Leave types + the full policy grid (for the HR matrix editor). */
 export async function getLeavePolicies(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
-    await requireAnyRole(POLICY_ROLES)
+    await requirePermission(PERMISSIONS.LEAVE_POLICY)
     const [types, policies] = await Promise.all([
       db.leaveType.findMany({
         where: { isActive: true },
@@ -43,7 +45,7 @@ export async function saveLeavePolicies(
   entries: Array<{ employmentType: string; leaveTypeId: string; daysPerYear: number | null }>,
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
-    const session = await requireAnyRole(POLICY_ROLES)
+    const session = await requirePermission(PERMISSIONS.LEAVE_POLICY)
     if (!Array.isArray(entries)) return fail("entries must be an array")
 
     for (const e of entries) {

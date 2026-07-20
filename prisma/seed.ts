@@ -133,6 +133,10 @@ async function main() {
         "leave:read",
         "leave:write",
         "leave:approve",
+        "leave:policy",
+        "holiday:write",
+        "resignation:read",
+        "resignation:approve",
         "wfh:read",
         "wfh:write",
         "wfh:approve",
@@ -165,10 +169,17 @@ async function main() {
         "dashboard:read",
         "attendance:read",
         "leave:read",
+        // Self-service: an HR employee is still an employee who applies for
+        // their own leave/WFH/self-assessment. These were missing, which would
+        // have locked them out the moment those paths enforce their permission.
+        "leave:write",
         "leave:approve",
         "wfh:read",
+        "wfh:write",
         "wfh:approve",
         "performance:read",
+        "performance:write",
+        "resignation:read",
         "recruitment:read",
         "recruitment:write",
       ],

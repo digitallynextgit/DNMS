@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withSession } from "@/server/api-handler"
+import { aiComplete, isAiConfigured, AiError } from "@/lib/ai"
 import type { Session } from "next-auth"
 
 export const runtime = "nodejs"
@@ -55,11 +56,8 @@ function sanitize(raw: unknown): Generated {
 }
 
 export const POST = withSession(async (req: NextRequest, _ctx: unknown, _session: Session) => {
-  if (!process.env.GROQ_API_KEY) {
-    return NextResponse.json(
-      { error: "GROQ_API_KEY is not configured on the server" },
-      { status: 500 },
-    )
+  if (!isAiConfigured()) {
+    return NextResponse.json({ error: "AI is not configured on the server" }, { status: 500 })
   }
 
   let body: { title?: string; departmentName?: string; type?: string; location?: string }
@@ -96,47 +94,23 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, _session
     .filter(Boolean)
     .join("\n")
 
-  let groqRes: Response
+  // One call through the shared client (lib/ai.ts) - it owns the provider, key,
+  // timeout and error shape, so this route only cares about prompt + sanitising.
   try {
-    groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.75,
-        max_tokens: 900,
-        response_format: { type: "json_object" },
-      }),
+    const parsed = await aiComplete<unknown>({
+      system: SYSTEM_PROMPT,
+      user: userPrompt,
+      temperature: 0.75,
+      maxTokens: 900,
+      json: true,
     })
+    return NextResponse.json({ data: sanitize(parsed) })
   } catch (err) {
-    console.error("[GENERATE_JOB] fetch failed", err)
-    return NextResponse.json({ error: "AI provider unreachable" }, { status: 502 })
+    console.error("[GENERATE_JOB]", err)
+    const status = err instanceof AiError ? (err.status ?? 502) : 502
+    return NextResponse.json(
+      { error: err instanceof AiError ? err.message : "Could not generate the job copy" },
+      { status: status >= 500 ? status : 502 },
+    )
   }
-
-  if (!groqRes.ok) {
-    const errText = await groqRes.text().catch(() => "")
-    console.error("[GENERATE_JOB] groq error", groqRes.status, errText)
-    return NextResponse.json({ error: `AI provider returned ${groqRes.status}` }, { status: 502 })
-  }
-
-  const completion = (await groqRes.json()) as {
-    choices?: { message?: { content?: string } }[]
-  }
-  const content = completion.choices?.[0]?.message?.content ?? ""
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(content)
-  } catch {
-    console.error("[GENERATE_JOB] non-JSON response", content.slice(0, 200))
-    return NextResponse.json({ error: "AI returned malformed JSON" }, { status: 502 })
-  }
-
-  return NextResponse.json({ data: sanitize(parsed) })
 })

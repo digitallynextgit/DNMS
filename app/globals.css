@@ -103,7 +103,9 @@
 
     --border: 0 0% 89%;
     --input: 0 0% 89%;
-    --ring: 0 0% 9%;
+    /* Focus ring: a calm mid-grey, not near-black - it should read as "focused",
+       not stamp a hard box on the control. */
+    --ring: 0 0% 45%;
 
     --radius: 5px;
   }
@@ -136,7 +138,9 @@
 
     --border: 0 0% 14%;
     --input: 0 0% 14%;
-    --ring: 0 0% 83%;
+    /* Was near-white (0 0% 83%) - that's what made the focus box glare in dark
+       mode. A softer grey still reads clearly against the near-black bg. */
+    --ring: 0 0% 55%;
 
     --radius: 5px;
   }
@@ -207,6 +211,17 @@
   h6 {
     letter-spacing: -0.02em;
   }
+
+  /* Keyboard-focus fallback for elements that have no ring of their own
+     (links, [tabindex] divs). Kept inside @layer base ON PURPOSE: a component's
+     own `focus-visible:outline-none` is a utility, and utilities beat base, so
+     it suppresses this outline - no second box stacking on inputs/buttons/
+     selects. (Previously this rule lived outside every layer and overrode all of
+     them, which is exactly why the box appeared on everything.) */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring) / 0.55);
+    outline-offset: 2px;
+  }
 }
 
 /* Scrollbar (WebKit) */
@@ -236,9 +251,14 @@
   scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
 }
 
-:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
+/* Collapse the 2px ring-offset gap on EVERY focus ring in the app so the
+   indicator hugs the control instead of floating a detached box around it.
+   Components set `ring-offset-2`; !important overrides that regardless of which
+   layer the utility lands in. Applies uniformly to inputs, selects, dropdowns,
+   buttons, tabs, switches, checkboxes - the whole UI. */
+*:focus,
+*:focus-visible {
+  --tw-ring-offset-width: 0px !important;
 }
 
 .vercel-table th {
