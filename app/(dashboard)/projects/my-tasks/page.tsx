@@ -31,6 +31,10 @@ import {
 } from "@/lib/constants"
 import { formatDate, cn } from "@/lib/utils"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
+import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
+import { TaskCreateDialog } from "@/features/projects/components/task-create-dialog"
+import { Button } from "@/components/ui/button"
+import { Plus } from "lucide-react"
 
 interface MyTask {
   id: string
@@ -72,8 +76,9 @@ export default function MyTasksPage() {
 
   const { data, isLoading } = useQuery({ queryKey: ["my-tasks"], queryFn: fetchMyTasks })
 
+  const [createOpen, setCreateOpen] = useState(false)
   const updateMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => updateTask(id, { status }),
+    mutationFn: ({ id, ...body }: { id: string } & Record<string, unknown>) => updateTask(id, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-tasks"] })
       toast.success("Task updated")
@@ -129,23 +134,14 @@ export default function MyTasksPage() {
       header: "Status",
       headClassName: "w-32",
       cell: (task) => (
-        <Select
+        <TaskStatusSelect
           value={task.status}
           disabled={
             task.approvalStatus === "PENDING_APPROVAL" || task.approvalStatus === "REJECTED"
           }
-          onValueChange={(v) => updateMut.mutate({ id: task.id, status: v })}
-        >
-          <SelectTrigger className="h-7 w-32 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="TODO">To Do</SelectItem>
-            <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-            <SelectItem value="IN_REVIEW">In Review</SelectItem>
-            <SelectItem value="DONE">Done</SelectItem>
-          </SelectContent>
-        </Select>
+          triggerClassName="h-7 w-32 text-xs"
+          onCommit={(payload) => updateMut.mutate({ id: task.id, ...payload })}
+        />
       ),
     },
     {
@@ -220,7 +216,16 @@ export default function MyTasksPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="My Tasks" description="Tasks assigned to you across all projects." />
+      <PageHeader
+        title="My Tasks"
+        description="Tasks assigned to you across all projects."
+        actions={
+          <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" /> New Task
+          </Button>
+        }
+      />
+      <TaskCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
 
       {/* Summary strip */}
       <StatStrip
@@ -338,21 +343,12 @@ export default function MyTasksPage() {
                         !isOverdue && !isPending && !isRejected && "border-border",
                       )}
                     >
-                      <Select
+                      <TaskStatusSelect
                         value={task.status}
                         disabled={isPending || isRejected}
-                        onValueChange={(v) => updateMut.mutate({ id: task.id, status: v })}
-                      >
-                        <SelectTrigger className="h-8 w-32 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="TODO">To Do</SelectItem>
-                          <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                          <SelectItem value="IN_REVIEW">In Review</SelectItem>
-                          <SelectItem value="DONE">Done</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        triggerClassName="h-8 w-32 text-xs"
+                        onCommit={(payload) => updateMut.mutate({ id: task.id, ...payload })}
+                      />
 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">

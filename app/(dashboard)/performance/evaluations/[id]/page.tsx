@@ -147,6 +147,8 @@ interface SidePanelProps {
   effective: Record<string, number>
   isEditableHere: boolean
   hidden: boolean
+  /** This side's submitted note, shown read-only under the ratings. */
+  comment: string | null
   sectionALabel: string
   sectionBLabel: string
   onRate: (id: string, n: number) => void
@@ -159,6 +161,7 @@ const SidePanel = React.memo(function SidePanel({
   effective,
   isEditableHere,
   hidden,
+  comment,
   sectionALabel,
   sectionBLabel,
   onRate,
@@ -208,6 +211,14 @@ const SidePanel = React.memo(function SidePanel({
               hidden={hidden}
               onRate={onRate}
             />
+            {comment?.trim() && (
+              <div className="bg-muted/30 px-4 py-3">
+                <p className="text-muted-foreground mb-1 text-[11px] font-medium tracking-wide uppercase">
+                  Comment
+                </p>
+                <p className="text-sm whitespace-pre-wrap">{comment.trim()}</p>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
@@ -345,10 +356,18 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
 
   const panelProps = (side: Side, storedRatings: Record<string, number> | null) => {
     const isEditableHere = canEdit && editableSide === side
+    const storedComment =
+      side === "SELF"
+        ? ev?.selfComment
+        : side === "CONTROLLER"
+          ? ev?.controllerComment
+          : ev?.managerComment
     return {
       isEditableHere,
       effective: isEditableHere ? ratings : (storedRatings ?? {}),
       hidden: !isEditableHere && !storedRatings, // e.g. employee before manager submits
+      // The submitted note for this side, shown read-only under its ratings.
+      comment: storedComment ?? null,
       sectionALabel: ev?.sectionALabel ?? "",
       sectionBLabel: ev?.sectionBLabel ?? "",
       onRate,
@@ -375,8 +394,8 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
               <Skeleton className="h-4 w-56" />
             )
           }
-          backHref="/performance/evaluations"
-          backLabel="Back to Evaluations"
+          backHref={viewerRole === "HR" ? "/performance/evaluations" : "/performance/me"}
+          backLabel={viewerRole === "HR" ? "Back to Evaluations" : "Back to My Performance"}
           actions={
             <Button
               variant="outline"

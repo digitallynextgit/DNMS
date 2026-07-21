@@ -64,6 +64,9 @@ export interface LeaveRequest {
   employee: LeaveRequestEmployee
   leaveType: { id: string; name: string; code: string; isPaid: boolean }
   approver: { id: string; firstName: string; lastName: string } | null
+  /** For the current viewer: "FINAL" = can approve/reject + email (admin/HR),
+   *  "ADVISORY" = can only recommend to HR (the applicant's manager), null = view only. */
+  viewerRole?: "FINAL" | "ADVISORY" | null
 }
 
 export interface LeaveRequestFilters {

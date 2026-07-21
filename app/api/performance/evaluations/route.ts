@@ -23,6 +23,8 @@ export const GET = withSession(
       const canReview = hasPermission(session, PERMISSIONS.PERFORMANCE_REVIEW)
       const { searchParams } = new URL(req.url)
       const status = searchParams.get("status") || undefined
+      const period = searchParams.get("period") || undefined
+      const q = searchParams.get("q")?.trim() || undefined
 
       // Pagination: 1-indexed page, fixed slot size of 10 (clamped).
       const { page, limit, skip, take } = resolvePagination(
@@ -30,17 +32,29 @@ export const GET = withSession(
         10,
       )
 
-      const where: Record<string, unknown> = {}
-      if (status) where.status = status
+      // Base scope (who can see which rows) - reused for the period dropdown.
+      const scope: Record<string, unknown> = {}
       if (!canReview) {
-        where.OR = [
+        scope.OR = [
           { employeeId: session.user.id },
           { managerId: session.user.id },
           { controllerId: session.user.id },
         ]
       }
 
-      const [evaluations, total] = await Promise.all([
+      const where: Record<string, unknown> = { ...scope }
+      if (status) where.status = status
+      if (period) where.periodLabel = period
+      if (q)
+        where.employee = {
+          OR: [
+            { firstName: { contains: q, mode: "insensitive" } },
+            { lastName: { contains: q, mode: "insensitive" } },
+            { employeeNo: { contains: q, mode: "insensitive" } },
+          ],
+        }
+
+      const [evaluations, total, periodRows] = await Promise.all([
         db.evaluation.findMany({
           where,
           include: {
@@ -53,10 +67,18 @@ export const GET = withSession(
           take,
         }),
         db.evaluation.count({ where }),
+        // Distinct period labels in scope, for the filter dropdown.
+        db.evaluation.findMany({
+          where: scope,
+          distinct: ["periodLabel"],
+          select: { periodLabel: true },
+          orderBy: { createdAt: "desc" },
+        }),
       ])
 
       return NextResponse.json({
         data: evaluations,
+        periods: periodRows.map((p) => p.periodLabel),
         pagination: paginationMeta(total, page, limit),
       })
     } catch (error) {

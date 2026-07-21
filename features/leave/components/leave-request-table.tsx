@@ -187,8 +187,9 @@ export function LeaveRequestTable({
                 <TooltipContent>Cancel request</TooltipContent>
               </Tooltip>
             )}
-            {/* Approver actions */}
-            {canApprove && request.status === "PENDING" && (
+            {/* Approver actions - only where THIS viewer can actually act on
+                this request (final decision or advisory recommendation). */}
+            {canApprove && request.status === "PENDING" && request.viewerRole && (
               <>
                 <Tooltip>
                   <TooltipTrigger asChild>

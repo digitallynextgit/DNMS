@@ -20,7 +20,9 @@ import { isOnProbation } from "@/features/employees/probation"
 
 const REQUEST_INCLUDE = {
   employee: {
-    select: EMPLOYEE_SUMMARY_SELECT,
+    // managerId so we can tell whether the viewer is the applicant's reporting
+    // manager (an advisory reviewer) for this request.
+    select: { ...EMPLOYEE_SUMMARY_SELECT, managerId: true },
   },
   leaveType: { select: { id: true, name: true, code: true, isPaid: true } },
   approver: { select: { id: true, firstName: true, lastName: true } },
@@ -125,7 +127,13 @@ function canFinalizeRequest(
  */
 function canAdviseRequest(
   roles: string[],
-  request: { approvalStage: string | null; currentApproverId: string | null },
+  request: {
+    approvalStage: string | null
+    currentApproverId: string | null
+    /** The applicant's reporting manager, so a manager can always weigh in on
+     *  their own report's request even if it's staged elsewhere. */
+    applicantManagerId?: string | null
+  },
   userId: string,
 ): boolean {
   const isHrOrAdmin =
@@ -133,7 +141,43 @@ function canAdviseRequest(
     roles.includes(SYSTEM_ROLES.ADMIN) ||
     roles.includes(SYSTEM_ROLES.HR_MANAGER) ||
     roles.includes(SYSTEM_ROLES.HR_EMPLOYEE)
-  return !isHrOrAdmin && request.approvalStage === "HR" && request.currentApproverId === userId
+  if (isHrOrAdmin) return false
+  // The assigned advisory approver, OR the applicant's own reporting manager.
+  return request.currentApproverId === userId || request.applicantManagerId === userId
+}
+
+/**
+ * Tag each request with what THIS viewer can do:
+ *  - "FINAL"    -> approve/reject and email the employee (admin/HR)
+ *  - "ADVISORY" -> only recommend to HR (the applicant's reporting manager)
+ *  - null       -> view only
+ * The employee row must include `managerId` for the advisory check.
+ */
+function attachViewerRole<
+  T extends {
+    status: string
+    employeeId: string
+    approvalStage: string | null
+    currentApproverId: string | null
+    employee: { managerId?: string | null }
+  },
+>(
+  requests: T[],
+  roles: string[],
+  permissions: string[],
+  userId: string,
+): (T & { viewerRole: "FINAL" | "ADVISORY" | null })[] {
+  return requests.map((r) => {
+    let viewerRole: "FINAL" | "ADVISORY" | null = null
+    if (r.status === "PENDING" && r.employeeId !== userId) {
+      if (canFinalizeRequest(roles, permissions, r, userId)) viewerRole = "FINAL"
+      else if (
+        canAdviseRequest(roles, { ...r, applicantManagerId: r.employee.managerId ?? null }, userId)
+      )
+        viewerRole = "ADVISORY"
+    }
+    return { ...r, viewerRole }
+  })
 }
 
 export interface LeaveMailEnvelope {
@@ -703,9 +747,19 @@ export async function getLeaveRequests(
       }),
       db.leaveRequest.count({ where }),
     ])
+
+    // Tell the client, per request, whether THIS viewer can finalise (admin/HR)
+    // or only advise (the applicant's manager), so the table + dialog adapt.
+    const withViewer = attachViewerRole(
+      requests,
+      session.user.roles ?? [],
+      session.user.permissions ?? [],
+      session.user.id,
+    )
+
     return ok(
       serialize({
-        data: requests,
+        data: withViewer,
         pagination: paginationMeta(total, page, limit),
       }),
     )
@@ -748,6 +802,7 @@ export async function getTeamLeaveRequests(
           employee: {
             select: {
               ...EMPLOYEE_SUMMARY_SELECT,
+              managerId: true,
               department: { select: { id: true, name: true } },
             },
           },
@@ -762,7 +817,12 @@ export async function getTeamLeaveRequests(
     ])
     return ok(
       serialize({
-        data: requests,
+        data: attachViewerRole(
+          requests,
+          session.user.roles ?? [],
+          session.user.permissions ?? [],
+          session.user.id,
+        ),
         pagination: paginationMeta(total, page, limit),
       }),
     )
@@ -807,6 +867,7 @@ export async function getMyTeamLeaveRequests(
           employee: {
             select: {
               ...EMPLOYEE_SUMMARY_SELECT,
+              managerId: true,
               department: { select: { id: true, name: true } },
             },
           },
@@ -822,7 +883,16 @@ export async function getMyTeamLeaveRequests(
 
     return ok(
       serialize({
-        data: { requests, isManager: true, pagination: paginationMeta(total, page, limit) },
+        data: {
+          requests: attachViewerRole(
+            requests,
+            session.user.roles ?? [],
+            session.user.permissions ?? [],
+            session.user.id,
+          ),
+          isManager: true,
+          pagination: paginationMeta(total, page, limit),
+        },
       }),
     )
   })
@@ -1150,8 +1220,32 @@ export async function updateLeaveRequest(
 
     const roles = session.user.roles ?? []
     const permissions = session.user.permissions ?? []
+    // The applicant's reporting manager may record an advisory decision on this
+    // request even when it's staged elsewhere - and the decision email to the
+    // employee is sent FROM this manager (their signature, their Gmail).
+    const applicant = await db.employee.findUnique({
+      where: { id: request.employeeId },
+      select: {
+        managerId: true,
+        manager: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            jobRole: { select: { name: true } },
+            designation: { select: { title: true } },
+          },
+        },
+      },
+    })
     const isFinalizer = canFinalizeRequest(roles, permissions, request, session.user.id)
-    const isAdvisor = canAdviseRequest(roles, request, session.user.id)
+    const isAdvisor = canAdviseRequest(
+      roles,
+      { ...request, applicantManagerId: applicant?.managerId ?? null },
+      session.user.id,
+    )
 
     if (action === "CANCEL") {
       if (request.employeeId !== session.user.id)
@@ -1289,18 +1383,11 @@ export async function updateLeaveRequest(
               ? `Re: ${request.requestMailSubject}`
               : `Leave ${isApproved ? "approved" : "declined"} - ${emp.firstName}`
 
-          // The finaliser (admin/HR/manager who decided) signs the reply.
-          const approver = await db.employee.findUnique({
-            where: { id: session.user.id },
-            select: {
-              firstName: true,
-              lastName: true,
-              email: true,
-              phone: true,
-              jobRole: { select: { name: true } },
-              designation: { select: { title: true } },
-            },
-          })
+          // The reply is signed by, and sent from, the employee's reporting
+          // MANAGER (even when HR made the final call) - so the employee hears it
+          // from their direct manager. Falls back to the finaliser when there's no
+          // manager on file.
+          const mgr = applicant?.manager
           const email = renderLeaveDecisionLetter({
             employeeFirstName: emp.firstName,
             approved: isApproved,
@@ -1311,17 +1398,15 @@ export async function updateLeaveRequest(
             reason: !isApproved && rejectionReason ? rejectionReason : null,
             bodyText: emailBody?.trim() || null,
             subject,
-            approverName: approver
-              ? `${approver.firstName} ${approver.lastName}`.trim()
-              : "Digitally Next",
-            approverDesignation: approver?.jobRole?.name ?? approver?.designation?.title ?? null,
-            approverEmail: approver?.email ?? null,
-            approverPhone: approver?.phone ?? null,
+            approverName: mgr ? `${mgr.firstName} ${mgr.lastName}`.trim() : "Digitally Next",
+            approverDesignation: mgr?.jobRole?.name ?? mgr?.designation?.title ?? null,
+            approverEmail: mgr?.email ?? null,
+            approverPhone: mgr?.phone ?? null,
           })
-          // Send AS the finaliser from their own Gmail, so the reply is authentic
-          // and threads in their Sent too. Falls back to the system mailer if they
-          // have no App Password on file.
-          addEmailAsJob(session.user.id, {
+          // Send AS the manager from their own Gmail so it's authentic and threads
+          // in their Sent. Falls back to the finaliser (then the system mailer) if
+          // the manager has no App Password on file.
+          addEmailAsJob(mgr?.id ?? session.user.id, {
             to: emp.email,
             cc,
             subject: email.subject,

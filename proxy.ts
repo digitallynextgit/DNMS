@@ -121,7 +121,12 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   // --- Payroll (HR) ------------------------------------------------------
   [/^\/payroll(\/|$)/, "payroll:write"],
 
-  // --- Performance (HR) --------------------------------------------------
+  // --- Performance --------------------------------------------------------
+  // A single evaluation is participant-gated by its own API (employee / manager /
+  // controller / HR), so any authenticated user may open the detail URL - they
+  // just can't read one they aren't part of. The LIST + KPI admin pages below
+  // stay review-gated.
+  [/^\/performance\/evaluations\/[^/]+(\/|$)/, null],
   [/^\/performance(\/|$)/, "performance:review"],
 
   // --- Recruitment (HR) --------------------------------------------------

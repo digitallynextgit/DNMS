@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
 import Link from "next/link"
-import { Plus, Trash2, Inbox } from "lucide-react"
+import { Plus, Trash2, Inbox, Sparkles, Search } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
@@ -27,11 +27,40 @@ import { PERMISSIONS, EVALUATION_STATUS_COLORS, EVALUATION_STATUS_LABELS } from 
 import {
   useEvaluations,
   useCreateEvaluation,
+  useGenerateEvaluations,
   useDeleteEvaluation,
   type Evaluation,
 } from "@/features/performance"
 
 const PAGE_SIZE = 10
+
+/** One-click: create today's evaluation for every active employee + notify them. */
+function GenerateEvaluationsButton() {
+  const [confirm, setConfirm] = useState(false)
+  const generate = useGenerateEvaluations()
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5"
+        onClick={() => setConfirm(true)}
+        disabled={generate.isPending}
+      >
+        <Sparkles className="h-4 w-4" /> Generate Evaluations
+      </Button>
+      <ConfirmDialog
+        open={confirm}
+        onOpenChange={setConfirm}
+        title="Generate evaluations for everyone?"
+        description="This creates today's performance evaluation for every active employee and notifies each of them (and their manager). Anyone who already has one for today is skipped."
+        confirmLabel="Generate & notify"
+        isLoading={generate.isPending}
+        onConfirm={() => generate.mutate(undefined, { onSuccess: () => setConfirm(false) })}
+      />
+    </>
+  )
+}
 
 function NewEvaluationDialog() {
   const [open, setOpen] = useState(false)
@@ -165,11 +194,29 @@ export default function EvaluationsPage() {
   const { can } = usePermissions()
   const canReview = can(PERMISSIONS.PERFORMANCE_REVIEW)
   const [page, setPage] = useUrlPage()
-  const { data, isLoading } = useEvaluations({ page, limit: PAGE_SIZE })
+  const [q, setQ] = useState("")
+  const [period, setPeriod] = useState("")
+  const [status, setStatus] = useState("")
+  const { data, isLoading } = useEvaluations({
+    page,
+    limit: PAGE_SIZE,
+    q,
+    period: period || undefined,
+    status: status || undefined,
+  })
   const del = useDeleteEvaluation()
   const [deleteTarget, setDeleteTarget] = useState<Evaluation | null>(null)
   const evaluations = data?.data ?? []
+  const periods = data?.periods ?? []
   const pagination = data?.pagination
+
+  // Reset to the first page whenever a filter changes.
+  function onFilter<T>(setter: (v: T) => void) {
+    return (v: T) => {
+      setter(v)
+      setPage(1)
+    }
+  }
 
   const columns: DataTableColumn<Evaluation>[] = [
     {
@@ -244,11 +291,58 @@ export default function EvaluationsPage() {
               <Button asChild variant="outline" size="sm">
                 <Link href="/performance/kpi-profiles">KPI Profiles</Link>
               </Button>
+              <GenerateEvaluationsButton />
               <NewEvaluationDialog />
             </div>
           ) : undefined
         }
       />
+
+      {canReview && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
+            <Input
+              value={q}
+              onChange={(e) => onFilter(setQ)(e.target.value)}
+              placeholder="Search employee…"
+              className="pl-8"
+            />
+          </div>
+          <Select
+            value={period || "all"}
+            onValueChange={(v) => onFilter(setPeriod)(v === "all" ? "" : v)}
+          >
+            <SelectTrigger className="w-[170px]">
+              <SelectValue placeholder="All periods" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All periods</SelectItem>
+              {periods.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={status || "all"}
+            onValueChange={(v) => onFilter(setStatus)(v === "all" ? "" : v)}
+          >
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {Object.entries(EVALUATION_STATUS_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* The table renders from the first paint: while `isLoading` it draws
           skeleton rows inside its own real <thead>, derived from `columns`, so

@@ -60,12 +60,15 @@ export interface ProjectTask {
   teamId: string | null
   title: string
   description: string | null
-  status: "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE"
+  status: "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE" | "CANCELLED" | "ON_HOLD" | "DISCARDED"
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
   approvalStatus: "APPROVED" | "PENDING_APPROVAL" | "REJECTED"
   isManagerCreated: boolean
   isMilestone: boolean
   rejectionReason: string | null
+  holdReason: string | null
+  holdExpectedDate: string | null
+  discardReason: string | null
   assigneeId: string | null
   creatorId: string
   startDate: string | null

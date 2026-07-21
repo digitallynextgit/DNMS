@@ -1,6 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 import type { EvalCriterion, EvalEvaluator, EvalSection } from "@/features/performance/evaluation"
@@ -55,16 +56,26 @@ export interface PaginationMeta {
 
 // ─── Evaluations ──────────────────────────────────────────────────────────────
 
-export function useEvaluations(params?: { status?: string; page?: number; limit?: number }) {
+export function useEvaluations(params?: {
+  status?: string
+  period?: string
+  q?: string
+  page?: number
+  limit?: number
+}) {
   const status = params?.status
+  const period = params?.period
+  const q = params?.q
   const page = params?.page ?? 1
   const limit = params?.limit ?? 10
   return useQuery({
-    queryKey: ["evaluations", status ?? "all", page, limit],
+    queryKey: ["evaluations", status ?? "all", period ?? "all", q ?? "", page, limit],
     placeholderData: keepPreviousData,
-    queryFn: (): Promise<{ data: Evaluation[]; pagination: PaginationMeta }> => {
+    queryFn: (): Promise<{ data: Evaluation[]; periods: string[]; pagination: PaginationMeta }> => {
       const qs = new URLSearchParams({ page: String(page), limit: String(limit) })
       if (status) qs.set("status", status)
+      if (period) qs.set("period", period)
+      if (q?.trim()) qs.set("q", q.trim())
       return apiFetch(`/api/performance/evaluations?${qs.toString()}`)
     },
     staleTime: 30_000,
@@ -102,6 +113,33 @@ export function useCreateEvaluation() {
       success: "Evaluation created - employee and manager notified",
     }),
   )
+}
+
+/** Generate today's evaluation for EVERY active employee at once, notifying each
+ *  (and their manager). Idempotent per day. */
+export function useGenerateEvaluations() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ data: { periodLabel: string; created: number; skipped: number; total: number } }>(
+        "/api/performance/evaluations/generate",
+        { method: "POST" },
+      ),
+    onSuccess: (res) => {
+      const { created, skipped, periodLabel } = res.data
+      qc.invalidateQueries({ queryKey: ["evaluations"] })
+      toast.success(
+        created > 0
+          ? `Generated ${created} evaluation${created === 1 ? "" : "s"} for ${periodLabel}${
+              skipped ? ` (${skipped} already existed)` : ""
+            } - everyone notified`
+          : `All employees already have an evaluation for ${periodLabel}`,
+      )
+    },
+    onError: (e: unknown) => {
+      toast.error(e instanceof Error ? e.message : "Couldn't generate evaluations")
+    },
+  })
 }
 
 export function useSubmitEvaluation(id: string) {

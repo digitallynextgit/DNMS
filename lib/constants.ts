@@ -460,20 +460,34 @@ export const PROJECT_STATUS_COLORS: Record<string, string> = {
 }
 
 export const TASK_STATUS_LABELS: Record<string, string> = {
-  TODO: "To Do",
-  IN_PROGRESS: "In Progress",
-  IN_REVIEW: "In Review",
-  DONE: "Done",
-  CANCELLED: "Cancelled",
+  TODO: "To-do",
+  IN_PROGRESS: "In Process",
+  IN_REVIEW: "In Review", // legacy
+  DONE: "Completed",
+  CANCELLED: "Cancelled", // legacy
+  ON_HOLD: "On Hold",
+  DISCARDED: "Discarded",
 }
 
 export const TASK_STATUS_COLORS: Record<string, string> = {
   TODO: TONE.neutral,
   IN_PROGRESS: TONE.blue,
-  IN_REVIEW: TONE.amber,
+  IN_REVIEW: TONE.amber, // legacy
   DONE: TONE.green,
-  CANCELLED: TONE.neutral,
+  CANCELLED: TONE.neutral, // legacy
+  ON_HOLD: TONE.amber,
+  DISCARDED: TONE.red,
 }
+
+/** The task phases offered in the UI, in workflow order. Legacy IN_REVIEW /
+ *  CANCELLED still render (see labels above) but aren't offered as new choices. */
+export const TASK_WORKFLOW_STATUSES = [
+  "TODO",
+  "IN_PROGRESS",
+  "DONE",
+  "ON_HOLD",
+  "DISCARDED",
+] as const
 
 export const TASK_PRIORITY_LABELS: Record<string, string> = {
   LOW: "Low",

@@ -97,6 +97,8 @@ enum TaskStatus {
   IN_REVIEW
   DONE
   CANCELLED
+  ON_HOLD
+  DISCARDED
 }
 
 enum TaskPriority {
@@ -1350,6 +1352,11 @@ model ProjectTask {
   approvalStatus   TaskApprovalStatus @default(APPROVED) @map("approval_status")
   isManagerCreated Boolean            @default(true) @map("is_manager_created")
   rejectionReason  String?            @map("rejection_reason")
+  // ON_HOLD requires a reason + the date it's expected to resume/finish by;
+  // DISCARDED requires a reason. Kept alongside status so the history reads.
+  holdReason       String?            @map("hold_reason") @db.Text
+  holdExpectedDate DateTime?          @map("hold_expected_date") @db.Date
+  discardReason    String?            @map("discard_reason") @db.Text
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 

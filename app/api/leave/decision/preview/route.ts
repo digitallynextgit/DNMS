@@ -5,33 +5,59 @@ import { getConfigSync, warmConfig } from "@/server/app-config"
 import { signatureLogoUrl } from "@/lib/email-layout"
 import type { Session } from "next-auth"
 
-// GET /api/leave/decision/preview
-// The signature block for the CURRENT user (the approver) - so the approve/reject
-// dialog can preview the reply exactly as it will be sent. Read-only.
+type Person = {
+  firstName: string
+  lastName: string
+  email: string | null
+  phone: string | null
+  jobRole: { name: string } | null
+  designation: { title: string } | null
+} | null
+
+const PERSON_SELECT = {
+  firstName: true,
+  lastName: true,
+  email: true,
+  phone: true,
+  jobRole: { select: { name: true } },
+  designation: { select: { title: true } },
+} as const
+
+// GET /api/leave/decision/preview?requestId=<id>
+// The signature block that will sign the decision reply. That reply is sent FROM
+// the applicant's reporting MANAGER, so we return the manager's signature (falling
+// back to the current user when there's no manager on file). Read-only.
 export const GET = withSession(
-  async (_req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
+  async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
-      const approver = await db.employee.findUnique({
-        where: { id: session.user.id },
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-          phone: true,
-          jobRole: { select: { name: true } },
-          designation: { select: { title: true } },
-        },
-      })
+      const requestId = req.nextUrl.searchParams.get("requestId")
+
+      let person: Person = null
+      if (requestId) {
+        const request = await db.leaveRequest.findUnique({
+          where: { id: requestId },
+          select: { employee: { select: { manager: { select: PERSON_SELECT } } } },
+        })
+        person = request?.employee.manager ?? null
+      }
+      // Fallback: the current user (e.g. no manager assigned).
+      if (!person) {
+        person = await db.employee.findUnique({
+          where: { id: session.user.id },
+          select: PERSON_SELECT,
+        })
+      }
+
       await warmConfig()
 
       return NextResponse.json({
         data: {
-          signature: approver
+          signature: person
             ? {
-                name: `${approver.firstName} ${approver.lastName}`.trim(),
-                designation: approver.jobRole?.name ?? approver.designation?.title ?? null,
-                email: approver.email,
-                phone: approver.phone,
+                name: `${person.firstName} ${person.lastName}`.trim(),
+                designation: person.jobRole?.name ?? person.designation?.title ?? null,
+                email: person.email,
+                phone: person.phone,
                 website: getConfigSync("COMPANY_WEBSITE") ?? null,
                 address: getConfigSync("COMPANY_ADDRESS") ?? null,
                 logoUrl: signatureLogoUrl(),

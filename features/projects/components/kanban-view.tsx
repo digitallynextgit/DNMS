@@ -12,6 +12,7 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TaskDetailSheet } from "./task-detail-sheet"
+import { TaskStatusReasonDialog } from "./task-status-reason-dialog"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { cn, formatDate } from "@/lib/utils"
 import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
@@ -19,10 +20,11 @@ import { formatHours } from "../lib/format-hours"
 import { AlertTriangle, Clock, Milestone, GripVertical } from "lucide-react"
 
 const COLUMNS: { id: string; label: string; color: string }[] = [
-  { id: "TODO", label: "To Do", color: "bg-slate-100 dark:bg-slate-800" },
-  { id: "IN_PROGRESS", label: "In Progress", color: "bg-blue-50 dark:bg-blue-950/30" },
-  { id: "IN_REVIEW", label: "In Review", color: "bg-amber-50 dark:bg-amber-950/30" },
-  { id: "DONE", label: "Done", color: "bg-emerald-50 dark:bg-emerald-950/30" },
+  { id: "TODO", label: "To-do", color: "bg-slate-100 dark:bg-slate-800" },
+  { id: "IN_PROGRESS", label: "In Process", color: "bg-blue-50 dark:bg-blue-950/30" },
+  { id: "DONE", label: "Completed", color: "bg-emerald-50 dark:bg-emerald-950/30" },
+  { id: "ON_HOLD", label: "On Hold", color: "bg-amber-50 dark:bg-amber-950/30" },
+  { id: "DISCARDED", label: "Discarded", color: "bg-red-50 dark:bg-red-950/30" },
 ]
 
 interface Props {
@@ -30,20 +32,58 @@ interface Props {
   currentUserId: string
   isAdmin: boolean
   teamFilter: string // "all" or teamId
+  statusFilter?: string // "ALL" or a status
+  showPendingOnly?: boolean
 }
 
-export function KanbanView({ projectId, currentUserId, isAdmin, teamFilter }: Props) {
+export function KanbanView({
+  projectId,
+  currentUserId,
+  isAdmin,
+  teamFilter,
+  statusFilter = "ALL",
+  showPendingOnly = false,
+}: Props) {
   const qc = useQueryClient()
   const { data, isLoading } = useProjectAllTasks(projectId)
   const update = useUpdateTask()
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  // A drag onto On Hold / Discarded pauses here to collect the required reason.
+  const [holdDrag, setHoldDrag] = useState<{
+    taskId: string
+    mode: "ON_HOLD" | "DISCARDED"
+  } | null>(null)
 
   const allTasks = (data?.data ?? []).filter((t) => {
-    if (t.approvalStatus === "REJECTED") return false
+    if (showPendingOnly) {
+      if (t.approvalStatus !== "PENDING_APPROVAL") return false
+    } else if (t.approvalStatus === "REJECTED") {
+      return false
+    }
     if (teamFilter !== "all" && t.teamId !== teamFilter) return false
+    if (statusFilter !== "ALL" && t.status !== statusFilter) return false
     return true
   })
+
+  function commitStatus(taskId: string, body: Record<string, unknown>) {
+    qc.setQueryData(
+      ["project-all-tasks", projectId],
+      (old: { data: ProjectTask[] } | undefined) => {
+        if (!old) return old
+        return {
+          ...old,
+          data: old.data.map((t) =>
+            t.id === taskId ? { ...t, status: body.status as ProjectTask["status"] } : t,
+          ),
+        }
+      },
+    )
+    update.mutate(
+      { taskId, body, silent: true },
+      { onError: () => qc.invalidateQueries({ queryKey: ["project-all-tasks", projectId] }) },
+    )
+  }
 
   function onDragEnd(result: DropResult) {
     if (!result.destination) return
@@ -52,34 +92,18 @@ export function KanbanView({ projectId, currentUserId, isAdmin, teamFilter }: Pr
 
     const newStatus = destination.droppableId
 
-    // Optimistic update - move the card immediately in the cache
-    qc.setQueryData(
-      ["project-all-tasks", projectId],
-      (old: { data: ProjectTask[] } | undefined) => {
-        if (!old) return old
-        return {
-          ...old,
-          data: old.data.map((t) =>
-            t.id === draggableId ? { ...t, status: newStatus as ProjectTask["status"] } : t,
-          ),
-        }
-      },
-    )
+    // On Hold / Discarded need a reason (+ date for hold): pause and prompt.
+    if (newStatus === "ON_HOLD" || newStatus === "DISCARDED") {
+      setHoldDrag({ taskId: draggableId, mode: newStatus })
+      return
+    }
 
-    update.mutate(
-      { taskId: draggableId, body: { status: newStatus }, silent: true },
-      {
-        onError: () => {
-          // Revert on failure
-          qc.invalidateQueries({ queryKey: ["project-all-tasks", projectId] })
-        },
-      },
-    )
+    commitStatus(draggableId, { status: newStatus })
   }
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         {COLUMNS.map((c) => (
           <div key={c.id} className="space-y-2">
             <Skeleton className="h-6 w-24 rounded" />
@@ -100,7 +124,7 @@ export function KanbanView({ projectId, currentUserId, isAdmin, teamFilter }: Pr
   return (
     <>
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="grid grid-cols-2 items-stretch gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 items-stretch gap-3 md:grid-cols-3 xl:grid-cols-5">
           {COLUMNS.map((col) => (
             <div key={col.id} className="flex min-w-0 flex-col">
               <div className="mb-2 flex items-center justify-between px-1">
@@ -232,6 +256,21 @@ export function KanbanView({ projectId, currentUserId, isAdmin, teamFilter }: Pr
         onClose={() => setSheetOpen(false)}
         currentUserId={currentUserId}
         isManager={isAdmin}
+      />
+
+      <TaskStatusReasonDialog
+        mode={holdDrag?.mode ?? null}
+        onOpenChange={(o) => {
+          if (!o) {
+            // Cancelled the reason: undo the visual move.
+            qc.invalidateQueries({ queryKey: ["project-all-tasks", projectId] })
+            setHoldDrag(null)
+          }
+        }}
+        onConfirm={(payload) => {
+          if (holdDrag) commitStatus(holdDrag.taskId, { ...payload })
+          setHoldDrag(null)
+        }}
       />
     </>
   )

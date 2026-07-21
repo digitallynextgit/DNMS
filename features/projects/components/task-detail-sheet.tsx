@@ -124,6 +124,25 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
             )}
           </div>
 
+          {/* On-hold / discarded context */}
+          {task.status === "ON_HOLD" && task.holdReason && (
+            <div className="rounded border border-amber-300/50 bg-amber-50/50 p-2.5 text-xs dark:border-amber-900/60 dark:bg-amber-950/20">
+              <p className="font-medium text-amber-700 dark:text-amber-300">
+                On hold
+                {task.holdExpectedDate && ` · expected by ${formatDate(task.holdExpectedDate)}`}
+              </p>
+              <p className="text-muted-foreground mt-0.5 whitespace-pre-wrap">{task.holdReason}</p>
+            </div>
+          )}
+          {task.status === "DISCARDED" && task.discardReason && (
+            <div className="border-destructive/40 bg-destructive/5 rounded border p-2.5 text-xs">
+              <p className="text-destructive font-medium">Discarded</p>
+              <p className="text-muted-foreground mt-0.5 whitespace-pre-wrap">
+                {task.discardReason}
+              </p>
+            </div>
+          )}
+
           {/* Assignee */}
           {task.assignee && (
             <div className="flex items-center gap-2">

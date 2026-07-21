@@ -169,7 +169,7 @@ const PROJECT_ITEMS: NavItem[] = [
   // the projects they own.
   {
     label: "My Projects",
-    href: "/projects",
+    href: "/projects/my-projects",
     icon: FolderKanban,
   },
   {

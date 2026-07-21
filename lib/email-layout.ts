@@ -358,7 +358,9 @@ export function renderSignature(input: {
   // Phone + website share a row, like the reference.
   const contactLine = [
     phone ? iconText("phone", `<span style="${body}">${escapeHtml(phone)}</span>`) : "",
-    website ? iconText("globe", `<a href="${websiteHref}" style="${link}">${escapeHtml(website)}</a>`) : "",
+    website
+      ? iconText("globe", `<a href="${websiteHref}" style="${link}">${escapeHtml(website)}</a>`)
+      : "",
   ]
     .filter(Boolean)
     .join(`<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>`)

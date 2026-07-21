@@ -40,6 +40,9 @@ export const PATCH = withSession(
         loggedHours,
         tags,
         isMilestone,
+        holdReason,
+        holdExpectedDate,
+        discardReason,
       } = body
 
       const auth = await getTaskAuthContext(ctx.params.id, session.user.id)
@@ -74,8 +77,38 @@ export const PATCH = withSession(
       if (description !== undefined) data.description = description
       if (status !== undefined) {
         data.status = status
-        if (status === "DONE") data.completedAt = new Date()
-        else data.completedAt = null
+        data.completedAt = status === "DONE" ? new Date() : null
+        if (status === "ON_HOLD") {
+          const reason = (holdReason ?? "").toString().trim()
+          if (!reason)
+            return NextResponse.json(
+              { error: "A reason is required to put a task on hold." },
+              { status: 422 },
+            )
+          if (!holdExpectedDate)
+            return NextResponse.json(
+              { error: "An expected completion date is required to put a task on hold." },
+              { status: 422 },
+            )
+          data.holdReason = reason
+          data.holdExpectedDate = new Date(holdExpectedDate)
+          data.discardReason = null
+        } else if (status === "DISCARDED") {
+          const reason = (discardReason ?? "").toString().trim()
+          if (!reason)
+            return NextResponse.json(
+              { error: "A reason is required to discard a task." },
+              { status: 422 },
+            )
+          data.discardReason = reason
+          data.holdReason = null
+          data.holdExpectedDate = null
+        } else {
+          // Any other status clears prior hold/discard context.
+          data.holdReason = null
+          data.holdExpectedDate = null
+          data.discardReason = null
+        }
       }
       if (priority !== undefined) data.priority = priority
       if (assigneeId !== undefined) data.assigneeId = assigneeId ?? null
@@ -116,22 +149,39 @@ export const PATCH = withSession(
           meta: { taskTitle: task.title, from: prevStatus, to: status },
         })
 
-        // Notify team manager when a task is completed
-        if (
-          status === "DONE" &&
-          auth.task.team?.managerId &&
-          auth.task.team.managerId !== session.user.id
-        ) {
-          const assigneeName = task.assignee
+        // Notify the team manager on the key transitions.
+        const mgrId = auth.task.team?.managerId
+        if (mgrId && mgrId !== session.user.id) {
+          const who = task.assignee
             ? `${task.assignee.firstName} ${task.assignee.lastName}`
             : "Someone"
-          await createNotification({
-            employeeId: auth.task.team.managerId,
-            title: "Task completed",
-            message: `${assigneeName} completed "${task.title}"`,
-            type: "success",
-            link: `/projects/${projectId}`,
-          })
+          const notif =
+            status === "DONE"
+              ? {
+                  title: "Task completed",
+                  message: `${who} completed "${task.title}"`,
+                  type: "success" as const,
+                }
+              : status === "ON_HOLD"
+                ? {
+                    title: "Task put on hold",
+                    message: `${who} put "${task.title}" on hold - ${data.holdReason}`,
+                    type: "info" as const,
+                  }
+                : status === "DISCARDED"
+                  ? {
+                      title: "Task discarded",
+                      message: `${who} discarded "${task.title}" - ${data.discardReason}`,
+                      type: "error" as const,
+                    }
+                  : null
+          if (notif) {
+            await createNotification({
+              employeeId: mgrId,
+              ...notif,
+              link: `/projects/${projectId}`,
+            })
+          }
         }
       } else if (typeof isMilestone === "boolean") {
         await logActivity({

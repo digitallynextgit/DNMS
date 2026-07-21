@@ -39,13 +39,14 @@ import {
   Clock,
   Milestone,
   MessageSquare,
-  LayoutList,
-  Kanban,
 } from "lucide-react"
 import { cn, formatDate } from "@/lib/utils"
+import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
+import { TaskCreateDialog } from "@/features/projects/components/task-create-dialog"
 import {
   TASK_STATUS_LABELS,
   TASK_STATUS_COLORS,
+  TASK_WORKFLOW_STATUSES,
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
 } from "@/lib/constants"
@@ -73,7 +74,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
   const [activeTeamId, setActiveTeamId] = useState<string | "all">("all")
   const [statusFilter, setStatusFilter] = useState<string>("ALL")
   const [showPendingOnly, setShowPendingOnly] = useState(false)
-  const [viewMode, setViewMode] = useState<"list" | "kanban">("list")
+  const [createOpen, setCreateOpen] = useState(false)
 
   if (teamsLoading) return <Skeleton className="h-64 rounded" />
   if (teams.length === 0) {
@@ -105,92 +106,50 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
             </SelectContent>
           </Select>
         </div>
-        {viewMode === "list" && (
-          <>
-            <div className="flex items-center gap-2">
-              <Label className="text-xs">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-8 w-36 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All statuses</SelectItem>
-                  <SelectItem value="TODO">To Do</SelectItem>
-                  <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                  <SelectItem value="IN_REVIEW">In Review</SelectItem>
-                  <SelectItem value="DONE">Done</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <label className="flex cursor-pointer items-center gap-1.5 text-xs">
-              <input
-                type="checkbox"
-                checked={showPendingOnly}
-                onChange={(e) => setShowPendingOnly(e.target.checked)}
-              />
-              Pending approval only
-            </label>
-          </>
-        )}
-
-        {/* View toggle */}
-        <div className="ml-auto flex items-center overflow-hidden rounded border">
-          <Button
-            variant={viewMode === "list" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-8 rounded-none border-0 px-3"
-            onClick={() => setViewMode("list")}
-          >
-            <LayoutList className="mr-1.5 h-3.5 w-3.5" />
-            List
-          </Button>
-          <Button
-            variant={viewMode === "kanban" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-8 rounded-none border-0 border-l px-3"
-            onClick={() => setViewMode("kanban")}
-          >
-            <Kanban className="mr-1.5 h-3.5 w-3.5" />
-            Board
-          </Button>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs">Status</Label>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 w-36 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All statuses</SelectItem>
+              {TASK_WORKFLOW_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {TASK_STATUS_LABELS[s] ?? s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs">
+          <input
+            type="checkbox"
+            checked={showPendingOnly}
+            onChange={(e) => setShowPendingOnly(e.target.checked)}
+          />
+          Pending approval only
+        </label>
+
+        <Button size="sm" className="ml-auto gap-1.5" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-4 w-4" /> New Task
+        </Button>
       </div>
 
-      {viewMode === "kanban" ? (
-        <KanbanView
-          projectId={projectId}
-          currentUserId={currentUserId}
-          isAdmin={isAdmin}
-          teamFilter={activeTeamId}
-        />
-      ) : activeTeamId === "all" ? (
-        teams.map((team) => (
-          <TeamTasksSection
-            key={team.id}
-            team={team}
-            projectId={projectId}
-            currentUserId={currentUserId}
-            isAdmin={isAdmin}
-            statusFilter={statusFilter}
-            showPendingOnly={showPendingOnly}
-          />
-        ))
-      ) : (
-        (() => {
-          const team = teams.find((t) => t.id === activeTeamId)
-          if (!team) return null
-          return (
-            <TeamTasksSection
-              team={team}
-              projectId={projectId}
-              currentUserId={currentUserId}
-              isAdmin={isAdmin}
-              statusFilter={statusFilter}
-              showPendingOnly={showPendingOnly}
-            />
-          )
-        })()
-      )}
+      <KanbanView
+        projectId={projectId}
+        currentUserId={currentUserId}
+        isAdmin={isAdmin}
+        teamFilter={activeTeamId}
+        statusFilter={statusFilter}
+        showPendingOnly={showPendingOnly}
+      />
+
+      <TaskCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        defaultProjectId={projectId}
+      />
     </div>
   )
 }
@@ -308,23 +267,14 @@ function TaskRow({
           !isPending && !isRejected && "border-border",
         )}
       >
-        <Select
+        <TaskStatusSelect
           value={task.status}
           disabled={!isManager && !isAssignee}
-          onValueChange={(v) =>
-            update.mutate({ taskId: task.id, body: { status: v }, silent: true })
+          triggerClassName="h-8 w-32 text-xs"
+          onCommit={(payload) =>
+            update.mutate({ taskId: task.id, body: { ...payload }, silent: true })
           }
-        >
-          <SelectTrigger className="h-8 w-32 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="TODO">To Do</SelectItem>
-            <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-            <SelectItem value="IN_REVIEW">In Review</SelectItem>
-            <SelectItem value="DONE">Done</SelectItem>
-          </SelectContent>
-        </Select>
+        />
 
         <div className="min-w-0 flex-1 cursor-pointer" onClick={() => setDetailOpen(true)}>
           <div className="flex items-center gap-2">

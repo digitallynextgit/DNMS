@@ -76,9 +76,11 @@ function composeBody(args: {
 }
 
 /**
- * Approve / reject a leave request. Shows the exact reply that will be emailed to
- * the employee (on the same thread they applied on): an editable letter, an
- * "Improve with AI" helper, and the approver's signature.
+ * Approve / reject a leave request.
+ *  - FINAL viewers (admin/HR): the full editable reply that's emailed to the
+ *    employee on the thread they applied on - editable letter, AI, signature.
+ *  - ADVISORY viewers (the applicant's manager): a recommendation to HR. It's
+ *    recorded and HR/admin makes the final call - no email is sent from here.
  */
 export function LeaveDecisionDialog({
   open,
@@ -94,6 +96,7 @@ export function LeaveDecisionDialog({
   const approveLeave = useApproveLeave()
   const rejectLeave = useRejectLeave()
   const isReject = action === "REJECT"
+  const advisory = request?.viewerRole === "ADVISORY"
 
   const [reason, setReason] = React.useState("")
   const [body, setBody] = React.useState("")
@@ -101,15 +104,16 @@ export function LeaveDecisionDialog({
   const [polishing, setPolishing] = React.useState(false)
   const bodyRef = React.useRef<HTMLTextAreaElement>(null)
 
-  // The approver's signature (same source the sent email uses).
+  // The reply is signed by, and sent from, the employee's MANAGER - so we preview
+  // the manager's signature (final viewers only; advisory sends no email).
   const { data: sig } = useQuery({
-    queryKey: ["leave-decision-signature"],
+    queryKey: ["leave-decision-signature", request?.id],
     queryFn: () =>
       apiFetch<{ data: { signature: MailSignatureData | null } }>(
-        "/api/leave/decision/preview",
+        `/api/leave/decision/preview?requestId=${request!.id}`,
       ).then((r) => r.data.signature),
     staleTime: 5 * 60_000,
-    enabled: open,
+    enabled: open && !advisory && !!request,
   })
 
   const firstName = request?.employee.firstName ?? ""
@@ -129,13 +133,10 @@ export function LeaveDecisionDialog({
     [request, isReject, firstName, reason],
   )
 
-  // Regenerate the letter whenever the form (reason) changes; manual edits persist
-  // until the next such change - same behaviour as the apply screen.
   React.useEffect(() => {
     setBody(composed)
   }, [composed])
 
-  // Reset when (re)opened.
   React.useEffect(() => {
     if (open) {
       setReason("")
@@ -143,13 +144,12 @@ export function LeaveDecisionDialog({
     }
   }, [open, action])
 
-  // Auto-grow the letter box.
   React.useEffect(() => {
     const el = bodyRef.current
     if (!el) return
     el.style.height = "auto"
     el.style.height = `${el.scrollHeight}px`
-  }, [body, open])
+  }, [body, open, advisory])
 
   if (!request) return null
 
@@ -179,7 +179,7 @@ export function LeaveDecisionDialog({
 
   async function handleConfirm() {
     if (!request) return
-    const emailBody = body.trim() || undefined
+    const emailBody = advisory ? undefined : body.trim() || undefined
     if (isReject) {
       await rejectLeave.mutateAsync({ id: request.id, rejectionReason: reason.trim(), emailBody })
     } else {
@@ -188,6 +188,59 @@ export function LeaveDecisionDialog({
     onOpenChange(false)
   }
 
+  // ── Advisory (manager) recommendation - no email, goes to HR/admin. ──────────
+  if (advisory) {
+    return (
+      <AlertDialog open={open} onOpenChange={onOpenChange}>
+        <AlertDialogContent className="rounded">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm font-semibold tracking-tight">
+              {isReject ? "Recommend rejection" : "Recommend approval"}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground text-sm">
+              Your recommendation for {employeeName}&apos;s {request.leaveType.name.toLowerCase()}{" "}
+              is recorded and sent to HR/admin for the final decision. No email is sent to the
+              employee yet.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {isReject && (
+            <div className="space-y-2">
+              <Label htmlFor="leave-advisory-reason" className="text-sm">
+                Reason for recommending rejection<span className="text-destructive"> *</span>
+              </Label>
+              <Textarea
+                id="leave-advisory-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Shared with HR/admin to help their final call."
+                rows={3}
+              />
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading} className="text-sm">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                void handleConfirm()
+              }}
+              disabled={disabled}
+              className={cn(isReject && buttonVariants({ variant: "destructive" }))}
+            >
+              {isLoading && <Spinner size="sm" className="mr-2" />}
+              {isReject ? "Recommend rejection" : "Recommend approval"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    )
+  }
+
+  // ── Final decision (admin/HR) - the reply that gets emailed. ─────────────────
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto rounded">
@@ -196,7 +249,8 @@ export function LeaveDecisionDialog({
             {isReject ? "Reject Leave Request" : "Approve Leave Request"}
           </AlertDialogTitle>
           <AlertDialogDescription className="text-muted-foreground text-sm">
-            This reply is emailed to {request.employee.firstName} on the same thread they applied on.
+            This reply is emailed to {request.employee.firstName} on the same thread they applied
+            on.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -215,7 +269,6 @@ export function LeaveDecisionDialog({
           </div>
         )}
 
-        {/* The reply preview: envelope + editable letter + approver signature. */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-muted-foreground text-xs font-medium">Reply preview</p>
@@ -266,7 +319,6 @@ export function LeaveDecisionDialog({
           )}
 
           <div className="bg-background rounded-md border">
-            {/* Envelope */}
             <div className="space-y-1 border-b p-3 text-[11px]">
               <div className="grid grid-cols-[3.5rem_1fr] gap-1">
                 <span className="text-muted-foreground">To:</span>
@@ -280,7 +332,6 @@ export function LeaveDecisionDialog({
               </div>
             </div>
 
-            {/* Editable letter */}
             <div className="relative p-3">
               <span className="text-muted-foreground/60 pointer-events-none absolute top-1.5 right-2 z-10 inline-flex items-center gap-0.5 text-[9px] font-medium tracking-wide uppercase">
                 <Pencil className="h-2.5 w-2.5" /> Editable
