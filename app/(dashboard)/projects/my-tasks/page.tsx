@@ -25,6 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   TASK_STATUS_LABELS,
+  TASK_WORKFLOW_STATUSES,
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
   TASK_STATUS_COLORS,
@@ -280,21 +281,27 @@ export default function MyTasksPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
-              <SelectItem value="TODO">To Do</SelectItem>
-              <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-              <SelectItem value="IN_REVIEW">In Review</SelectItem>
-              <SelectItem value="DONE">Done</SelectItem>
+              {TASK_WORKFLOW_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {TASK_STATUS_LABELS[s] ?? s}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
-        <ViewToggle value={viewMode} onChange={setViewMode} />
+        <ViewToggle value={viewMode} onChange={setViewMode} showKanban />
       </div>
 
       {/* Groups or table */}
       {isLoading ? (
         <Skeleton className="h-64 rounded" />
-      ) : grouped.length === 0 ? (
+      ) : tasks.length === 0 ? (
         <EmptyState icon={Inbox} variant="card" title="No tasks match the filter." />
+      ) : viewMode === "kanban" ? (
+        <MyTasksBoard
+          tasks={tasks}
+          onCommit={(id, payload) => updateMut.mutate({ id, ...payload })}
+        />
       ) : viewMode === "table" ? (
         <DataTable
           columns={columns}
@@ -416,6 +423,87 @@ export default function MyTasksPage() {
           itemLabel="task"
         />
       )}
+    </div>
+  )
+}
+
+/** Kanban-style board of the current user's tasks, grouped by workflow status.
+ *  Each card can change its own status (with the On Hold / Discarded reason
+ *  prompt) via the shared TaskStatusSelect. */
+function MyTasksBoard({
+  tasks,
+  onCommit,
+}: {
+  tasks: MyTask[]
+  onCommit: (id: string, payload: Record<string, unknown>) => void
+}) {
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {TASK_WORKFLOW_STATUSES.map((status) => {
+        const col = tasks.filter((t) => t.status === status)
+        return (
+          <div key={status} className="w-64 shrink-0">
+            <div className="mb-2 flex items-center justify-between px-1">
+              <span className="text-xs font-semibold uppercase tracking-wide">
+                {TASK_STATUS_LABELS[status] ?? status}
+              </span>
+              <span className="text-muted-foreground text-xs">{col.length}</span>
+            </div>
+            <div className="space-y-2">
+              {col.length === 0 ? (
+                <div className="text-muted-foreground rounded border border-dashed py-6 text-center text-xs">
+                  Empty
+                </div>
+              ) : (
+                col.map((task) => {
+                  const locked =
+                    task.approvalStatus === "PENDING_APPROVAL" ||
+                    task.approvalStatus === "REJECTED"
+                  const isOverdue =
+                    task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "DONE"
+                  return (
+                    <div key={task.id} className="bg-card space-y-2 rounded border p-2.5">
+                      <p className="text-sm font-medium">{task.title}</p>
+                      <Link
+                        href={`/projects/${task.project.id}`}
+                        className="text-muted-foreground block truncate text-xs hover:underline"
+                      >
+                        {task.project.name}
+                      </Link>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <StatusBadge
+                          status={task.priority}
+                          colorMap={TASK_PRIORITY_COLORS}
+                          labelMap={TASK_PRIORITY_LABELS}
+                          size="xs"
+                        />
+                        {task.dueDate && (
+                          <span
+                            className={cn(
+                              "text-[11px]",
+                              isOverdue
+                                ? "text-red-600 dark:text-red-400"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {formatDate(task.dueDate)}
+                          </span>
+                        )}
+                      </div>
+                      <TaskStatusSelect
+                        value={task.status}
+                        disabled={locked}
+                        triggerClassName="h-7 w-full text-xs"
+                        onCommit={(payload) => onCommit(task.id, { ...payload })}
+                      />
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

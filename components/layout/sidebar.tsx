@@ -20,6 +20,7 @@ import {
   CalendarDays,
   DollarSign,
   FolderKanban,
+  TrendingUp,
   Star,
   Briefcase,
   BarChart3,
@@ -176,6 +177,11 @@ const PROJECT_ITEMS: NavItem[] = [
     label: "My Tasks",
     href: "/projects/my-tasks",
     icon: ListChecks,
+  },
+  {
+    label: "Project Performance",
+    href: "/projects/performance",
+    icon: TrendingUp,
   },
 ]
 

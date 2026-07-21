@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -75,6 +75,16 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
   const [statusFilter, setStatusFilter] = useState<string>("ALL")
   const [showPendingOnly, setShowPendingOnly] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+
+  // Default the Team filter to the team the viewer manages (once, on load) - a
+  // manager lands straight on their own team's board.
+  const initedRef = useRef(false)
+  useEffect(() => {
+    if (initedRef.current || teams.length === 0) return
+    initedRef.current = true
+    const mine = teams.find((t) => t.managerId === currentUserId)
+    if (mine) setActiveTeamId(mine.id)
+  }, [teams, currentUserId])
 
   if (teamsLoading) return <Skeleton className="h-64 rounded" />
   if (teams.length === 0) {
