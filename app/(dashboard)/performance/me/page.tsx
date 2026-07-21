@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EVALUATION_STATUS_COLORS, EVALUATION_STATUS_LABELS } from "@/lib/constants"
-import { useEvaluations, type Evaluation } from "@/features/performance"
+import { useEvaluations, type Evaluation, PerformanceScale } from "@/features/performance"
 
 export default function MyPerformancePage() {
   const { data: session } = useSession()
@@ -48,6 +48,9 @@ export default function MyPerformancePage() {
   const pendingReview = toReview.filter((ev) =>
     ev.managerId === myId ? !ev.managerSubmittedAt : !ev.controllerSubmittedAt,
   ).length
+
+  // Highlight the employee's band using their most recent scored evaluation.
+  const latestScore = mine.find((ev) => ev.finalScore != null)?.finalScore ?? null
 
   const mineColumns: DataTableColumn<Evaluation>[] = [
     { header: "Period", cell: (ev) => <span className="font-medium">{ev.periodLabel}</span> },
@@ -275,6 +278,8 @@ export default function MyPerformancePage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <PerformanceScale highlightPct={latestScore} />
     </div>
   )
 }
