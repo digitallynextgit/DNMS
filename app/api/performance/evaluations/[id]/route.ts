@@ -22,10 +22,13 @@ function viewerRole(
   session: Session,
   ev: { employeeId: string; managerId: string | null; controllerId: string | null },
 ): Viewer {
-  if (hasPermission(session, PERMISSIONS.PERFORMANCE_REVIEW)) return "HR"
+  // Your OWN evaluation always opens as the employee (self side) - even if you
+  // are HR, a manager or a controller. Otherwise an HR person could never fill
+  // their own self-evaluation, since HR would win the role.
+  if (ev.employeeId === session.user.id) return "EMPLOYEE"
   if (ev.managerId === session.user.id) return "MANAGER"
   if (ev.controllerId === session.user.id) return "CONTROLLER"
-  if (ev.employeeId === session.user.id) return "EMPLOYEE"
+  if (hasPermission(session, PERMISSIONS.PERFORMANCE_REVIEW)) return "HR"
   return null
 }
 
