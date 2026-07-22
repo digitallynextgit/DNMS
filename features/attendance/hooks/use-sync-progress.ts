@@ -76,8 +76,18 @@ export function useSyncProgress() {
           { method: "POST", signal: controller.signal },
         )
         if (!res.ok || !res.body) {
-          const msg = await res.text().catch(() => "")
-          throw new Error(msg || `Sync failed (${res.status})`)
+          // Only trust a JSON error body. When the server hands back an HTML page
+          // (a Next error/404 page), dumping it here floods the UI with markup and
+          // hides the status - so fall back to a clean, actionable message.
+          const contentType = res.headers.get("content-type") ?? ""
+          let msg = ""
+          if (contentType.includes("application/json")) {
+            const body = (await res.json().catch(() => null)) as { error?: string } | null
+            msg = body?.error ?? ""
+          }
+          throw new Error(
+            msg || `Sync failed (HTTP ${res.status}). Check the server logs for details.`,
+          )
         }
 
         const reader = res.body.getReader()

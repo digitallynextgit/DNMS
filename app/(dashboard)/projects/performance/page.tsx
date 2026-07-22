@@ -1,13 +1,24 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
-import { CheckCircle2, Clock, ListChecks, AlertTriangle } from "lucide-react"
+import { useMutation, useQuery } from "@tanstack/react-query"
+import {
+  CheckCircle2,
+  Clock,
+  ListChecks,
+  AlertTriangle,
+  CalendarRange,
+  Sparkles,
+  Loader2,
+} from "lucide-react"
+import { toast } from "sonner"
 
 import { PageHeader } from "@/components/shared/page-header"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
+import { MarkdownLite } from "@/components/shared/markdown-lite"
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
 
@@ -20,6 +31,8 @@ interface Bucket {
   inProgress: number
   onHold: number
   discarded: number
+  dueThisWeek: number
+  doneThisWeek: number
   completionRate: number | null
   onTimeRate: number | null
 }
@@ -50,6 +63,14 @@ function Rate({ value }: { value: number | null }) {
         ? "text-amber-600 dark:text-amber-400"
         : "text-red-600 dark:text-red-400"
   return <span className={cn("font-semibold tabular-nums", tone)}>{value}%</span>
+}
+
+function Overdue({ n }: { n: number }) {
+  return n > 0 ? (
+    <span className="font-medium text-red-600 dark:text-red-400">{n}</span>
+  ) : (
+    <span className="text-muted-foreground">0</span>
+  )
 }
 
 function StatCard({
@@ -88,7 +109,45 @@ export default function ProjectPerformancePage() {
     staleTime: 60_000,
   })
 
+  const report = useMutation({
+    mutationFn: () =>
+      apiFetch<{ data: { report: string } }>("/api/projects/performance/report", {
+        method: "POST",
+      }).then((r) => r.data.report),
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Couldn't generate the report"),
+  })
+
   const s = data?.summary
+
+  const projColumns: DataTableColumn<ProjRow>[] = [
+    {
+      header: "Project",
+      cell: (p) => (
+        <div className="min-w-0">
+          <p className="truncate font-medium">{p.name}</p>
+          <p className="text-muted-foreground text-xs">{p.code}</p>
+        </div>
+      ),
+    },
+    { header: "Tasks", align: "right", cell: (p) => p.assigned },
+    { header: "Completed", align: "right", cell: (p) => p.completed },
+    {
+      header: "Due (wk)",
+      align: "right",
+      className: "text-muted-foreground",
+      cell: (p) => p.dueThisWeek,
+    },
+    {
+      header: "Done (wk)",
+      align: "right",
+      className: "text-muted-foreground",
+      cell: (p) => p.doneThisWeek,
+    },
+    { header: "On-time", align: "right", cell: (p) => <Rate value={p.onTimeRate} /> },
+    { header: "Overdue", align: "right", cell: (p) => <Overdue n={p.overdue} /> },
+    { header: "Completion", align: "right", cell: (p) => <Rate value={p.completionRate} /> },
+  ]
 
   const empColumns: DataTableColumn<EmpRow>[] = [
     {
@@ -108,57 +167,49 @@ export default function ProjectPerformancePage() {
     },
     { header: "Assigned", align: "right", cell: (e) => e.assigned },
     { header: "Completed", align: "right", cell: (e) => e.completed },
+    {
+      header: "Due (wk)",
+      align: "right",
+      className: "text-muted-foreground",
+      cell: (e) => e.dueThisWeek,
+    },
+    {
+      header: "Done (wk)",
+      align: "right",
+      className: "text-muted-foreground",
+      cell: (e) => e.doneThisWeek,
+    },
     { header: "On-time", align: "right", cell: (e) => <Rate value={e.onTimeRate} /> },
+    { header: "Overdue", align: "right", cell: (e) => <Overdue n={e.overdue} /> },
+    {
+      header: "In Process",
+      align: "right",
+      className: "text-muted-foreground",
+      cell: (e) => e.inProgress,
+    },
+    {
+      header: "On Hold",
+      align: "right",
+      className: "text-muted-foreground",
+      cell: (e) => e.onHold,
+    },
+    {
+      header: "Discarded",
+      align: "right",
+      className: "text-muted-foreground",
+      cell: (e) => e.discarded,
+    },
     { header: "Completion", align: "right", cell: (e) => <Rate value={e.completionRate} /> },
-    {
-      header: "Overdue",
-      align: "right",
-      cell: (e) =>
-        e.overdue > 0 ? (
-          <span className="font-medium text-red-600 dark:text-red-400">{e.overdue}</span>
-        ) : (
-          <span className="text-muted-foreground">0</span>
-        ),
-    },
-    { header: "In Process", align: "right", className: "text-muted-foreground", cell: (e) => e.inProgress },
-    { header: "On Hold", align: "right", className: "text-muted-foreground", cell: (e) => e.onHold },
-    { header: "Discarded", align: "right", className: "text-muted-foreground", cell: (e) => e.discarded },
-  ]
-
-  const projColumns: DataTableColumn<ProjRow>[] = [
-    {
-      header: "Project",
-      cell: (p) => (
-        <div className="min-w-0">
-          <p className="truncate font-medium">{p.name}</p>
-          <p className="text-muted-foreground text-xs">{p.code}</p>
-        </div>
-      ),
-    },
-    { header: "Tasks", align: "right", cell: (p) => p.assigned },
-    { header: "Completed", align: "right", cell: (p) => p.completed },
-    { header: "On-time", align: "right", cell: (p) => <Rate value={p.onTimeRate} /> },
-    { header: "Completion", align: "right", cell: (p) => <Rate value={p.completionRate} /> },
-    {
-      header: "Overdue",
-      align: "right",
-      cell: (p) =>
-        p.overdue > 0 ? (
-          <span className="font-medium text-red-600 dark:text-red-400">{p.overdue}</span>
-        ) : (
-          <span className="text-muted-foreground">0</span>
-        ),
-    },
   ]
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Project Performance"
-        description="How much work gets done, and how much of it lands on time - by person and by project."
+        description="How much work gets done, and how much of it lands on time - by project and by person."
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <StatCard icon={ListChecks} label="Total tasks" value={s?.assigned ?? 0} />
         <StatCard
           icon={CheckCircle2}
@@ -173,8 +224,76 @@ export default function ProjectPerformancePage() {
           sub={s ? `${s.onTime}/${s.completed}` : undefined}
         />
         <StatCard icon={AlertTriangle} label="Overdue" value={s?.overdue ?? 0} />
+        <StatCard
+          icon={CalendarRange}
+          label="This week"
+          value={s?.doneThisWeek ?? 0}
+          sub={s ? `done / ${s.dueThisWeek} due` : undefined}
+        />
       </div>
 
+      {/* AI briefing */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
+          <div>
+            <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+              <Sparkles className="h-4 w-4" /> AI insights
+            </CardTitle>
+            <p className="text-muted-foreground text-xs">
+              A briefing over the current data - what&apos;s on track, what needs attention,
+              what&apos;s urgent this week.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => report.mutate()}
+            disabled={report.isPending}
+          >
+            {report.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            {report.data ? "Regenerate" : "Generate report"}
+          </Button>
+        </CardHeader>
+        {(report.data || report.isPending) && (
+          <CardContent>
+            {report.isPending ? (
+              <p className="text-muted-foreground text-sm">Analysing the task data…</p>
+            ) : (
+              <MarkdownLite content={report.data ?? ""} className="text-sm leading-relaxed" />
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Projects (above) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">By project</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading || (data?.byProject.length ?? 0) > 0 ? (
+            <DataTable
+              columns={projColumns}
+              rows={data?.byProject ?? []}
+              rowKey={(p) => p.id}
+              minWidth="min-w-[720px]"
+              loading={isLoading}
+              skeletonRows={4}
+            />
+          ) : (
+            <div className="p-6">
+              <EmptyState icon={ListChecks} compact title="No task data yet." />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* People (below) */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold">By employee</CardTitle>
@@ -188,31 +307,9 @@ export default function ProjectPerformancePage() {
               columns={empColumns}
               rows={data?.byEmployee ?? []}
               rowKey={(e) => e.id}
-              minWidth="min-w-[780px]"
+              minWidth="min-w-[900px]"
               loading={isLoading}
               skeletonRows={6}
-            />
-          ) : (
-            <div className="p-6">
-              <EmptyState icon={ListChecks} compact title="No task data yet." />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">By project</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading || (data?.byProject.length ?? 0) > 0 ? (
-            <DataTable
-              columns={projColumns}
-              rows={data?.byProject ?? []}
-              rowKey={(p) => p.id}
-              minWidth="min-w-[620px]"
-              loading={isLoading}
-              skeletonRows={4}
             />
           ) : (
             <div className="p-6">

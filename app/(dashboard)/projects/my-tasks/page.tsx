@@ -444,7 +444,7 @@ function MyTasksBoard({
         return (
           <div key={status} className="w-64 shrink-0">
             <div className="mb-2 flex items-center justify-between px-1">
-              <span className="text-xs font-semibold uppercase tracking-wide">
+              <span className="text-xs font-semibold tracking-wide uppercase">
                 {TASK_STATUS_LABELS[status] ?? status}
               </span>
               <span className="text-muted-foreground text-xs">{col.length}</span>
@@ -457,8 +457,7 @@ function MyTasksBoard({
               ) : (
                 col.map((task) => {
                   const locked =
-                    task.approvalStatus === "PENDING_APPROVAL" ||
-                    task.approvalStatus === "REJECTED"
+                    task.approvalStatus === "PENDING_APPROVAL" || task.approvalStatus === "REJECTED"
                   const isOverdue =
                     task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "DONE"
                   return (

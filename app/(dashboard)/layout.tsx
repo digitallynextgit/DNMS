@@ -4,6 +4,7 @@ import { db } from "@/server/db"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Topbar } from "@/components/layout/topbar"
 import { RealtimeNotifications } from "@/components/providers/realtime-notifications"
+import { AiAssistant } from "@/components/shared/ai-assistant"
 import { AccountDeactivated } from "@/features/auth"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <Topbar session={session} />
         <main className="min-h-0 overflow-x-hidden overflow-y-auto px-6 py-4">{children}</main>
       </div>
+      <AiAssistant />
     </div>
   )
 }

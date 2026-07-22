@@ -73,14 +73,19 @@ export const GET = withSession(
       })
 
       const summary = zero()
-      const byEmp = new Map<string, { info: NonNullable<(typeof tasks)[number]["assignee"]>; b: Bucket }>()
+      const byEmp = new Map<
+        string,
+        { info: NonNullable<(typeof tasks)[number]["assignee"]>; b: Bucket }
+      >()
       const byProj = new Map<string, { info: (typeof tasks)[number]["project"]; b: Bucket }>()
 
       const classify = (b: Bucket, t: (typeof tasks)[number]) => {
         b.assigned++
+        if (inWeek(t.dueDate)) b.dueThisWeek++
         const done = t.status === "DONE"
         if (done) {
           b.completed++
+          if (inWeek(t.completedAt)) b.doneThisWeek++
           let onTime = true
           if (t.dueDate && t.completedAt) {
             const dueEnd = new Date(t.dueDate)
@@ -140,7 +145,12 @@ export const GET = withSession(
         .sort((a, b) => b.assigned - a.assigned)
 
       return NextResponse.json({
-        data: { summary: withRates(summary), byEmployee, byProject, scope: isAdmin ? "all" : "mine" },
+        data: {
+          summary: withRates(summary),
+          byEmployee,
+          byProject,
+          scope: isAdmin ? "all" : "mine",
+        },
       })
     } catch (error) {
       console.error("[projects/performance] GET error:", error)

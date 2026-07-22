@@ -456,7 +456,8 @@ model Employee {
   docRequestsMade   DocumentRequest[]  @relation("DocRequestRequester")
 
   // Notifications
-  notifications Notification[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
 
   // Attendance
   attendanceLogs          AttendanceLog[]
@@ -660,6 +661,24 @@ model Notification {
   // ([employeeId, isRead]) index above cannot satisfy that sort.
   @@index([employeeId, createdAt])
   @@map("notifications")
+}
+
+/// A browser Web Push subscription. One row per browser/device an employee has
+/// granted notification permission on, so alerts reach them even when no DNMS
+/// tab is open (SSE only works while a page is live).
+model PushSubscription {
+  id        String   @id @default(uuid()) @map("id")
+  employeeId String  @map("employee_id")
+  endpoint  String   @unique @map("endpoint")
+  p256dh    String   @map("p256dh")
+  auth      String   @map("auth")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("push_subscriptions")
 }
 
 // =============================================================================

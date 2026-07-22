@@ -31,15 +31,38 @@ export function RealtimeNotifications() {
 
   // Ask for notification permission. Browsers ignore requestPermission() unless
   // it runs inside a user gesture, so try on mount AND on the first interaction.
+  // Once granted we also register the service worker and subscribe to Web Push -
+  // that's what delivers alerts when NO DNMS tab is open (the SSE stream below
+  // only lives as long as this page does).
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) return
-    if (Notification.permission !== "default") return
+
+    const ensurePush = () => {
+      void registerPush()
+    }
+
+    if (Notification.permission === "granted") {
+      ensurePush()
+      return
+    }
+    if (Notification.permission !== "default") return // denied - nothing to do
+
     const ask = () => {
-      if (Notification.permission === "default") Notification.requestPermission().catch(() => {})
+      if (Notification.permission === "default") {
+        Notification.requestPermission()
+          .then((p) => {
+            if (p === "granted") ensurePush()
+          })
+          .catch(() => {})
+      }
       window.removeEventListener("pointerdown", ask)
       window.removeEventListener("keydown", ask)
     }
-    Notification.requestPermission().catch(() => {})
+    Notification.requestPermission()
+      .then((p) => {
+        if (p === "granted") ensurePush()
+      })
+      .catch(() => {})
     window.addEventListener("pointerdown", ask, { once: true })
     window.addEventListener("keydown", ask, { once: true })
     return () => {
@@ -125,4 +148,50 @@ export function RealtimeNotifications() {
   }, [data, alertOnce])
 
   return null
+}
+
+/** base64url (VAPID public key) -> the BufferSource PushManager expects. */
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/")
+  const raw = window.atob(base64)
+  const output = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) output[i] = raw.charCodeAt(i)
+  return output
+}
+
+/**
+ * Register the service worker and make sure this browser has a Web Push
+ * subscription on file. Safe to call repeatedly - re-subscribing the same
+ * endpoint is an upsert server-side. Silent on failure: push is an enhancement,
+ * never a reason to break the page.
+ */
+async function registerPush(): Promise<void> {
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return
+    const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    if (!vapid) return // push not configured on this deployment
+
+    const reg = await navigator.serviceWorker.register("/sw.js")
+    await navigator.serviceWorker.ready
+
+    const existing = await reg.pushManager.getSubscription()
+    const sub =
+      existing ??
+      (await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
+      }))
+
+    const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
+    if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return
+
+    await fetch("/api/notifications/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
+    })
+  } catch {
+    // Unsupported browser, blocked SW, or offline - ignore.
+  }
 }

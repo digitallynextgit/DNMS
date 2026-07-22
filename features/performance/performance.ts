@@ -76,7 +76,8 @@ export interface PerformanceAction {
 export function performanceAction(score: number | null | undefined): PerformanceAction | null {
   if (score == null) return null
   const pct = score <= 5 ? score * 20 : score
-  const band = PERFORMANCE_BANDS.find((b) => pct >= b.min) ?? PERFORMANCE_BANDS[PERFORMANCE_BANDS.length - 1]!
+  const band =
+    PERFORMANCE_BANDS.find((b) => pct >= b.min) ?? PERFORMANCE_BANDS[PERFORMANCE_BANDS.length - 1]!
   return { band: band.range, rating: band.rating, action: band.action, tone: band.tone }
 }
 

@@ -1,6 +1,7 @@
 import { db } from "@/server/db"
 import { getSession } from "@/server/api-handler"
 import { isAdmin_Session } from "@/lib/audit"
+import { sendPushToEmployee } from "@/lib/web-push"
 
 type NotificationType = "info" | "success" | "warning" | "error"
 
@@ -41,7 +42,7 @@ export async function createNotification(
 ): Promise<void> {
   if (!control.force && (await suppressedForAdmin_())) return
   try {
-    await db.notification.create({
+    const created = await db.notification.create({
       data: {
         employeeId: opts.employeeId,
         title: opts.title,
@@ -49,7 +50,17 @@ export async function createNotification(
         type: opts.type ?? "info",
         link: opts.link ?? null,
       },
+      select: { id: true },
     })
+
+    // Also push to the browser, so it lands even with every DNMS tab closed.
+    // Fire-and-forget: push must never slow down or fail the caller.
+    void sendPushToEmployee(opts.employeeId, {
+      id: created.id,
+      title: opts.title,
+      message: opts.message,
+      link: opts.link ?? null,
+    }).catch((err) => console.error("[createNotification] push failed:", err))
   } catch (err) {
     console.error("[createNotification] failed:", err)
   }
@@ -118,6 +129,15 @@ export async function createNotifications(
         link: n.link ?? null,
       })),
     })
+
+    // Push each one too (fire-and-forget), so recipients get it with no tab open.
+    for (const n of notifications) {
+      void sendPushToEmployee(n.employeeId, {
+        title: n.title,
+        message: n.message,
+        link: n.link ?? null,
+      }).catch((err) => console.error("[createNotifications] push failed:", err))
+    }
   } catch (err) {
     console.error("[createNotifications] failed:", err)
   }

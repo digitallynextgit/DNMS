@@ -37,9 +37,9 @@ export function PerformanceScale({ highlightPct }: { highlightPct?: number | nul
             <tbody className="divide-y">
               {PERFORMANCE_BANDS.map((b) => {
                 const active =
-                  highlightPct != null && highlightPct >= b.min && !PERFORMANCE_BANDS.some(
-                    (o) => o.min > b.min && highlightPct >= o.min,
-                  )
+                  highlightPct != null &&
+                  highlightPct >= b.min &&
+                  !PERFORMANCE_BANDS.some((o) => o.min > b.min && highlightPct >= o.min)
                 return (
                   <tr key={b.range} className={cn(active && "bg-primary/5")}>
                     <td className="px-4 py-2.5">
@@ -55,9 +55,7 @@ export function PerformanceScale({ highlightPct }: { highlightPct?: number | nul
                     <td className="px-4 py-2.5 font-medium">
                       {b.rating}
                       {active && (
-                        <span className="text-primary ml-2 text-[11px] font-semibold">
-                          · You
-                        </span>
+                        <span className="text-primary ml-2 text-[11px] font-semibold">· You</span>
                       )}
                     </td>
                     <td className="text-muted-foreground px-4 py-2.5">{b.action}</td>
