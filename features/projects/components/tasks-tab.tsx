@@ -159,6 +159,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
         open={createOpen}
         onOpenChange={setCreateOpen}
         defaultProjectId={projectId}
+        lockProject
       />
     </div>
   )

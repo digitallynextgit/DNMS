@@ -14,9 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { DateField } from "@/components/shared/date-field"
 import { apiFetch } from "@/lib/api-fetch"
 import { TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { useProjects, useProjectTeams } from "@/features/projects/hooks/use-projects"
+import { useSeoSites } from "@/features/seo"
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"]
 
@@ -25,18 +27,25 @@ const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"]
  * it, then optionally an assignee from that team - plus title/description/
  * priority/due-date/estimate. New tasks start in "To-do"; a task you assign to
  * yourself goes to your manager for approval (server rule).
+ *
+ * Opened from INSIDE a project (`lockProject`), the project is already decided,
+ * so the picker is hidden rather than shown pre-filled and un-changeable.
  */
 export function TaskCreateDialog({
   open,
   onOpenChange,
   defaultProjectId,
+  lockProject = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   defaultProjectId?: string
+  /** Hide the project picker - the caller already scoped it. */
+  lockProject?: boolean
 }) {
   const qc = useQueryClient()
-  const { data: projectsData } = useProjects()
+  // Only needed to populate the picker; skip the fetch when it isn't rendered.
+  const { data: projectsData } = useProjects({ enabled: !lockProject })
   const projects = projectsData?.data ?? []
 
   const [projectId, setProjectId] = React.useState(defaultProjectId ?? "")
@@ -46,7 +55,16 @@ export function TaskCreateDialog({
   const [description, setDescription] = React.useState("")
   const [priority, setPriority] = React.useState("MEDIUM")
   const [dueDate, setDueDate] = React.useState("")
-  const [estimatedHours, setEstimatedHours] = React.useState("")
+  // Estimate is captured as hours + minutes but stored as decimal hours, which
+  // is what ProjectTask.estimatedHours (Float) and every report already expect.
+  const [estHours, setEstHours] = React.useState("")
+  const [estMinutes, setEstMinutes] = React.useState("")
+  const [seoPropertyId, setSeoPropertyId] = React.useState("")
+
+  // Sites tracked under this project. Only offered when the project actually has
+  // more than the implicit "whole project" scope.
+  const { data: seoData } = useSeoSites(projectId)
+  const sites = projectId ? (seoData?.properties ?? []) : []
 
   const { data: teamsData } = useProjectTeams(projectId || undefined)
   const teams = teamsData?.data ?? []
@@ -63,12 +81,15 @@ export function TaskCreateDialog({
       setDescription("")
       setPriority("MEDIUM")
       setDueDate("")
-      setEstimatedHours("")
+      setEstHours("")
+      setEstMinutes("")
+      setSeoPropertyId("")
     }
   }, [open, defaultProjectId])
   React.useEffect(() => {
     setTeamId("")
     setAssigneeId("")
+    setSeoPropertyId("")
   }, [projectId])
   React.useEffect(() => {
     setAssigneeId("")
@@ -99,9 +120,14 @@ export function TaskCreateDialog({
       assigneeId: assigneeId || undefined,
       priority,
       dueDate: dueDate || undefined,
-      estimatedHours: estimatedHours || undefined,
+      estimatedHours: estimateInHours,
+      seoPropertyId: seoPropertyId || undefined,
     })
   }
+
+  // Round to 2dp so 20 minutes stores as 0.33 rather than 0.3333333333333333.
+  const rawEstimate = (Number(estHours) || 0) + (Number(estMinutes) || 0) / 60
+  const estimateInHours = rawEstimate > 0 ? Math.round(rawEstimate * 100) / 100 : undefined
 
   const canSubmit = !!projectId && !!teamId && !!title.trim()
 
@@ -117,23 +143,25 @@ export function TaskCreateDialog({
       onSubmit={handleSubmit}
     >
       <div className="space-y-4">
-        <div className="space-y-2">
-          <Label>
-            Project<span className="text-destructive"> *</span>
-          </Label>
-          <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a project" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name} · {p.code}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {!lockProject && (
+          <div className="space-y-2">
+            <Label>
+              Project<span className="text-destructive"> *</span>
+            </Label>
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} · {p.code}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label>
@@ -152,6 +180,31 @@ export function TaskCreateDialog({
             </SelectContent>
           </Select>
         </div>
+
+        {sites.length > 0 && (
+          <div className="space-y-2">
+            <Label>Site</Label>
+            <Select
+              value={seoPropertyId || "all"}
+              onValueChange={(v) => setSeoPropertyId(v === "all" ? "" : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Whole project" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Whole project</SelectItem>
+                {sites.map((site) => (
+                  <SelectItem key={site.id} value={site.id}>
+                    {site.label} — {site.domain}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              Which of this project&apos;s {sites.length} tracked sites this work is for.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label>Assignee</Label>
@@ -216,20 +269,49 @@ export function TaskCreateDialog({
           </div>
           <div className="space-y-2">
             <Label>Due date</Label>
-            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            {/* modal: the popover must layer above the dialog it sits in. */}
+            <DateField value={dueDate} onChange={setDueDate} modal />
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label>Estimated hours</Label>
-          <Input
-            type="number"
-            min="0"
-            step="0.5"
-            value={estimatedHours}
-            onChange={(e) => setEstimatedHours(e.target.value)}
-            placeholder="Optional"
-          />
+          <Label>Estimated time</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="relative">
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={estHours}
+                onChange={(e) => setEstHours(e.target.value)}
+                placeholder="0"
+                className="pr-12"
+                aria-label="Estimated hours"
+              />
+              <span className="text-muted-foreground pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs">
+                hours
+              </span>
+            </div>
+            <div className="relative">
+              <Input
+                type="number"
+                min="0"
+                max="59"
+                step="5"
+                value={estMinutes}
+                onChange={(e) => setEstMinutes(e.target.value)}
+                placeholder="0"
+                className="pr-12"
+                aria-label="Estimated minutes"
+              />
+              <span className="text-muted-foreground pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs">
+                mins
+              </span>
+            </div>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            {estimateInHours ? `Stored as ${estimateInHours} h` : "Optional"}
+          </p>
         </div>
       </div>
     </FormDialog>

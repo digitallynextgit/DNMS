@@ -4,6 +4,7 @@ import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
 import { logActivity } from "@/features/projects/server/activity"
+import { syncTaskToEntry } from "@/features/projects/server/content-task.service"
 import { createNotification } from "@/lib/notifications"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
@@ -140,6 +141,10 @@ export const PATCH = withSession(
 
       const projectId = auth.task.team?.projectId ?? auth.task.projectId
       if (status !== undefined && status !== prevStatus) {
+        // If this task mirrors a content-calendar post, move the plan with it -
+        // ticking the task off is how a writer marks the post published.
+        await syncTaskToEntry(task.id, task.status)
+
         await logActivity({
           projectId,
           actorId: session.user.id,

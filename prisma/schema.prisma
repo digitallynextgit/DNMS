@@ -476,11 +476,12 @@ model Employee {
 
   // Projects
   projectMemberships ProjectMember[]
-  assignedTasks      ProjectTask[]   @relation("TaskAssignee")
-  createdTasks       ProjectTask[]   @relation("TaskCreator")
+  assignedTasks      ProjectTask[]          @relation("TaskAssignee")
+  createdTasks       ProjectTask[]          @relation("TaskCreator")
+  contentEntries     ContentCalendarEntry[] @relation("ContentAssignee")
   timesheets         Timesheet[]
-  ownedProjects      Project[]       @relation("ProjectOwner")
-  brandAssets        BrandAsset[]    @relation("BrandAssetUploader")
+  ownedProjects      Project[]              @relation("ProjectOwner")
+  brandAssets        BrandAsset[]           @relation("BrandAssetUploader")
 
   // Performance
   perfKpis             PerfKpi[]    @relation("EmployeePerfKpis")
@@ -667,13 +668,13 @@ model Notification {
 /// granted notification permission on, so alerts reach them even when no DNMS
 /// tab is open (SSE only works while a page is live).
 model PushSubscription {
-  id        String   @id @default(uuid()) @map("id")
-  employeeId String  @map("employee_id")
-  endpoint  String   @unique @map("endpoint")
-  p256dh    String   @map("p256dh")
-  auth      String   @map("auth")
-  userAgent String?  @map("user_agent")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(uuid()) @map("id")
+  employeeId String   @map("employee_id")
+  endpoint   String   @unique @map("endpoint")
+  p256dh     String   @map("p256dh")
+  auth       String   @map("auth")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -705,27 +706,27 @@ model HikvisionDevice {
 }
 
 model AttendanceLog {
-  id         String           @id @default(uuid()) @map("id")
-  employeeId String           @map("employee_id")
-  deviceId   String?          @map("device_id")
-  date       DateTime         @map("date") @db.Date
-  checkIn    DateTime?        @map("check_in")
-  checkOut   DateTime?        @map("check_out")
-  workHours  Float?           @map("work_hours")
-  status     AttendanceStatus @default(PRESENT) @map("status")
+  id             String           @id @default(uuid()) @map("id")
+  employeeId     String           @map("employee_id")
+  deviceId       String?          @map("device_id")
+  date           DateTime         @map("date") @db.Date
+  checkIn        DateTime?        @map("check_in")
+  checkOut       DateTime?        @map("check_out")
+  workHours      Float?           @map("work_hours")
+  status         AttendanceStatus @default(PRESENT) @map("status")
   // `isManual` = "this row carries at least one HR correction" (drives the Manual
   // badge / export / delete-guard). The three flags below are PER-FIELD locks: only
   // the value HR actually changed is pinned; every other field keeps syncing from
   // the device. (A row-level lock froze the whole day, so fixing a check-in also
   // froze that day's check-out.)
-  isManual       Boolean      @default(false) @map("is_manual")
-  checkInManual  Boolean      @default(false) @map("check_in_manual")
-  checkOutManual Boolean      @default(false) @map("check_out_manual")
-  statusManual   Boolean      @default(false) @map("status_manual")
-  source     String?          @map("source")
-  notes      String?          @map("notes")
-  createdAt  DateTime         @default(now()) @map("created_at")
-  updatedAt  DateTime         @updatedAt @map("updated_at")
+  isManual       Boolean          @default(false) @map("is_manual")
+  checkInManual  Boolean          @default(false) @map("check_in_manual")
+  checkOutManual Boolean          @default(false) @map("check_out_manual")
+  statusManual   Boolean          @default(false) @map("status_manual")
+  source         String?          @map("source")
+  notes          String?          @map("notes")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
 
   employee Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   device   HikvisionDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
@@ -957,33 +958,33 @@ model LeaveBalance {
 }
 
 model LeaveRequest {
-  id                String              @id @default(uuid()) @map("id")
-  employeeId        String              @map("employee_id")
-  leaveTypeId       String              @map("leave_type_id")
-  startDate         DateTime            @map("start_date") @db.Date
-  endDate           DateTime            @map("end_date") @db.Date
-  totalDays         Float               @map("total_days")
-  reason            String?             @map("reason")
-  status            LeaveStatus         @default(PENDING) @map("status")
-  approverId        String?             @map("approver_id")
-  approvedAt        DateTime?           @map("approved_at")
-  rejectionReason   String?             @map("rejection_reason")
+  id                   String              @id @default(uuid()) @map("id")
+  employeeId           String              @map("employee_id")
+  leaveTypeId          String              @map("leave_type_id")
+  startDate            DateTime            @map("start_date") @db.Date
+  endDate              DateTime            @map("end_date") @db.Date
+  totalDays            Float               @map("total_days")
+  reason               String?             @map("reason")
+  status               LeaveStatus         @default(PENDING) @map("status")
+  approverId           String?             @map("approver_id")
+  approvedAt           DateTime?           @map("approved_at")
+  rejectionReason      String?             @map("rejection_reason")
   // The reporting manager's advisory call ("APPROVED" | "REJECTED"); HR makes
   // the final decision and can override it (mirrors floating-holiday requests).
-  managerDecision   String?             @map("manager_decision")
-  lateNoticePenalty Boolean             @default(false) @map("late_notice_penalty")
+  managerDecision      String?             @map("manager_decision")
+  lateNoticePenalty    Boolean             @default(false) @map("late_notice_penalty")
   // Routing: which tier currently owns this request and, for a MANAGER-stage
   // request, the specific manager who must act. Null currentApproverId means a
   // role queue (any HR / any Admin, per approvalStage).
-  approvalStage     LeaveApprovalStage? @map("approval_stage")
-  currentApproverId String?             @map("current_approver_id")
+  approvalStage        LeaveApprovalStage? @map("approval_stage")
+  currentApproverId    String?             @map("current_approver_id")
   // The application email's Message-ID + subject, captured when the request
   // letter is sent, so the approve/reject reply threads onto the same email
   // conversation (Gmail).
-  requestMailMessageId String?          @map("request_mail_message_id")
-  requestMailSubject   String?          @map("request_mail_subject")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
+  requestMailMessageId String?             @map("request_mail_message_id")
+  requestMailSubject   String?             @map("request_mail_subject")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
 
   employee        Employee  @relation("LeaveRequests", fields: [employeeId], references: [id], onDelete: Cascade)
   leaveType       LeaveType @relation(fields: [leaveTypeId], references: [id])
@@ -1111,6 +1112,7 @@ model Project {
   contentCalendar ContentCalendarEntry[]
   integration     ProjectIntegration?
   metaCampaigns   MetaCampaign[]
+  seoProperties   SeoProperty[]
 
   @@index([status])
   @@index([ownerId])
@@ -1254,12 +1256,27 @@ model ContentCalendarEntry {
   content   String?   @map("content") @db.Text
   status    String    @default("PLANNED") @map("status") // PLANNED | IN_PROGRESS | READY | POSTED
   link      String?   @map("link")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Who is responsible for writing/publishing this post. Setting an assignee is
+  // what turns a calendar row into real, reminded work.
+  assigneeId String?   @map("assignee_id")
+  // The ProjectTask mirroring this entry, so a planned post shows up on the
+  // assignee's board and in their reminders. Kept in sync both ways.
+  taskId     String?   @unique @map("task_id")
+  // Last time the "publish today" reminder went out, so the daily cron notifies
+  // once per entry instead of every run.
+  remindedAt DateTime? @map("reminded_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee Employee?    @relation("ContentAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  task     ProjectTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
   @@index([projectId, date])
+  @@index([assigneeId])
+  @@index([date, status])
   @@map("content_calendar_entries")
 }
 
@@ -1381,13 +1398,21 @@ model ProjectTask {
 
   isMilestone Boolean @default(false) @map("is_milestone")
 
-  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  team           ProjectTeam?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  assignee       Employee?           @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  creator        Employee            @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  // Which tracked site this work is for. Null = the project as a whole. Lets an
+  // account like KYG (13 subdomains under one project) see what is actually
+  // being done per subdomain.
+  seoPropertyId String? @map("seo_property_id")
+
+  project        Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  seoProperty    SeoProperty?          @relation(fields: [seoPropertyId], references: [id], onDelete: SetNull)
+  team           ProjectTeam?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignee       Employee?             @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator        Employee              @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
   timesheets     Timesheet[]
   comments       TaskComment[]
   checklistItems TaskChecklistItem[]
+  // Set when this task was generated from a content-calendar post.
+  contentEntry   ContentCalendarEntry?
 
   @@index([projectId])
   @@index([teamId])
@@ -1445,16 +1470,16 @@ model ProjectActivity {
 }
 
 model ProjectMessage {
-  id        String   @id @default(uuid()) @map("id")
-  projectId String   @map("project_id")
-  authorId  String   @map("author_id")
-  title     String   @map("title")
-  content   String   @map("content") @db.Text
-  isPinned  Boolean  @default(false) @map("is_pinned")
+  id           String   @id @default(uuid()) @map("id")
+  projectId    String   @map("project_id")
+  authorId     String   @map("author_id")
+  title        String   @map("title")
+  content      String   @map("content") @db.Text
+  isPinned     Boolean  @default(false) @map("is_pinned")
   // Employee ids tagged via @mention in the content; drives notifications + highlighting.
   mentionedIds String[] @default([]) @map("mentioned_ids")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   project Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
   author  Employee              @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
@@ -1828,9 +1853,9 @@ model CareerApplication {
   mode CareerMode @map("mode")
 
   // Slugs exactly as published by the read API.
-  groupSlug      String @map("group_slug")
-  departmentSlug String @map("department_slug")
-  roleSlug       String @map("role_slug")
+  groupSlug       String  @map("group_slug")
+  departmentSlug  String  @map("department_slug")
+  roleSlug        String  @map("role_slug")
   // Titles exactly as displayed to the candidate (verbatim, never matched on).
   groupCode       String  @map("group_code")
   departmentTitle String  @map("department_title")
@@ -1882,4 +1907,198 @@ model CareerOpening {
 
   @@index([roleId])
   @@map("career_openings")
+}
+
+// =============================================================================
+// SEO
+// =============================================================================
+// One SeoProperty per project = the "project config" the automation reads
+// (domain, money keywords, competitors, targets, Google property ids). Weekly
+// crons write immutable SeoSnapshot rows pulled from Search Console, each with
+// its per-query / per-page breakdown, so growth is a diff between snapshots
+// rather than a live API call.
+
+model SeoProperty {
+  id        String @id @default(uuid()) @map("id")
+  // NOT unique: one client project can own many sites. KYG, for example, is a
+  // single account with 13 subdomains - same team, same Drive folder, same
+  // content calendar - each needing its own Search Console tracking.
+  projectId String @map("project_id")
+
+  label     String  @map("label") // "Main site", "Blog", "Careers" …
+  isPrimary Boolean @default(false) @map("is_primary")
+
+  domain       String  @map("domain") // bare host, e.g. "digitallynext.com"
+  // Search Console property id, exactly as GSC reports it:
+  //   "sc-domain:example.com"  (domain property)  or  "https://example.com/"
+  siteUrl      String? @map("site_url")
+  gaPropertyId String? @map("ga_property_id") // GA4 numeric property id
+
+  moneyKeywords String[] @default([]) @map("money_keywords")
+  competitors   String[] @default([]) @map("competitors")
+  // The 5-10 pages that actually earn money. Core Web Vitals and technical
+  // checks run against these; empty falls back to the top pages by clicks.
+  moneyPages    String[] @default([]) @map("money_pages")
+
+  targetClicks   Int?   @map("target_clicks") // monthly organic clicks goal
+  targetPosition Float? @map("target_position") // avg position goal for money keywords
+
+  isActive      Boolean   @default(true) @map("is_active")
+  lastSyncedAt  DateTime? @map("last_synced_at")
+  lastSyncError String?   @map("last_sync_error") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  snapshots  SeoSnapshot[]
+  vitals     SeoVitals[]
+  traffic    SeoTraffic[]
+  scorecards SeoScorecard[]
+  // Work being done for this specific site.
+  tasks      ProjectTask[]
+
+  // The same site must not be tracked twice inside one project.
+  @@unique([projectId, domain])
+  @@index([projectId])
+  @@index([isActive])
+  @@map("seo_properties")
+}
+
+model SeoSnapshot {
+  id         String @id @default(uuid()) @map("id")
+  propertyId String @map("property_id")
+
+  // Inclusive date window the metrics cover (GSC data lags ~2-3 days).
+  periodStart DateTime @map("period_start") @db.Date
+  periodEnd   DateTime @map("period_end") @db.Date
+
+  clicks      Int    @default(0) @map("clicks")
+  impressions Int    @default(0) @map("impressions")
+  ctr         Float  @default(0) @map("ctr") // 0..1
+  position    Float  @default(0) @map("position") // average
+  source      String @default("GSC") @map("source")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  property SeoProperty    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  queries  SeoQueryStat[]
+  pages    SeoPageStat[]
+
+  @@unique([propertyId, periodStart, periodEnd])
+  @@index([propertyId, periodEnd])
+  @@map("seo_snapshots")
+}
+
+model SeoQueryStat {
+  id         String @id @default(uuid()) @map("id")
+  snapshotId String @map("snapshot_id")
+
+  query       String @map("query")
+  clicks      Int    @default(0) @map("clicks")
+  impressions Int    @default(0) @map("impressions")
+  ctr         Float  @default(0) @map("ctr")
+  position    Float  @default(0) @map("position")
+
+  snapshot SeoSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@index([snapshotId, clicks])
+  @@map("seo_query_stats")
+}
+
+model SeoPageStat {
+  id         String @id @default(uuid()) @map("id")
+  snapshotId String @map("snapshot_id")
+
+  page        String @map("page") @db.Text
+  clicks      Int    @default(0) @map("clicks")
+  impressions Int    @default(0) @map("impressions")
+  ctr         Float  @default(0) @map("ctr")
+  position    Float  @default(0) @map("position")
+
+  snapshot SeoSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@index([snapshotId, clicks])
+  @@map("seo_page_stats")
+}
+
+// Core Web Vitals for one URL. CrUX gives real-user FIELD data (the ranking
+// signal) but only for URLs with enough traffic; PSI lab data always answers, so
+// we record which source a row came from rather than blending them.
+model SeoVitals {
+  id         String @id @default(uuid()) @map("id")
+  propertyId String @map("property_id")
+
+  url        String @map("url") @db.Text
+  formFactor String @map("form_factor") // MOBILE | DESKTOP
+  source     String @map("source") // CRUX_FIELD | PSI_LAB
+
+  lcpMs            Int?    @map("lcp_ms")
+  inpMs            Int?    @map("inp_ms")
+  cls              Float?  @map("cls")
+  fcpMs            Int?    @map("fcp_ms")
+  ttfbMs           Int?    @map("ttfb_ms")
+  performanceScore Int?    @map("performance_score") // lab only, 0-100
+  /// GOOD | NEEDS_IMPROVEMENT | POOR - the all-three-green verdict.
+  verdict          String? @map("verdict")
+
+  checkedAt DateTime @default(now()) @map("checked_at")
+
+  property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, checkedAt])
+  @@map("seo_vitals")
+}
+
+// Organic traffic + conversions from GA4 - the half of the scorecard Search
+// Console cannot answer ("clicks prove, conversions pay").
+model SeoTraffic {
+  id         String @id @default(uuid()) @map("id")
+  propertyId String @map("property_id")
+
+  periodStart DateTime @map("period_start") @db.Date
+  periodEnd   DateTime @map("period_end") @db.Date
+
+  sessions        Int   @default(0) @map("sessions")
+  engagedSessions Int   @default(0) @map("engaged_sessions")
+  conversions     Float @default(0) @map("conversions")
+  /// Sessions attributed to AI assistants (ChatGPT, Perplexity …) - the plan's
+  /// "AI citations + referral traffic" metric.
+  aiReferrals     Int   @default(0) @map("ai_referrals")
+
+  source    String   @default("GA4") @map("source")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, periodStart, periodEnd])
+  @@index([propertyId, periodEnd])
+  @@map("seo_traffic")
+}
+
+// The monthly weighted scorecard (plan step 10). `coverage` records how much of
+// the 100 points could actually be measured, so a score built from Search
+// Console alone is never presented as if everything was checked.
+model SeoScorecard {
+  id         String @id @default(uuid()) @map("id")
+  propertyId String @map("property_id")
+
+  periodStart DateTime @map("period_start") @db.Date
+  periodEnd   DateTime @map("period_end") @db.Date
+
+  score    Float  @map("score") // 0-100, normalised over measured weight
+  coverage Float  @map("coverage") // 0-100, share of weight measurable
+  band     String @map("band") // HEALTHY | WATCH | INTERVENE | ESCALATE
+  /// Per-metric breakdown: value, previous, points, weight, available.
+  metrics  Json   @map("metrics")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, periodStart, periodEnd])
+  @@index([propertyId, periodEnd])
+  @@map("seo_scorecards")
 }

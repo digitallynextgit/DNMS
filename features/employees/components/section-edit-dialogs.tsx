@@ -69,7 +69,6 @@ function SectionDialog({
       isPending={saving}
       submitLabel="Save changes"
       size="md"
-      scrollBody
       onSubmit={(e) => {
         e.preventDefault()
         onSave()

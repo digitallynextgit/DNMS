@@ -3,11 +3,14 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { withProjectManager } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
+import { syncEntryTask } from "@/features/projects/server/content-task.service"
 import type { Session } from "next-auth"
 
 type Entry = {
   id: string
   date: Date | null
+  assigneeId: string | null
+  taskId: string | null
   platform: string | null
   theme: string | null
   format: string | null
@@ -15,8 +18,14 @@ type Entry = {
   content: string | null
   status: string
   link: string | null
+  assignee?: { id: string; firstName: string; lastName: string } | null
 }
-const serialize = (e: Entry) => ({ ...e, date: e.date ? e.date.toISOString().slice(0, 10) : null })
+// Generic so it also accepts the full row returned by create() (which carries
+// projectId/timestamps the list select omits).
+const serialize = <T extends { date: Date | null }>(e: T) => ({
+  ...e,
+  date: e.date ? e.date.toISOString().slice(0, 10) : null,
+})
 
 // Only the columns the calendar renders (no createdAt/updatedAt/projectId), and a
 // hard cap so an un-filtered (no ?month) read can never fetch the whole table -
@@ -24,6 +33,8 @@ const serialize = (e: Entry) => ({ ...e, date: e.date ? e.date.toISOString().sli
 const ENTRY_SELECT = {
   id: true,
   date: true,
+  assigneeId: true,
+  taskId: true,
   platform: true,
   theme: true,
   format: true,
@@ -31,6 +42,7 @@ const ENTRY_SELECT = {
   content: true,
   status: true,
   link: true,
+  assignee: { select: { id: true, firstName: true, lastName: true } },
 } as const
 const MAX_ENTRIES = 500
 
@@ -64,7 +76,7 @@ export const GET = withAuth(
 
 // POST - create one entry.
 export const POST = withProjectManager(
-  async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
+  async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const projectId = ctx.params.id
       const b = await req.json().catch(() => ({}))
@@ -79,9 +91,12 @@ export const POST = withProjectManager(
           content: b.content || null,
           status: b.status || "PLANNED",
           link: b.link || null,
+          assigneeId: b.assigneeId || null,
         },
       })
-      return NextResponse.json({ data: serialize(entry) }, { status: 201 })
+      // An assigned post becomes a real task on that person's board.
+      const taskId = await syncEntryTask(entry, session.user.id)
+      return NextResponse.json({ data: serialize({ ...entry, taskId }) }, { status: 201 })
     } catch (error) {
       console.error("[CONTENT_CALENDAR_POST]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })

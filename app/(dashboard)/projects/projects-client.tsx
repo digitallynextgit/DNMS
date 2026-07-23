@@ -519,16 +519,22 @@ export function ProjectsClient() {
                     {group.map((project) => (
                       <div
                         key={project.id}
-                        className="bg-card hover:border-foreground/20 flex flex-col gap-3 rounded border p-4 transition-colors"
+                        className="group bg-card hover:border-foreground/20 hover:bg-muted/30 relative flex flex-col gap-3 rounded border p-4 transition-colors"
                       >
+                        {/* Stretched link: an absolutely-positioned overlay makes the
+                            WHOLE card clickable while keeping the markup valid (an
+                            <a> may not wrap buttons). Anything interactive on the
+                            card sits above it with `relative z-10`. */}
+                        <Link
+                          href={`/projects/${project.id}`}
+                          aria-label={`Open ${project.name}`}
+                          className="focus-visible:ring-ring absolute inset-0 rounded focus-visible:ring-2 focus-visible:outline-none"
+                        />
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <Link
-                              href={`/projects/${project.id}`}
-                              className="line-clamp-1 text-sm font-medium hover:underline"
-                            >
+                            <p className="line-clamp-1 text-sm font-medium group-hover:underline">
                               {project.name}
-                            </Link>
+                            </p>
                             <p className="text-muted-foreground mt-0.5 font-mono text-xs">
                               {project.code}
                             </p>
@@ -536,11 +542,15 @@ export function ProjectsClient() {
                           {canWrite && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon-sm" className="shrink-0">
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="relative z-10 shrink-0"
+                                >
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent align="end" className="z-20">
                                 <DropdownMenuItem asChild>
                                   <Link href={`/projects/${project.id}`}>View Details</Link>
                                 </DropdownMenuItem>

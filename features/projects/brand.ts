@@ -86,6 +86,12 @@ export interface ContentEntry {
   content: string | null
   status: string
   link: string | null
+  /** Who owns writing/publishing this post. Setting it mirrors the entry as a
+   *  task on that person's board and turns on publish-day reminders. */
+  assigneeId?: string | null
+  assignee?: { id: string; firstName: string; lastName: string } | null
+  /** The mirrored ProjectTask, when there is one. */
+  taskId?: string | null
 }
 
 export const EMPTY_GUIDELINES: BrandGuidelines = { colors: [], fonts: "", logoNotes: "", uiux: "" }

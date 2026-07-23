@@ -40,6 +40,7 @@ export const POST = withSession(
       const { id: projectId, teamId } = ctx.params
       const body = await req.json()
       const { title, description, assigneeId, priority, dueDate, estimatedHours, tags } = body
+      const seoPropertyId: string | null = body.seoPropertyId || null
 
       if (!title || !title.trim()) {
         return NextResponse.json({ error: "Title is required" }, { status: 400 })
@@ -84,6 +85,19 @@ export const POST = withSession(
         )
       }
 
+      // A task can be scoped to one of the project's tracked sites. Verify it
+      // belongs to THIS project so a stray id can't attach work to another
+      // client's subdomain.
+      if (seoPropertyId) {
+        const site = await db.seoProperty.findFirst({
+          where: { id: seoPropertyId, projectId },
+          select: { id: true },
+        })
+        if (!site) {
+          return NextResponse.json({ error: "Unknown site for this project" }, { status: 422 })
+        }
+      }
+
       // Determine approval status
       // Manager OR admin creates → APPROVED. Member creates self-task → PENDING_APPROVAL.
       const approvalStatus = isManager || isAdmin ? "APPROVED" : "PENDING_APPROVAL"
@@ -104,6 +118,7 @@ export const POST = withSession(
           tags: Array.isArray(tags) ? tags : [],
           approvalStatus,
           isManagerCreated,
+          seoPropertyId,
         },
         include: {
           assignee: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -153,6 +168,7 @@ export const POST = withSession(
           assigneeId: finalAssigneeId,
           approvalStatus,
           isManagerCreated,
+          seoPropertyId,
         },
       })
 

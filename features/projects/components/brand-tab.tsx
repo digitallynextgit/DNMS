@@ -19,6 +19,7 @@ import {
   Pencil,
   ImageIcon,
   FileDown,
+  CheckSquare,
 } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -60,6 +61,7 @@ import {
   useDeleteEntry,
   useImportCalendar,
 } from "@/features/projects/hooks/use-brand"
+import { useAssignableEmployees } from "@/features/projects/hooks/use-projects"
 import {
   PLATFORMS,
   CONTENT_FORMATS,
@@ -716,6 +718,7 @@ const emptyEntry = (): Omit<ContentEntry, "id"> => ({
   content: null,
   status: "PLANNED",
   link: null,
+  assigneeId: null,
 })
 
 const MONTH_NAMES = [
@@ -749,6 +752,8 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
   const del = useDeleteEntry(projectId)
   const importXlsx = useImportCalendar(projectId)
   const importRef = useRef<HTMLInputElement>(null)
+  const { data: rosterRes } = useAssignableEmployees(projectId, canManage)
+  const people = rosterRes?.data ?? []
 
   const [editing, setEditing] = useState<ContentEntry | null>(null)
   const [creating, setCreating] = useState(false)
@@ -770,6 +775,19 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
     },
     { header: "Theme", cell: (r) => <span className="line-clamp-1">{r.theme ?? "-"}</span> },
     { header: "Format", cell: (r) => r.format ?? "-" },
+    {
+      header: "Assigned to",
+      cell: (r) =>
+        r.assignee ? (
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+            {r.assignee.firstName} {r.assignee.lastName}
+            {/* A linked task means it's on their board and they'll be reminded. */}
+            {r.taskId && <CheckSquare className="text-muted-foreground h-3.5 w-3.5" />}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">Unassigned</span>
+        ),
+    },
     {
       header: "Hook",
       cell: (r) => (
@@ -952,6 +970,7 @@ function ContentCalendarSection({ projectId, canManage }: Props) {
           }
         }}
         initial={editing}
+        people={people}
         pending={create.isPending || update.isPending}
         onSubmit={(body) => {
           if (editing)
@@ -982,12 +1001,14 @@ function EntryDialog({
   initial,
   pending,
   onSubmit,
+  people,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   initial: ContentEntry | null
   pending: boolean
   onSubmit: (body: Omit<ContentEntry, "id">) => void
+  people: { id: string; firstName: string; lastName: string }[]
 }) {
   const [form, setForm] = useState<Omit<ContentEntry, "id">>(emptyEntry())
 
@@ -1067,6 +1088,29 @@ function EntryDialog({
               value={form.content ?? ""}
               onChange={(e) => set({ content: e.target.value || null })}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Assigned to</Label>
+            <Select
+              value={form.assigneeId ?? "NONE"}
+              onValueChange={(v) => set({ assigneeId: v === "NONE" ? null : v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Nobody" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="NONE">Nobody</SelectItem>
+                {people.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.firstName} {p.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-[11px]">
+              Assigning creates a task on their board, due on the publish date, and reminds them
+              that morning.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label>Status</Label>

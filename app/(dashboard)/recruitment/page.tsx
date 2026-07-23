@@ -453,7 +453,6 @@ export default function RecruitmentPage() {
         submitDisabled={!form.title}
         submitLabel="Create Job"
         size="md"
-        scrollBody
         onSubmit={handleCreateSubmit}
       >
         <div className="space-y-2">

@@ -166,12 +166,14 @@ export interface ProjectResource {
   team: { id: string; name: string } | null
 }
 
-// Projects
-export function useProjects() {
+// Projects. `enabled: false` skips the fetch for callers that only render the
+// list conditionally (e.g. a task dialog whose project is already fixed).
+export function useProjects(opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["projects"],
     queryFn: () => apiFetch<{ data: ProjectListItem[] }>("/api/projects?limit=100"),
     staleTime: 30_000,
+    enabled: opts?.enabled ?? true,
   })
 }
 
@@ -265,6 +267,40 @@ export function useAddTeamMember(projectId: string, teamId: string) {
       success: "Member added",
     }),
   )
+}
+
+/**
+ * Add several people in one go. The API takes one employee per call, so this
+ * loops - but it reports a single toast and a single invalidation, which is what
+ * makes staffing a team feel like one action instead of five.
+ */
+export function useAddTeamMembers(projectId: string, teamId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (employeeIds: string[]) => {
+      let added = 0
+      const failed: string[] = []
+      for (const employeeId of employeeIds) {
+        try {
+          await apiFetch(`/api/projects/${projectId}/teams/${teamId}/members`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ employeeId }),
+          })
+          added++
+        } catch {
+          failed.push(employeeId)
+        }
+      }
+      return { added, failed }
+    },
+    onSuccess: ({ added, failed }) => {
+      if (added > 0) toast.success(`${added} ${added === 1 ? "person" : "people"} added`)
+      if (failed.length) toast.error(`${failed.length} could not be added`)
+      qc.invalidateQueries({ queryKey: ["project-teams", projectId] })
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not add members"),
+  })
 }
 
 export function useRemoveTeamMember(projectId: string, teamId: string) {

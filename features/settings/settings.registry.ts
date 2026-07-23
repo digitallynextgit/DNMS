@@ -224,6 +224,35 @@ export const SETTING_FIELDS: SettingField[] = [
     secret: true,
     help: "Paste the whole service-account key JSON on ONE line (minified). Stored encrypted.",
   },
+
+  // ── Google Search Console (SEO reporting) ───────────────────────────────────
+  // Optional: leave blank and SEO reuses the Google Drive service account above,
+  // which is the simplest setup. Set this only when Search Console lives in a
+  // DIFFERENT Cloud project from Drive.
+  {
+    key: "GSC_CREDENTIALS",
+    label: "Search Console service account JSON",
+    type: "password",
+    group: "Google Search Console",
+    secret: true,
+    help: "Optional. Leave blank to reuse the Google Drive service account. Set it only if Search Console is in a different Cloud project. Paste the key JSON on ONE line (minified). Whichever account is used must (a) have the Search Console API enabled on ITS Cloud project and (b) be added as a user on each property.",
+  },
+  {
+    key: "GA4_CREDENTIALS",
+    label: "GA4 service account JSON",
+    type: "password",
+    group: "Google Search Console",
+    secret: true,
+    help: "Optional. Leave blank to reuse the Google Drive service account. Needs the 'Google Analytics Data API' enabled on its Cloud project, and the account added under GA4 -> Admin -> Property access management (Viewer).",
+  },
+  {
+    key: "GOOGLE_PSI_API_KEY",
+    label: "PageSpeed Insights API key",
+    type: "password",
+    group: "Google Search Console",
+    secret: true,
+    help: "Optional. Core Web Vitals work without it but are heavily rate-limited; a key raises the free quota to 25,000 calls/day. Create one in Google Cloud Console -> Credentials -> API key.",
+  },
 ]
 
 export const SETTING_KEYS = SETTING_FIELDS.map((f) => f.key)

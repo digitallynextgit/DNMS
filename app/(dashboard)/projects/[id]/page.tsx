@@ -38,6 +38,7 @@ import {
   HardDrive,
   Plug,
   BarChart3,
+  Search,
 } from "lucide-react"
 import { ProjectFormDialog } from "@/features/projects"
 
@@ -56,6 +57,13 @@ const IntegrationTab = dynamic(() => import("@/features/projects").then((m) => m
 })
 const InsightsTab = dynamic(() => import("@/features/projects").then((m) => m.InsightsTab), {
   loading: tabFallback,
+})
+const SeoTab = dynamic(() => import("@/features/seo").then((m) => m.SeoTab), {
+  loading: tabFallback,
+})
+// Small enough to render inline on Overview; self-hides when there are no sites.
+const ProjectSitesCard = dynamic(() => import("@/features/seo").then((m) => m.ProjectSitesCard), {
+  loading: () => null,
 })
 const TeamsTab = dynamic(() => import("@/features/projects").then((m) => m.TeamsTab), {
   loading: tabFallback,
@@ -79,6 +87,7 @@ const PROJECT_TABS = [
   "drive",
   "integration",
   "insights",
+  "seo",
   "teams",
   "tasks",
   "messages",
@@ -217,6 +226,10 @@ export default function ProjectDetailPage() {
               <BarChart3 className="h-3.5 w-3.5" />
               Insights
             </TabsTrigger>
+            <TabsTrigger value="seo" className="gap-1.5">
+              <Search className="h-3.5 w-3.5" />
+              SEO
+            </TabsTrigger>
             <TabsTrigger value="teams" className="gap-1.5">
               <Users className="h-3.5 w-3.5" />
               Teams
@@ -298,6 +311,9 @@ export default function ProjectDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Renders only when the project actually tracks sites. */}
+          <ProjectSitesCard projectId={projectId} onOpenSeo={() => handleTabChange("seo")} />
         </TabsContent>
 
         <TabsContent value="brand">
@@ -314,6 +330,10 @@ export default function ProjectDetailPage() {
 
         <TabsContent value="insights">
           <InsightsTab projectId={projectId} canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="seo">
+          <SeoTab projectId={projectId} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="teams" className="mt-4">
