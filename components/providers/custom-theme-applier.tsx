@@ -13,19 +13,19 @@ export function CustomThemeApplier() {
     const root = document.documentElement
     const theme = findTheme(paletteId)
 
-    // Vibrant themes layer a gradient/glow background + designed controls on top
-    // of the palette. We expose the two swatch colours so CSS can build gradients.
-    function clearVibrant() {
-      delete root.dataset.vibrant
-      root.style.removeProperty("--vibrant-c1")
-      root.style.removeProperty("--vibrant-c2")
+    // Multi-colour treatment: [data-multicolor] switches on the gradient
+    // primary controls + two-hue ambient background in globals.css.
+    function clearGradient() {
+      delete root.dataset.multicolor
+      root.style.removeProperty("--mc-1")
+      root.style.removeProperty("--mc-2")
     }
 
     if (!theme) {
       for (const key of PALETTE_KEYS) {
         root.style.removeProperty(`--${key}`)
       }
-      clearVibrant()
+      clearGradient()
       return
     }
 
@@ -36,12 +36,12 @@ export function CustomThemeApplier() {
       root.style.setProperty(`--${key}`, theme.palette[key])
     }
 
-    if (theme.category === "vibrant") {
-      root.dataset.vibrant = "true"
-      root.style.setProperty("--vibrant-c1", theme.swatchPrimary)
-      root.style.setProperty("--vibrant-c2", theme.swatchAccent)
+    if (theme.gradient) {
+      root.dataset.multicolor = "true"
+      root.style.setProperty("--mc-1", theme.gradient.from)
+      root.style.setProperty("--mc-2", theme.gradient.to)
     } else {
-      clearVibrant()
+      clearGradient()
     }
   }, [paletteId, resolvedTheme, setTheme])
 

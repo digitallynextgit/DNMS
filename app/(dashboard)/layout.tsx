@@ -24,9 +24,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="dashboard-shell bg-background fixed inset-0 grid grid-cols-[auto_1fr] overflow-hidden">
-      {/* Vibrant-theme ambient background (gradient + grid + animated glow). Only
-          painted when a vibrant theme is active; sits behind all content. */}
-      <div className="vibrant-aura pointer-events-none absolute inset-0 -z-10" aria-hidden />
       <RealtimeNotifications />
       <Sidebar session={session} />
       <div className="grid h-full min-h-0 min-w-0 grid-rows-[auto_1fr] overflow-hidden">

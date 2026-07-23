@@ -29,17 +29,17 @@ export const useThemeStore = create<ThemeStore>()(
     }),
     {
       name: "dnms-theme-palette",
-      version: 1,
-      migrate: (persisted, version) => {
-        if (version < 1) {
-          const id = (persisted as { paletteId?: string } | null)?.paletteId
-          const theme = findTheme(id)
-          if (theme) {
-            return { paletteId: theme.id, mode: theme.mode, cssVars: theme.palette }
-          }
-          return { paletteId: null, mode: null, cssVars: null }
+      // v2: the catalogue was culled from 123 themes to 7. Anyone whose saved
+      // theme no longer exists falls back to the default palette instead of
+      // keeping an orphaned cssVars blob forever.
+      version: 2,
+      migrate: (persisted) => {
+        const id = (persisted as { paletteId?: string } | null)?.paletteId
+        const theme = findTheme(id)
+        if (theme) {
+          return { paletteId: theme.id, mode: theme.mode, cssVars: theme.palette }
         }
-        return persisted as ThemeStore
+        return { paletteId: null, mode: null, cssVars: null }
       },
     },
   ),
