@@ -1,0 +1,193 @@
+MINIMAL-COST SEO PLAN - DO EVERYTHING, SPEND ALMOST NOTHING
+============================================================
+Strategy: run 100% on free tools; add tiny pay-per-use API spend ONLY
+where free physically cannot do the job. Target: Rs 0-500/month total
+to start, max Rs 3,000-4,000/month at full scale (~18 properties).
+
+
+STEP 1 - THE STACK (what we use and what it costs)
+--------------------------------------------------
+TIER A: FREE FOREVER (the backbone - covers ~90% of all work)
+  Google Search Console + API ....... queries, ranks (avg), indexing, links
+  Google Analytics 4 + API .......... traffic + conversions (the proof)
+  Google Tag Manager + Tag Assistant  tracking setup
+  Google Keyword Planner ............ keyword ideas + volume ranges
+  Google Trends / Autocomplete ...... trends + long-tail mining
+  Bing Webmaster Tools + IndexNow ... Bing data + instant indexing
+  Screaming Frog free ............... crawls (500 URLs/pass, section-wise)
+  PageSpeed Insights + CrUX APIs .... Core Web Vitals (25k calls/day free)
+  Lighthouse CI ..................... performance gate in every deploy
+  Rich Results Test + Schema Valid. . structured data checks
+  Ahrefs Webmaster Tools ............ OUR backlinks + free site audit
+  OpenLinkProfiler + Moz free (10/mo) competitor backlinks (partial)
+  SimilarWeb free + MozBar .......... competitor traffic + authority
+  Ubersuggest free (3/day) .......... competitor keyword samples
+  SerpApi free tier (~100/mo) ....... scripted SERP checks, top keywords
+  Looker Studio ..................... automated client-ready dashboards
+  Microsoft Clarity ................. heatmaps + session recordings
+  GBP + Bing Places + Apple ......... local listings
+  Hunter.io free (25/mo) ............ outreach emails
+  Reddit / Quora / Medium / LinkedIn  off-page platforms
+  Claude ............................ briefs, audits, gap analysis, schema
+
+
+TIER B: PAY-PER-USE, ADD ONLY WHEN NEEDED (no subscriptions!)
+  DataForSEO deposit ....... rank tracking + SERP data at scale
+                             (~Rs 80/mo per 100 keywords weekly)
+  LowFruits credits ........ weak-SERP keyword discovery (one-time packs)
+  Keywords Everywhere ...... exact volumes in browser (credit packs)
+
+RULE: no monthly subscriptions. Only APIs and credit packs that roll over.
+NEVER BUY (at this stage): Semrush, Ahrefs, Surfer, SimilarWeb paid,
+rank trackers, AI-visibility tools - free workflows below replace them.
+
+
+STEP 2 - COST PLAN BY STAGE
+---------------------------
+STAGE 1 (Month 1-2): Rs 0/month
+  Everything on Tier A. Manual rank checks. Build all automation.
+STAGE 2 (Month 2-3): ~Rs 300-500/month
+  Add small DataForSEO deposit: weekly rank tracking for money
+  keywords across projects + SERP pulls for content briefs.
+STAGE 3 (Month 4+, only if content pipeline is running well):
+  ~Rs 1,500-3,500/month total portfolio
+  Add LowFruits credit pack (keyword discovery) + Keywords
+  Everywhere credits (volumes). This is the full "Lean Stack".
+UPGRADE BEYOND (only when a client retainer pays for it):
+  Semrush/Ahrefs ~Rs 13k/mo - needed only for brand-name client
+  reports or deep competitor link intelligence.
+
+
+STEP 3 - ONE-TIME SETUP PER PROJECT (Rs 0, ~1 day each)
+-------------------------------------------------------
+[ ] GSC + GA4 + GTM + Bing WMT created and verified
+[ ] Conversion events defined and firing (human decides what counts)
+[ ] Ahrefs Webmaster Tools verified (free backlink data forever)
+[ ] Baseline snapshot saved (dated): GSC queries+positions, indexed
+    pages, PSI scores, AWT backlink count
+[ ] 5-10 money pages listed; 3-5 real competitors confirmed by
+    incognito-searching money keywords
+[ ] Project config file created (domain, keywords, competitors,
+    targets) - one automation codebase reads all configs
+
+
+STEP 4 - KEYWORD RESEARCH AT Rs 0 (per project, then quarterly)
+---------------------------------------------------------------
+1. GSC API: pull 16 months of real queries (best free source)
+2. Expand: Keyword Planner + a-z autocomplete script + AlsoAsked free
+3. Competitor keywords free: Screaming Frog crawl of competitor site
+   -> their titles/H1s ARE their keyword map; + Ubersuggest/Moz free
+   daily quotas on top 2-3 competitors only
+4. Volumes: Keyword Planner ranges; prioritize by GSC impressions
+5. Difficulty free: incognito-search each keyword - forums/Quora/small
+   sites in top 10 = winnable; all big brands = park it
+6. Human maps one primary keyword per page -> prioritized backlog
+   by (impressions x winnability x business value)
+
+
+STEP 5 - FREE COMPETITOR COMPARISON (quarterly, ~2 h per competitor)
+--------------------------------------------------------------------
+1. SimilarWeb free -> traffic ballpark; MozBar -> authority gap
+2. Screaming Frog crawl their site -> titles/H1s/URLs = their strategy
+3. Claude diffs their page list vs ours -> keyword/content gap list
+4. Incognito-search the gaps -> keep only winnable ones
+5. OpenLinkProfiler + Moz free queries -> their best links = our
+   outreach target list
+(This replicates the paid "domain vs domain" report by hand.)
+
+
+STEP 6 - TECHNICAL: AUTOMATE ONCE, RUNS FREE FOREVER
+----------------------------------------------------
+Wire into CI/CD for every project:
+[ ] Screaming Frog crawl (section-wise if >500 URLs) + diff vs last
+[ ] GSC URL Inspection API on money pages (2k/day free)
+[ ] Schema validation - fail build on invalid JSON-LD
+[ ] Lighthouse CI + PSI gate - block deploy on CWV regression
+[ ] Sitemap vs crawl diff; robots + canonical checks
+[ ] IndexNow ping + sitemap resubmit on every deploy
+
+
+STEP 7 - CONTENT LOOP (the work that ranks; cost = human hours)
+---------------------------------------------------------------
+Per backlog item:
+1. SERP snapshot: incognito search (free) or 1 SerpApi/DataForSEO call
+2. Claude brief from SERP notes + top 3 URLs; human approves angle
+3. Human writes/edits (AI-assist ok, auto-publish NEVER - spam risk)
+4. Script QA: title, single H1, meta, schema, alt text, internal links
+5. Publish -> IndexNow ping -> log in content tracker
+6. Auto 30-day GSC check -> winners expand, losers rewrite queue
+Cadence: flagship 4 pages/mo, small sites 1/mo.
+
+
+STEP 8 - OFF-PAGE AT Rs 0
+-------------------------
+- Monitor OUR links: AWT + GSC exports, monthly diff (free)
+- Find targets: competitors' best links (Step 5) + Hunter free 25/mo
+- Outreach: personal emails only, never bulk (human, ~30 min/wk)
+- Community: Reddit/Quora/LinkedIn genuine answers (traffic + AI
+  citations; links are nofollow - that is fine)
+- Local: GBP + Bing Places + Apple Business Connect all claimed;
+  NAP consistent everywhere
+- PR only when there is real news; budget wires Rs 8k/release
+
+
+STEP 9 - MONITORING (all free APIs, fully automated)
+----------------------------------------------------
+Daily:    uptime + robots/noindex accident check (script)
+Weekly:   GSC pull (clicks/impressions/CTR/position, diff vs last wk)
+          PSI/CrUX on money pages
+          [Stage 1: 20-min manual rank check | Stage 2+: DataForSEO]
+Monthly:  crawl + diff; backlink export + diff; AI-citation spot
+          check (ask ChatGPT/Perplexity/Gemini the money questions)
+Alerts:   money-page clicks -30% wk/wk; avg position worse by 5+;
+          indexed pages -10%; CWV goes amber; noindex on money page
+Dashboard: Looker Studio + GSC/GA4 connectors (free, client-ready)
+
+
+STEP 10 - TRACK "IS IT WORKING?" (monthly scorecard, free sources)
+------------------------------------------------------------------
+  Organic clicks (28d vs prev)      GSC      weight 20
+  Organic conversions               GA4      weight 20
+  Money-query positions/top-10s     GSC      weight 15
+  Total queries with impressions    GSC      weight 10
+  Referring domains (net new)       AWT      weight 10
+  Indexed vs published pages        GSC      weight  5
+  CWV all-green % (money pages)     CrUX     weight  5
+  Critical crawl errors open        SF       weight  5
+  Content published vs planned      tracker  weight  5
+  AI citations + referral traffic   manual   weight  5
+Health: 80+ healthy | 60-79 watch | 40-59 intervene | <40 escalate
+Rule: rankings lead, clicks prove, conversions pay.
+Timeline: months 1-2 technical only; 3-4 long-tail; 4-6 clicks
+compound; 6+ money keywords. Do not judge before month 3.
+
+
+STEP 11 - HUMAN TIME BUDGET (the real currency)
+-----------------------------------------------
+Weekly per project:  2-3 h (triage alerts, rank spot-check, one
+                     content brief, 30 min community/outreach)
+Monthly per project: half day (read report, write WHY, re-prioritize,
+                     pick 5 outreach targets, 5 SERP eye-checks)
+Quarterly:           keyword refresh, content prune, competitor
+                     re-check, strategy call
+
+
+STEP 12 - ROLLOUT ORDER
+-----------------------
+Week 1:  Baselines + GSC/GA4 API pulls for ALL projects
+Week 2:  Looker Studio dashboards + alert script
+Week 3:  CI deploy gate (Lighthouse CI + schema + crawl diff)
+Week 4:  Keyword research pipeline; run Phase 1 on flagship project
+Month 2: Content loop live on flagship; onboard remaining projects
+Month 2-3: Add DataForSEO deposit (Stage 2) when manual rank checks
+         exceed ~30 min/week
+Month 4+: LowFruits + Keywords Everywhere credits (Stage 3) once the
+         content pipeline is consistently shipping
+
+BOTTOM LINE
+-----------
+Months 1-2: Rs 0. From month 3: ~Rs 300-500. Full scale: ~Rs 3,000-
+4,000/month across ~18 properties (~Rs 200/property) - vs Rs 13,440/mo
+for one Semrush seat. The savings are paid for in ~2-3 human hours per
+project per week, and those hours go into the two things no tool can
+buy: better content and real links.

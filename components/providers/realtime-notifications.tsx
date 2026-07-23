@@ -86,13 +86,19 @@ export function RealtimeNotifications() {
         Notification.permission === "granted"
       const hidden = typeof document !== "undefined" && document.visibilityState === "hidden"
 
-      if (hidden && canNotify) {
+      // Web Push owns OS notifications whenever it's active - the service worker
+      // will raise one for this same notification, so raising a second one here
+      // would double up. Fall back to a native notification only when push isn't
+      // available (permission denied, unsupported browser, push not configured).
+      if (hidden && canNotify && !pushActive) {
         const native = new Notification(n.title, { body: n.message, tag: n.id })
         native.onclick = () => {
           window.focus()
           if (n.link) router.push(n.link)
           native.close()
         }
+      } else if (hidden) {
+        // Push will surface it; just refresh the in-app state below.
       } else {
         toast(n.title, {
           description: n.message,
@@ -150,6 +156,10 @@ export function RealtimeNotifications() {
   return null
 }
 
+/** True once this browser has a live Web Push subscription. While it is, the SSE
+ *  path stops raising its own OS notifications so the two don't double up. */
+let pushActive = false
+
 /** base64url (VAPID public key) -> the BufferSource PushManager expects. */
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
@@ -191,6 +201,7 @@ async function registerPush(): Promise<void> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
     })
+    pushActive = true
   } catch {
     // Unsupported browser, blocked SW, or offline - ignore.
   }

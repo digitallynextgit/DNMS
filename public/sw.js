@@ -33,7 +33,16 @@ self.addEventListener("push", (event) => {
     data: { link: payload.link || "/dashboard" },
   }
 
-  event.waitUntil(self.registration.showNotification(title, options))
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      // If a DNMS tab is actually on screen, the in-app toast already showed this
+      // notification - don't stack an OS one on top. When every tab is hidden,
+      // minimised or closed (the case this whole feature exists for), show it.
+      const visible = clients.some((c) => c.visibilityState === "visible")
+      if (visible) return undefined
+      return self.registration.showNotification(title, options)
+    }),
+  )
 })
 
 self.addEventListener("notificationclick", (event) => {

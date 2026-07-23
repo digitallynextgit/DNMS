@@ -249,9 +249,103 @@ export async function buildAiContext(session: Session): Promise<string> {
     )
   }
   out.push("")
+
+  // ── Documents the user can access (metadata only here; the chat route pulls
+  //    the TEXT of the ones relevant to a question). ─────────────────────────
+  const docs = await listAccessibleDocuments(session)
+  out.push(`DOCUMENTS / FILES (${docs.length}) — title | file | category | owner:`)
+  if (docs.length === 0) {
+    out.push("- None accessible.")
+  } else {
+    for (const d of docs.slice(0, 80)) {
+      out.push(`- ${d.title} | ${d.fileName} | ${d.category} | ${d.ownerName ?? "Company"}`)
+    }
+  }
+  out.push("")
   out.push(
-    "NOTE: payroll/salary, bank details, personal contact info, documents and credentials are NOT included in this context and must not be guessed.",
+    "NOTE: payroll/salary, bank details, personal contact info and credentials are NOT included and must not be guessed. You can read a document's TEXT only when it appears in a FILE CONTENTS block.",
   )
 
   return out.join("\n")
+}
+
+export interface AccessibleDoc {
+  id: string
+  title: string
+  fileName: string
+  category: string
+  mimeType: string
+  objectKey: string
+  fileSize: number
+  ownerName: string | null
+}
+
+/**
+ * Every document THIS user is allowed to read, as a flat list. Company docs are
+ * visible to all; personal/employee docs only to their owner - unless the user
+ * has employee:read (HR/admin), who may see all. objectKey stays server-side.
+ */
+export async function listAccessibleDocuments(session: Session): Promise<AccessibleDoc[]> {
+  const userId = session.user.id
+  const canReadAll = hasPermission(session, PERMISSIONS.EMPLOYEE_READ)
+
+  const [companyDocs, employeeDocs] = await Promise.all([
+    db.document.findMany({
+      where: canReadAll ? {} : { OR: [{ isCompanyDoc: true }, { employeeId: userId }] },
+      select: {
+        id: true,
+        title: true,
+        fileName: true,
+        category: true,
+        mimeType: true,
+        objectKey: true,
+        fileSize: true,
+        isCompanyDoc: true,
+        employee: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+    db.employeeDocument.findMany({
+      where: canReadAll ? {} : { employeeId: userId },
+      select: {
+        id: true,
+        title: true,
+        fileName: true,
+        category: true,
+        mimeType: true,
+        objectKey: true,
+        fileSize: true,
+        employee: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+  ])
+
+  const fromCompany: AccessibleDoc[] = companyDocs.map((d) => ({
+    id: d.id,
+    title: d.title,
+    fileName: d.fileName,
+    category: String(d.category),
+    mimeType: d.mimeType,
+    objectKey: d.objectKey,
+    fileSize: d.fileSize,
+    ownerName: d.isCompanyDoc
+      ? null
+      : d.employee
+        ? `${d.employee.firstName} ${d.employee.lastName}`
+        : null,
+  }))
+  const fromEmployee: AccessibleDoc[] = employeeDocs.map((d) => ({
+    id: d.id,
+    title: d.title,
+    fileName: d.fileName,
+    category: String(d.category),
+    mimeType: d.mimeType,
+    objectKey: d.objectKey,
+    fileSize: d.fileSize,
+    ownerName: d.employee ? `${d.employee.firstName} ${d.employee.lastName}` : null,
+  }))
+  return [...fromCompany, ...fromEmployee]
 }

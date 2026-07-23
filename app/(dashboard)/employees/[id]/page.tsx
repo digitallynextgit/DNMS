@@ -12,7 +12,9 @@ import {
   CalendarDays,
   Wallet,
   Upload,
+  Pencil,
 } from "lucide-react"
+import Link from "next/link"
 import { EmployeeLeaveTab } from "@/features/employees"
 import { EmployeeSalaryTab } from "@/features/employees"
 import { DocumentList } from "@/features/documents"
@@ -133,6 +135,15 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
         actions={
           (can(PERMISSIONS.EMPLOYEE_WRITE) || userId === emp.id) && (
             <div className="flex flex-wrap items-center gap-2">
+              {/* Full edit form (every field, same as create) - the per-section
+                  "Edit" buttons below are the quick path. */}
+              {canEdit && (
+                <Button asChild variant="outline" size="sm" className="gap-1.5">
+                  <Link href={`/employees/${emp.id}/edit`}>
+                    <Pencil className="h-3.5 w-3.5" /> Edit full profile
+                  </Link>
+                </Button>
+              )}
               {/* Photo (admin) + Resign (self only) live here; the component
                   decides which to show based on permission / ownership. */}
               <EmployeeAdminActions
@@ -285,6 +296,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
                 />
                 <InfoRow label="Status" value={statusLabel} />
                 <InfoRow label="Work Location" value={emp.workLocation} />
+                <InfoRow label="Device ID" value={emp.deviceId} />
                 <InfoRow label="Date of Joining" value={formatDate(emp.dateOfJoining)} />
                 <InfoRow
                   label="Probation End"

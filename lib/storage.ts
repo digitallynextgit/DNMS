@@ -59,6 +59,21 @@ export async function uploadFile(
   )
 }
 
+/** Download an object's raw bytes (server-side use only, e.g. text extraction
+ *  for the AI assistant). */
+export async function downloadFile(objectKey: string): Promise<Buffer> {
+  const { s3, bucket } = await getClient()
+  const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: objectKey }))
+  const body = res.Body as unknown as { transformToByteArray?: () => Promise<Uint8Array> }
+  if (body?.transformToByteArray) {
+    return Buffer.from(await body.transformToByteArray())
+  }
+  // Fallback: stream to buffer.
+  const chunks: Buffer[] = []
+  for await (const chunk of res.Body as unknown as AsyncIterable<Buffer>) chunks.push(chunk)
+  return Buffer.concat(chunks)
+}
+
 export async function getSignedUrl(
   objectKey: string,
   expirySeconds = 900,
