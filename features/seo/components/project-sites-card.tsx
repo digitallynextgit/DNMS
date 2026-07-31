@@ -1,6 +1,6 @@
 "use client"
 
-import { Globe, Search, Star } from "lucide-react"
+import { Globe, Search } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -59,11 +59,7 @@ export function ProjectSitesCard({
         <div className="divide-border/60 divide-y">
           {sites.map((s) => (
             <div key={s.id} className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm">
-              {s.isPrimary ? (
-                <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />
-              ) : (
-                <Globe className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-              )}
+              <Globe className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
               <span className="font-medium">{s.label}</span>
               <span className="text-muted-foreground text-xs">{s.domain}</span>
               {!s.isActive && (

@@ -22,7 +22,7 @@ const HR_ROLE_NAMES = ["hr_manager", "admin"]
 const OPEN_STATUSES = ["PENDING"] as const
 
 // ---------------------------------------------------------------------------
-// getMyResignation – the current user's latest resignation (any status), used
+// getMyResignation - the current user's latest resignation (any status), used
 // to drive the profile button state (Apply / Pending / Resigned).
 // ---------------------------------------------------------------------------
 export async function getMyResignation(): Promise<ActionResult<unknown>> {
@@ -40,7 +40,7 @@ export async function getMyResignation(): Promise<ActionResult<unknown>> {
 }
 
 // ---------------------------------------------------------------------------
-// applyResignation – employee submits a resignation. Stays PENDING until the
+// applyResignation - employee submits a resignation. Stays PENDING until the
 // manager (or HR) acts. Notifies the manager + HR approvers.
 // ---------------------------------------------------------------------------
 export async function applyResignation(input: {
@@ -181,7 +181,7 @@ export async function applyResignation(input: {
 }
 
 // ---------------------------------------------------------------------------
-// cancelResignation – employee withdraws their own pending resignation.
+// cancelResignation - employee withdraws their own pending resignation.
 // ---------------------------------------------------------------------------
 export async function cancelResignation(id: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
@@ -204,7 +204,7 @@ export async function cancelResignation(id: string): Promise<ActionResult<unknow
 }
 
 // ---------------------------------------------------------------------------
-// getResignationsToReview – resignations the current user may act on:
+// getResignationsToReview - resignations the current user may act on:
 //   • HR / admin (employee:write) see every pending resignation
 //   • a manager sees pending resignations from their direct reports
 // Paginated (skip/take/count); defaults to page 1, limit 10.
@@ -272,7 +272,7 @@ export async function getResignationsToReview(
 }
 
 // ---------------------------------------------------------------------------
-// getPendingResignationCount – number of PENDING resignations the current user
+// getPendingResignationCount - number of PENDING resignations the current user
 // may review (HR/admin: all; a manager: their direct reports; others: 0). Used
 // for the live sidebar badge.
 // ---------------------------------------------------------------------------
@@ -289,7 +289,7 @@ export async function getPendingResignationCount(): Promise<ActionResult<{ count
 }
 
 // ---------------------------------------------------------------------------
-// reviewResignation – the direct manager (or HR) approves or rejects.
+// reviewResignation - the direct manager (or HR) approves or rejects.
 // On APPROVE the employee is marked RESIGNED and deactivated immediately, which
 // blocks any further login (authorize() rejects inactive accounts).
 // ---------------------------------------------------------------------------

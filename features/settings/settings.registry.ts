@@ -253,6 +253,14 @@ export const SETTING_FIELDS: SettingField[] = [
     secret: true,
     help: "Optional. Core Web Vitals work without it but are heavily rate-limited; a key raises the free quota to 25,000 calls/day. Create one in Google Cloud Console -> Credentials -> API key.",
   },
+  {
+    key: "INDEXNOW_KEY",
+    label: "IndexNow key",
+    type: "password",
+    group: "Google Search Console",
+    secret: true,
+    help: "Optional. A hex key (8-128 chars) for instant recrawl pings to Bing/Yandex/Seznam/Naver. Each tracked site must host it at https://<host>/<key>.txt containing exactly the key.",
+  },
 ]
 
 export const SETTING_KEYS = SETTING_FIELDS.map((f) => f.key)

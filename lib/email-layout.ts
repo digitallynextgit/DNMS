@@ -268,7 +268,7 @@ export function renderDecisionEmail(input: {
   kind: string
   approved: boolean
   firstName: string
-  /** A short summary line, e.g. "Annual Leave · 12 Jun – 14 Jun". */
+  /** A short summary line, e.g. "Annual Leave · 12 Jun - 14 Jun". */
   detailLine?: string
   /** Reviewer's reason/note (shown for rejections, optional otherwise). */
   reason?: string | null

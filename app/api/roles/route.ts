@@ -1,6 +1,6 @@
 /**
- * GET  /api/roles  – list all roles with permission / employee counts
- * POST /api/roles  – create a new (non-system) role
+ * GET  /api/roles - list all roles with permission / employee counts
+ * POST /api/roles - create a new (non-system) role
  *
  * Both endpoints are guarded by the PBAC `withAuth` wrapper from lib/permissions.ts.
  */

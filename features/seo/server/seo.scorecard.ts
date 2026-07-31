@@ -1,6 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { referringDomainGrowth } from "./seo.backlinks.service"
 
 // =============================================================================
 // The monthly scorecard from the SEO plan, step 10.
@@ -235,11 +236,22 @@ export async function buildScorecard(
     add("queryCount", { available: false, note: "No Search Console data." })
   }
 
-  // ── 5. Referring domains (10) - no free API ────────────────────────────────
-  add("referringDomains", {
-    available: false,
-    note: "Ahrefs Webmaster Tools has no public API - import a backlink export to score this.",
-  })
+  // ── 5. Referring domains (10) - from imported backlink exports (step 8) ─────
+  const rd = await referringDomainGrowth(property.id, asDate(period.start))
+  if (rd) {
+    add("referringDomains", {
+      available: true,
+      value: rd.current,
+      previous: rd.previous,
+      ratio: growthRatio(rd.current, rd.previous),
+      note: `${rd.current} referring domains (${rd.netNew} new this window; ${rd.previous} before it).`,
+    })
+  } else {
+    add("referringDomains", {
+      available: false,
+      note: "No backlinks imported yet - paste an Ahrefs Webmaster Tools or Search Console export in the Backlinks tab to score this.",
+    })
+  }
 
   // ── 6. Indexed vs published pages (GSC, 5) ─────────────────────────────────
   if (hasGsc) {
@@ -284,11 +296,33 @@ export async function buildScorecard(
     })
   }
 
-  // ── 8. Critical crawl errors (5) - needs the crawler (phase 2) ─────────────
-  add("crawlErrors", {
-    available: false,
-    note: "Crawl checks are not built yet.",
+  // ── 8. Critical crawl errors (5) - from the latest technical audit ─────────
+  const audit = await db.seoTechnicalAudit.findFirst({
+    where: { propertyId: property.id },
+    orderBy: { createdAt: "desc" },
+    select: { criticalCount: true, warningCount: true, pagesChecked: true },
   })
+  if (audit) {
+    // This metric is about CRITICAL crawl errors, so critical issues dominate:
+    // each costs a third of the weight (3 criticals ≈ zero). Warnings only nudge
+    // it - a site with zero critical errors shouldn't be zeroed by warnings alone.
+    const ratio = Math.max(0, 1 - audit.criticalCount * 0.34 - audit.warningCount * 0.03)
+    add("crawlErrors", {
+      available: true,
+      value: audit.criticalCount,
+      previous: null,
+      ratio,
+      note:
+        audit.criticalCount === 0 && audit.warningCount === 0
+          ? `Clean - no issues across ${audit.pagesChecked} checked pages.`
+          : `${audit.criticalCount} critical, ${audit.warningCount} warnings across ${audit.pagesChecked} pages.`,
+    })
+  } else {
+    add("crawlErrors", {
+      available: false,
+      note: "No technical audit run yet - run one from the Technical tab.",
+    })
+  }
 
   // ── 9. Content published vs planned (content calendar, 5) ──────────────────
   const [planned, posted] = await Promise.all([

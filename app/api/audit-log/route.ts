@@ -5,13 +5,13 @@
  * acting employee's basic profile attached.
  *
  * Query parameters (all optional):
- *   page      – page number, 1-based (default: 1)
- *   limit     – entries per page (default: 20, max: 100)
- *   module    – filter by module string (exact match)
- *   actorId   – filter by the actor's employee id
- *   action    – filter by action string (contains, case-insensitive)
- *   dateFrom  – ISO-8601 date; only entries on/after this date
- *   dateTo    – ISO-8601 date; only entries on/before this date
+ *   page - page number, 1-based (default: 1)
+ *   limit - entries per page (default: 20, max: 100)
+ *   module - filter by module string (exact match)
+ *   actorId - filter by the actor's employee id
+ *   action - filter by action string (contains, case-insensitive)
+ *   dateFrom - ISO-8601 date; only entries on/after this date
+ *   dateTo - ISO-8601 date; only entries on/before this date
  *
  * Response shape:
  * {

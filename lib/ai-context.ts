@@ -52,7 +52,7 @@ export async function buildAiContext(session: Session): Promise<string> {
   })
   out.push(`TODAY: ${fmt(now)}`)
   out.push(
-    `ASKING USER: ${me?.firstName ?? ""} ${me?.lastName ?? ""} (${me?.employeeNo ?? "-"}) — ` +
+    `ASKING USER: ${me?.firstName ?? ""} ${me?.lastName ?? ""} (${me?.employeeNo ?? "-"}) - ` +
       `${me?.jobRole?.name ?? me?.designation?.title ?? "-"}, ${me?.department?.name ?? "-"}` +
       `${me?.manager ? `, reports to ${me.manager.firstName} ${me.manager.lastName}` : ""}`,
   )
@@ -75,7 +75,7 @@ export async function buildAiContext(session: Session): Promise<string> {
       take: 200,
       orderBy: { firstName: "asc" },
     })
-    out.push(`PEOPLE (${people.length}) — name [employeeNo] | role | department | manager:`)
+    out.push(`PEOPLE (${people.length}) - name [employeeNo] | role | department | manager:`)
     for (const p of people) {
       out.push(
         `- ${p.firstName} ${p.lastName} [${p.employeeNo}] | ${p.jobRole?.name ?? p.designation?.title ?? "-"} | ` +
@@ -253,7 +253,7 @@ export async function buildAiContext(session: Session): Promise<string> {
   // ── Documents the user can access (metadata only here; the chat route pulls
   //    the TEXT of the ones relevant to a question). ─────────────────────────
   const docs = await listAccessibleDocuments(session)
-  out.push(`DOCUMENTS / FILES (${docs.length}) — title | file | category | owner:`)
+  out.push(`DOCUMENTS / FILES (${docs.length}) - title | file | category | owner:`)
   if (docs.length === 0) {
     out.push("- None accessible.")
   } else {

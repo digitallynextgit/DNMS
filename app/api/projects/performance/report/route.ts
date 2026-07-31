@@ -14,8 +14,8 @@ Rules:
 - Use ONLY the data provided. Never invent tasks, names, dates or numbers.
 - Be specific: cite people by name and use the actual counts/dates.
 - Use these sections, each on its own line, wrapped in bold exactly like **Overall**: **Overall**, **Who's on track**, **Needs attention**, **Urgent this week**, **Suggested actions**.
-- Under each section use 1–4 short bullet lines (start each with "- ").
-- Keep the whole thing tight (roughly 150–220 words). No preamble, no sign-off.
+- Under each section use 1 to 4 short bullet lines (start each with "- ").
+- Keep the whole thing tight (roughly 150 to 220 words). No preamble, no sign-off.
 - Formatting is strict - the UI only renders: plain lines, "- " bullets and **bold**. Do NOT use headings (#), tables, numbered lists or code fences.
 - If a section has nothing, write "- Nothing notable." under it.`
 
@@ -110,7 +110,7 @@ export const POST = withSession(
         .slice(0, 20)
         .forEach((t) =>
           lines.push(
-            `- "${t.title}" — ${who(t)} — was due ${dstr(t.dueDate)} [${t.priority}] on ${t.project?.name ?? "?"}`,
+            `- "${t.title}" - ${who(t)} - was due ${dstr(t.dueDate)} [${t.priority}] on ${t.project?.name ?? "?"}`,
           ),
         )
       lines.push("")
@@ -118,7 +118,7 @@ export const POST = withSession(
       dueThisWeek
         .slice(0, 20)
         .forEach((t) =>
-          lines.push(`- "${t.title}" — ${who(t)} — due ${dstr(t.dueDate)} [${t.priority}]`),
+          lines.push(`- "${t.title}" - ${who(t)} - due ${dstr(t.dueDate)} [${t.priority}]`),
         )
       lines.push("")
       lines.push(`On hold (${onHold.length}):`)
@@ -126,7 +126,7 @@ export const POST = withSession(
         .slice(0, 20)
         .forEach((t) =>
           lines.push(
-            `- "${t.title}" — ${who(t)} — reason: ${t.holdReason ?? "n/a"}; expected by ${dstr(t.holdExpectedDate)}`,
+            `- "${t.title}" - ${who(t)} - reason: ${t.holdReason ?? "n/a"}; expected by ${dstr(t.holdExpectedDate)}`,
           ),
         )
 

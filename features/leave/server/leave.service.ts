@@ -303,7 +303,7 @@ async function notifyApprovers(
 
   const start = new Date(request.startDate).toDateString()
   const end = new Date(request.endDate).toDateString()
-  const detail = `${applicantName} · ${leaveTypeName} · ${start} – ${end} (${request.totalDays} day${request.totalDays !== 1 ? "s" : ""})`
+  const detail = `${applicantName} · ${leaveTypeName} · ${start} - ${end} (${request.totalDays} day${request.totalDays !== 1 ? "s" : ""})`
 
   // In-app to every approver + the manager (never the applicant). Each is its own
   // <1s push.
@@ -993,7 +993,7 @@ export async function applyLeave(body: {
         return fail(
           "Earned Leave is available only after completing probation plus 6 months of service.",
         )
-      // #3 Half-year cap: max 7 EL in Jan–Jun and 7 in Jul–Dec.
+      // #3 Half-year cap: max 7 EL in Jan-Jun and 7 in Jul-Dec.
       const y = start.getUTCFullYear()
       const firstHalf = start.getUTCMonth() < 6
       const halfStart = new Date(Date.UTC(y, firstHalf ? 0 : 6, 1))
@@ -1010,7 +1010,7 @@ export async function applyLeave(body: {
       const usedThisHalf = elInHalf.reduce((s, r) => s + r.totalDays, 0)
       if (usedThisHalf + totalDays > 7)
         return fail(
-          `Earned Leave is capped at 7 days per half-year (${firstHalf ? "Jan–Jun" : "Jul–Dec"}). You've already used/pending ${usedThisHalf} day(s) this half.`,
+          `Earned Leave is capped at 7 days per half-year (${firstHalf ? "Jan-Jun" : "Jul-Dec"}). You've already used/pending ${usedThisHalf} day(s) this half.`,
         )
     }
 

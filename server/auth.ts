@@ -6,7 +6,7 @@ import { db } from "./db"
 import type { NextAuthConfig } from "next-auth"
 
 // ---------------------------------------------------------------------------
-// Helper – load an employee's roles and flat permission scopes from the DB.
+// Helper - load an employee's roles and flat permission scopes from the DB.
 // ---------------------------------------------------------------------------
 async function getUserWithPermissions(employeeId: string) {
   const employee = await db.employee.findUnique({
@@ -62,7 +62,7 @@ export const authOptions: NextAuthConfig = {
 
   providers: [
     // -----------------------------------------------------------------------
-    // Credentials – email + bcrypt password
+    // Credentials - email + bcrypt password
     // -----------------------------------------------------------------------
     Credentials({
       name: "credentials",
@@ -97,7 +97,7 @@ export const authOptions: NextAuthConfig = {
     }),
 
     // -----------------------------------------------------------------------
-    // Google OAuth – only employees whose email already exists in the DB may
+    // Google OAuth - only employees whose email already exists in the DB may
     // sign in. Self-registration is not allowed in this internal DNMS.
     // -----------------------------------------------------------------------
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -112,7 +112,7 @@ export const authOptions: NextAuthConfig = {
 
   callbacks: {
     // -----------------------------------------------------------------------
-    // signIn – gate Google logins to known, active employees only.
+    // signIn - gate Google logins to known, active employees only.
     // -----------------------------------------------------------------------
     async signIn({ user, account }) {
       if (account?.provider === "google") {
@@ -136,7 +136,7 @@ export const authOptions: NextAuthConfig = {
     },
 
     // -----------------------------------------------------------------------
-    // JWT – on first sign-in (`user` is present) load all PBAC data from the
+    // JWT - on first sign-in (`user` is present) load all PBAC data from the
     // DB and embed it into the token. On subsequent requests, the token
     // already carries the data, so we just return it as-is.
     // -----------------------------------------------------------------------
@@ -167,7 +167,7 @@ export const authOptions: NextAuthConfig = {
     },
 
     // -----------------------------------------------------------------------
-    // Session – copy JWT fields onto the session.user object exposed to
+    // Session - copy JWT fields onto the session.user object exposed to
     // client components via useSession() and to server components via auth().
     // -----------------------------------------------------------------------
     async session({ session, token }) {
@@ -187,7 +187,7 @@ export const authOptions: NextAuthConfig = {
 
   events: {
     // -----------------------------------------------------------------------
-    // signIn event – write an audit log entry. Non-critical: a failure here
+    // signIn event - write an audit log entry. Non-critical: a failure here
     // must never block the login itself.
     // -----------------------------------------------------------------------
     async signIn({ user }) {
@@ -209,7 +209,7 @@ export const authOptions: NextAuthConfig = {
           },
         })
       } catch {
-        // Intentionally swallowed – audit log failure must not block login.
+        // Intentionally swallowed - audit log failure must not block login.
       }
     },
   },

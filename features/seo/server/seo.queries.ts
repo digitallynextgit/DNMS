@@ -1,7 +1,6 @@
 import "server-only"
 
 import { db } from "@/server/db"
-import { previousWindow } from "@/lib/gsc"
 import type {
   SeoAlert,
   SeoConfig,
@@ -23,6 +22,8 @@ const OPEN_TASK_STATUSES = ["TODO", "IN_PROGRESS", "ON_HOLD"] as const
 const SITE_TASKS = 15
 
 const TREND_SNAPSHOTS = 12
+// Upper bound on how much history the picker offers (about 18 months).
+const MAX_SNAPSHOTS = 80
 const TOP_ROWS = 20
 const STRIKING_ROWS = 15
 
@@ -35,6 +36,7 @@ type PropertyRow = {
   siteUrl: string | null
   gaPropertyId: string | null
   moneyKeywords: string[]
+  moneyPages: string[]
   competitors: string[]
   targetClicks: number | null
   targetPosition: number | null
@@ -53,6 +55,7 @@ export function serializeConfig(p: PropertyRow): SeoConfig {
     siteUrl: p.siteUrl,
     gaPropertyId: p.gaPropertyId,
     moneyKeywords: p.moneyKeywords,
+    moneyPages: p.moneyPages,
     competitors: p.competitors,
     targetClicks: p.targetClicks,
     targetPosition: p.targetPosition,
@@ -71,6 +74,7 @@ const CONFIG_SELECT = {
   siteUrl: true,
   gaPropertyId: true,
   moneyKeywords: true,
+  moneyPages: true,
   competitors: true,
   targetClicks: true,
   targetPosition: true,
@@ -118,7 +122,89 @@ function delta(
 
 const dateKey = (d: Date) => d.toISOString().slice(0, 10)
 
-export async function getSeoOverview(propertyId: string): Promise<SeoOverview | null> {
+/** Which window the report should describe. Defaults to the latest single week. */
+export interface OverviewOptions {
+  /** Show the window ending on or before this ISO date (YYYY-MM-DD). */
+  endDate?: string | null
+  /** How many stored weeks to combine. 1 is a single week. */
+  weeks?: number
+}
+
+type SnapshotRow = {
+  id: string
+  periodStart: Date
+  periodEnd: Date
+  clicks: number
+  impressions: number
+  ctr: number
+  position: number
+}
+
+/**
+ * Combine several weekly snapshots into one set of totals.
+ *
+ * CTR is recomputed as clicks over impressions rather than averaged, and position
+ * is weighted by impressions. Averaging either across weeks is a classic
+ * reporting bug: a week with 3 impressions would swing the number as hard as a
+ * week with 3,000.
+ */
+function combineSnapshots(rows: SnapshotRow[]) {
+  const clicks = rows.reduce((a, r) => a + r.clicks, 0)
+  const impressions = rows.reduce((a, r) => a + r.impressions, 0)
+  const weightedPosition = rows.reduce((a, r) => a + r.position * r.impressions, 0)
+  return {
+    clicks,
+    impressions,
+    ctr: impressions > 0 ? clicks / impressions : 0,
+    position:
+      impressions > 0
+        ? weightedPosition / impressions
+        : rows.length
+          ? rows.reduce((a, r) => a + r.position, 0) / rows.length
+          : 0,
+  }
+}
+
+/** Roll per-key stats (queries or pages) up across several snapshots. */
+function combineRows<T extends { clicks: number; impressions: number; position: number }>(
+  rows: (T & { key: string })[],
+) {
+  const map = new Map<
+    string,
+    { key: string; clicks: number; impressions: number; weighted: number; posSum: number; n: number }
+  >()
+  for (const r of rows) {
+    const cur = map.get(r.key)
+    if (cur) {
+      cur.clicks += r.clicks
+      cur.impressions += r.impressions
+      cur.weighted += r.position * r.impressions
+      cur.posSum += r.position
+      cur.n += 1
+    } else {
+      map.set(r.key, {
+        key: r.key,
+        clicks: r.clicks,
+        impressions: r.impressions,
+        weighted: r.position * r.impressions,
+        posSum: r.position,
+        n: 1,
+      })
+    }
+  }
+  return [...map.values()].map((v) => ({
+    key: v.key,
+    clicks: v.clicks,
+    impressions: v.impressions,
+    ctr: v.impressions > 0 ? v.clicks / v.impressions : 0,
+    position: v.impressions > 0 ? v.weighted / v.impressions : v.posSum / v.n,
+  }))
+}
+
+export async function getSeoOverview(
+  propertyId: string,
+  opts: OverviewOptions = {},
+): Promise<SeoOverview | null> {
   const property = await db.seoProperty.findUnique({
     where: { id: propertyId },
     select: CONFIG_SELECT,
@@ -149,11 +235,15 @@ export async function getSeoOverview(propertyId: string): Promise<SeoOverview | 
     assigneeName: t.assignee ? `${t.assignee.firstName} ${t.assignee.lastName}` : null,
   }))
 
+  const weeks = Math.max(1, Math.min(52, Math.trunc(opts.weeks ?? 1)))
+
+  // Every stored week, newest first. The picker needs the full list, and the
+  // comparison window may sit outside the trend chart's range.
   const [snapshots, snapshotCount] = await Promise.all([
     db.seoSnapshot.findMany({
       where: { propertyId: property.id },
       orderBy: { periodEnd: "desc" },
-      take: TREND_SNAPSHOTS,
+      take: MAX_SNAPSHOTS,
       select: {
         id: true,
         periodStart: true,
@@ -166,6 +256,11 @@ export async function getSeoOverview(propertyId: string): Promise<SeoOverview | 
     }),
     db.seoSnapshot.count({ where: { propertyId: property.id } }),
   ])
+
+  const availablePeriods = snapshots.map((s) => ({
+    start: dateKey(s.periodStart),
+    end: dateKey(s.periodEnd),
+  }))
 
   const empty: SeoOverview = {
     config,
@@ -183,48 +278,76 @@ export async function getSeoOverview(propertyId: string): Promise<SeoOverview | 
     alerts: [],
     snapshotCount,
     tasks,
+    availablePeriods,
+    weeks,
   }
   if (snapshots.length === 0) {
     empty.alerts = buildAlerts(empty)
     return empty
   }
 
-  const latest = snapshots[0]!
-  // The comparison window is the snapshot immediately preceding the latest one,
-  // but only if it really is the adjacent period - comparing against a snapshot
-  // from two months ago would be dishonest growth.
-  const expectedPrev = previousWindow(dateKey(latest.periodStart), 7)
-  const prior = snapshots[1]
-  const prev = prior && dateKey(prior.periodEnd) === expectedPrev.end ? prior : (prior ?? null)
+  // Anchor the window. With no endDate this is the newest stored week; with one
+  // it is the newest week ending on or before that date, so a date picked
+  // mid-week still resolves to real stored data instead of nothing.
+  const anchorIndex = opts.endDate
+    ? snapshots.findIndex((s) => dateKey(s.periodEnd) <= opts.endDate!)
+    : 0
+  if (anchorIndex === -1) {
+    // The requested date predates every stored snapshot.
+    empty.alerts = buildAlerts(empty)
+    return empty
+  }
 
-  const [latestQueries, latestPages, prevQueries, prevPages] = await Promise.all([
+  // The chosen window, then the equally sized window immediately before it.
+  const current = snapshots.slice(anchorIndex, anchorIndex + weeks)
+  const previous = snapshots.slice(anchorIndex + weeks, anchorIndex + weeks * 2)
+  const latest = current[0]!
+  const oldestInWindow = current[current.length - 1]!
+
+  const cur = combineSnapshots(current)
+  const pre = combineSnapshots(previous)
+  // Only claim a comparison when the previous window holds the same number of
+  // weeks. Comparing four weeks against one would invent growth.
+  const comparable = previous.length === weeks
+
+  const currentIds = current.map((s) => s.id)
+  const previousIds = previous.map((s) => s.id)
+
+  const [rawQueries, rawPages, rawPrevQueries, rawPrevPages] = await Promise.all([
     db.seoQueryStat.findMany({
-      where: { snapshotId: latest.id },
-      orderBy: [{ clicks: "desc" }, { impressions: "desc" }],
+      where: { snapshotId: { in: currentIds } },
       select: { query: true, clicks: true, impressions: true, ctr: true, position: true },
     }),
     db.seoPageStat.findMany({
-      where: { snapshotId: latest.id },
-      orderBy: [{ clicks: "desc" }, { impressions: "desc" }],
-      take: TOP_ROWS,
+      where: { snapshotId: { in: currentIds } },
       select: { page: true, clicks: true, impressions: true, ctr: true, position: true },
     }),
-    prev
+    previousIds.length
       ? db.seoQueryStat.findMany({
-          where: { snapshotId: prev.id },
-          select: { query: true, clicks: true, position: true },
+          where: { snapshotId: { in: previousIds } },
+          select: { query: true, clicks: true, impressions: true, position: true },
         })
       : Promise.resolve([]),
-    prev
+    previousIds.length
       ? db.seoPageStat.findMany({
-          where: { snapshotId: prev.id },
-          select: { page: true, clicks: true, position: true },
+          where: { snapshotId: { in: previousIds } },
+          select: { page: true, clicks: true, impressions: true, position: true },
         })
       : Promise.resolve([]),
   ])
 
-  const prevQueryMap = new Map(prevQueries.map((r) => [r.query, r]))
-  const prevPageMap = new Map(prevPages.map((r) => [r.page, r]))
+  // Roll each key up across the weeks in the window.
+  const latestQueries = combineRows(rawQueries.map((r) => ({ ...r, key: r.query }))).sort(
+    (a, b) => b.clicks - a.clicks || b.impressions - a.impressions,
+  )
+  const latestPages = combineRows(rawPages.map((r) => ({ ...r, key: r.page })))
+    .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
+    .slice(0, TOP_ROWS)
+  const prevQueries = combineRows(rawPrevQueries.map((r) => ({ ...r, key: r.query })))
+  const prevPages = combineRows(rawPrevPages.map((r) => ({ ...r, key: r.page })))
+
+  const prevQueryMap = new Map(prevQueries.map((r) => [r.key, r]))
+  const prevPageMap = new Map(prevPages.map((r) => [r.key, r]))
 
   const toRow = (
     key: string,
@@ -240,10 +363,10 @@ export async function getSeoOverview(propertyId: string): Promise<SeoOverview | 
     prevPosition: p ? p.position : null,
   })
 
-  const allQueryRows = latestQueries.map((r) => toRow(r.query, r, prevQueryMap.get(r.query)))
+  const allQueryRows = latestQueries.map((r) => toRow(r.key, r, prevQueryMap.get(r.key)))
 
   const topQueries = allQueryRows.slice(0, TOP_ROWS)
-  const topPages = latestPages.map((r) => toRow(r.page, r, prevPageMap.get(r.page)))
+  const topPages = latestPages.map((r) => toRow(r.key, r, prevPageMap.get(r.key)))
 
   // Money keywords: exact match first, then a contains-match, so "seo agency
   // delhi" still resolves when GSC reports "best seo agency delhi".
@@ -274,20 +397,23 @@ export async function getSeoOverview(propertyId: string): Promise<SeoOverview | 
 
   const overview: SeoOverview = {
     config,
-    period: { start: dateKey(latest.periodStart), end: dateKey(latest.periodEnd) },
-    previousPeriod: prev
-      ? { start: dateKey(prev.periodStart), end: dateKey(prev.periodEnd) }
+    period: { start: dateKey(oldestInWindow.periodStart), end: dateKey(latest.periodEnd) },
+    previousPeriod: previous.length
+      ? {
+          start: dateKey(previous[previous.length - 1]!.periodStart),
+          end: dateKey(previous[0]!.periodEnd),
+        }
       : null,
-    clicks: delta(latest.clicks, prev?.clicks ?? 0, false, !!prev),
-    impressions: delta(latest.impressions, prev?.impressions ?? 0, false, !!prev),
-    ctr: delta(latest.ctr, prev?.ctr ?? 0, false, !!prev),
-    position: delta(latest.position, prev?.position ?? 0, true, !!prev),
+    clicks: delta(cur.clicks, pre.clicks, false, comparable),
+    impressions: delta(cur.impressions, pre.impressions, false, comparable),
+    ctr: delta(cur.ctr, pre.ctr, false, comparable),
+    position: delta(cur.position, pre.position, true, comparable),
     topQueries,
     topPages,
     moneyKeywords,
     strikingDistance,
     trend: snapshots
-      .slice()
+      .slice(0, TREND_SNAPSHOTS)
       .reverse()
       .map((s) => ({
         periodEnd: dateKey(s.periodEnd),
@@ -298,6 +424,8 @@ export async function getSeoOverview(propertyId: string): Promise<SeoOverview | 
     alerts: [],
     snapshotCount,
     tasks,
+    availablePeriods,
+    weeks,
   }
   overview.alerts = buildAlerts(overview, {
     latestPageCount: latestPages.length,
@@ -406,6 +534,9 @@ export async function getSeoRollup(projectId: string): Promise<SeoRollup> {
       alerts: [],
       snapshotCount: snaps.length,
       tasks: [],
+      // The roll-up only needs the alert rules, not a period picker.
+      availablePeriods: [],
+      weeks: 1,
     })
 
     for (const a of summary.alerts) {

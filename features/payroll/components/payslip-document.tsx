@@ -221,7 +221,7 @@ export function PayslipDocument({ record }: { record: PayrollRecord }) {
         </div>
 
         <div className="mt-4 border-t border-neutral-500 pt-2 text-center text-[15px] font-semibold">
-          Salary Slip – {monthName} {record.year}
+          Salary Slip - {monthName} {record.year}
         </div>
 
         {/* Info grid (label / value / label / value). */}

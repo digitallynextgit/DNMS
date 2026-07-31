@@ -15,11 +15,15 @@ import {
   Plus,
   RefreshCw,
   Search,
-  Star,
   Target,
   Trash2,
   CheckSquare,
   Gauge,
+  FileText,
+  Link2,
+  Rocket,
+  Layers,
+  CalendarDays,
 } from "lucide-react"
 import {
   Area,
@@ -52,22 +56,43 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { parseDateString, toDateString } from "@/components/shared/date-field"
 import { StatCard } from "@/components/shared/stat-card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
-import type { SeoAlert, SeoOverview, SeoPropertySummary, SeoRollup, SeoRowStat } from "../types"
+import type {
+  SeoAlert,
+  SeoOverview,
+  SeoPropertySummary,
+  SeoRollup,
+  SeoRowStat,
+  SetupField,
+} from "../types"
 import { TASK_STATUS_COLORS, TASK_STATUS_LABELS } from "@/lib/constants"
 import {
   useDeleteSeoSite,
   useSeoOverview,
   useSeoRollup,
+  useSeoSetup,
   useSeoSites,
   useSyncAllSeo,
   useSyncSeoSite,
 } from "../hooks/use-seo"
+import { exportOverview, exportRollup } from "../lib/seo-export"
 import { SiteFormDialog } from "./site-form-dialog"
+import { SiteSettingsDialog } from "./site-settings-dialog"
 import { ScorecardPanel } from "./scorecard-panel"
+import { TechnicalPanel } from "./technical-panel"
+import { KeywordBacklog } from "./keyword-backlog"
+import { CompetitorPanel } from "./competitor-panel"
+import { ContentBriefPanel } from "./content-brief-panel"
+import { BacklinksPanel } from "./backlinks-panel"
+import { MonitorStatus } from "./monitor-status"
+import { SetupGuide } from "./setup-guide"
+import { AiExplain, TabHeader } from "./seo-toolbar"
 
 // =============================================================================
 // SEO tab. A project can track MANY sites (KYG = 13 subdomains under one
@@ -78,6 +103,22 @@ import { ScorecardPanel } from "./scorecard-panel"
 const ALL = "__all__"
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`
 const num = (v: number) => v.toLocaleString("en-IN")
+
+/**
+ * Whether showing the domain next to the label tells you anything new. Most
+ * sites are labelled after their host, so "Knowyourgenes.in" alongside
+ * "www.knowyourgenes.in" is noise that pushed the real name out of the trigger.
+ */
+function domainAddsInfo(label: string, domain: string): boolean {
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .trim()
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .replace(/\/+$/, "")
+  return norm(label) !== norm(domain)
+}
 
 /** Signed change. `change` already carries a corrected sign from the server, so
  *  positive always means "better", even for average position. */
@@ -144,7 +185,9 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
   const { data, isLoading } = useSeoSites(projectId)
   const [selected, setSelected] = useState<string>(ALL)
   const [formOpen, setFormOpen] = useState(false)
-  const [editing, setEditing] = useState<string | null>(null)
+  const [settingsFor, setSettingsFor] = useState<string | null>(null)
+  /** When set, the settings dialog opens straight into this one field. */
+  const [settingsField, setSettingsField] = useState<SetupField | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   const syncAll = useSyncAllSeo(projectId)
@@ -175,10 +218,7 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
             canManage
               ? {
                   label: "Add site",
-                  onClick: () => {
-                    setEditing(null)
-                    setFormOpen(true)
-                  },
+                  onClick: () => setFormOpen(true),
                 }
               : undefined
           }
@@ -186,7 +226,6 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
         {canManage && (
           <SiteFormDialog
             projectId={projectId}
-            site={null}
             open={formOpen}
             onOpenChange={setFormOpen}
             gscConfigured={gscConfigured}
@@ -196,21 +235,66 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
     )
   }
 
-  const editTarget = editing ? (sites.find((s) => s.id === editing) ?? null) : null
+  const settingsSite = settingsFor ? (sites.find((s) => s.id === settingsFor) ?? null) : null
 
   return (
     <div className="mt-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Select value={selected} onValueChange={setSelected}>
-            <SelectTrigger className="w-[260px]">
-              <SelectValue />
+            {/* The trigger's default [&>span]:line-clamp-1 sets display:-webkit-box
+                on the value span, which would break the flex row inside it. Swap it
+                for flex + truncate so the label ellipsises cleanly instead. */}
+            <SelectTrigger className="w-full min-w-0 sm:w-72 [&>span]:flex [&>span]:min-w-0 [&>span]:overflow-hidden [&>span]:line-clamp-none">
+              {/* Children here override Radix's default of echoing the selected
+                  item's markup, so the two-line options below can be richer than
+                  what the single-line trigger shows. */}
+              <SelectValue>
+                {current ? (
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <Globe className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{current.label}</span>
+                    {domainAddsInfo(current.label, current.domain) && (
+                      <span className="text-muted-foreground hidden truncate text-xs sm:inline">
+                        {current.domain}
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <Layers className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                    All sites ({sites.length})
+                  </span>
+                )}
+              </SelectValue>
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All sites ({sites.length})</SelectItem>
+            <SelectContent className="max-w-[min(24rem,90vw)]">
+              <SelectItem value={ALL}>
+                <span className="flex items-center gap-2">
+                  <Layers className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                  <span className="font-medium">All sites ({sites.length})</span>
+                </span>
+              </SelectItem>
               {sites.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.label} — {s.domain}
+                  <span className="flex min-w-0 items-start gap-2">
+                    <Globe className="text-muted-foreground mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-1.5">
+                        <span className="truncate font-medium">{s.label}</span>
+                        {!s.isActive && (
+                          <span className="text-muted-foreground bg-muted shrink-0 rounded px-1 text-[10px]">
+                            paused
+                          </span>
+                        )}
+                      </span>
+                      {domainAddsInfo(s.label, s.domain) && (
+                        <span className="text-muted-foreground block truncate text-xs">
+                          {s.domain}
+                        </span>
+                      )}
+                    </span>
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -223,10 +307,7 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setEditing(null)
-                setFormOpen(true)
-              }}
+              onClick={() => setFormOpen(true)}
             >
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Add site
@@ -236,8 +317,8 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
                 projectId={projectId}
                 site={current.id}
                 onEdit={() => {
-                  setEditing(current.id)
-                  setFormOpen(true)
+                  setSettingsField(null)
+                  setSettingsFor(current.id)
                 }}
                 onDelete={() => setConfirmDelete(current.id)}
               />
@@ -256,20 +337,42 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
       {selected === ALL ? (
         <RollupView projectId={projectId} onOpenSite={setSelected} />
       ) : (
-        <SiteReport projectId={projectId} propertyId={activeId} canManage={canManage} />
+        <SiteReport
+          projectId={projectId}
+          propertyId={activeId}
+          siteLabel={current?.label ?? ""}
+          canManage={canManage}
+          onEditSite={(field) => {
+            if (!current) return
+            setSettingsField(field ?? null)
+            setSettingsFor(current.id)
+          }}
+        />
       )}
 
       {canManage && (
-        <SiteFormDialog
-          projectId={projectId}
-          site={editTarget}
-          open={formOpen}
-          onOpenChange={(v) => {
-            setFormOpen(v)
-            if (!v) setEditing(null)
-          }}
-          gscConfigured={gscConfigured}
-        />
+        <>
+          <SiteFormDialog
+            projectId={projectId}
+            open={formOpen}
+            onOpenChange={setFormOpen}
+            gscConfigured={gscConfigured}
+          />
+          {settingsSite && (
+            <SiteSettingsDialog
+              projectId={projectId}
+              site={settingsSite}
+              initialField={settingsField}
+              open={!!settingsFor}
+              onOpenChange={(v) => {
+                if (!v) {
+                  setSettingsFor(null)
+                  setSettingsField(null)
+                }
+              }}
+            />
+          )}
+        </>
       )}
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
@@ -355,12 +458,16 @@ function RollupView({
 
   return (
     <div className="space-y-4">
-      {r.period && (
-        <p className="text-muted-foreground text-xs">
-          Week of {r.period.start} → {r.period.end}, combined across {r.properties.length} site
-          {r.properties.length > 1 ? "s" : ""}.
-        </p>
-      )}
+      <TabHeader
+        title="All sites"
+        description={
+          r.period
+            ? `Week of ${r.period.start} → ${r.period.end}, combined across ${r.properties.length} site${r.properties.length > 1 ? "s" : ""}. Click a site below for its full report and setup.`
+            : "Combined view. Click a site below for its full report and setup."
+        }
+        onExport={() => exportRollup(r)}
+        exportDisabled={!hasData}
+      />
 
       {!hasData && (
         <EmptyState
@@ -462,11 +569,7 @@ function SitesTable({
                 >
                   <td className="px-4 py-2">
                     <div className="flex items-center gap-1.5">
-                      {p.isPrimary ? (
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                      ) : (
-                        <Globe className="text-muted-foreground h-3.5 w-3.5" />
-                      )}
+                      <Globe className="text-muted-foreground h-3.5 w-3.5" />
                       <span className="font-medium">{p.label}</span>
                       {!p.isActive && (
                         <Badge variant="outline" className="text-[10px]">
@@ -485,19 +588,19 @@ function SitesTable({
                         )}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground">-</span>
                     )}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    {p.period ? num(p.impressions.current) : "—"}
+                    {p.period ? num(p.impressions.current) : "-"}
                   </td>
-                  <td className="px-4 py-2 text-right">{p.period ? pct(p.ctr) : "—"}</td>
+                  <td className="px-4 py-2 text-right">{p.period ? pct(p.ctr) : "-"}</td>
                   <td className="px-4 py-2 text-right">
-                    {p.period ? p.position.current.toFixed(1) : "—"}
+                    {p.period ? p.position.current.toFixed(1) : "-"}
                   </td>
                   <td className="px-4 py-2 text-right">
                     {p.openTasks === 0 ? (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground">-</span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                         {p.openTasks} open
@@ -533,72 +636,343 @@ function SitesTable({
 
 // --- one site ---------------------------------------------------------------
 
+/**
+ * Period controls for the whole site report. Search Console data is stored one
+ * week per snapshot, so the choices are which stored week to end on and how many
+ * of them to combine. Both are real stored windows rather than an arbitrary date
+ * range, which keeps every number traceable to data we actually hold.
+ */
+function PeriodFilter({
+  overview: o,
+  periodEnd,
+  weeks,
+  loading,
+  onPeriodEnd,
+  onWeeks,
+}: {
+  overview: SeoOverview
+  periodEnd: string | null
+  weeks: number
+  loading: boolean
+  onPeriodEnd: (v: string | null) => void
+  onWeeks: (v: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const periods = o.availablePeriods
+
+  // Nothing to filter until at least one week is stored.
+  if (periods.length === 0) return null
+
+  // Never offer a span longer than the history we hold.
+  const spanOptions = [1, 4, 12, 26].filter((w) => w === 1 || w <= periods.length)
+
+  const newest = periods[0]!
+  const oldest = periods[periods.length - 1]!
+  const minDate = parseDateString(oldest.start)
+  const maxDate = parseDateString(newest.end)
+
+  const label = periodEnd && o.period ? formatRange(o.period.start, o.period.end) : "Latest week"
+
+  return (
+    <div className="flex items-center gap-2">
+      {loading && <RefreshCw className="text-muted-foreground h-3.5 w-3.5 shrink-0 animate-spin" />}
+
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 justify-start text-xs font-normal"
+            title={
+              o.period
+                ? `Showing ${formatRange(o.period.start, o.period.end)}${
+                    o.previousPeriod
+                      ? `, compared with ${formatRange(o.previousPeriod.start, o.previousPeriod.end)}`
+                      : ", with no earlier window to compare against"
+                  }`
+                : "No data for this period"
+            }
+          >
+            <CalendarDays className="mr-1.5 h-3.5 w-3.5" />
+            {label}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-auto p-0">
+          <div className="flex items-center justify-between gap-2 border-b p-2">
+            <span className="text-xs font-medium">Pick any week</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                onPeriodEnd(null)
+                onWeeks(1)
+                setOpen(false)
+              }}
+            >
+              Latest week
+            </Button>
+          </div>
+
+          <Calendar
+            mode="single"
+            captionLayout="dropdown"
+            startMonth={minDate}
+            endMonth={maxDate}
+            defaultMonth={parseDateString(o.period?.end ?? newest.end)}
+            selected={parseDateString(o.period?.end ?? newest.end)}
+            // Any day inside a stored week resolves server side to that week, so
+            // only dates outside the stored range need blocking.
+            disabled={(d) => (!!minDate && d < minDate) || (!!maxDate && d > maxDate)}
+            onSelect={(d) => {
+              if (!d) return
+              onPeriodEnd(toDateString(d))
+              setOpen(false)
+            }}
+          />
+
+          {o.period && (
+            <p className="text-muted-foreground border-t p-2 text-[11px]">
+              {formatRange(o.period.start, o.period.end)}
+              {o.previousPeriod
+                ? ` vs ${formatRange(o.previousPeriod.start, o.previousPeriod.end)}`
+                : " (nothing earlier to compare)"}
+              {o.config.lastSyncedAt &&
+                ` · synced ${new Date(o.config.lastSyncedAt).toLocaleDateString("en-IN")}`}
+            </p>
+          )}
+        </PopoverContent>
+      </Popover>
+
+      <Select value={String(weeks)} onValueChange={(v) => onWeeks(Number(v))}>
+        <SelectTrigger className="h-8 w-28 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {spanOptions.map((w) => (
+            <SelectItem key={w} value={String(w)}>
+              {w === 1 ? "1 week" : `${w} weeks`}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+/** "21 Jul to 27 Jul 2026", dropping the repeated year and month where possible. */
+function formatRange(start: string, end: string): string {
+  const s = new Date(`${start}T00:00:00Z`)
+  const e = new Date(`${end}T00:00:00Z`)
+  const day = (d: Date) => d.getUTCDate()
+  const mon = (d: Date) => d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" })
+  const yr = (d: Date) => d.getUTCFullYear()
+  if (yr(s) !== yr(e)) return `${day(s)} ${mon(s)} ${yr(s)} to ${day(e)} ${mon(e)} ${yr(e)}`
+  if (mon(s) !== mon(e)) return `${day(s)} ${mon(s)} to ${day(e)} ${mon(e)} ${yr(e)}`
+  return `${day(s)} to ${day(e)} ${mon(e)} ${yr(e)}`
+}
+
+/** The tabs, grouped by the question each one answers. Ten flat tabs made it
+ *  impossible to tell where anything lived; these seven each own a job, and the
+ *  description under the heading says what that job is. */
+const TABS = [
+  { value: "start", label: "Start here", Icon: Rocket },
+  { value: "performance", label: "Performance", Icon: Search },
+  { value: "keywords", label: "Keywords", Icon: ListOrdered },
+  { value: "content", label: "Content", Icon: FileText },
+  { value: "health", label: "Health", Icon: Gauge },
+  { value: "links", label: "Links", Icon: Link2 },
+  { value: "work", label: "Work", Icon: CheckSquare },
+] as const
+
 function SiteReport({
   projectId,
   propertyId,
+  siteLabel,
   canManage,
+  onEditSite,
 }: {
   projectId: string
   propertyId: string | null
+  siteLabel: string
   canManage: boolean
+  onEditSite: (field?: SetupField) => void
 }) {
-  const { data: o, isLoading } = useSeoOverview(projectId, propertyId)
+  // null end = the newest stored week. Both live here so every tab below reads
+  // the same window.
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null)
+  const [weeks, setWeeks] = useState(1)
+  const { data: o, isLoading, isFetching } = useSeoOverview(projectId, propertyId, {
+    end: periodEnd,
+    weeks,
+  })
+  const { data: setup } = useSeoSetup(projectId, propertyId)
+  // Land on "Start here" until the essentials are configured, then on Performance.
+  const [tab, setTab] = useState<string | null>(null)
+
   if (isLoading) return <ListSkeleton />
   if (!o) return null
 
+  const needsSetup = !!setup && setup.nextStepId !== null
+  const active = tab ?? (needsSetup ? "start" : "performance")
+
   return (
     <div className="space-y-4">
-      <p className="text-muted-foreground text-xs">
-        {o.period ? `Week of ${o.period.start} → ${o.period.end}` : "No data synced yet"}
-        {o.config.lastSyncedAt &&
-          ` · last synced ${new Date(o.config.lastSyncedAt).toLocaleString("en-IN")}`}
-      </p>
+      <MonitorStatus projectId={projectId} propertyId={propertyId} canManage={canManage} />
 
-      <Tabs defaultValue="growth" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="growth" className="gap-1.5">
-            <Search className="h-3.5 w-3.5" /> Growth
-          </TabsTrigger>
-          <TabsTrigger value="keywords" className="gap-1.5">
-            <ListOrdered className="h-3.5 w-3.5" /> Keywords
-          </TabsTrigger>
-          <TabsTrigger value="pages" className="gap-1.5">
-            <Eye className="h-3.5 w-3.5" /> Pages
-          </TabsTrigger>
-          <TabsTrigger value="scorecard" className="gap-1.5">
-            <Gauge className="h-3.5 w-3.5" /> Scorecard
-          </TabsTrigger>
-          <TabsTrigger value="work" className="gap-1.5">
-            <CheckSquare className="h-3.5 w-3.5" /> Work
-            {o.tasks.length > 0 && (
-              <span className="bg-muted ml-0.5 rounded-full px-1.5 text-[10px] leading-4">
-                {o.tasks.length}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={active} onValueChange={setTab} className="space-y-4">
+        {/* Tabs on the left, period filter on the right, sharing one row. */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <TabsList className="flex-wrap">
+            {TABS.map(({ value, label, Icon }) => (
+              <TabsTrigger key={value} value={value} className="gap-1.5">
+                <Icon className="h-3.5 w-3.5" /> {label}
+                {value === "start" && needsSetup && (
+                  <span className="bg-primary text-primary-foreground ml-0.5 rounded-full px-1.5 text-[10px] leading-4">
+                    {setup!.total - setup!.completed}
+                  </span>
+                )}
+                {value === "work" && o.tasks.length > 0 && (
+                  <span className="bg-muted ml-0.5 rounded-full px-1.5 text-[10px] leading-4">
+                    {o.tasks.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-        <TabsContent value="growth">
-          <GrowthReport o={o} canManage={canManage} />
+          <PeriodFilter
+            overview={o}
+            periodEnd={periodEnd}
+            weeks={weeks}
+            loading={isFetching}
+            onPeriodEnd={setPeriodEnd}
+            onWeeks={setWeeks}
+          />
+        </div>
+
+        {/* 1. Start here - the guided checklist */}
+        <TabsContent value="start" className="space-y-4">
+          <TabHeader
+            title="Set this site up, step by step"
+            description="Each step unlocks part of the report. Work top to bottom - the highlighted one is next."
+          />
+          <SetupGuide
+            projectId={projectId}
+            propertyId={propertyId}
+            siteLabel={siteLabel}
+            canManage={canManage}
+            onEditSite={onEditSite}
+            onGoToTab={setTab}
+          />
         </TabsContent>
-        <TabsContent value="keywords">
-          <div className="space-y-4">
-            <MoneyKeywords o={o} />
-            <StatTable
-              title="Striking distance (position 8–30)"
-              hint="Already relevant to Google. On-page work here moves them onto page one fastest."
-              rows={o.strikingDistance}
+
+        {/* 2. Performance - is it growing? */}
+        <TabsContent value="performance" className="space-y-4">
+          <TabHeader
+            title="Performance"
+            description="Clicks, impressions and average position from Search Console, week over week."
+            onExport={() => exportOverview(o)}
+            exportDisabled={!o.period}
+          >
+            <AiExplain projectId={projectId} propertyId={propertyId} />
+          </TabHeader>
+          {needsSetup && (
+            <SetupGuide
+              compact
+              projectId={projectId}
+              propertyId={propertyId}
+              siteLabel={siteLabel}
+              canManage={canManage}
+              onEditSite={onEditSite}
+              onGoToTab={setTab}
             />
-            <StatTable title="Top queries" rows={o.topQueries} />
-          </div>
-        </TabsContent>
-        <TabsContent value="pages">
+          )}
+          <GrowthReport o={o} canManage={canManage} />
           <StatTable title="Top pages" rows={o.topPages} isUrl />
         </TabsContent>
-        <TabsContent value="scorecard">
-          <ScorecardPanel projectId={projectId} propertyId={propertyId} canManage={canManage} />
+
+        {/* 3. Keywords - what should we target? */}
+        <TabsContent value="keywords" className="space-y-4">
+          <TabHeader
+            title="Keywords"
+            description="The terms you're judged on, the ones nearly winning, and the scored backlog of what to write next."
+          />
+          <MoneyKeywords o={o} onEditSite={canManage ? () => onEditSite("keywords") : undefined} />
+          <StatTable
+            title="Striking distance (position 8 to 30)"
+            hint="Already relevant to Google. On-page work here moves them onto page one fastest."
+            rows={o.strikingDistance}
+          />
+          <KeywordBacklog
+            projectId={projectId}
+            propertyId={propertyId}
+            siteLabel={siteLabel}
+            canManage={canManage}
+          />
         </TabsContent>
-        <TabsContent value="work">
+
+        {/* 4. Content - what do we write? */}
+        <TabsContent value="content" className="space-y-4">
+          <TabHeader
+            title="Content"
+            description="Briefs move a target query from outline → QA → published → measured after 30 days. Competitor gaps below are the raw ideas."
+          />
+          <ContentBriefPanel
+            projectId={projectId}
+            propertyId={propertyId}
+            siteLabel={siteLabel}
+            canManage={canManage}
+          />
+          <CompetitorPanel
+            projectId={projectId}
+            propertyId={propertyId}
+            siteLabel={siteLabel}
+            canManage={canManage}
+            onEditSite={canManage ? () => onEditSite("competitors") : undefined}
+          />
+        </TabsContent>
+
+        {/* 5. Health - is anything broken? */}
+        <TabsContent value="health" className="space-y-4">
+          <TabHeader
+            title="Health"
+            description="The weighted scorecard, Core Web Vitals, and the technical crawl of your money pages."
+          />
+          <ScorecardPanel
+            projectId={projectId}
+            propertyId={propertyId}
+            siteLabel={siteLabel}
+            canManage={canManage}
+          />
+          <TechnicalPanel
+            projectId={projectId}
+            propertyId={propertyId}
+            siteLabel={siteLabel}
+            canManage={canManage}
+          />
+        </TabsContent>
+
+        {/* 6. Links - who links to us? */}
+        <TabsContent value="links" className="space-y-4">
+          <TabHeader
+            title="Links"
+            description="Referring domains from your imported backlink exports. Re-import monthly to see what you gained and lost."
+          />
+          <BacklinksPanel
+            projectId={projectId}
+            propertyId={propertyId}
+            siteLabel={siteLabel}
+            canManage={canManage}
+          />
+        </TabsContent>
+
+        {/* 7. Work - what is the team doing? */}
+        <TabsContent value="work" className="space-y-4">
+          <TabHeader
+            title="Work"
+            description="Tasks tagged to this site. Create one from the project's Tasks tab and set its Site field."
+          />
           <SiteWork o={o} />
         </TabsContent>
       </Tabs>
@@ -749,16 +1123,24 @@ function GrowthReport({ o, canManage }: { o: SeoOverview; canManage: boolean }) 
   )
 }
 
-function MoneyKeywords({ o }: { o: SeoOverview }) {
+function MoneyKeywords({ o, onEditSite }: { o: SeoOverview; onEditSite?: () => void }) {
   if (o.moneyKeywords.length === 0) {
     return (
       <Card>
-        <CardContent className="p-4 text-sm">
-          <p className="font-medium">No money keywords set</p>
-          <p className="text-muted-foreground text-xs">
-            Edit this site and add the terms it must win — they get tracked every week and alert you
-            when they slip off page one.
-          </p>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+          <div>
+            <p className="font-medium">No money keywords set</p>
+            <p className="text-muted-foreground text-xs">
+              Add the terms this site must win - they get tracked every week and alert you when they
+              slip off page one. The Start here tab can suggest them with AI.
+            </p>
+          </div>
+          {onEditSite && (
+            <Button size="sm" variant="outline" onClick={onEditSite}>
+              <Pencil className="mr-1.5 h-3.5 w-3.5" />
+              Add keywords
+            </Button>
+          )}
         </CardContent>
       </Card>
     )
@@ -804,11 +1186,11 @@ function MoneyKeywords({ o }: { o: SeoOverview }) {
                         )}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground">-</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right">{k.tracked ? num(k.clicks) : "—"}</td>
-                  <td className="px-4 py-2 text-right">{k.tracked ? num(k.impressions) : "—"}</td>
+                  <td className="px-4 py-2 text-right">{k.tracked ? num(k.clicks) : "-"}</td>
+                  <td className="px-4 py-2 text-right">{k.tracked ? num(k.impressions) : "-"}</td>
                 </tr>
               ))}
             </tbody>
@@ -905,8 +1287,7 @@ function SiteWork({ o }: { o: SeoOverview }) {
         <CardContent className="p-4 text-sm">
           <p className="font-medium">No open work for this site</p>
           <p className="text-muted-foreground text-xs">
-            Create a task from the Tasks tab and set its <strong>Site</strong> to {o.config.label} —
-            it will show up here.
+            Create a task from the Tasks tab and set its <strong>Site</strong> to {o.config.label} - it will show up here.
           </p>
         </CardContent>
       </Card>
@@ -917,7 +1298,7 @@ function SiteWork({ o }: { o: SeoOverview }) {
     <Card>
       <CardContent className="p-0">
         <div className="border-border border-b px-4 py-3">
-          <p className="text-sm font-medium">Open work — {o.config.label}</p>
+          <p className="text-sm font-medium">Open work - {o.config.label}</p>
           <p className="text-muted-foreground text-xs">
             Tasks tagged to this site, soonest due first.
           </p>
@@ -959,7 +1340,7 @@ function SiteWork({ o }: { o: SeoOverview }) {
                         late && "font-medium text-red-600",
                       )}
                     >
-                      {t.dueDate ?? "—"}
+                      {t.dueDate ?? "-"}
                     </td>
                   </tr>
                 )

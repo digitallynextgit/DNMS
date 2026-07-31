@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
         await createNotification({
           employeeId: e.assigneeId,
           title: "Publish today",
-          message: `${e.project.name} — ${title}`,
+          message: `${e.project.name} - ${title}`,
           type: "info",
           link: `/projects/${e.projectId}?tab=brand`,
         })
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
         await createNotification({
           employeeId: e.assigneeId,
           title: `Content overdue by ${days} day${days > 1 ? "s" : ""}`,
-          message: `${e.project.name} — ${title} was due ${e.date.toISOString().slice(0, 10)}.`,
+          message: `${e.project.name} - ${title} was due ${e.date.toISOString().slice(0, 10)}.`,
           type: "warning",
           link: `/projects/${e.projectId}?tab=brand`,
         })

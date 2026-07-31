@@ -28,7 +28,14 @@ const g = globalThis as unknown as {
   __dnmsNotifSubs?: Map<string, Set<Subscriber>>
   __dnmsNotifClient?: Client | null
   __dnmsNotifStarting?: Promise<void> | null
+  __dnmsNotifHeartbeat?: NodeJS.Timeout | null
 }
+
+// A LISTEN connection sends nothing while it waits, so managed Postgres / NAT /
+// firewalls reap it as idle - which is what produced the repeating ECONNRESET.
+// A lightweight query on an interval keeps it active (and surfaces a dead socket
+// fast, so we reconnect proactively instead of missing notifications).
+const HEARTBEAT_MS = 50_000 // under the usual 60s idle cutoff
 
 const subscribers: Map<string, Set<Subscriber>> = (g.__dnmsNotifSubs ??= new Map())
 
@@ -50,8 +57,20 @@ function dispatch(payload: string) {
   }
 }
 
+function clearHeartbeat() {
+  if (g.__dnmsNotifHeartbeat) {
+    clearInterval(g.__dnmsNotifHeartbeat)
+    g.__dnmsNotifHeartbeat = null
+  }
+}
+
 async function connect(): Promise<void> {
-  const client = new Client({ connectionString: process.env.DATABASE_URL })
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL,
+    // TCP-level keepalive so a NAT/firewall doesn't silently drop the idle socket.
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 30_000,
+  })
 
   client.on("notification", (msg) => {
     if (msg.channel === "dnms_notifications" && msg.payload) dispatch(msg.payload)
@@ -61,8 +80,12 @@ async function connect(): Promise<void> {
   // Existing subscribers stay in the map, so they resume receiving once we're back.
   const onFailure = (err: unknown) => {
     if (g.__dnmsNotifClient !== client) return // already replaced
-    console.error("[notif-stream] listener connection lost:", err)
+    // ECONNRESET on an idle LISTEN socket is an expected, recoverable event
+    // (idle reap, dev hot-reload) - warn rather than error so it isn't alarming.
+    const code = (err as { code?: string })?.code
+    console.warn(`[notif-stream] listener reconnecting (${code ?? "lost"})`)
     g.__dnmsNotifClient = null
+    clearHeartbeat()
     try {
       client.end().catch(() => {})
     } catch {
@@ -78,6 +101,18 @@ async function connect(): Promise<void> {
   await client.connect()
   await client.query("LISTEN dnms_notifications")
   g.__dnmsNotifClient = client
+
+  // Application-level heartbeat: keeps the connection from being reaped as idle,
+  // and a failed ping trips onFailure -> reconnect before a notification is missed.
+  clearHeartbeat()
+  g.__dnmsNotifHeartbeat = setInterval(() => {
+    if (g.__dnmsNotifClient !== client) return
+    client.query("SELECT 1").catch(() => {
+      /* the client 'error' handler drives the reconnect; nothing to do here */
+    })
+  }, HEARTBEAT_MS)
+  // Don't let the heartbeat keep the process alive on its own.
+  g.__dnmsNotifHeartbeat.unref?.()
 }
 
 function ensureListening(): Promise<void> {

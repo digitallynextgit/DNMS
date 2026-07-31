@@ -273,7 +273,7 @@ async function main() {
 
   // Digitally Next 13-level hierarchy + legacy titles for existing seed data
   const designationsData = [
-    // ─── Foundation Phase (L1–L5) ─── Operational / Individual Contributors
+    // ─── Foundation Phase (L1-L5) ─── Operational / Individual Contributors
     { title: "Trainee", level: 1, code: "L1", phase: "FOUNDATION", maxMonthlySalary: 20000 },
     { title: "Junior", level: 2, code: "L2", phase: "FOUNDATION", maxMonthlySalary: 40000 },
     { title: "Associate", level: 3, code: "L3", phase: "FOUNDATION", maxMonthlySalary: 40000 },
@@ -286,13 +286,13 @@ async function main() {
       maxMonthlySalary: 60000,
     },
 
-    // ─── Elevate Phase (L6–L9) ─── Functional / Team Management
+    // ─── Elevate Phase (L6-L9) ─── Functional / Team Management
     { title: "Team Lead", level: 6, code: "L6", phase: "ELEVATE", maxMonthlySalary: 80000 },
     { title: "Manager", level: 7, code: "L7", phase: "ELEVATE", maxMonthlySalary: 80000 },
     { title: "Senior Manager", level: 8, code: "L8", phase: "ELEVATE", maxMonthlySalary: 100000 },
     { title: "AVP", level: 9, code: "L9", phase: "ELEVATE", maxMonthlySalary: 300000 },
 
-    // ─── Pinnacle Phase (L10–L13) ─── Business Leadership (no salary cap)
+    // ─── Pinnacle Phase (L10-L13) ─── Business Leadership (no salary cap)
     { title: "VP", level: 10, code: "L10", phase: "PINNACLE", maxMonthlySalary: null },
     { title: "CCO", level: 11, code: "L11", phase: "PINNACLE", maxMonthlySalary: null },
     { title: "CHRO", level: 11, code: "L11", phase: "PINNACLE", maxMonthlySalary: null },
@@ -1675,7 +1675,7 @@ async function main() {
       name: "Earned Leave",
       code: "EL",
       description:
-        "Available 6 months after probation ends. Requires 60 days advance notice. Min 3 days, max 7 days at a time. 7 days each in H1 (Jan–Jun) and H2 (Jul–Dec). No carry-forward.",
+        "Available 6 months after probation ends. Requires 60 days advance notice. Min 3 days, max 7 days at a time. 7 days each in H1 (Jan-Jun) and H2 (Jul-Dec). No carry-forward.",
       isPaid: true,
       maxDaysPerYear: 14,
       carryForward: false,

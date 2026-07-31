@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * /admin/audit-log – Audit Log page.
+ * /admin/audit-log - Audit Log page.
  *
  * Displays a paginated, filterable table of all audit log entries.
  * Filters: date range (from / to) + module selector.

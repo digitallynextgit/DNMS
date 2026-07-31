@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * /admin/roles – Role Management page.
+ * /admin/roles - Role Management page.
  *
  * Displays all roles in a data table.  Users with the ROLE_WRITE permission
  * can create, edit, and delete roles.  System roles are protected from

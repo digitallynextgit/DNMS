@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const day = now.getDate()
     const monthShort = now.toLocaleString("en-US", { month: "short" })
     const yy = String(now.getFullYear()).slice(-2)
-    const periodLabel = `${monthShort} ${day <= 15 ? "1–15" : "16–EOM"} '${yy}`
+    const periodLabel = `${monthShort} ${day <= 15 ? "1 to 15" : "16-EOM"} '${yy}`
 
     // Active employees, excluding the invisible admin_ account.
     const employees = await db.employee.findMany({

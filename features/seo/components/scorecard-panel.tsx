@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertTriangle, Gauge, Info, RefreshCw, Zap } from "lucide-react"
+import { AlertTriangle, Download, Gauge, Info, RefreshCw, Zap } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -9,6 +9,7 @@ import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 import type { ScorecardView, VitalsView } from "../types"
 import { useRebuildScorecard, useRunVitals, useScorecard, useVitals } from "../hooks/use-seo"
+import { exportScorecard } from "../lib/seo-export"
 
 // =============================================================================
 // The plan's step-10 scorecard, plus the Core Web Vitals that feed it.
@@ -60,10 +61,12 @@ function ScoreRing({ score, band }: { score: number; band: ScorecardView["band"]
 export function ScorecardPanel({
   projectId,
   propertyId,
+  siteLabel = "site",
   canManage,
 }: {
   projectId: string
   propertyId: string | null
+  siteLabel?: string
   canManage: boolean
 }) {
   const { data: card, isLoading } = useScorecard(projectId, propertyId)
@@ -75,27 +78,41 @@ export function ScorecardPanel({
 
   return (
     <div className="space-y-4">
-      {canManage && (
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => propertyId && runVitals.mutate(propertyId)}
-            disabled={runVitals.isPending || !propertyId}
-          >
-            <Zap className={cn("mr-1.5 h-3.5 w-3.5", runVitals.isPending && "animate-pulse")} />
-            {runVitals.isPending ? "Measuring…" : "Measure vitals + traffic"}
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => propertyId && rebuild.mutate(propertyId)}
-            disabled={rebuild.isPending || !propertyId}
-          >
-            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", rebuild.isPending && "animate-spin")} />
-            Recalculate
-          </Button>
-        </div>
-      )}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => card && exportScorecard(card, siteLabel)}
+          disabled={!card}
+          title={card ? "Download as CSV" : "Generate the scorecard first"}
+        >
+          <Download className="mr-1.5 h-3.5 w-3.5" />
+          Export
+        </Button>
+        {canManage && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => propertyId && runVitals.mutate(propertyId)}
+              disabled={runVitals.isPending || !propertyId}
+            >
+              <Zap className={cn("mr-1.5 h-3.5 w-3.5", runVitals.isPending && "animate-pulse")} />
+              {runVitals.isPending ? "Measuring…" : "Measure vitals + traffic"}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => propertyId && rebuild.mutate(propertyId)}
+              disabled={rebuild.isPending || !propertyId}
+            >
+              <RefreshCw
+                className={cn("mr-1.5 h-3.5 w-3.5", rebuild.isPending && "animate-spin")}
+              />
+              Recalculate
+            </Button>
+          </>
+        )}
+      </div>
 
       {!card ? (
         <Card>
@@ -228,7 +245,7 @@ function VitalsTable({ rows }: { rows: VitalsView[] }) {
           <p className="text-muted-foreground text-xs">
             Field data comes from real Chrome users and is what Google ranks on.
             {anyLab &&
-              " Lab rows are a simulation — used only where a page has too little traffic for field data."}
+              " Lab rows are a simulation - used only where a page has too little traffic for field data."}
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -264,13 +281,13 @@ function VitalsTable({ rows }: { rows: VitalsView[] }) {
                     )}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">
-                    {r.lcpMs !== null ? `${(r.lcpMs / 1000).toFixed(1)}s` : "—"}
+                    {r.lcpMs !== null ? `${(r.lcpMs / 1000).toFixed(1)}s` : "-"}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">
-                    {r.inpMs !== null ? `${r.inpMs}ms` : "—"}
+                    {r.inpMs !== null ? `${r.inpMs}ms` : "-"}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">
-                    {r.cls !== null ? r.cls.toFixed(2) : "—"}
+                    {r.cls !== null ? r.cls.toFixed(2) : "-"}
                   </td>
                   <td className="px-4 py-2">
                     {r.verdict ? (
@@ -283,7 +300,7 @@ function VitalsTable({ rows }: { rows: VitalsView[] }) {
                         {VERDICTS[r.verdict]?.label}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground">-</span>
                     )}
                   </td>
                 </tr>
@@ -294,8 +311,8 @@ function VitalsTable({ rows }: { rows: VitalsView[] }) {
         {rows.some((r) => r.source === "PSI_LAB" && r.inpMs === null) && (
           <div className="text-muted-foreground flex gap-2 border-t px-4 py-2 text-[11px]">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
-            INP cannot be measured in a lab run — it needs a real user interaction. Those rows show
-            “—” rather than a substitute metric.
+            INP cannot be measured in a lab run - it needs a real user interaction. Those rows show
+            “-” rather than a substitute metric.
           </div>
         )}
       </CardContent>

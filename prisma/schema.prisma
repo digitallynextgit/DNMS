@@ -1950,13 +1950,19 @@ model SeoProperty {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  snapshots  SeoSnapshot[]
-  vitals     SeoVitals[]
-  traffic    SeoTraffic[]
-  scorecards SeoScorecard[]
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  snapshots   SeoSnapshot[]
+  vitals      SeoVitals[]
+  traffic     SeoTraffic[]
+  scorecards  SeoScorecard[]
+  audits      SeoTechnicalAudit[]
   // Work being done for this specific site.
-  tasks      ProjectTask[]
+  tasks            ProjectTask[]
+  seoKeywords      SeoKeyword[]
+  competitorAudits SeoCompetitorAudit[]
+  contentBriefs    SeoContentBrief[]
+  backlinks        SeoBacklink[]
+  monitorRuns      SeoMonitorRun[]
 
   // The same site must not be tracked twice inside one project.
   @@unique([projectId, domain])
@@ -2101,4 +2107,211 @@ model SeoScorecard {
   @@unique([propertyId, periodStart, periodEnd])
   @@index([propertyId, periodEnd])
   @@map("seo_scorecards")
+}
+
+// One technical-audit run for a site: crawl its money pages + check sitemap and
+// robots, then record every issue found. `criticalCount` feeds the scorecard's
+// "critical crawl errors" metric. Issues are stored as JSON rather than a child
+// table because they are only ever read as a set alongside their parent audit.
+model SeoTechnicalAudit {
+  id         String @id @default(uuid()) @map("id")
+  propertyId String @map("property_id")
+
+  pagesChecked  Int @default(0) @map("pages_checked")
+  criticalCount Int @default(0) @map("critical_count")
+  warningCount  Int @default(0) @map("warning_count")
+
+  // sitemap / robots findings + the per-page results.
+  sitemapOk   Boolean @default(false) @map("sitemap_ok")
+  robotsOk    Boolean @default(false) @map("robots_ok")
+  sitemapUrls Int     @default(0) @map("sitemap_urls")
+  /// [{ url, status, issues: [{ level, code, detail }] }]
+  pages       Json    @map("pages")
+  /// site-level findings (sitemap/robots/canonical host) as [{ level, code, detail }]
+  siteIssues  Json    @map("site_issues")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, createdAt])
+  @@map("seo_technical_audits")
+}
+
+// A prioritized keyword backlog (plan step 4). Each row is a query worth working
+// on, scored by demand x winnability x business value. Rows are generated from
+// stored Search Console queries and then refined by a human (winnable? how
+// valuable?), so `score` is recomputed whenever the inputs change.
+model SeoKeyword {
+  id         String @id @default(uuid()) @map("id")
+  propertyId String @map("property_id")
+
+  query String @map("query")
+
+  // Latest Search Console signals for this query (the demand side).
+  impressions Int   @default(0) @map("impressions")
+  clicks      Int   @default(0) @map("clicks")
+  position    Float @default(0) @map("position")
+  ctr         Float @default(0) @map("ctr")
+
+  // Heuristic search intent, editable by a human.
+  intent String @default("other") @map("intent") // commercial | informational | branded | navigational | other
+
+  // Where the row came from. GSC rows carry real impression/position data;
+  // COMPETITOR rows were mined from a competitor's page titles and headings, so
+  // they have no demand data unless the same phrase also shows up in our own
+  // Search Console queries. The UI has to say which, or a mined guess would read
+  // as a measured fact.
+  source       String  @default("GSC") @map("source") // GSC | COMPETITOR | MANUAL
+  sourceDomain String? @map("source_domain") // the competitor it was mined from
+
+  // Human judgement. `winnable` is a tri-state stored as nullable Boolean:
+  // null = not yet assessed, true/false = a human decided. `businessValue` 1-5.
+  winnable      Boolean? @map("winnable")
+  businessValue Int      @default(3) @map("business_value")
+
+  // Computed priority (higher = do sooner) and where it is in the pipeline.
+  score  Float  @default(0) @map("score")
+  status String @default("BACKLOG") @map("status") // BACKLOG | IN_PROGRESS | PUBLISHED | PARKED
+
+  // Optional link to the content task working this keyword.
+  taskId String? @map("task_id")
+  notes  String? @map("notes") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, query])
+  @@index([propertyId, score])
+  @@index([propertyId, status])
+  @@index([propertyId, source])
+  @@map("seo_keywords")
+}
+
+// Competitor gap analysis (plan step 5). Crawls each configured competitor's
+// pages, turns their titles/H1s into a topic map, then diffs it against what we
+// already cover (our own crawled pages + our Search Console queries + money
+// keywords). The gaps are topics they publish for and we don't - the raw
+// material for the content backlog. Stored as JSON because a run is only ever
+// read as one whole report alongside its parent row.
+model SeoCompetitorAudit {
+  id         String @id @default(uuid()) @map("id")
+  propertyId String @map("property_id")
+
+  competitorsChecked Int @default(0) @map("competitors_checked")
+  ourPagesChecked    Int @default(0) @map("our_pages_checked")
+  gapCount           Int @default(0) @map("gap_count")
+
+  /// per-competitor: [{ domain, ok, pagesCrawled, topics: [{ topic, url, title }] }]
+  competitors Json @map("competitors")
+  /// the topics they cover and we don't: [{ topic, sampleTitle, competitor, sourceUrl }]
+  gaps        Json @map("gaps")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, createdAt])
+  @@map("seo_competitor_audits")
+}
+
+// The content loop (plan step 7). One row = one piece of content moving through
+// brief -> write -> QA -> publish -> 30-day check. The brief gives the writer a
+// SERP-informed outline; the QA gate re-crawls the published URL against the
+// on-page checklist; the 30-day check compares the target query's Search Console
+// position at publish vs 30 days later, so "did it work?" is answered by data,
+// not opinion. Auto-publish is deliberately NOT supported (spam risk).
+model SeoContentBrief {
+  id         String  @id @default(uuid()) @map("id")
+  propertyId String  @map("property_id")
+  keywordId  String? @map("keyword_id") // the backlog keyword this works, if any
+
+  targetQuery String @map("target_query")
+  intent      String @default("other") @map("intent")
+
+  status String @default("BRIEF") @map("status") // BRIEF | WRITING | REVIEW | PUBLISHED | MEASURED | PARKED
+
+  /// suggested H2 outline: string[]
+  outline Json    @map("outline")
+  angle   String? @map("angle") @db.Text
+  notes   String? @map("notes") @db.Text
+
+  publishedUrl String?   @map("published_url") @db.Text
+  publishedAt  DateTime? @map("published_at")
+
+  /// last QA run: { checkedAt, url, pass, score, checks: [{ id, label, ok, detail }] }
+  qa Json? @map("qa")
+
+  // 30-day outcome: GSC average position for targetQuery at publish vs at review.
+  baselinePosition Float?    @map("baseline_position")
+  reviewAt         DateTime? @map("review_at")
+  reviewPosition   Float?    @map("review_position")
+  reviewOutcome    String?   @map("review_outcome") // WON | FLAT | LOST
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, status])
+  @@index([reviewAt])
+  @@map("seo_content_briefs")
+}
+
+// Off-page / backlinks (plan step 8). Ahrefs Webmaster Tools and Search Console
+// both let you EXPORT your backlinks but have no free API, so a human pastes the
+// export and we store + diff it: each import is treated as the current full set,
+// so links that vanish are marked LOST and the net-new referring domains feed the
+// scorecard. Granularity is one row per linking page; referring-domain counts are
+// rolled up from `sourceDomain`.
+model SeoBacklink {
+  id         String @id @default(uuid()) @map("id")
+  propertyId String @map("property_id")
+
+  sourceUrl    String  @map("source_url") @db.Text // the page linking to us
+  sourceDomain String  @map("source_domain") // its host, for referring-domain counts
+  targetUrl    String? @map("target_url") @db.Text // our page it points at
+  anchor       String? @map("anchor") @db.Text
+  domainRating Int?    @map("domain_rating") // optional authority (AWT DR / Moz DA)
+
+  source String @default("MANUAL") @map("source") // AWT | GSC | MANUAL
+  status String @default("ACTIVE") @map("status") // ACTIVE | LOST
+
+  firstSeen DateTime @default(now()) @map("first_seen")
+  lastSeen  DateTime @default(now()) @map("last_seen")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, sourceUrl])
+  @@index([propertyId, status])
+  @@index([propertyId, sourceDomain])
+  @@index([propertyId, firstSeen])
+  @@map("seo_backlinks")
+}
+
+// Daily accident monitor (plan step 9). One row per property per daily run,
+// recording whether its money pages are up + indexable and robots.txt isn't
+// blocking. Kept as history so the cron can alert only on a CHANGE (page went
+// down / came back), not spam the same broken state every day.
+model SeoMonitorRun {
+  id         String @id @default(uuid()) @map("id")
+  propertyId String @map("property_id")
+
+  status      String @map("status") // OK | ISSUES
+  pagesOk     Int    @default(0) @map("pages_ok")
+  pagesTotal  Int    @default(0) @map("pages_total")
+  /// [{ url, level, code, detail }] - only real accidents (down / noindex / robots block)
+  issues      Json   @map("issues")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, createdAt])
+  @@map("seo_monitor_runs")
 }

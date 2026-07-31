@@ -1,6 +1,6 @@
 // =============================================================================
-// Performance rating scale. Ratings in HRMS are 1–5; the policy bands are on a
-// 0–100 scale, so a 1–5 rating is scaled ×20. PERFORMANCE_BANDS is the single
+// Performance rating scale. Ratings in HRMS are 1 to 5; the policy bands are on a
+// 0 to 100 scale, so a 1 to 5 rating is scaled ×20. PERFORMANCE_BANDS is the single
 // source of truth - the evaluation verdict and the on-screen scale both use it.
 // =============================================================================
 
@@ -9,7 +9,7 @@ export type PerformanceTone = "green" | "amber" | "red"
 export interface PerformanceBand {
   /** Inclusive lower bound as a percentage. */
   min: number
-  /** Display range, e.g. "90–94%". */
+  /** Display range, e.g. "90 to 94%". */
   range: string
   /** Rating label, e.g. "Outstanding Performer". */
   rating: string
@@ -29,28 +29,28 @@ export const PERFORMANCE_BANDS: PerformanceBand[] = [
   },
   {
     min: 90,
-    range: "90–94%",
+    range: "90 to 94%",
     rating: "Outstanding Performer",
     action: "Eligible for Increment + Promotion",
     tone: "green",
   },
   {
     min: 85,
-    range: "85–89%",
+    range: "85 to 89%",
     rating: "Strong Performer",
     action: "Eligible for Increment only",
     tone: "amber",
   },
   {
     min: 75,
-    range: "75–84%",
+    range: "75 to 84%",
     rating: "Developing Performer",
     action: "No Increment + 1-Month Review",
     tone: "amber",
   },
   {
     min: 65,
-    range: "65–74%",
+    range: "65 to 74%",
     rating: "Needs Improvement",
     action: "2-Week PIP → Exit if no improvement",
     tone: "red",
@@ -72,7 +72,7 @@ export interface PerformanceAction {
   tone: PerformanceTone
 }
 
-/** The band an evaluation score falls into (accepts a 1–5 or 0–100 score). */
+/** The band an evaluation score falls into (accepts a 1 to 5 or 0 to 100 score). */
 export function performanceAction(score: number | null | undefined): PerformanceAction | null {
   if (score == null) return null
   const pct = score <= 5 ? score * 20 : score
@@ -81,7 +81,7 @@ export function performanceAction(score: number | null | undefined): Performance
   return { band: band.range, rating: band.rating, action: band.action, tone: band.tone }
 }
 
-/** The band that a percentage (0–100) falls into - for highlighting the scale. */
+/** The band that a percentage (0 to 100) falls into - for highlighting the scale. */
 export function bandForPercent(pct: number): PerformanceBand | null {
   return PERFORMANCE_BANDS.find((b) => pct >= b.min) ?? null
 }

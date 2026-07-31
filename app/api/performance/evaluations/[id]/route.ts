@@ -117,7 +117,7 @@ export const PATCH = withSession(
         role === "SELF" ? (ev.selfCriteria as unknown as EvalCriterion[]) : managerCriteria
       if (!isRatingComplete(criteria, ratings)) {
         return NextResponse.json(
-          { error: "Please rate every criterion (1–5) before submitting." },
+          { error: "Please rate every criterion (1 to 5) before submitting." },
           { status: 422 },
         )
       }

@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * RoleForm – create or edit a role.
+ * RoleForm - create or edit a role.
  *
  * Features:
  *  - name (text slug, auto-normalised to lowercase_with_underscores)
@@ -13,9 +13,9 @@
  *  - Success toast + parent callback on completion
  *
  * Props:
- *   role       – when provided, the form operates in "edit" mode
- *   onSuccess  – called after a successful save
- *   onCancel   – called when the user clicks "Cancel"
+ *   role - when provided, the form operates in "edit" mode
+ *   onSuccess - called after a successful save
+ *   onCancel - called when the user clicks "Cancel"
  */
 
 import { useEffect, useState } from "react"

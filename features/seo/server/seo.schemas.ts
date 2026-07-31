@@ -57,6 +57,7 @@ export const seoPropertySchema = z.object({
     .transform((v) => normalizeGscProperty(v)),
   gaPropertyId: z.string().trim().max(50).optional().nullable(),
   moneyKeywords: listSchema.optional(),
+  moneyPages: listSchema.optional(),
   competitors: listSchema.optional(),
   targetClicks: z.number().int().min(0).max(10_000_000).optional().nullable(),
   targetPosition: z.number().min(1).max(100).optional().nullable(),

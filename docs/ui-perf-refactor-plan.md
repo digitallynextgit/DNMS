@@ -140,7 +140,7 @@ _This is the cheapest, most-felt win in the whole plan._
 ## P3 - Blocking email sends inside request handlers 🔴
 
 `lib/mailer.ts:98` builds a **brand-new SMTP transporter per email** (TCP+TLS+AUTH handshake,
-300ms–2s each), and handlers **`await`** them serially. Applying for leave with a manager + 3 HR
+300ms-2s each), and handlers **`await`** them serially. Applying for leave with a manager + 3 HR
 approvers = **4 sequential SMTP handshakes before the HTTP response returns.**
 
 **You already have the fix in the repo:** `lib/queue.ts:16` `addEmailJob()` is fire-and-forget and

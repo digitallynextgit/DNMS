@@ -1,7 +1,7 @@
 /**
- * GET    /api/roles/:id  – fetch a single role with its full permission list
- * PATCH  /api/roles/:id  – update a role's displayName, description, and permissions
- * DELETE /api/roles/:id  – delete a non-system role
+ * GET    /api/roles/:id - fetch a single role with its full permission list
+ * PATCH  /api/roles/:id - update a role's displayName, description, and permissions
+ * DELETE /api/roles/:id - delete a non-system role
  *
  * Rules:
  *  - System roles (isSystem = true) cannot have their `name` changed.
@@ -136,7 +136,7 @@ export const PATCH = withAuth(
       return NextResponse.json({ data: freshRole ?? updatedRole })
     }
 
-    // No permission changes – just update the role metadata.
+    // No permission changes - just update the role metadata.
     const updatedRole = await db.role.update({
       where: { id },
       data: updateData,

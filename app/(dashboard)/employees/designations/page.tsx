@@ -357,7 +357,7 @@ export default function DesignationsPage() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="desig-level">Level (1–13)</Label>
+          <Label htmlFor="desig-level">Level (1 to 13)</Label>
           <Input
             id="desig-level"
             type="number"

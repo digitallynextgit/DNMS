@@ -1,5 +1,5 @@
 /**
- * Next.js Edge Proxy – authentication guard for the DNMS.
+ * Next.js Edge Proxy - authentication guard for the DNMS.
  *
  * Renamed from `middleware.ts` to `proxy.ts` (Next.js 16 convention).
  *
@@ -8,18 +8,18 @@
  * unconditionally; all other routes require an authenticated session.
  *
  * Public paths:
- *   /login                – sign-in page
- *   /forgot-password      – request OTP, verify, and set a new password
+ *   /login - sign-in page
+ *   /forgot-password - request OTP, verify, and set a new password
  *   /api/password/forgot|verify-otp|reset
- *                         – the forgot-password flow (self-protected by the
+ * - the forgot-password flow (self-protected by the
  *                           emailed OTP + the short-lived reset token). These
  *                           MUST be reachable while signed out.
- *   /api/auth/*           – NextAuth internal endpoints
- *   /api/cron/*           – cron jobs (self-protected by CRON_SECRET bearer token)
- *   /api/public/*         – headless public APIs (self-protected by X-API-Key)
- *   /_next/*              – Next.js static/image assets
- *   /favicon.ico          – browser favicon
- *   /public/*             – static public assets served from /public
+ *   /api/auth/* - NextAuth internal endpoints
+ *   /api/cron/* - cron jobs (self-protected by CRON_SECRET bearer token)
+ *   /api/public/* - headless public APIs (self-protected by X-API-Key)
+ *   /_next/* - Next.js static/image assets
+ *   /favicon.ico - browser favicon
+ *   /public/* - static public assets served from /public
  */
 import { auth } from "@/server/auth"
 import { NextResponse } from "next/server"

@@ -20,12 +20,12 @@ Example intro tone:
 Output rules:
 - Respond with a single JSON object only. No prose around it.
 - Use these exact keys: meta, summary, intro, jobEssence, keyRequirements, currentOpenings.
-- meta: short tag like "Mumbai · 3–5 yrs · Full-time" (≤ 60 chars). Optional, "" if unknown.
+- meta: short tag like "Mumbai · 3 to 5 yrs · Full-time" (≤ 60 chars). Optional, "" if unknown.
 - summary: one-line pitch (≤ 140 chars).
-- intro: 2–4 sentences in the example voice above. Mention the role title naturally.
-- jobEssence: 2–3 sentences. Plainly state what the role accomplishes.
-- keyRequirements: array of 5–8 strings. Concrete skills, tools, years of experience.
-- currentOpenings: array of 1–3 strings. Seniority variants, e.g. "Junior X (1-2 Years Exp)", "Senior X (3-5 Years Exp)", "Lead". Empty array [] is OK for internships/single openings.
+- intro: 2 to 4 sentences in the example voice above. Mention the role title naturally.
+- jobEssence: 2 to 3 sentences. Plainly state what the role accomplishes.
+- keyRequirements: array of 5 to 8 strings. Concrete skills, tools, years of experience.
+- currentOpenings: array of 1 to 3 strings. Seniority variants, e.g. "Junior X (1-2 Years Exp)", "Senior X (3-5 Years Exp)", "Lead". Empty array [] is OK for internships/single openings.
 `
 
 type Generated = {

@@ -7,6 +7,8 @@ export interface SeoConfig {
   siteUrl: string | null
   gaPropertyId: string | null
   moneyKeywords: string[]
+  /** The 5 to 10 pages that actually earn. Audits and vitals run against these. */
+  moneyPages: string[]
   competitors: string[]
   targetClicks: number | null
   targetPosition: number | null
@@ -65,6 +67,10 @@ export interface SeoOverview {
   /** Open work tagged to this site, so the report answers "what are we actually
    *  doing about it?" alongside the numbers. */
   tasks: SeoSiteTask[]
+  /** Every stored week, newest first, so the UI can offer a period picker. */
+  availablePeriods: { start: string; end: string }[]
+  /** How many weeks the numbers above cover. */
+  weeks: number
 }
 
 export interface SeoAlert {
@@ -157,4 +163,208 @@ export interface VitalsView {
   performanceScore: number | null
   verdict: "GOOD" | "NEEDS_IMPROVEMENT" | "POOR" | null
   checkedAt: string
+}
+
+export interface TechnicalIssue {
+  level: "critical" | "warning" | "info"
+  code: string
+  detail: string
+}
+
+export interface TechnicalPageAudit {
+  url: string
+  status: number
+  ok: boolean
+  title: string | null
+  titleLength: number
+  h1Count: number
+  metaDescription: string | null
+  canonical: string | null
+  noindex: boolean
+  schemaTypes: string[]
+  imagesMissingAlt: number
+  internalLinks: number
+  issues: TechnicalIssue[]
+}
+
+export interface TechnicalAuditView {
+  id: string
+  pagesChecked: number
+  criticalCount: number
+  warningCount: number
+  sitemapOk: boolean
+  robotsOk: boolean
+  sitemapUrls: number
+  pages: TechnicalPageAudit[]
+  siteIssues: TechnicalIssue[]
+  createdAt: string
+}
+
+export interface KeywordView {
+  id: string
+  query: string
+  impressions: number
+  clicks: number
+  position: number
+  ctr: number
+  intent: string
+  /** null = not yet assessed by a human. */
+  winnable: boolean | null
+  businessValue: number
+  score: number
+  status: string
+  taskId: string | null
+  notes: string | null
+  /** GSC means real Search Console data. COMPETITOR means mined from a rival's
+   *  pages, so there is no demand figure behind it unless we rank for it too. */
+  source: string
+  sourceDomain: string | null
+}
+
+// --- phase 4: competitor gap analysis ---------------------------------------
+
+export interface CompetitorReportView {
+  domain: string
+  ok: boolean
+  pagesCrawled: number
+  topics: { topic: string; url: string; title: string | null }[]
+}
+
+export interface CompetitorGapView {
+  topic: string
+  sampleTitle: string | null
+  competitor: string
+  sourceUrl: string
+}
+
+export interface CompetitorAuditView {
+  id: string
+  competitorsChecked: number
+  ourPagesChecked: number
+  gapCount: number
+  competitors: CompetitorReportView[]
+  gaps: CompetitorGapView[]
+  createdAt: string
+}
+
+// --- phase 5: content brief + QA loop ---------------------------------------
+
+export interface BriefQaCheck {
+  id: string
+  label: string
+  ok: boolean
+  detail: string
+}
+
+export interface BriefQa {
+  checkedAt: string
+  url: string
+  pass: boolean
+  score: number
+  checks: BriefQaCheck[]
+}
+
+export interface ContentBriefView {
+  id: string
+  keywordId: string | null
+  targetQuery: string
+  intent: string
+  status: string
+  outline: string[]
+  angle: string | null
+  notes: string | null
+  publishedUrl: string | null
+  publishedAt: string | null
+  qa: BriefQa | null
+  baselinePosition: number | null
+  reviewAt: string | null
+  reviewPosition: number | null
+  reviewOutcome: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// --- step 8: off-page / backlinks -------------------------------------------
+
+export interface ReferringDomainView {
+  domain: string
+  links: number
+  domainRating: number | null
+  firstSeen: string
+}
+
+export interface BacklinkSummaryView {
+  totalActive: number
+  totalLost: number
+  referringDomains: number
+  newDomains28d: number
+  domains: ReferringDomainView[]
+  lastImportAt: string | null
+}
+
+// --- step 9: daily accident monitor -----------------------------------------
+
+export interface MonitorIssueView {
+  url: string
+  level: "critical"
+  code: string
+  detail: string
+}
+
+export interface MonitorView {
+  status: "OK" | "ISSUES"
+  pagesOk: number
+  pagesTotal: number
+  issues: MonitorIssueView[]
+  checkedAt: string
+}
+
+// --- guided setup + AI assistance --------------------------------------------
+
+export type SetupAction =
+  | "EDIT_SITE"
+  | "SYNC"
+  | "KEYWORDS"
+  | "COMPETITORS"
+  | "TECHNICAL"
+  | "VITALS"
+  | "BACKLINKS"
+  | "SCORECARD"
+
+/** The one setting an EDIT_SITE step opens. */
+export type SetupField = "identity" | "gsc" | "keywords" | "pages" | "competitors" | "ga4"
+
+export interface SetupStepView {
+  id: string
+  title: string
+  description: string
+  done: boolean
+  optional: boolean
+  impact: string
+  action: SetupAction
+  field?: SetupField
+  aiAssist?: "keywords" | "competitors"
+}
+
+export interface SetupStateView {
+  steps: SetupStepView[]
+  completed: number
+  total: number
+  percent: number
+  nextStepId: string | null
+  /** Scorecard points currently unmeasurable because of missing configuration. */
+  lockedPoints: number
+}
+
+export interface KeywordSuggestionView {
+  keyword: string
+  intent: string
+  reason: string
+  /** True when the site already gets impressions for it - the safest picks. */
+  fromSearchConsole: boolean
+}
+
+export interface CompetitorSuggestionView {
+  domain: string
+  reason: string
 }

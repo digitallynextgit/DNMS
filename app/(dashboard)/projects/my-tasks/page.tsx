@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type CSSProperties } from "react"
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd"
 import { useUrlPage } from "@/hooks/use-url-state"
 import { useUpdateEffect } from "@/hooks/use-update-effect"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
-import { AlertTriangle, Clock, Inbox } from "lucide-react"
+import { AlertTriangle, Clock, GripVertical, Inbox } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -33,6 +34,7 @@ import {
 import { formatDate, cn } from "@/lib/utils"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
+import { TaskStatusReasonDialog } from "@/features/projects/components/task-status-reason-dialog"
 import { TaskCreateDialog } from "@/features/projects/components/task-create-dialog"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
@@ -427,9 +429,26 @@ export default function MyTasksPage() {
   )
 }
 
-/** Kanban-style board of the current user's tasks, grouped by workflow status.
- *  Each card can change its own status (with the On Hold / Discarded reason
- *  prompt) via the shared TaskStatusSelect. */
+/** Colour per column, matching the project board so the two read the same. */
+const BOARD_COLUMNS: Record<string, string> = {
+  TODO: "bg-slate-100 dark:bg-slate-800/50",
+  IN_PROGRESS: "bg-blue-50 dark:bg-blue-950/30",
+  DONE: "bg-emerald-50 dark:bg-emerald-950/30",
+  ON_HOLD: "bg-amber-50 dark:bg-amber-950/30",
+  DISCARDED: "bg-red-50 dark:bg-red-950/30",
+}
+
+/**
+ * Kanban board of the current user's tasks, grouped by workflow status.
+ *
+ * Drag a card between columns to change its status, the same interaction the
+ * project board uses. Moving to On Hold or Discarded pauses for the required
+ * reason before committing, so a drag can never write an incomplete record.
+ *
+ * The status dropdown stays on every card: dragging is not reachable by keyboard
+ * for every user, and it is the only way to change status on a touch device
+ * where the board scrolls horizontally.
+ */
 function MyTasksBoard({
   tasks,
   onCommit,
@@ -437,72 +456,201 @@ function MyTasksBoard({
   tasks: MyTask[]
   onCommit: (id: string, payload: Record<string, unknown>) => void
 }) {
+  const qc = useQueryClient()
+  // A drag onto On Hold / Discarded waits here while the reason is collected.
+  const [pendingDrag, setPendingDrag] = useState<{
+    taskId: string
+    mode: "ON_HOLD" | "DISCARDED"
+  } | null>(null)
+
+  /** Move the card immediately, then persist. The board would otherwise snap
+   *  back to the old column until the request returned. */
+  function commit(taskId: string, payload: Record<string, unknown>) {
+    qc.setQueryData(["my-tasks"], (old: { data: MyTask[] } | undefined) =>
+      old
+        ? {
+            ...old,
+            data: old.data.map((t) =>
+              t.id === taskId ? { ...t, status: payload.status as string } : t,
+            ),
+          }
+        : old,
+    )
+    onCommit(taskId, payload)
+  }
+
+  function onDragEnd(result: DropResult) {
+    const { destination, source, draggableId } = result
+    if (!destination || destination.droppableId === source.droppableId) return
+
+    const next = destination.droppableId
+    if (next === "ON_HOLD" || next === "DISCARDED") {
+      setPendingDrag({ taskId: draggableId, mode: next })
+      return
+    }
+    commit(draggableId, { status: next })
+  }
+
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
-      {TASK_WORKFLOW_STATUSES.map((status) => {
-        const col = tasks.filter((t) => t.status === status)
-        return (
-          <div key={status} className="w-64 shrink-0">
-            <div className="mb-2 flex items-center justify-between px-1">
-              <span className="text-xs font-semibold tracking-wide uppercase">
-                {TASK_STATUS_LABELS[status] ?? status}
-              </span>
-              <span className="text-muted-foreground text-xs">{col.length}</span>
-            </div>
-            <div className="space-y-2">
-              {col.length === 0 ? (
-                <div className="text-muted-foreground rounded border border-dashed py-6 text-center text-xs">
-                  Empty
+    <>
+      <DragDropContext onDragEnd={onDragEnd}>
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {TASK_WORKFLOW_STATUSES.map((status) => {
+            const col = tasks.filter((t) => t.status === status)
+            return (
+              <div key={status} className="flex w-72 shrink-0 flex-col">
+                <div className="mb-2 flex items-center justify-between px-1">
+                  <span className="text-xs font-semibold tracking-wide uppercase">
+                    {TASK_STATUS_LABELS[status] ?? status}
+                  </span>
+                  <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+                    {col.length}
+                  </Badge>
                 </div>
-              ) : (
-                col.map((task) => {
-                  const locked =
-                    task.approvalStatus === "PENDING_APPROVAL" || task.approvalStatus === "REJECTED"
-                  const isOverdue =
-                    task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "DONE"
-                  return (
-                    <div key={task.id} className="bg-card space-y-2 rounded border p-2.5">
-                      <p className="text-sm font-medium">{task.title}</p>
-                      <Link
-                        href={`/projects/${task.project.id}`}
-                        className="text-muted-foreground block truncate text-xs hover:underline"
-                      >
-                        {task.project.name}
-                      </Link>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <StatusBadge
-                          status={task.priority}
-                          colorMap={TASK_PRIORITY_COLORS}
-                          labelMap={TASK_PRIORITY_LABELS}
-                          size="xs"
-                        />
-                        {task.dueDate && (
-                          <span
-                            className={cn(
-                              "text-[11px]",
-                              isOverdue
-                                ? "text-red-600 dark:text-red-400"
-                                : "text-muted-foreground",
-                            )}
+
+                <Droppable droppableId={status}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={cn(
+                        "min-h-32 flex-1 space-y-2 rounded p-2 transition-colors",
+                        BOARD_COLUMNS[status] ?? "bg-muted/40",
+                        snapshot.isDraggingOver && "ring-primary/50 ring-2",
+                      )}
+                    >
+                      {col.map((task, index) => {
+                        const locked =
+                          task.approvalStatus === "PENDING_APPROVAL" ||
+                          task.approvalStatus === "REJECTED"
+                        const isOverdue =
+                          task.dueDate &&
+                          new Date(task.dueDate) < new Date() &&
+                          task.status !== "DONE"
+
+                        return (
+                          <Draggable
+                            key={task.id}
+                            draggableId={task.id}
+                            index={index}
+                            // A task awaiting approval or already rejected must not
+                            // be moved by dragging past the approval gate.
+                            isDragDisabled={locked}
                           >
-                            {formatDate(task.dueDate)}
-                          </span>
-                        )}
-                      </div>
-                      <TaskStatusSelect
-                        value={task.status}
-                        disabled={locked}
-                        triggerClassName="h-7 w-full text-xs"
-                        onCommit={(payload) => onCommit(task.id, { ...payload })}
-                      />
+                            {(drag, snap) => (
+                              <div
+                                ref={drag.innerRef}
+                                {...drag.draggableProps}
+                                style={drag.draggableProps.style as CSSProperties}
+                                className={cn(
+                                  "bg-card space-y-2 rounded border p-2.5 shadow-sm transition-shadow",
+                                  !locked && "hover:border-primary/40 hover:shadow-md",
+                                  snap.isDragging && "ring-primary/50 rotate-1 shadow-lg ring-2",
+                                  locked && "opacity-70",
+                                  isOverdue && "border-red-300 dark:border-red-900/60",
+                                )}
+                              >
+                                <div className="flex items-start gap-1.5">
+                                  <span
+                                    {...drag.dragHandleProps}
+                                    aria-label={locked ? "Locked" : `Drag ${task.title}`}
+                                    className={cn(
+                                      "mt-0.5 shrink-0",
+                                      locked
+                                        ? "cursor-not-allowed"
+                                        : "text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing",
+                                    )}
+                                  >
+                                    <GripVertical className="h-3.5 w-3.5" />
+                                  </span>
+                                  {/* Full title, wrapped rather than clipped. A task
+                                      you cannot read is a task you cannot action. */}
+                                  <p className="min-w-0 flex-1 text-sm leading-snug font-medium break-words">
+                                    {task.title}
+                                  </p>
+                                </div>
+
+                                <Link
+                                  href={`/projects/${task.project.id}`}
+                                  className="text-muted-foreground block truncate pl-5 text-xs hover:underline"
+                                  title={task.project.name}
+                                >
+                                  {task.project.name}
+                                </Link>
+
+                                <div className="flex flex-wrap items-center gap-1.5 pl-5">
+                                  <StatusBadge
+                                    status={task.priority}
+                                    colorMap={TASK_PRIORITY_COLORS}
+                                    labelMap={TASK_PRIORITY_LABELS}
+                                    size="xs"
+                                  />
+                                  {task.dueDate && (
+                                    <span
+                                      className={cn(
+                                        "text-[11px]",
+                                        isOverdue
+                                          ? "font-medium text-red-600 dark:text-red-400"
+                                          : "text-muted-foreground",
+                                      )}
+                                    >
+                                      {isOverdue && (
+                                        <AlertTriangle className="mr-0.5 inline h-3 w-3" />
+                                      )}
+                                      {formatDate(task.dueDate)}
+                                    </span>
+                                  )}
+                                  {task.approvalStatus === "PENDING_APPROVAL" && (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-amber-300 py-0 text-[10px] text-amber-700"
+                                    >
+                                      <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                      Pending
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                <TaskStatusSelect
+                                  value={task.status}
+                                  disabled={locked}
+                                  triggerClassName="h-7 w-full text-xs"
+                                  onCommit={(payload) => commit(task.id, { ...payload })}
+                                />
+                              </div>
+                            )}
+                          </Draggable>
+                        )
+                      })}
+                      {provided.placeholder}
+                      {col.length === 0 && !snapshot.isDraggingOver && (
+                        <p className="text-muted-foreground/60 py-6 text-center text-[11px]">
+                          Drop a task here
+                        </p>
+                      )}
                     </div>
-                  )
-                })
-              )}
-            </div>
-          </div>
-        )
-      })}
-    </div>
+                  )}
+                </Droppable>
+              </div>
+            )
+          })}
+        </div>
+      </DragDropContext>
+
+      <TaskStatusReasonDialog
+        mode={pendingDrag?.mode ?? null}
+        onOpenChange={(open) => {
+          if (!open) {
+            // Cancelled: refetch so the card returns to the column it came from.
+            qc.invalidateQueries({ queryKey: ["my-tasks"] })
+            setPendingDrag(null)
+          }
+        }}
+        onConfirm={(payload) => {
+          if (pendingDrag) commit(pendingDrag.taskId, { ...payload })
+          setPendingDrag(null)
+        }}
+      />
+    </>
   )
 }

@@ -5,6 +5,8 @@ import { syncSeoProperty } from "@/features/seo/server/seo.service"
 import { getSeoOverview } from "@/features/seo/server/seo.queries"
 import { runVitalsCheck, runTrafficSync } from "@/features/seo/server/seo.vitals.service"
 import { buildScorecard } from "@/features/seo/server/seo.scorecard"
+import { runTechnicalAudit } from "@/features/seo/server/seo.technical.service"
+import { runContentReviews } from "@/features/seo/server/seo.content.service"
 import { isGscConfigured } from "@/lib/gsc"
 
 // Weekly Search Console pull for every active SEO property, then the monitoring
@@ -83,9 +85,33 @@ export async function GET(req: NextRequest) {
         console.error("[SEO_WEEKLY] ga4", p.domain, e)
       }
       try {
+        await runTechnicalAudit(p.id)
+      } catch (e) {
+        console.error("[SEO_WEEKLY] technical", p.domain, e)
+      }
+      // Scorecard LAST - it reads whatever vitals, GA4 and the audit just stored.
+      try {
         await buildScorecard(p.id)
       } catch (e) {
         console.error("[SEO_WEEKLY] scorecard", p.domain, e)
+      }
+
+      // 30-day content checks (plan step 7, point 6): now that this week's
+      // Search Console data is stored, settle any briefs whose review is due.
+      try {
+        const review = await runContentReviews(p.id)
+        if (review.reviewed > 0 && p.project.ownerId) {
+          await createNotification({
+            employeeId: p.project.ownerId,
+            title: `SEO content results - ${site}`,
+            message: `${review.reviewed} page${review.reviewed > 1 ? "s" : ""} hit their 30-day check: ${review.won} improved, ${review.flat} flat, ${review.lost} slipped.`,
+            type: review.lost > review.won ? "warning" : "success",
+            link: `/projects/${p.projectId}?tab=seo`,
+          })
+          notified++
+        }
+      } catch (e) {
+        console.error("[SEO_WEEKLY] content-review", p.domain, e)
       }
 
       const overview = await getSeoOverview(p.id)

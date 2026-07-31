@@ -195,7 +195,7 @@ export function TaskCreateDialog({
                 <SelectItem value="all">Whole project</SelectItem>
                 {sites.map((site) => (
                   <SelectItem key={site.id} value={site.id}>
-                    {site.label} — {site.domain}
+                    {site.label} - {site.domain}
                   </SelectItem>
                 ))}
               </SelectContent>

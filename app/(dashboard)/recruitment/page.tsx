@@ -654,7 +654,7 @@ export default function RecruitmentPage() {
               <Input
                 value={form.meta}
                 onChange={(e) => setForm((f) => ({ ...f, meta: e.target.value }))}
-                placeholder="e.g. Mumbai · 3–5 yrs"
+                placeholder="e.g. Mumbai · 3 to 5 yrs"
               />
             </div>
             <div className="space-y-2">
@@ -694,7 +694,7 @@ export default function RecruitmentPage() {
               value={form.keyRequirements}
               onChange={(e) => setForm((f) => ({ ...f, keyRequirements: e.target.value }))}
               placeholder={
-                "3–5 years of experience\nStrong communication skills\nFamiliarity with AI tools"
+                "3 to 5 years of experience\nStrong communication skills\nFamiliarity with AI tools"
               }
             />
           </div>

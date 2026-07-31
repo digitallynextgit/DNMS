@@ -107,7 +107,7 @@ function addMonths(d: Date, n: number): Date {
 /**
  * Eligible months in `year` = from accrual start to year-end (Dec). Used to
  * PRORATE the annual entitlement for someone eligible only part of the year, e.g.
- * probation ending 01 Jun → eligible Jun–Dec = 7 months → 7/12 of the entitlement.
+ * probation ending 01 Jun → eligible Jun-Dec = 7 months → 7/12 of the entitlement.
  * Confirmed for the whole year → 12.
  */
 export function eligibleMonthsInYear(year: number, startDate: Date | null): number {

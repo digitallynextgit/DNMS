@@ -541,7 +541,7 @@ function CreateTeamDialog({
         />
       </div>
       <p className="text-muted-foreground text-xs">
-        Add people once it exists — the first person can then be made manager.
+        Add people once it exists - the first person can then be made manager.
       </p>
     </FormDialog>
   )
