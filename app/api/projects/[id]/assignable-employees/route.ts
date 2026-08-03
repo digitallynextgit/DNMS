@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withProjectManager } from "@/features/projects/server/project-access"
+import { withTeamStaffing } from "@/features/projects/server/project-access"
 import { HIDDEN_ROLES } from "@/lib/constants"
 import type { Session } from "next-auth"
 
@@ -14,8 +14,11 @@ import type { Session } from "next-auth"
 // empty for them and they couldn't staff their own team. Granting them
 // `employee:read` would have handed every project owner the full HR directory,
 // so this returns the bare minimum needed to identify a colleague, and only to
-// someone who can already manage THIS project.
-export const GET = withProjectManager(
+// someone who can already staff a team in THIS project.
+//
+// Team managers are included: the add/remove member routes have always accepted
+// them, but this roster did not, so their picker came back 403 and empty.
+export const GET = withTeamStaffing(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const employees = await db.employee.findMany({

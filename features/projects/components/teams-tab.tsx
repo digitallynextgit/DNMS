@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
+import { CheckboxVisual } from "@/components/ui/checkbox"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
@@ -655,13 +655,15 @@ function AddMembersDialog({
               <button
                 key={e.id}
                 type="button"
+                role="checkbox"
+                aria-checked={checked}
                 onClick={() => toggle(e.id)}
                 className={cn(
                   "hover:bg-muted/50 flex w-full items-center gap-3 p-2.5 text-left",
                   checked && "bg-accent/60",
                 )}
               >
-                <Checkbox checked={checked} className="pointer-events-none shrink-0" />
+                <CheckboxVisual checked={checked} />
                 <AvatarDisplay
                   src={e.profilePhoto}
                   firstName={e.firstName}

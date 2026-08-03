@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { canManageProject, withProjectAccess } from "@/features/projects/server/project-access"
+import { canStaffTeam, withProjectAccess } from "@/features/projects/server/project-access"
 import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
@@ -55,11 +55,12 @@ export const POST = withSession(
         return NextResponse.json({ error: "Team not found" }, { status: 404 })
       }
 
-      // Authorisation: Admin OR current team's manager
-      const isAdmin = await canManageProject(session, projectId)
-      const isManagerOfThisTeam = team.managerId === session.user.id
-      if (!isAdmin && !isManagerOfThisTeam) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      // Authorisation: project admin / Account Manager OR THIS team's manager
+      if (!(await canStaffTeam(session, projectId, teamId))) {
+        return NextResponse.json(
+          { error: "Only a project admin, the Account Manager or this team's manager can do this" },
+          { status: 403 },
+        )
       }
 
       // Already on another team in the same project?

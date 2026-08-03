@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
+import { CheckboxVisual } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { CompetitorSuggestionView, KeywordSuggestionView } from "../types"
@@ -190,13 +190,15 @@ export function AiSuggestDialog({
               <button
                 key={item.key}
                 type="button"
+                role="checkbox"
+                aria-checked={on}
                 onClick={() => toggle(item.key)}
                 className={cn(
                   "flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors",
                   on ? "border-primary/50 bg-primary/5" : "hover:bg-muted/50",
                 )}
               >
-                <Checkbox checked={on} className="pointer-events-none mt-0.5 shrink-0" />
+                <CheckboxVisual checked={on} className="mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium">{item.primary}</span>

@@ -55,6 +55,31 @@ export async function canAccessProject(session: Session, projectId: string): Pro
   return !!project
 }
 
+/**
+ * Who may STAFF a team (add/remove its members)?
+ *   • anyone who can manage the project (see canManageProject), OR
+ *   • the manager of a team inside it.
+ *
+ * A team manager is usually a plain employee - a Design Lead has no
+ * `project:write` and does not own the project - but they are the person who
+ * actually knows who should be on their team, so they staff it themselves.
+ * Pass `teamId` to check one specific team; omit it to ask "do they manage ANY
+ * team here", which is what the shared member picker needs.
+ */
+export async function canStaffTeam(
+  session: Session,
+  projectId: string,
+  teamId?: string,
+): Promise<boolean> {
+  if (await canManageProject(session, projectId)) return true
+  if (!projectId) return false
+  const team = await db.projectTeam.findFirst({
+    where: { projectId, managerId: session.user.id, ...(teamId ? { id: teamId } : {}) },
+    select: { id: true },
+  })
+  return !!team
+}
+
 type ProjectHandler = (
   req: NextRequest,
   ctx: { params: Record<string, string> },
@@ -71,6 +96,24 @@ export function withProjectManager(handler: ProjectHandler) {
     if (!(await canManageProject(session, projectId))) {
       return NextResponse.json(
         { error: "Only the Account Manager or a project admin can do this" },
+        { status: 403 },
+      )
+    }
+    return handler(req, ctx, session)
+  })
+}
+
+/**
+ * Route guard for the team-staffing surface: allows `project:write` holders, the
+ * project's Account Manager, AND any team manager inside the project. Expects
+ * the project id at `ctx.params.id` and, when the route is team-scoped, the team
+ * id at `ctx.params.teamId`.
+ */
+export function withTeamStaffing(handler: ProjectHandler) {
+  return withSession(async (req, ctx, session) => {
+    if (!(await canStaffTeam(session, ctx.params.id, ctx.params.teamId))) {
+      return NextResponse.json(
+        { error: "Only a project admin, the Account Manager or a team manager can do this" },
         { status: 403 },
       )
     }

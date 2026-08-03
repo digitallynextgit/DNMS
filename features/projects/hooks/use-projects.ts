@@ -358,6 +358,9 @@ export function useAddTeamMembers(projectId: string, teamId: string) {
     mutationFn: async (employeeIds: string[]) => {
       let added = 0
       const failed: string[] = []
+      // Keep the first real reason - "already on the Design team" and "forbidden"
+      // need different actions, and a bare count tells you neither.
+      let reason: string | undefined
       for (const employeeId of employeeIds) {
         try {
           await apiFetch(`/api/projects/${projectId}/teams/${teamId}/members`, {
@@ -366,15 +369,16 @@ export function useAddTeamMembers(projectId: string, teamId: string) {
             body: JSON.stringify({ employeeId }),
           })
           added++
-        } catch {
+        } catch (e) {
           failed.push(employeeId)
+          reason ??= e instanceof Error ? e.message : undefined
         }
       }
-      return { added, failed }
+      return { added, failed, reason }
     },
-    onSuccess: ({ added, failed }) => {
+    onSuccess: ({ added, failed, reason }) => {
       if (added > 0) toast.success(`${added} ${added === 1 ? "person" : "people"} added`)
-      if (failed.length) toast.error(`${failed.length} could not be added`)
+      if (failed.length) toast.error(`${failed.length} could not be added`, { description: reason })
       qc.invalidateQueries({ queryKey: ["project-teams", projectId] })
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Could not add members"),

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { canManageProject } from "@/features/projects/server/project-access"
+import { canStaffTeam } from "@/features/projects/server/project-access"
 import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
@@ -27,11 +27,12 @@ export const DELETE = withSession(
       const member = team.members.find((m) => m.id === memberId)
       if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 })
 
-      // Authorisation: Admin OR this team's manager
-      const isAdmin = await canManageProject(session, projectId)
-      const isManagerOfThisTeam = team.managerId === session.user.id
-      if (!isAdmin && !isManagerOfThisTeam) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      // Authorisation: project admin / Account Manager OR THIS team's manager
+      if (!(await canStaffTeam(session, projectId, teamId))) {
+        return NextResponse.json(
+          { error: "Only a project admin, the Account Manager or this team's manager can do this" },
+          { status: 403 },
+        )
       }
 
       // Manager swap rule

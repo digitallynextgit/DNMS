@@ -87,6 +87,7 @@ const PasswordsTab = dynamic(() => import("@/features/projects").then((m) => m.P
 
 const PROJECT_TABS = [
   "overview",
+  "progress",
   "brand",
   "drive",
   "integration",
