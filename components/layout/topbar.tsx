@@ -87,7 +87,7 @@ export function Topbar({ session }: { session: Session }) {
           >
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
-              <span className="bg-destructive absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] leading-none font-semibold text-white">
+              <span className="bg-destructive absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded px-1 text-[9px] leading-none font-semibold text-white">
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
@@ -104,9 +104,8 @@ export function Topbar({ session }: { session: Session }) {
                 src={profilePhoto}
                 firstName={firstName}
                 lastName={lastName}
-                size="xs"
+                size="chip"
                 fallbackClassName="bg-foreground text-background"
-                className="h-6 w-6"
               />
               <span className="hidden text-sm font-medium md:block">
                 {firstName} {lastName}
@@ -121,9 +120,8 @@ export function Topbar({ session }: { session: Session }) {
                   src={profilePhoto}
                   firstName={firstName}
                   lastName={lastName}
-                  size="xs"
+                  size="chip"
                   fallbackClassName="bg-foreground text-background"
-                  className="h-7 w-7"
                 />
                 <div>
                   <p className="text-sm leading-tight font-medium">

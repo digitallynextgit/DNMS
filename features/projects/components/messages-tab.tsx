@@ -156,7 +156,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
             />
           ) : (
             <div className="hidden h-full w-full flex-col items-center justify-center gap-2 md:flex">
-              <div className="bg-muted flex h-14 w-14 items-center justify-center rounded-full">
+              <div className="bg-muted flex h-14 w-14 items-center justify-center rounded">
                 <MessageSquare className="text-muted-foreground h-6 w-6" />
               </div>
               <p className="text-sm font-medium">Project chat</p>
@@ -432,7 +432,7 @@ function ChatView({
         </div>
         <Button
           size="icon"
-          className="h-10 w-10 shrink-0 rounded-full"
+          className="h-10 w-10 shrink-0 rounded"
           disabled={!content.trim() || create.isPending}
           onClick={send}
           title="Send"

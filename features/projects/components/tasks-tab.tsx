@@ -341,8 +341,7 @@ function TaskRow({
                 <AvatarDisplay
                   firstName={task.assignee.firstName}
                   lastName={task.assignee.lastName}
-                  size="xs"
-                  className="h-4 w-4"
+                  size="2xs"
                 />
                 {task.assignee.firstName}
               </span>

@@ -61,7 +61,7 @@ function ProfileSkeleton() {
       <PageHeader
         backHref="/employees/employee-directory"
         backLabel="Back to Employees"
-        leading={<Skeleton className="h-12 w-12 shrink-0 rounded-full" />}
+        leading={<Skeleton className="h-12 w-12 shrink-0 rounded" />}
         title={<Skeleton className="h-6 w-48" />}
         description={<Skeleton className="h-4 w-64" />}
       />
@@ -150,6 +150,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
                 employeeId={emp.id}
                 status={emp.status}
                 hasPhoto={!!emp.profilePhoto}
+                profilePhoto={emp.profilePhoto}
               />
             </div>
           )

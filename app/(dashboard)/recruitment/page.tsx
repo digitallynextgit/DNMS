@@ -343,7 +343,7 @@ export default function RecruitmentPage() {
             key={s}
             onClick={() => setStatusFilter(s)}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+              "rounded px-3 py-1 text-xs font-medium transition-colors",
               statusFilter === s
                 ? "bg-foreground text-background"
                 : "bg-muted text-muted-foreground hover:text-foreground",

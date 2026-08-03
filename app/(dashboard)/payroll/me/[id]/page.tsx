@@ -44,7 +44,7 @@ export default function MyPayslipPage({ params }: { params: Promise<{ id: string
                 labelMap={PAYROLL_STATUS_LABELS}
               />
             ) : (
-              <Skeleton className="h-5 w-20 rounded-full" />
+              <Skeleton className="h-5 w-20 rounded" />
             )}
             <Button size="sm" disabled={!record} onClick={() => window.print()} className="gap-2">
               <Download className="h-4 w-4" />

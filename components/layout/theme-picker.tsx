@@ -59,7 +59,7 @@ function ThemeCard({
         )}
         <div className="relative flex gap-1.5">
           <span
-            className="h-6 w-6 rounded-full shadow-sm"
+            className="h-6 w-6 rounded shadow-sm"
             style={
               theme.gradient
                 ? {
@@ -69,11 +69,11 @@ function ThemeCard({
             }
           />
           <span
-            className="h-6 w-6 rounded-full shadow-sm"
+            className="h-6 w-6 rounded shadow-sm"
             style={{ backgroundColor: theme.swatchAccent }}
           />
           <span
-            className="h-6 w-6 rounded-full border border-white/20 shadow-sm"
+            className="h-6 w-6 rounded border border-white/20 shadow-sm"
             style={{ backgroundColor: theme.swatchBg }}
           />
         </div>

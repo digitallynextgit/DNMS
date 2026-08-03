@@ -234,7 +234,7 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
                 type="button"
                 onClick={() => handleRemoveField(field)}
                 disabled={isSubmitting}
-                className="text-muted-foreground hover:bg-background hover:text-foreground ml-0.5 rounded-full p-0.5"
+                className="text-muted-foreground hover:bg-background hover:text-foreground ml-0.5 rounded p-0.5"
                 aria-label={`Remove ${field}`}
               >
                 <X className="h-3 w-3" />

@@ -828,12 +828,12 @@ function SiteReport({
               <TabsTrigger key={value} value={value} className="gap-1.5">
                 <Icon className="h-3.5 w-3.5" /> {label}
                 {value === "start" && needsSetup && (
-                  <span className="bg-primary text-primary-foreground ml-0.5 rounded-full px-1.5 text-[10px] leading-4">
+                  <span className="bg-primary text-primary-foreground ml-0.5 rounded px-1.5 text-[10px] leading-4">
                     {setup!.total - setup!.completed}
                   </span>
                 )}
                 {value === "work" && o.tasks.length > 0 && (
-                  <span className="bg-muted ml-0.5 rounded-full px-1.5 text-[10px] leading-4">
+                  <span className="bg-muted ml-0.5 rounded px-1.5 text-[10px] leading-4">
                     {o.tasks.length}
                   </span>
                 )}

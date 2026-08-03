@@ -166,6 +166,7 @@ export default function ProfilePage() {
           <ProfileSelfActions
             employeeId={emp.id}
             hasPhoto={!!emp.profilePhoto}
+            profilePhoto={emp.profilePhoto}
             status={emp.status}
           />
         }

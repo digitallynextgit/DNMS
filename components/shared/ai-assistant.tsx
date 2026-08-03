@@ -76,7 +76,7 @@ export function AiAssistant() {
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Open AI assistant"
-          className="bg-primary text-primary-foreground fixed right-5 bottom-5 z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105"
+          className="bg-primary text-primary-foreground fixed right-5 bottom-5 z-50 flex h-12 w-12 items-center justify-center rounded shadow-lg transition-transform hover:scale-105"
         >
           <Sparkles className="h-5 w-5" />
         </button>
@@ -125,7 +125,7 @@ export function AiAssistant() {
                       key={s}
                       type="button"
                       onClick={() => void send(s)}
-                      className="hover:bg-accent rounded-full border px-2.5 py-1 text-xs"
+                      className="hover:bg-accent rounded border px-2.5 py-1 text-xs"
                     >
                       {s}
                     </button>

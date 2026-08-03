@@ -369,7 +369,7 @@ export default function JobPipelinePage() {
                 {/* Column header */}
                 <div className="mb-3 flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
-                    <span className={cn("h-2 w-2 flex-shrink-0 rounded-full", cfg.dot)} />
+                    <span className={cn("h-2 w-2 flex-shrink-0 rounded", cfg.dot)} />
                     <span className={cn("text-sm font-semibold", cfg.color)}>{cfg.label}</span>
                   </div>
                   {isLoading ? (

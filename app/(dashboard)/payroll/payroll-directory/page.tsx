@@ -319,7 +319,7 @@ export default function PayrollPage() {
             <span
               key={s}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium",
+                "inline-flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium",
                 color,
               )}
             >

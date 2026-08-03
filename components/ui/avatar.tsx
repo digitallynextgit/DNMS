@@ -9,7 +9,7 @@ const Avatar = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Root
     ref={ref}
-    className={cn("relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full", className)}
+    className={cn("relative flex h-10 w-10 shrink-0 overflow-hidden rounded", className)}
     {...props}
   />
 ))
@@ -34,7 +34,10 @@ const AvatarFallback = React.forwardRef<
   <AvatarPrimitive.Fallback
     ref={ref}
     className={cn(
-      "bg-muted flex h-full w-full items-center justify-center rounded-full text-sm font-medium",
+      // leading-none is load-bearing: without it the fallback keeps text-sm's
+      // 20px line-height, which in an h-5 (20px) avatar makes the glyph box
+      // exactly fill the container - the initials then sit ON the border.
+      "bg-muted flex h-full w-full items-center justify-center rounded text-sm leading-none font-medium tracking-tight select-none",
       className,
     )}
     {...props}

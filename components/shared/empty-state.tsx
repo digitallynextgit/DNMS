@@ -36,7 +36,7 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="bg-accent flex items-center justify-center rounded-full p-3">
+      <div className="bg-accent flex items-center justify-center rounded p-3">
         <Icon className="text-muted-foreground h-5 w-5" />
       </div>
       <div className="space-y-1">

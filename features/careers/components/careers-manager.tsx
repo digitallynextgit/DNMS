@@ -57,10 +57,7 @@ function StatusDot({ status }: { status: CareerRowStatus }) {
   return (
     <span
       aria-label={live ? "Published" : "Draft"}
-      className={cn(
-        "h-2 w-2 shrink-0 rounded-full",
-        live ? "bg-primary" : "bg-muted-foreground/40",
-      )}
+      className={cn("h-2 w-2 shrink-0 rounded", live ? "bg-primary" : "bg-muted-foreground/40")}
     />
   )
 }

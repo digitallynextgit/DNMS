@@ -108,7 +108,7 @@ export default function EmployeeAttendancePage() {
               size="md"
             />
           ) : (
-            <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+            <Skeleton className="h-10 w-10 shrink-0 rounded" />
           )
         }
         title={employee ? fullName : <Skeleton className="h-6 w-40" />}

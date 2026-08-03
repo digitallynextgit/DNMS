@@ -153,8 +153,7 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
                 src={task.assignee.profilePhoto}
                 firstName={task.assignee.firstName}
                 lastName={task.assignee.lastName}
-                size="xs"
-                className="h-6 w-6"
+                size="chip"
                 fallbackClassName="bg-primary/10 text-primary"
               />
               <span className="text-muted-foreground text-xs">
@@ -299,10 +298,10 @@ function ChecklistSection({ taskId }: { taskId: string }) {
 
       {/* Progress bar */}
       {total > 0 && (
-        <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+        <div className="bg-muted h-1.5 overflow-hidden rounded">
           <div
             className={cn(
-              "h-full rounded-full transition-all duration-300",
+              "h-full rounded transition-all duration-300",
               pct === 100 ? "bg-emerald-500" : "bg-primary",
             )}
             style={{ width: `${pct}%` }}
@@ -405,7 +404,7 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
         <MessageSquare className="text-muted-foreground h-3.5 w-3.5" />
         <span className="text-xs font-semibold">Comments</span>
         {comments.length > 0 && (
-          <Badge variant="secondary" className="h-4 rounded-full px-1.5 text-[10px]">
+          <Badge variant="secondary" className="h-4 rounded px-1.5 text-[10px]">
             {comments.length}
           </Badge>
         )}
@@ -434,8 +433,8 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
                   src={c.author.profilePhoto}
                   firstName={c.author.firstName}
                   lastName={c.author.lastName}
-                  size="xs"
-                  className="ring-background mt-0.5 h-7 w-7 shrink-0 ring-2"
+                  size="chip"
+                  className="ring-background mt-0.5 shrink-0 ring-2"
                   fallbackClassName="bg-primary/10 text-primary"
                 />
                 <div className="min-w-0 flex-1">

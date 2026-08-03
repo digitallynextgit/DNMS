@@ -25,7 +25,7 @@ interface StatusBadgeProps {
  * One pill renderer for every status/badge in the app. Pass a color map (and
  * usually a label map) from `lib/constants.ts` - e.g.
  *   <StatusBadge status={req.status} colorMap={LEAVE_STATUS_COLORS} labelMap={LEAVE_STATUS_LABELS} />
- * Replaces the ~55 hand-copied `<span className="… rounded-full …">` pills.
+ * Replaces the ~55 hand-copied `<span className="… rounded …">` pills.
  */
 export function StatusBadge({
   status,
@@ -46,8 +46,8 @@ export function StatusBadge({
         size === "button"
           ? "h-8 rounded border border-current/20 px-3 text-sm"
           : size === "xs"
-            ? "rounded-full px-2 py-0.5 text-[10px]"
-            : "rounded-full px-2.5 py-0.5 text-xs",
+            ? "rounded px-2 py-0.5 text-[10px]"
+            : "rounded px-2.5 py-0.5 text-xs",
         color,
         className,
       )}

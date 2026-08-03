@@ -5,6 +5,7 @@ import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { isB2Configured, uploadFile, deleteFile, getObjectKey, getSignedUrl } from "@/lib/storage"
+import { avatarPath, isValidAvatarId } from "@/lib/avatars"
 import type { Session } from "next-auth"
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
@@ -177,6 +178,47 @@ export const POST = withSession(
       return NextResponse.json({ data: { url } })
     } catch (error) {
       console.error("[EMPLOYEE_PHOTO_POST]", error)
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    }
+  },
+)
+
+/**
+ * PUT /api/employees/[id]/photo - pick one of the preset avatars.
+ *
+ * Body: { avatarId: "av-07" }. Stores the public path in profilePhoto and clears
+ * profilePhotoKey, so a preset needs no bucket object at all - and any photo the
+ * employee had uploaded before is reclaimed.
+ */
+export const PUT = withSession(
+  async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
+    try {
+      const { id } = ctx.params
+      if (!canEdit(session, id)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+
+      const { avatarId } = await req.json()
+      if (!isValidAvatarId(avatarId)) {
+        return NextResponse.json({ error: "Unknown avatar" }, { status: 422 })
+      }
+
+      const existing = await db.employee.findUnique({
+        where: { id },
+        select: { profilePhotoKey: true },
+      })
+
+      await db.employee.update({
+        where: { id },
+        data: { profilePhoto: avatarPath(avatarId), profilePhotoKey: null },
+      })
+
+      invalidatePhotoCaches(id, existing?.profilePhotoKey)
+      await deleteQuietly(existing?.profilePhotoKey)
+
+      return NextResponse.json({ data: { url: avatarPath(avatarId) } })
+    } catch (error) {
+      console.error("[EMPLOYEE_PHOTO_PUT]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
     }
   },

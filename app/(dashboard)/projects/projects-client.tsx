@@ -611,8 +611,8 @@ export function ProjectsClient() {
                               src={m.employee.profilePhoto}
                               firstName={m.employee.firstName}
                               lastName={m.employee.lastName}
-                              size="xs"
-                              className="border-background -ml-1 h-6 w-6 border-2 first:ml-0"
+                              size="chip"
+                              className="border-background -ml-1 border-2 first:ml-0"
                             />
                           ))}
                           {project.members.length > 5 && (

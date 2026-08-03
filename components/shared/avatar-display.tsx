@@ -6,14 +6,23 @@ interface AvatarDisplayProps {
   src?: string | null
   firstName: string
   lastName: string
-  size?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl"
+  size?: "2xs" | "xs" | "chip" | "sm" | "md" | "lg" | "xl" | "2xl"
   /** Override the default hashed color + white-text fallback (e.g. "bg-primary/10 text-primary"). */
   fallbackClassName?: string
   className?: string
 }
 
+/**
+ * Each step pairs a box with the font size that fits inside it. Reach for a
+ * token rather than overriding the box with `className="h-6 w-6"` - that
+ * changes the container without changing the text, which is how initials end up
+ * crowding the border.
+ */
 const sizeClasses: Record<NonNullable<AvatarDisplayProps["size"]>, string> = {
+  "2xs": "h-4 w-4 text-[8px]",
   xs: "h-5 w-5 text-[9px]",
+  /** 24px - the topbar size, and the default for anything sitting in a card. */
+  chip: "h-6 w-6 text-[10px]",
   sm: "h-8 w-8 text-xs",
   md: "h-10 w-10 text-sm",
   lg: "h-14 w-14 text-base",

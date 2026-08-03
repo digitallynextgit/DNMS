@@ -130,7 +130,7 @@ export default function FloatingHolidaysPage() {
         </div>
         <span
           className={cn(
-            "rounded-full px-3 py-1 text-xs font-medium",
+            "rounded px-3 py-1 text-xs font-medium",
             atLimit ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground",
           )}
         >
@@ -174,7 +174,7 @@ export default function FloatingHolidaysPage() {
                 </div>
                 <span
                   className={cn(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
                     isSel
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-muted-foreground/30",

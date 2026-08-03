@@ -30,7 +30,7 @@ function ResignationCardSkeleton() {
   return (
     <div className="bg-card flex flex-col gap-4 rounded border p-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 gap-3">
-        <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+        <Skeleton className="h-10 w-10 shrink-0 rounded" />
         <div className="min-w-0 space-y-2">
           <Skeleton className="h-4 w-44" />
           <Skeleton className="h-3 w-56" />

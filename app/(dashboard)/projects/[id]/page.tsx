@@ -251,7 +251,7 @@ export default function ProjectDetailPage() {
               <MessageSquare className="h-3.5 w-3.5" />
               Messages
               {unreadMessages > 0 && (
-                <span className="bg-destructive ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold text-white">
+                <span className="bg-destructive ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-[10px] leading-none font-semibold text-white">
                   {unreadMessages > 99 ? "99+" : unreadMessages}
                 </span>
               )}

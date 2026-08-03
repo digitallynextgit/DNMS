@@ -2,6 +2,7 @@
 // Cross-feature & app imports use THIS barrel; internals stay private.
 // NOTE: server-only modules (server/*.service-style, emails, IO clients) are
 // intentionally NOT re-exported here - API routes import those directly.
+export * from "./components/avatar-picker-dialog"
 export * from "./components/employee-admin-actions"
 export * from "./components/employee-card"
 export * from "./components/employee-combobox"

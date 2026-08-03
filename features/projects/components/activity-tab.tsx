@@ -115,7 +115,7 @@ export function ActivityTab({ projectId }: Props) {
         {activities.map((activity) => (
           <div key={activity.id} className="flex items-start gap-3 py-2 pl-1">
             {/* Icon bubble */}
-            <div className="bg-background border-border relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border">
+            <div className="bg-background border-border relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded border">
               {getActivityIcon(activity.type)}
             </div>
 
@@ -135,8 +135,8 @@ export function ActivityTab({ projectId }: Props) {
               src={activity.actor.profilePhoto}
               firstName={activity.actor.firstName}
               lastName={activity.actor.lastName}
-              size="xs"
-              className="mt-1 h-6 w-6 shrink-0"
+              size="chip"
+              className="mt-1 shrink-0"
             />
           </div>
         ))}

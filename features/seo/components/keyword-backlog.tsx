@@ -295,7 +295,7 @@ export function KeywordBacklog({
                                   disabled={!canManage}
                                   onClick={() => patch(k, { businessValue: v })}
                                   className={cn(
-                                    "h-2 w-2 rounded-full",
+                                    "h-2 w-2 rounded",
                                     v <= k.businessValue ? "bg-primary" : "bg-muted",
                                   )}
                                   title={`Business value ${v}/5`}

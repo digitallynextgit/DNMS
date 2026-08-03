@@ -146,10 +146,10 @@ export function SetupGuide({
                   : "The required steps are done. The optional ones add more detail."}
             </p>
             {/* A bar as well as the dial, so progress reads at a glance on mobile. */}
-            <div className="bg-muted mt-2 h-1.5 w-full overflow-hidden rounded-full">
+            <div className="bg-muted mt-2 h-1.5 w-full overflow-hidden rounded">
               <div
                 className={cn(
-                  "h-full rounded-full transition-all duration-500",
+                  "h-full rounded transition-all duration-500",
                   done ? "bg-emerald-500" : "bg-primary",
                 )}
                 style={{ width: `${setup.percent}%` }}
@@ -265,7 +265,7 @@ function StepCard({
         <div className="flex items-start justify-between gap-2">
           <span
             className={cn(
-              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded text-xs font-semibold",
               step.done
                 ? "bg-emerald-500/15 text-emerald-600"
                 : isNext

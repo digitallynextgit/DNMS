@@ -123,7 +123,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
             labelMap={PAYROLL_STATUS_LABELS}
           />
         ) : (
-          <Skeleton className="h-5 w-20 rounded-full" />
+          <Skeleton className="h-5 w-20 rounded" />
         )}
         {r && canProcess && next && (
           <Button

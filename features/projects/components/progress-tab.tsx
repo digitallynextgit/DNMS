@@ -67,7 +67,7 @@ function StatusBar({ b }: { b: ProgressBucket }) {
 
   return (
     <div className="space-y-1.5">
-      <div className="bg-muted flex h-2.5 w-full overflow-hidden rounded-full">
+      <div className="bg-muted flex h-2.5 w-full overflow-hidden rounded">
         {seg.map((s) => (
           <div
             key={s.label}
@@ -80,7 +80,7 @@ function StatusBar({ b }: { b: ProgressBucket }) {
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {seg.map((s) => (
           <span key={s.label} className="text-muted-foreground flex items-center gap-1 text-[11px]">
-            <span className={cn("h-2 w-2 rounded-full", s.cls)} />
+            <span className={cn("h-2 w-2 rounded", s.cls)} />
             {s.label} {s.n}
           </span>
         ))}

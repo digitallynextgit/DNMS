@@ -256,8 +256,7 @@ function PasswordRow({
             src={entry.createdBy.profilePhoto}
             firstName={entry.createdBy.firstName}
             lastName={entry.createdBy.lastName}
-            size="xs"
-            className="h-4 w-4"
+            size="2xs"
           />
           <span className="text-muted-foreground text-[10px]">
             Added by {entry.createdBy.firstName} · {formatDate(entry.createdAt)}

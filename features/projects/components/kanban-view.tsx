@@ -230,7 +230,7 @@ export function KanbanView({
                                     src={task.assignee.profilePhoto}
                                     firstName={task.assignee.firstName}
                                     lastName={task.assignee.lastName}
-                                    size="xs"
+                                    size="chip"
                                   />
                                 )}
                               </div>

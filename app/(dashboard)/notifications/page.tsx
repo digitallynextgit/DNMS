@@ -56,7 +56,7 @@ function getNotificationIcon(type: string) {
 function NotificationRowSkeleton() {
   return (
     <div className="bg-card flex w-full items-start gap-3 rounded border p-4">
-      <Skeleton className="mt-0.5 h-9 w-9 shrink-0 rounded-full" />
+      <Skeleton className="mt-0.5 h-9 w-9 shrink-0 rounded" />
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <Skeleton className="h-4 w-48" />
@@ -195,7 +195,7 @@ export default function NotificationsPage() {
                   "border-l-4 border-l-blue-500 bg-blue-500/10 hover:bg-blue-500/15",
               )}
             >
-              <div className="bg-muted mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full">
+              <div className="bg-muted mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded">
                 {getNotificationIcon(notification.type)}
               </div>
 
@@ -225,7 +225,7 @@ export default function NotificationsPage() {
               </button>
 
               {!notification.isRead && (
-                <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                <div className="mt-2 h-2 w-2 shrink-0 rounded bg-blue-500" />
               )}
 
               <button

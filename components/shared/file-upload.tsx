@@ -185,7 +185,7 @@ export function FileUpload({
             <button
               type="button"
               onClick={handleRemove}
-              className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto shrink-0 rounded-full p-1 transition-colors"
+              className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto shrink-0 rounded p-1 transition-colors"
               aria-label="Remove file"
             >
               <X className="h-4 w-4" />
@@ -193,7 +193,7 @@ export function FileUpload({
           </div>
         ) : (
           <>
-            <div className="bg-muted flex h-12 w-12 items-center justify-center rounded-full">
+            <div className="bg-muted flex h-12 w-12 items-center justify-center rounded">
               <Upload className="text-muted-foreground h-6 w-6" />
             </div>
             <div className="space-y-1">

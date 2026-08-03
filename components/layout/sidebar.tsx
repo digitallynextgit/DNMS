@@ -120,7 +120,7 @@ function CountBadge({ collapsed, count }: { collapsed: boolean; count: number })
   return (
     <span
       className={cn(
-        "bg-destructive flex items-center justify-center rounded-full font-semibold text-white",
+        "bg-destructive flex items-center justify-center rounded font-semibold text-white",
         collapsed
           ? "absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[9px] leading-none"
           : "ml-auto h-5 min-w-5 px-1.5 text-[11px] leading-none",

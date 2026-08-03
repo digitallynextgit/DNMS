@@ -3,7 +3,8 @@
 import { useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Camera, ChevronDown, Trash2, Upload, UserMinus } from "lucide-react"
+import { Camera, ChevronDown, Smile, Trash2, Upload, UserMinus } from "lucide-react"
+import { AvatarPickerDialog } from "./avatar-picker-dialog"
 import { Spinner } from "@/components/shared/spinner"
 import { Button } from "@/components/ui/button"
 import { DateField } from "@/components/shared/date-field"
@@ -24,11 +25,15 @@ export function EmployeeAdminActions({
   employeeId,
   status,
   hasPhoto = false,
+  profilePhoto,
 }: {
   employeeId: string
   status: string
   hasPhoto?: boolean
+  /** Current photo URL, so the avatar picker can preselect an existing preset. */
+  profilePhoto?: string | null
 }) {
+  const [avatarOpen, setAvatarOpen] = useState(false)
   const { can, userId } = usePermissions()
   // Photo upload is an admin (HR) action; Resign is self-service - an employee
   // resigns themselves, so it only appears on your own profile, never when an
@@ -124,6 +129,10 @@ export function EmployeeAdminActions({
                 <Upload className="mr-2 h-3.5 w-3.5" />
                 {hasPhoto ? "Upload new photo" : "Upload photo"}
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAvatarOpen(true)}>
+                <Smile className="mr-2 h-3.5 w-3.5" />
+                Choose an avatar
+              </DropdownMenuItem>
               {hasPhoto && (
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
@@ -144,6 +153,12 @@ export function EmployeeAdminActions({
               if (e.target.files?.[0]) photoMut.mutate(e.target.files[0])
               e.target.value = ""
             }}
+          />
+          <AvatarPickerDialog
+            employeeId={employeeId}
+            currentPhoto={profilePhoto}
+            open={avatarOpen}
+            onOpenChange={setAvatarOpen}
           />
         </>
       )}

@@ -146,9 +146,9 @@ export function ScorecardPanel({
                   {card.coverage < 80 && " Connect the missing sources for a fuller picture."}
                 </p>
                 <div className="pt-1">
-                  <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+                  <div className="bg-muted h-1.5 w-full overflow-hidden rounded">
                     <div
-                      className="h-full rounded-full bg-sky-500"
+                      className="h-full rounded bg-sky-500"
                       style={{ width: `${Math.min(100, card.coverage)}%` }}
                     />
                   </div>

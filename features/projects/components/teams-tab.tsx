@@ -65,12 +65,12 @@ function AvatarStack({ members, max = 4 }: { members: ProjectTeam["members"]; ma
           src={m.employee.profilePhoto}
           firstName={m.employee.firstName}
           lastName={m.employee.lastName}
-          size="xs"
-          className="ring-background h-6 w-6 ring-2"
+          size="chip"
+          className="ring-background ring-2"
         />
       ))}
       {rest > 0 && (
-        <span className="bg-muted text-muted-foreground ring-background flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-medium ring-2">
+        <span className="bg-muted text-muted-foreground ring-background flex h-6 w-6 items-center justify-center rounded text-[10px] font-medium ring-2">
           +{rest}
         </span>
       )}
@@ -417,7 +417,7 @@ function MemberRow({
         firstName={member.employee.firstName}
         lastName={member.employee.lastName}
         size="sm"
-        className="h-8 w-8 shrink-0"
+        className="shrink-0"
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
@@ -669,7 +669,7 @@ function AddMembersDialog({
                   firstName={e.firstName}
                   lastName={e.lastName}
                   size="sm"
-                  className="h-8 w-8 shrink-0"
+                  className="shrink-0"
                 />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">
