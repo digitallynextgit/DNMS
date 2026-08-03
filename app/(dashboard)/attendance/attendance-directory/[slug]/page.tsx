@@ -164,7 +164,7 @@ export default function EmployeeAttendancePage() {
       </div>
 
       {isLoading || empLoading ? (
-        <div className="bg-card flex h-72 items-center justify-center rounded border">
+        <div className="bg-card flex h-72 items-center justify-center rounded-[2px] border">
           <Spinner size="lg" className="text-muted-foreground" />
         </div>
       ) : (

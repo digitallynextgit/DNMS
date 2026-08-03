@@ -55,7 +55,7 @@ function getNotificationIcon(type: string) {
  */
 function NotificationRowSkeleton() {
   return (
-    <div className="bg-card flex w-full items-start gap-3 rounded border p-4">
+    <div className="bg-card flex w-full items-start gap-3 rounded-[2px] border p-4">
       <Skeleton className="mt-0.5 h-9 w-9 shrink-0 rounded" />
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex items-center justify-between gap-2">
@@ -187,7 +187,7 @@ export default function NotificationsPage() {
             <div
               key={notification.id}
               className={cn(
-                "group bg-card hover:bg-muted/50 flex w-full items-start gap-3 rounded border p-4 transition-colors",
+                "group bg-card hover:bg-muted/50 flex w-full items-start gap-3 rounded-[2px] border p-4 transition-colors",
                 // Unread: a translucent tint + left accent that stays readable in
                 // BOTH light and dark themes (a solid bg-blue-50 turned the text
                 // unreadable in dark mode).
@@ -225,7 +225,7 @@ export default function NotificationsPage() {
               </button>
 
               {!notification.isRead && (
-                <div className="mt-2 h-2 w-2 shrink-0 rounded bg-blue-500" />
+                <div className="mt-2 h-2 w-2 shrink-0 rounded-[2px] bg-blue-500" />
               )}
 
               <button
@@ -234,7 +234,7 @@ export default function NotificationsPage() {
                 aria-label="Delete notification"
                 disabled={deleteMutation.isPending}
                 onClick={() => deleteMutation.mutate({ id: notification.id })}
-                className="text-muted-foreground hover:text-destructive mt-0.5 shrink-0 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-50"
+                className="text-muted-foreground hover:text-destructive mt-0.5 shrink-0 rounded-[2px] p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-50"
               >
                 <Trash2 className="h-4 w-4" />
               </button>

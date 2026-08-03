@@ -41,7 +41,7 @@
   /* Tailwind's BARE `rounded` utility is hardcoded to 0.25rem (4px) unless the
      border-radius namespace default is set here. Without this line, `rounded` (4px)
      and `rounded-lg` (5px) are different - and an editor "canonical class" auto-fix
-     that rewrites rounded-lg -> rounded silently reverts the whole app's radius.
+     that rewrites rounded-lg -> rounded-sm silently reverts the whole app's radius.
      Defining the default makes BOTH spellings resolve to --radius, so the radius
      cannot drift no matter which one is written. */
   --radius: 5px;
@@ -108,6 +108,18 @@
     --ring: 0 0% 45%;
 
     --radius: 5px;
+
+    /* ---- Data-viz palette -------------------------------------------------
+       Categorical slots are assigned in FIXED order and never cycled. This pair
+       was validated against the card surface in both modes (CVD separation,
+       normal-vision floor, chroma, lightness band, 3:1 contrast) - re-run the
+       validator before adding a slot 3. Chart chrome is deliberately recessive.
+       Status colours (done/late/hold) are NOT here: they live with the status
+       badges so a series colour can never impersonate a state. */
+    --viz-1: #2a78d6;
+    --viz-2: #eb6834;
+    --viz-grid: #e1e0d9;
+    --viz-axis: #898781;
   }
 
   .dark {
@@ -143,6 +155,13 @@
     --ring: 0 0% 55%;
 
     --radius: 5px;
+
+    /* Dark steps are SELECTED for the dark surface, not an automatic flip of
+       the light values, and were validated as their own set. */
+    --viz-1: #3987e5;
+    --viz-2: #d95926;
+    --viz-grid: #2c2c2a;
+    --viz-axis: #898781;
   }
 }
 

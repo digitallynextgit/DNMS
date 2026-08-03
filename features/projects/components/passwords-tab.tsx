@@ -192,7 +192,7 @@ function PasswordRow({
             )}
 
             <div className="mt-2 flex items-center gap-2">
-              <code className="bg-muted inline-block min-w-24 rounded px-2 py-0.5 font-mono text-xs">
+              <code className="bg-muted inline-block min-w-24 rounded-[2px] px-2 py-0.5 font-mono text-xs">
                 {showing && revealedPw ? revealedPw : "••••••••••"}
               </code>
               <Button

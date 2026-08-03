@@ -105,7 +105,9 @@ export default function EmailTemplatesPage() {
     {
       header: "Slug",
       cell: (template) => (
-        <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">{template.slug}</code>
+        <code className="bg-muted rounded-[2px] px-1.5 py-0.5 font-mono text-xs">
+          {template.slug}
+        </code>
       ),
     },
     {

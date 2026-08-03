@@ -118,7 +118,7 @@ export function SiteFormDialog({
                     key={s.siteUrl}
                     type="button"
                     onClick={() => setSiteUrl(s.siteUrl)}
-                    className="bg-muted hover:bg-muted/70 rounded px-2 py-0.5 text-[11px]"
+                    className="bg-muted hover:bg-muted/70 rounded-[2px] px-2 py-0.5 text-[11px]"
                   >
                     {s.siteUrl}
                   </button>

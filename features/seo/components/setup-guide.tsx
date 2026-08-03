@@ -149,7 +149,7 @@ export function SetupGuide({
             <div className="bg-muted mt-2 h-1.5 w-full overflow-hidden rounded">
               <div
                 className={cn(
-                  "h-full rounded transition-all duration-500",
+                  "h-full rounded-[2px] transition-all duration-500",
                   done ? "bg-emerald-500" : "bg-primary",
                 )}
                 style={{ width: `${setup.percent}%` }}
@@ -157,7 +157,7 @@ export function SetupGuide({
             </div>
           </div>
           {setup.lockedPoints > 0 && (
-            <div className="rounded border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs">
+            <div className="rounded-[2px] border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs">
               <p className="flex items-center gap-1.5 font-medium text-amber-600">
                 <Lock className="h-3.5 w-3.5" />
                 {setup.lockedPoints} of 100 scorecard points locked
@@ -265,7 +265,7 @@ function StepCard({
         <div className="flex items-start justify-between gap-2">
           <span
             className={cn(
-              "flex h-7 w-7 shrink-0 items-center justify-center rounded text-xs font-semibold",
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-[2px] text-xs font-semibold",
               step.done
                 ? "bg-emerald-500/15 text-emerald-600"
                 : isNext

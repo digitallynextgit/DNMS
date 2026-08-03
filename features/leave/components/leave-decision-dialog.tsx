@@ -290,7 +290,7 @@ export function LeaveDecisionDialog({
           </div>
 
           {variants.length > 0 && (
-            <div className="space-y-1.5 rounded border p-2">
+            <div className="space-y-1.5 rounded-[2px] border p-2">
               <p className="text-muted-foreground text-[11px]">Pick a version:</p>
               <div className="flex flex-wrap gap-1.5">
                 {variants.map((v) => (
@@ -301,7 +301,7 @@ export function LeaveDecisionDialog({
                       setBody(v.text)
                       setVariants([])
                     }}
-                    className="hover:bg-accent rounded border px-2 py-1 text-[11px] font-medium"
+                    className="hover:bg-accent rounded-[2px] border px-2 py-1 text-[11px] font-medium"
                     title={v.text}
                   >
                     {v.label}
@@ -318,7 +318,7 @@ export function LeaveDecisionDialog({
             </div>
           )}
 
-          <div className="bg-background rounded border">
+          <div className="bg-background rounded-[2px] border">
             <div className="space-y-1 border-b p-3 text-[11px]">
               <div className="grid grid-cols-[3.5rem_1fr] gap-1">
                 <span className="text-muted-foreground">To:</span>

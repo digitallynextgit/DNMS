@@ -115,7 +115,7 @@ export function ActivityTab({ projectId }: Props) {
         {activities.map((activity) => (
           <div key={activity.id} className="flex items-start gap-3 py-2 pl-1">
             {/* Icon bubble */}
-            <div className="bg-background border-border relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded border">
+            <div className="bg-background border-border relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-[2px] border">
               {getActivityIcon(activity.type)}
             </div>
 

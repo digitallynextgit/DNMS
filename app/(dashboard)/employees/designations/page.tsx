@@ -320,11 +320,11 @@ export default function DesignationsPage() {
           loading={isLoading}
         />
       ) : designations.length === 0 ? (
-        <div className="bg-card rounded border">
+        <div className="bg-card rounded-[2px] border">
           <EmptyState title="No designations yet." compact />
         </div>
       ) : (
-        <div className="bg-card rounded border">
+        <div className="bg-card rounded-[2px] border">
           <EmptyState title="No designations match your search." compact />
         </div>
       )}

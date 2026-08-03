@@ -116,7 +116,7 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
             .map(([status, seconds]) => (
               <span
                 key={status}
-                className="bg-muted/60 inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px]"
+                className="bg-muted/60 inline-flex items-center gap-1.5 rounded-[2px] px-2 py-1 text-[11px]"
               >
                 <span className="text-muted-foreground">
                   {TASK_STATUS_LABELS[status] ?? status}
@@ -192,7 +192,7 @@ function Moment({
   muted?: boolean
 }) {
   return (
-    <div className="bg-muted/40 min-w-0 rounded p-2">
+    <div className="bg-muted/40 min-w-0 rounded-[2px] p-2">
       <p className="text-muted-foreground flex items-center gap-1 text-[10px] tracking-wide uppercase">
         <Icon className="h-3 w-3" />
         {label}

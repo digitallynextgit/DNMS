@@ -161,7 +161,7 @@ function ApplicantCard({
     <div
       draggable
       onDragStart={(e) => onDragStart(e, applicant.id)}
-      className="bg-card group cursor-grab rounded border p-3 shadow-sm transition-all duration-150 select-none hover:shadow-md active:cursor-grabbing"
+      className="bg-card group cursor-grab rounded-[2px] border p-3 shadow-sm transition-all duration-150 select-none hover:shadow-md active:cursor-grabbing"
     >
       <div className="flex items-start gap-2.5">
         <AvatarDisplay
@@ -232,7 +232,7 @@ function ApplicantCard({
 
       <button
         onClick={() => onScheduleInterview(applicant)}
-        className="border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary mt-2.5 w-full rounded border border-dashed py-1.5 text-center text-xs transition-colors"
+        className="border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary mt-2.5 w-full rounded-[2px] border border-dashed py-1.5 text-center text-xs transition-colors"
       >
         + Schedule Interview
       </button>
@@ -384,7 +384,7 @@ export default function JobPipelinePage() {
                 {/* Drop zone */}
                 <div
                   className={cn(
-                    "min-h-[200px] flex-1 rounded border-2 border-dashed p-2 transition-all duration-150",
+                    "min-h-[200px] flex-1 rounded-[2px] border-2 border-dashed p-2 transition-all duration-150",
                     isOver
                       ? "border-primary bg-primary/5 scale-[1.01]"
                       : "bg-muted/40 border-transparent",
@@ -418,7 +418,7 @@ export default function JobPipelinePage() {
                       {cards.length === 0 && (
                         <div
                           className={cn(
-                            "flex h-24 flex-col items-center justify-center gap-1.5 rounded border border-dashed",
+                            "flex h-24 flex-col items-center justify-center gap-1.5 rounded-[2px] border border-dashed",
                             isOver
                               ? "border-primary/50 bg-primary/5"
                               : "border-muted-foreground/20",
@@ -504,7 +504,7 @@ export default function JobPipelinePage() {
           <div className="space-y-2">
             <Label>Notes (optional)</Label>
             <textarea
-              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded-[2px] border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             />
@@ -558,7 +558,7 @@ export default function JobPipelinePage() {
           <div className="space-y-2">
             <Label>Notes (optional)</Label>
             <textarea
-              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded-[2px] border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
               value={iForm.notes}
               onChange={(e) => setIForm((f) => ({ ...f, notes: e.target.value }))}
             />

@@ -10,10 +10,10 @@ import type { Session } from "next-auth"
 // and how much of it lands on time. Admins (project:write) see everything; anyone
 // else sees the teams they manage, the projects they own, and their own tasks.
 export const GET = withSession(
-  async (_req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
+  async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
-      const where = isAdmin
+      const scopeWhere = isAdmin
         ? {}
         : {
             OR: [
@@ -22,6 +22,31 @@ export const GET = withSession(
               { assigneeId: session.user.id },
             ],
           }
+
+      // Optional narrowing. `projectId` scopes to one project; `from`/`to`
+      // (inclusive, yyyy-mm-dd) scope to tasks DUE inside the window - the
+      // question this page answers is "what was due in this period", so an
+      // undated task is out of scope for a dated view by definition.
+      const { searchParams } = req.nextUrl
+      const projectId = searchParams.get("projectId") ?? undefined
+      const from = searchParams.get("from")
+      const to = searchParams.get("to")
+
+      const dueRange =
+        from || to
+          ? {
+              dueDate: {
+                ...(from && { gte: new Date(`${from}T00:00:00.000Z`) }),
+                ...(to && { lte: new Date(`${to}T23:59:59.999Z`) }),
+              },
+            }
+          : {}
+
+      const where = {
+        AND: [scopeWhere, ...(projectId ? [{ projectId }] : []), dueRange].filter(
+          (c) => Object.keys(c).length > 0,
+        ),
+      }
 
       const tasks = await db.projectTask.findMany({
         where,
@@ -144,11 +169,25 @@ export const GET = withSession(
         }))
         .sort((a, b) => b.assigned - a.assigned)
 
+      // The picker's option list must NOT follow the filters, or selecting a
+      // project would leave it as the only option and there would be no way
+      // back. Scope-filtered only.
+      const inScope = await db.projectTask.findMany({
+        where: scopeWhere,
+        select: { project: { select: { id: true, name: true, code: true } } },
+        distinct: ["projectId"],
+      })
+      const projects = inScope
+        .map((t) => t.project)
+        .filter((p): p is NonNullable<typeof p> => !!p)
+        .sort((a, b) => a.name.localeCompare(b.name))
+
       return NextResponse.json({
         data: {
           summary: withRates(summary),
           byEmployee,
           byProject,
+          projects,
           scope: isAdmin ? "all" : "mine",
         },
       })

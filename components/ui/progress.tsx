@@ -30,7 +30,7 @@ export function Progress({ value = 0, indeterminate, className, ...props }: Prog
         <div className="bg-primary absolute inset-y-0 w-1/3 animate-[progress-slide_1.2s_ease-in-out_infinite] rounded" />
       ) : (
         <div
-          className="bg-primary h-full rounded transition-[width] duration-300 ease-out"
+          className="bg-primary h-full rounded-[2px] transition-[width] duration-300 ease-out"
           style={{ width: `${pct}%` }}
         />
       )}

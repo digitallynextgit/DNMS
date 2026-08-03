@@ -49,7 +49,7 @@ export function IntegrationTab({
         <Card key={p.id} className="opacity-70">
           <CardContent className="flex items-center gap-3 p-4">
             <div
-              className="flex h-9 w-9 items-center justify-center rounded text-sm font-bold text-white"
+              className="flex h-9 w-9 items-center justify-center rounded-[2px] text-sm font-bold text-white"
               style={{ backgroundColor: p.color }}
             >
               {p.label[0]}
@@ -111,7 +111,7 @@ function MetaConnectionCard({
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded bg-[#1877F2]/10">
+            <div className="flex h-9 w-9 items-center justify-center rounded-[2px] bg-[#1877F2]/10">
               <FacebookIcon className="h-4 w-4 text-[#1877F2]" />
             </div>
             <div>

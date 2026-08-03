@@ -271,7 +271,7 @@ function TaskRow({
     <>
       <div
         className={cn(
-          "flex items-center gap-3 rounded border p-2.5",
+          "flex items-center gap-3 rounded-[2px] border p-2.5",
           isPending &&
             "border-amber-300 bg-amber-50/40 dark:border-amber-900/60 dark:bg-amber-950/20",
           isRejected && "border-red-300 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
@@ -504,7 +504,7 @@ function CreateTaskDialog({
       }}
     >
       {!isManager && (
-        <div className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+        <div className="rounded-[2px] border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
           This will be a <strong>self-task</strong>. It needs the team manager's approval before
           becoming active.
         </div>

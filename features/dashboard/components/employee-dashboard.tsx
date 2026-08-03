@@ -93,7 +93,7 @@ export function EmployeeDashboard() {
   return (
     <>
       {isError && (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded border px-4 py-3 text-sm">
+        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-[2px] border px-4 py-3 text-sm">
           {error?.message ?? "Something went wrong loading your dashboard."}
         </div>
       )}
@@ -213,7 +213,7 @@ export function EmployeeDashboard() {
             ) : (
               <Link
                 href="/payroll/me"
-                className="hover:bg-muted/30 -m-2 flex items-center justify-between rounded p-2 transition-colors"
+                className="hover:bg-muted/30 -m-2 flex items-center justify-between rounded-[2px] p-2 transition-colors"
               >
                 <div>
                   <p className="text-foreground text-sm font-medium">

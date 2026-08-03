@@ -32,11 +32,11 @@ export function EmptyState({
       className={cn(
         "flex flex-col items-center justify-center gap-3 text-center",
         compact ? "py-8" : "py-16",
-        variant === "card" && "bg-card rounded border",
+        variant === "card" && "bg-card rounded-[2px] border",
         className,
       )}
     >
-      <div className="bg-accent flex items-center justify-center rounded p-3">
+      <div className="bg-accent flex items-center justify-center rounded-[2px] p-3">
         <Icon className="text-muted-foreground h-5 w-5" />
       </div>
       <div className="space-y-1">

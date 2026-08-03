@@ -7,7 +7,7 @@ export function StepList({ steps }: StepListProps) {
     <ol className="space-y-3">
       {steps.map((step, index) => (
         <li key={index} className="flex items-start gap-3">
-          <span className="bg-foreground text-background mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold">
+          <span className="bg-foreground text-background mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[2px] text-[10px] font-bold">
             {index + 1}
           </span>
           <span className="text-foreground text-sm leading-relaxed">{step}</span>

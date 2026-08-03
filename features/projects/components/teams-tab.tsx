@@ -70,7 +70,7 @@ function AvatarStack({ members, max = 4 }: { members: ProjectTeam["members"]; ma
         />
       ))}
       {rest > 0 && (
-        <span className="bg-muted text-muted-foreground ring-background flex h-6 w-6 items-center justify-center rounded text-[10px] font-medium ring-2">
+        <span className="bg-muted text-muted-foreground ring-background flex h-6 w-6 items-center justify-center rounded-[2px] text-[10px] font-medium ring-2">
           +{rest}
         </span>
       )}
@@ -643,7 +643,7 @@ function AddMembersDialog({
         </div>
       )}
 
-      <div className="divide-border/60 max-h-80 divide-y overflow-y-auto rounded border">
+      <div className="divide-border/60 max-h-80 divide-y overflow-y-auto rounded-[2px] border">
         {employees.length === 0 ? (
           <p className="text-muted-foreground p-6 text-center text-sm">
             {search ? "No one matches that search." : "Everyone available is already on this team."}

@@ -6,7 +6,7 @@ import { aiComplete, AI_MODEL_SMART } from "@/lib/ai"
 // =============================================================================
 // AI assistance for SEO configuration (the "ask AI for help" affordances).
 //
-// Every prompt is GROUNDED in data we actually hold - the site's real Search
+// Every prompt is grounded in data we actually hold - the site's real Search
 // Console queries and page titles - rather than asking the model to invent a
 // business from a domain name. That keeps suggestions checkable: each returned
 // keyword either echoes a query the site already gets impressions for, or is a

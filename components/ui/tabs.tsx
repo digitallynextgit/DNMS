@@ -12,7 +12,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "bg-muted text-muted-foreground inline-flex h-10 items-center justify-center rounded p-1",
+      "bg-muted text-muted-foreground inline-flex h-10 items-center justify-center rounded-[2px] p-1",
       className,
     )}
     {...props}
@@ -27,7 +27,7 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+      "ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center rounded-[2px] px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
       // Active tab is clearly highlighted: a solid surface, primary-tinted text and
       // a ring so it stands out from the muted track in both light and dark themes.
       "data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:ring-primary/30 data-[state=active]:font-semibold data-[state=active]:shadow-sm data-[state=active]:ring-1",

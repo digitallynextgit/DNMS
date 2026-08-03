@@ -24,7 +24,10 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
       nodes.push(<strong key={`${keyPrefix}-b${i}`}>{tok.slice(2, -2)}</strong>)
     } else if (tok.startsWith("`")) {
       nodes.push(
-        <code key={`${keyPrefix}-c${i}`} className="bg-muted rounded px-1 py-0.5 text-[0.85em]">
+        <code
+          key={`${keyPrefix}-c${i}`}
+          className="bg-muted rounded-[2px] px-1 py-0.5 text-[0.85em]"
+        >
           {tok.slice(1, -1)}
         </code>,
       )

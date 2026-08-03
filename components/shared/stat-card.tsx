@@ -32,7 +32,7 @@ export function StatCard({
   const isPositive = trend ? trend.value >= 0 : true
 
   return (
-    <Card className={cn("border-border bg-card rounded border", className)}>
+    <Card className={cn("border-border bg-card rounded-[2px] border", className)}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div className="space-y-2">

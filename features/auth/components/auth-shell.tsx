@@ -32,11 +32,11 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         {/* ambient floating glows */}
         <div
           aria-hidden
-          className="animate-dnms-float absolute top-0 right-0 h-112 w-md rounded bg-blue-500/15 blur-3xl"
+          className="animate-dnms-float absolute top-0 right-0 h-112 w-md rounded-[2px] bg-blue-500/15 blur-3xl"
         />
         <div
           aria-hidden
-          className="animate-dnms-float absolute bottom-0 left-1/4 h-96 w-96 rounded bg-red-500/10 blur-3xl"
+          className="animate-dnms-float absolute bottom-0 left-1/4 h-96 w-96 rounded-[2px] bg-red-500/10 blur-3xl"
           style={{ animationDelay: "-7s" }}
         />
 
@@ -74,7 +74,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
                 className="animate-dnms-fade-up flex items-center gap-3 text-sm text-neutral-300"
                 style={{ animationDelay: `${0.35 + i * 0.1}s` }}
               >
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-white/10 ring-1 ring-white/15">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[2px] bg-white/10 ring-1 ring-white/15">
                   <Check className="h-3 w-3 text-white" />
                 </span>
                 {item}

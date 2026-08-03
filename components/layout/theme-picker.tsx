@@ -36,7 +36,7 @@ function ThemeCard({
       type="button"
       onClick={() => onSelect(theme.id)}
       className={cn(
-        "group relative flex flex-col gap-2 rounded border p-3 text-left transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:outline-none",
+        "group relative flex flex-col gap-2 rounded-[2px] border p-3 text-left transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:outline-none",
         selected
           ? "border-primary ring-primary/30 ring-2"
           : "border-border hover:border-foreground/30",
@@ -44,7 +44,7 @@ function ThemeCard({
       aria-pressed={selected}
     >
       <div
-        className="relative flex h-16 items-center justify-center overflow-hidden rounded border"
+        className="relative flex h-16 items-center justify-center overflow-hidden rounded-[2px] border"
         style={{ backgroundColor: theme.swatchBg, borderColor: theme.swatchAccent }}
       >
         {/* A gradient theme can't be previewed by three flat dots - wash the
@@ -59,7 +59,7 @@ function ThemeCard({
         )}
         <div className="relative flex gap-1.5">
           <span
-            className="h-6 w-6 rounded shadow-sm"
+            className="h-6 w-6 rounded-[2px] shadow-sm"
             style={
               theme.gradient
                 ? {
@@ -69,11 +69,11 @@ function ThemeCard({
             }
           />
           <span
-            className="h-6 w-6 rounded shadow-sm"
+            className="h-6 w-6 rounded-[2px] shadow-sm"
             style={{ backgroundColor: theme.swatchAccent }}
           />
           <span
-            className="h-6 w-6 rounded border border-white/20 shadow-sm"
+            className="h-6 w-6 rounded-[2px] border border-white/20 shadow-sm"
             style={{ backgroundColor: theme.swatchBg }}
           />
         </div>
@@ -140,7 +140,7 @@ export function ThemePicker() {
           </div>
 
           <DialogFooter className="flex-row items-center justify-between sm:justify-between">
-            <div className="bg-muted flex items-center gap-0.5 rounded p-0.5">
+            <div className="bg-muted flex items-center gap-0.5 rounded-[2px] p-0.5">
               {modes.map((m) => (
                 <Tooltip key={m.key}>
                   <TooltipTrigger asChild>

@@ -40,12 +40,12 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         dropdowns: "flex items-center justify-center gap-1.5",
         month_grid: "w-full border-collapse",
         weekdays: "flex",
-        weekday: "text-muted-foreground w-8 rounded text-[0.8rem] font-normal",
+        weekday: "text-muted-foreground w-8 rounded-[2px] text-[0.8rem] font-normal",
         week: "mt-2 flex w-full",
         day: "relative size-8 p-0 text-center text-sm focus-within:relative focus-within:z-20",
         day_button: cn(
           buttonVariants({ variant: "ghost" }),
-          "size-8 rounded p-0 font-normal aria-selected:opacity-100",
+          "size-8 rounded-[2px] p-0 font-normal aria-selected:opacity-100",
         ),
         range_end: "day-range-end",
         selected:

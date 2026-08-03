@@ -113,7 +113,7 @@ function fmtDate(iso: string | null): string {
 export function PayslipSkeleton() {
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="space-y-4 rounded border border-neutral-300 px-6 py-5 dark:border-neutral-700">
+      <div className="space-y-4 rounded-[2px] border border-neutral-300 px-6 py-5 dark:border-neutral-700">
         {/* Letterhead */}
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1.5">

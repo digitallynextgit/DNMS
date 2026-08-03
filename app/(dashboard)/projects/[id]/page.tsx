@@ -39,7 +39,6 @@ import {
   Plug,
   BarChart3,
   Search,
-  TrendingUp,
 } from "lucide-react"
 import { ProjectFormDialog } from "@/features/projects"
 
@@ -59,9 +58,11 @@ const IntegrationTab = dynamic(() => import("@/features/projects").then((m) => m
 const InsightsTab = dynamic(() => import("@/features/projects").then((m) => m.InsightsTab), {
   loading: tabFallback,
 })
-const ProgressTab = dynamic(() => import("@/features/projects").then((m) => m.ProgressTab), {
-  loading: tabFallback,
-})
+// Recharts is heavy, so the Overview's summary loads on demand like the tabs do.
+const ProgressOverview = dynamic(
+  () => import("@/features/projects").then((m) => m.ProgressOverview),
+  { loading: () => <Skeleton className="h-64 rounded" /> },
+)
 const SeoTab = dynamic(() => import("@/features/seo").then((m) => m.SeoTab), {
   loading: tabFallback,
 })
@@ -87,7 +88,6 @@ const PasswordsTab = dynamic(() => import("@/features/projects").then((m) => m.P
 
 const PROJECT_TABS = [
   "overview",
-  "progress",
   "brand",
   "drive",
   "integration",
@@ -169,7 +169,7 @@ export default function ProjectDetailPage() {
         backLabel="Back to projects"
         title={project.name}
         titleSuffix={
-          <span className="bg-muted/50 text-muted-foreground shrink-0 rounded border px-2 py-0.5 font-mono text-xs">
+          <span className="bg-muted/50 text-muted-foreground shrink-0 rounded-[2px] border px-2 py-0.5 font-mono text-xs">
             {project.code}
           </span>
         }
@@ -215,10 +215,6 @@ export default function ProjectDetailPage() {
               <Layers className="h-3.5 w-3.5" />
               Overview
             </TabsTrigger>
-            <TabsTrigger value="progress" className="gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5" />
-              Progress
-            </TabsTrigger>
             <TabsTrigger value="brand" className="gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
               Brand
@@ -251,7 +247,7 @@ export default function ProjectDetailPage() {
               <MessageSquare className="h-3.5 w-3.5" />
               Messages
               {unreadMessages > 0 && (
-                <span className="bg-destructive ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-[10px] leading-none font-semibold text-white">
+                <span className="bg-destructive ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-[2px] px-1 text-[10px] leading-none font-semibold text-white">
                   {unreadMessages > 99 ? "99+" : unreadMessages}
                 </span>
               )}
@@ -321,12 +317,13 @@ export default function ProjectDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Managers get the whole project; everyone else gets their own slice,
+              because "the project is 60% done" is not actionable to someone who
+              wants to know what they still owe. */}
+          <ProgressOverview projectId={projectId} currentUserId={userId} isAdmin={canManage} />
+
           {/* Renders only when the project actually tracks sites. */}
           <ProjectSitesCard projectId={projectId} onOpenSeo={() => handleTabChange("seo")} />
-        </TabsContent>
-
-        <TabsContent value="progress" className="mt-4">
-          <ProgressTab projectId={projectId} />
         </TabsContent>
 
         <TabsContent value="brand">

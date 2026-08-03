@@ -283,7 +283,7 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
                       <span className="flex items-center gap-1.5">
                         <span className="truncate font-medium">{s.label}</span>
                         {!s.isActive && (
-                          <span className="text-muted-foreground bg-muted shrink-0 rounded px-1 text-[10px]">
+                          <span className="text-muted-foreground bg-muted shrink-0 rounded-[2px] px-1 text-[10px]">
                             paused
                           </span>
                         )}
@@ -828,12 +828,12 @@ function SiteReport({
               <TabsTrigger key={value} value={value} className="gap-1.5">
                 <Icon className="h-3.5 w-3.5" /> {label}
                 {value === "start" && needsSetup && (
-                  <span className="bg-primary text-primary-foreground ml-0.5 rounded px-1.5 text-[10px] leading-4">
+                  <span className="bg-primary text-primary-foreground ml-0.5 rounded-[2px] px-1.5 text-[10px] leading-4">
                     {setup!.total - setup!.completed}
                   </span>
                 )}
                 {value === "work" && o.tasks.length > 0 && (
-                  <span className="bg-muted ml-0.5 rounded px-1.5 text-[10px] leading-4">
+                  <span className="bg-muted ml-0.5 rounded-[2px] px-1.5 text-[10px] leading-4">
                     {o.tasks.length}
                   </span>
                 )}
@@ -1325,7 +1325,7 @@ function SiteWork({ o }: { o: SeoOverview }) {
                     <td className="px-4 py-2">
                       <span
                         className={cn(
-                          "rounded px-1.5 py-0.5 text-xs font-medium",
+                          "rounded-[2px] px-1.5 py-0.5 text-xs font-medium",
                           TASK_STATUS_COLORS[t.status] ?? "bg-muted",
                         )}
                       >
@@ -1371,7 +1371,7 @@ function SetupNotice({
             In Search Console → Settings → Users and permissions, add this service account as a user
             (read access is enough) on <strong>every</strong> site you track:
           </p>
-          <code className="bg-muted mt-2 inline-block rounded px-2 py-1 text-xs">
+          <code className="bg-muted mt-2 inline-block rounded-[2px] px-2 py-1 text-xs">
             {serviceAccount}
           </code>
         </CardContent>

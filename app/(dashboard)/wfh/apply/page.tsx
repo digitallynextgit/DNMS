@@ -128,7 +128,7 @@ export default function ApplyWfhPage() {
         )}
 
         {mustBeEmergency && (
-          <div className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs dark:border-amber-800 dark:bg-amber-950/20">
+          <div className="flex items-start gap-2 rounded-[2px] border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs dark:border-amber-800 dark:bg-amber-950/20">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
             <div className="space-y-1">
               <p className="font-medium text-amber-800 dark:text-amber-300">Emergency-only WFH</p>

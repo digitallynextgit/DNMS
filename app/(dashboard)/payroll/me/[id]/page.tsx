@@ -54,7 +54,7 @@ export default function MyPayslipPage({ params }: { params: Promise<{ id: string
         }
       />
 
-      <div className="bg-card rounded border p-2 sm:p-4">
+      <div className="bg-card rounded-[2px] border p-2 sm:p-4">
         {record ? <PayslipDocument record={record} /> : <PayslipSkeleton />}
       </div>
     </div>

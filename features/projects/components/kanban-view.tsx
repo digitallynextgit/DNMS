@@ -142,7 +142,7 @@ export function KanbanView({
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                     className={cn(
-                      "min-h-24 flex-1 space-y-2 rounded p-2 transition-colors",
+                      "min-h-24 flex-1 space-y-2 rounded-[2px] p-2 transition-colors",
                       col.color,
                       snapshot.isDraggingOver && "ring-primary/40 ring-2",
                     )}
@@ -155,7 +155,7 @@ export function KanbanView({
                             {...drag.draggableProps}
                             style={drag.draggableProps.style as CSSProperties}
                             className={cn(
-                              "bg-background cursor-pointer rounded border p-3 shadow-sm select-none",
+                              "bg-background cursor-pointer rounded-[2px] border p-3 shadow-sm select-none",
                               snap.isDragging && "ring-primary/50 rotate-1 shadow-lg ring-2",
                               task.approvalStatus === "PENDING_APPROVAL" && "border-amber-300",
                             )}

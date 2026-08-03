@@ -157,7 +157,7 @@ export default function RolesPage() {
       header: "Permissions",
       align: "center",
       cell: (role) => (
-        <span className="inline-flex min-w-[2rem] items-center justify-center rounded bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+        <span className="inline-flex min-w-[2rem] items-center justify-center rounded-[2px] bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
           {role._count.rolePermissions}
         </span>
       ),
@@ -166,7 +166,7 @@ export default function RolesPage() {
       header: "Employees",
       align: "center",
       cell: (role) => (
-        <span className="bg-muted text-muted-foreground inline-flex min-w-[2rem] items-center justify-center rounded px-2.5 py-0.5 text-xs font-medium">
+        <span className="bg-muted text-muted-foreground inline-flex min-w-[2rem] items-center justify-center rounded-[2px] px-2.5 py-0.5 text-xs font-medium">
           {role._count.employeeRoles}
         </span>
       ),

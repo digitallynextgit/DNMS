@@ -234,7 +234,7 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
                 type="button"
                 onClick={() => handleRemoveField(field)}
                 disabled={isSubmitting}
-                className="text-muted-foreground hover:bg-background hover:text-foreground ml-0.5 rounded p-0.5"
+                className="text-muted-foreground hover:bg-background hover:text-foreground ml-0.5 rounded-[2px] p-0.5"
                 aria-label={`Remove ${field}`}
               >
                 <X className="h-3 w-3" />
@@ -289,7 +289,7 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
       </div>
 
       {/* Active toggle */}
-      <div className="flex items-center justify-between rounded border p-4">
+      <div className="flex items-center justify-between rounded-[2px] border p-4">
         <div className="space-y-0.5">
           <Label htmlFor="tpl-active" className="mb-0 cursor-pointer text-sm font-medium">
             Active

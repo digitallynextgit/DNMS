@@ -227,6 +227,7 @@ export interface UpcomingTask {
   status: string
   priority: string
   dueDate: string
+  assigneeId: string | null
   assigneeName: string | null
   teamName: string | null
   overdue: boolean
@@ -256,14 +257,28 @@ export interface ProjectProgress {
   seoTotals: { clicks: number; clicksChange: number | null; impressions: number } | null
 }
 
-/** Delivery and search progress for one project. */
-export function useProjectProgress(projectId: string | undefined) {
+/**
+ * Delivery and search progress for one project.
+ *
+ * `range` scopes to tasks DUE inside the window. It is part of the query key, so
+ * changing the filter refetches rather than serving the previous window's
+ * numbers - which is how the breakdown used to contradict the headline tiles.
+ */
+export function useProjectProgress(
+  projectId: string | undefined,
+  range?: { from?: string | null; to?: string | null },
+) {
+  const params = new URLSearchParams()
+  if (range?.from) params.set("from", range.from)
+  if (range?.to) params.set("to", range.to)
+  const qs = params.toString()
+
   return useQuery({
-    queryKey: ["project-progress", projectId],
+    queryKey: ["project-progress", projectId, qs],
     queryFn: () =>
-      apiFetch<{ data: ProjectProgress }>(`/api/projects/${projectId}/progress`).then(
-        (r) => r.data,
-      ),
+      apiFetch<{ data: ProjectProgress }>(
+        `/api/projects/${projectId}/progress${qs ? `?${qs}` : ""}`,
+      ).then((r) => r.data),
     enabled: !!projectId,
     staleTime: 30_000,
   })

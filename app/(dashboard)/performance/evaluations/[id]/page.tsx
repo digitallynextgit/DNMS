@@ -57,7 +57,7 @@ function Rating({
           title={RATING_LABELS[n - 1]}
           onClick={() => onChange?.(n)}
           className={cn(
-            "h-7 w-7 rounded border text-xs font-semibold transition-colors",
+            "h-7 w-7 rounded-[2px] border text-xs font-semibold transition-colors",
             value === n
               ? "border-primary bg-primary text-primary-foreground"
               : "border-border bg-muted/30 text-muted-foreground",

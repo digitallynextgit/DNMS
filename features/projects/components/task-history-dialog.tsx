@@ -44,7 +44,7 @@ export function TaskHistoryDialog({
           aria-label={`Activity log for ${taskTitle}`}
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            "text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center rounded transition-colors",
+            "text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center rounded-[2px] transition-colors",
             iconOnly ? "size-7 justify-center" : "gap-1 px-1.5 py-0.5 text-[11px]",
             className,
           )}

@@ -169,7 +169,7 @@ function BriefCard({
             {brief.reviewOutcome && (
               <span
                 className={cn(
-                  "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                  "rounded-[2px] px-1.5 py-0.5 text-[10px] font-medium",
                   OUTCOME_STYLE[brief.reviewOutcome],
                 )}
               >
@@ -271,7 +271,7 @@ function BriefCard({
             )}
 
             {brief.qa && (
-              <div className="rounded border p-3">
+              <div className="rounded-[2px] border p-3">
                 <p className="mb-2 text-xs font-medium">
                   QA {brief.qa.pass ? "passed" : "failed"} · score {brief.qa.score}/100 ·{" "}
                   <span className="text-muted-foreground">

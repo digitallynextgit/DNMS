@@ -138,7 +138,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* The official payslip (this is what prints / downloads). */}
-      <div className="bg-card rounded border p-2 sm:p-4">
+      <div className="bg-card rounded-[2px] border p-2 sm:p-4">
         {r ? <PayslipDocument record={r} /> : <PayslipSkeleton />}
       </div>
 

@@ -427,7 +427,7 @@ export default function MyTasksPage() {
                         <div
                           key={task.id}
                           className={cn(
-                            "flex items-center gap-3 rounded border p-2.5",
+                            "flex items-center gap-3 rounded-[2px] border p-2.5",
                             isOverdue &&
                               "border-red-200 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
                             isPending &&
@@ -542,7 +542,7 @@ function DayHeader({
       type="button"
       aria-expanded={expanded}
       onClick={onToggle}
-      className="hover:bg-muted/40 flex w-full items-center gap-3 rounded px-4 py-3 text-left transition-colors"
+      className="hover:bg-muted/40 flex w-full items-center gap-3 rounded-[2px] px-4 py-3 text-left transition-colors"
     >
       {expanded ? (
         <ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
@@ -656,7 +656,7 @@ function MyTasksBoard({
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                       className={cn(
-                        "min-h-32 flex-1 space-y-2 rounded p-2 transition-colors",
+                        "min-h-32 flex-1 space-y-2 rounded-[2px] p-2 transition-colors",
                         BOARD_COLUMNS[status] ?? "bg-muted/40",
                         snapshot.isDraggingOver && "ring-primary/50 ring-2",
                       )}
@@ -685,7 +685,7 @@ function MyTasksBoard({
                                 {...drag.draggableProps}
                                 style={drag.draggableProps.style as CSSProperties}
                                 className={cn(
-                                  "bg-card space-y-2 rounded border p-2.5 shadow-sm transition-shadow",
+                                  "bg-card space-y-2 rounded-[2px] border p-2.5 shadow-sm transition-shadow",
                                   !locked && "hover:border-primary/40 hover:shadow-md",
                                   snap.isDragging && "ring-primary/50 rotate-1 shadow-lg ring-2",
                                   locked && "opacity-70",

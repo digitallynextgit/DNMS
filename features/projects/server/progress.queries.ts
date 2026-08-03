@@ -60,6 +60,8 @@ export interface UpcomingTask {
   status: string
   priority: string
   dueDate: string
+  /** Lets the Overview filter this list down to "my next tasks" without a second query. */
+  assigneeId: string | null
   assigneeName: string | null
   teamName: string | null
   overdue: boolean
@@ -193,15 +195,33 @@ function finalise(b: ProgressBucket): ProgressBucket {
   return b
 }
 
-export async function getProjectProgress(projectId: string): Promise<ProjectProgress | null> {
+/**
+ * @param range Optional yyyy-mm-dd window. Scopes to tasks DUE inside it, the
+ *   same rule the Progress page's headline tiles use - otherwise the tiles and
+ *   this breakdown disagree, and a range with no work still shows a full report.
+ */
+export async function getProjectProgress(
+  projectId: string,
+  range?: { from?: string | null; to?: string | null },
+): Promise<ProjectProgress | null> {
   const project = await db.project.findUnique({ where: { id: projectId }, select: { id: true } })
   if (!project) return null
 
   const now = new Date()
 
+  const dueRange =
+    range?.from || range?.to
+      ? {
+          dueDate: {
+            ...(range.from && { gte: new Date(`${range.from}T00:00:00.000Z`) }),
+            ...(range.to && { lte: new Date(`${range.to}T23:59:59.999Z`) }),
+          },
+        }
+      : {}
+
   const [tasks, teams] = await Promise.all([
     db.projectTask.findMany({
-      where: { projectId, approvalStatus: { not: "REJECTED" } },
+      where: { projectId, approvalStatus: { not: "REJECTED" }, ...dueRange },
       select: {
         id: true,
         title: true,
@@ -299,13 +319,16 @@ export async function getProjectProgress(projectId: string): Promise<ProjectProg
   const upcoming: UpcomingTask[] = tasks
     .filter((t) => t.dueDate && (OPEN_STATUSES as readonly string[]).includes(t.status))
     .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
-    .slice(0, 12)
+    // Deep enough that a single person's own next tasks are always in here, so
+    // the Overview can derive "my next tasks" client-side.
+    .slice(0, 40)
     .map((t) => ({
       id: t.id,
       title: t.title,
       status: t.status,
       priority: t.priority,
       dueDate: dateKey(t.dueDate!),
+      assigneeId: t.assigneeId,
       assigneeName: t.assignee ? `${t.assignee.firstName} ${t.assignee.lastName}` : null,
       teamName: t.team?.name ?? null,
       overdue: endOfDay(t.dueDate!) < now,

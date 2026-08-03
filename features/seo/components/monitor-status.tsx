@@ -32,7 +32,7 @@ export function MonitorStatus({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 rounded border px-3 py-2 text-xs",
+        "flex flex-wrap items-center gap-2 rounded-[2px] border px-3 py-2 text-xs",
         bad ? "border-red-500/40 bg-red-500/5" : "border-emerald-500/30 bg-emerald-500/5",
       )}
     >

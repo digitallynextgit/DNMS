@@ -28,7 +28,7 @@ import { formatDate } from "@/lib/utils"
  */
 function ResignationCardSkeleton() {
   return (
-    <div className="bg-card flex flex-col gap-4 rounded border p-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="bg-card flex flex-col gap-4 rounded-[2px] border p-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 gap-3">
         <Skeleton className="h-10 w-10 shrink-0 rounded" />
         <div className="min-w-0 space-y-2">
@@ -126,7 +126,7 @@ export default function ResignationsPage() {
             return (
               <div
                 key={r.id}
-                className="bg-card flex flex-col gap-4 rounded border p-4 sm:flex-row sm:items-start sm:justify-between"
+                className="bg-card flex flex-col gap-4 rounded-[2px] border p-4 sm:flex-row sm:items-start sm:justify-between"
               >
                 <div className="flex min-w-0 gap-3">
                   <AvatarDisplay

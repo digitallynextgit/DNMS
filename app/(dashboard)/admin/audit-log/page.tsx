@@ -172,7 +172,7 @@ export default function AuditLogPage() {
     {
       header: "Module",
       cell: (entry) => (
-        <span className="text-muted-foreground bg-muted rounded px-2 py-0.5 text-xs font-medium">
+        <span className="text-muted-foreground bg-muted rounded-[2px] px-2 py-0.5 text-xs font-medium">
           {entry.module}
         </span>
       ),
@@ -218,7 +218,7 @@ export default function AuditLogPage() {
       />
 
       {/* Filters row */}
-      <div className="bg-card border-border flex flex-wrap gap-3 rounded border p-4">
+      <div className="bg-card border-border flex flex-wrap gap-3 rounded-[2px] border p-4">
         {/* Module filter */}
         <Select value={moduleFilter || ALL_MODULES_VALUE} onValueChange={handleModuleChange}>
           <SelectTrigger className="w-40">

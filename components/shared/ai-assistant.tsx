@@ -76,7 +76,7 @@ export function AiAssistant() {
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Open AI assistant"
-          className="bg-primary text-primary-foreground fixed right-5 bottom-5 z-50 flex h-12 w-12 items-center justify-center rounded shadow-lg transition-transform hover:scale-105"
+          className="bg-primary text-primary-foreground fixed right-5 bottom-5 z-50 flex h-12 w-12 items-center justify-center rounded-[2px] shadow-lg transition-transform hover:scale-105"
         >
           <Sparkles className="h-5 w-5" />
         </button>
@@ -84,7 +84,7 @@ export function AiAssistant() {
 
       {/* Panel */}
       {open && (
-        <div className="bg-card fixed right-5 bottom-5 z-50 flex h-[min(560px,calc(100vh-6rem))] w-[min(400px,calc(100vw-2.5rem))] flex-col rounded border shadow-2xl">
+        <div className="bg-card fixed right-5 bottom-5 z-50 flex h-[min(560px,calc(100vh-6rem))] w-[min(400px,calc(100vw-2.5rem))] flex-col rounded-[2px] border shadow-2xl">
           <div className="flex items-center justify-between border-b px-4 py-2.5">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
@@ -125,7 +125,7 @@ export function AiAssistant() {
                       key={s}
                       type="button"
                       onClick={() => void send(s)}
-                      className="hover:bg-accent rounded border px-2.5 py-1 text-xs"
+                      className="hover:bg-accent rounded-[2px] border px-2.5 py-1 text-xs"
                     >
                       {s}
                     </button>
@@ -141,7 +141,7 @@ export function AiAssistant() {
               >
                 <div
                   className={cn(
-                    "max-w-[85%] rounded px-3 py-2 text-sm",
+                    "max-w-[85%] rounded-[2px] px-3 py-2 text-sm",
                     m.role === "user"
                       ? "bg-primary text-primary-foreground whitespace-pre-wrap"
                       : "bg-muted leading-relaxed",
@@ -174,7 +174,7 @@ export function AiAssistant() {
                 rows={1}
                 placeholder="Ask anything…"
                 style={{ outline: "none", boxShadow: "none" }}
-                className="text-foreground max-h-28 min-h-9 flex-1 resize-none rounded border bg-transparent px-3 py-2 text-sm"
+                className="text-foreground max-h-28 min-h-9 flex-1 resize-none rounded-[2px] border bg-transparent px-3 py-2 text-sm"
               />
               <Button
                 size="icon"

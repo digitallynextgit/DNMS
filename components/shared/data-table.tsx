@@ -102,7 +102,7 @@ export function DataTable<T>({
     align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"
 
   const table = (
-    <div className={cn("bg-card rounded border", className)}>
+    <div className={cn("bg-card rounded-[2px] border", className)}>
       <div className={cn(minWidth && "overflow-x-auto")}>
         <table className={cn("w-full text-sm", minWidth)}>
           <thead>

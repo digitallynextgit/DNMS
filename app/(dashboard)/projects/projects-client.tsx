@@ -356,7 +356,7 @@ export function ProjectsClient() {
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                          "min-h-32 flex-1 space-y-2 rounded p-2 transition-colors",
+                          "min-h-32 flex-1 space-y-2 rounded-[2px] p-2 transition-colors",
                           col.color,
                           snapshot.isDraggingOver && "ring-primary/40 ring-2",
                         )}
@@ -374,7 +374,7 @@ export function ProjectsClient() {
                                 {...drag.draggableProps}
                                 style={drag.draggableProps.style as CSSProperties}
                                 className={cn(
-                                  "bg-background rounded border p-3 shadow-sm select-none",
+                                  "bg-background rounded-[2px] border p-3 shadow-sm select-none",
                                   snap.isDragging && "ring-primary/50 rotate-1 shadow-lg ring-2",
                                 )}
                               >
@@ -519,7 +519,7 @@ export function ProjectsClient() {
                     {group.map((project) => (
                       <div
                         key={project.id}
-                        className="group bg-card hover:border-foreground/20 hover:bg-muted/30 relative flex flex-col gap-3 rounded border p-4 transition-colors"
+                        className="group bg-card hover:border-foreground/20 hover:bg-muted/30 relative flex flex-col gap-3 rounded-[2px] border p-4 transition-colors"
                       >
                         {/* Stretched link: an absolutely-positioned overlay makes the
                             WHOLE card clickable while keeping the markup valid (an
@@ -528,7 +528,7 @@ export function ProjectsClient() {
                         <Link
                           href={`/projects/${project.id}`}
                           aria-label={`Open ${project.name}`}
-                          className="focus-visible:ring-ring absolute inset-0 rounded focus-visible:ring-2 focus-visible:outline-none"
+                          className="focus-visible:ring-ring absolute inset-0 rounded-[2px] focus-visible:ring-2 focus-visible:outline-none"
                         />
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">

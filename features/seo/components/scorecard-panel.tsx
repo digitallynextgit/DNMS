@@ -148,7 +148,7 @@ export function ScorecardPanel({
                 <div className="pt-1">
                   <div className="bg-muted h-1.5 w-full overflow-hidden rounded">
                     <div
-                      className="h-full rounded bg-sky-500"
+                      className="h-full rounded-[2px] bg-sky-500"
                       style={{ width: `${Math.min(100, card.coverage)}%` }}
                     />
                   </div>
@@ -293,7 +293,7 @@ function VitalsTable({ rows }: { rows: VitalsView[] }) {
                     {r.verdict ? (
                       <span
                         className={cn(
-                          "rounded px-1.5 py-0.5 text-xs font-medium",
+                          "rounded-[2px] px-1.5 py-0.5 text-xs font-medium",
                           VERDICTS[r.verdict]?.cls,
                         )}
                       >

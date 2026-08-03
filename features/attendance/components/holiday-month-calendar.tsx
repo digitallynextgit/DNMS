@@ -68,7 +68,7 @@ export function HolidayMonthCalendar({
     <div className={cn("space-y-4", className)}>
       <MonthNav year={year} month={month} onPrev={onPrevMonth} onNext={onNextMonth} />
 
-      <div className="bg-card rounded border p-4">
+      <div className="bg-card rounded-[2px] border p-4">
         <div className="grid grid-cols-7 gap-1">
           {WEEKDAYS.map((w) => (
             <div key={w} className="text-muted-foreground py-1 text-center text-xs font-medium">
@@ -107,7 +107,7 @@ export function HolidayMonthCalendar({
                       : undefined
                 }
                 className={cn(
-                  "flex min-h-19 flex-col rounded p-1.5 text-left",
+                  "flex min-h-19 flex-col rounded-[2px] p-1.5 text-left",
                   isBirthday
                     ? "bg-rose-100 text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200"
                     : h

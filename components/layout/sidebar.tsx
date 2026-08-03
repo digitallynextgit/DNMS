@@ -120,7 +120,7 @@ function CountBadge({ collapsed, count }: { collapsed: boolean; count: number })
   return (
     <span
       className={cn(
-        "bg-destructive flex items-center justify-center rounded font-semibold text-white",
+        "bg-destructive flex items-center justify-center rounded-[2px] font-semibold text-white",
         collapsed
           ? "absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[9px] leading-none"
           : "ml-auto h-5 min-w-5 px-1.5 text-[11px] leading-none",
@@ -178,12 +178,26 @@ const PROJECT_ITEMS: NavItem[] = [
     href: "/projects/my-tasks",
     icon: ListChecks,
   },
-  {
-    label: "Project Performance",
-    href: "/projects/performance",
-    icon: TrendingUp,
-  },
 ]
+
+/**
+ * Project links, with the progress entry named for who is reading it.
+ *
+ * The page behind it is already scoped server-side: `project:write` holders see
+ * every project, everyone else sees the teams they manage, the projects they
+ * own, and their own tasks. The label should say which of those you are getting
+ * rather than promising a company-wide view to someone who cannot have one.
+ */
+function projectItems(canManageProjects: boolean): NavItem[] {
+  return [
+    ...PROJECT_ITEMS,
+    {
+      label: canManageProjects ? "Progress" : "My Progress",
+      href: "/projects/progress",
+      icon: TrendingUp,
+    },
+  ]
+}
 
 // ── HRMS: only privileged roles. Gated by manage-level permissions
 //    (WRITE/APPROVE/REVIEW) so regular employees never see these groups; they
@@ -348,7 +362,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
             <TooltipTrigger asChild>
               <div
                 className={cn(
-                  "mx-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded transition-colors",
+                  "mx-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-[2px] transition-colors",
                   isActive
                     ? "bg-accent text-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -370,7 +384,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
         <button
           onClick={() => setOpen(!open)}
           className={cn(
-            "flex h-8 w-full items-center gap-2.5 rounded px-2.5 text-sm transition-colors",
+            "flex h-8 w-full items-center gap-2.5 rounded-[2px] px-2.5 text-sm transition-colors",
             isActive
               ? "text-foreground font-medium"
               : "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -394,7 +408,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
                   key={child.href}
                   href={child.href}
                   className={cn(
-                    "block rounded px-2 py-1.5 text-[13px] transition-colors",
+                    "block rounded-[2px] px-2 py-1.5 text-[13px] transition-colors",
                     childActive
                       ? "text-foreground font-medium"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -422,7 +436,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
             <Link
               href={item.href!}
               className={cn(
-                "relative mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors",
+                "relative mx-auto flex h-8 w-8 items-center justify-center rounded-[2px] transition-colors",
                 isActive
                   ? "bg-accent text-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -444,7 +458,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
     <Link
       href={item.href!}
       className={cn(
-        "flex h-8 items-center gap-2.5 rounded px-2.5 text-sm transition-colors",
+        "flex h-8 items-center gap-2.5 rounded-[2px] px-2.5 text-sm transition-colors",
         isActive
           ? "bg-accent text-foreground font-medium"
           : "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -587,7 +601,7 @@ export function Sidebar({ session }: { session: Session }) {
         />
         <SidebarSection
           label="Project"
-          items={PROJECT_ITEMS}
+          items={projectItems(permissions.includes(PERMISSIONS.PROJECT_WRITE))}
           isCollapsed={isCollapsed}
           permissions={permissions}
           roles={roles}

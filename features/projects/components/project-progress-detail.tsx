@@ -1,5 +1,7 @@
 "use client"
 
+import { Fragment } from "react"
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
 import {
   AlertTriangle,
   ArrowDown,
@@ -22,6 +24,7 @@ import { cn, formatDate } from "@/lib/utils"
 import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import {
   useProjectProgress,
+  type MemberProgress,
   type ProgressBucket,
   type SeoSiteProgress,
 } from "../hooks/use-projects"
@@ -65,23 +68,33 @@ function StatusBar({ b }: { b: ProgressBucket }) {
     { n: b.discarded, cls: "bg-red-400", label: "Discarded" },
   ].filter((s) => s.n > 0)
 
+  const share = (n: number) => Math.round((n / b.total) * 100)
+
   return (
     <div className="space-y-1.5">
-      <div className="bg-muted flex h-2.5 w-full overflow-hidden rounded">
+      {/* Wide segments carry their own percentage; a narrow one would only
+          collide with its own label, so those fall back to the legend. */}
+      <div className="bg-muted flex h-5 w-full gap-0.5 overflow-hidden rounded-[2px]">
         {seg.map((s) => (
           <div
             key={s.label}
-            className={s.cls}
-            style={{ width: `${(s.n / b.total) * 100}%` }}
-            title={`${s.label}: ${s.n}`}
-          />
+            className={cn(
+              "flex items-center justify-center rounded-[2px] text-[10px] font-medium text-white",
+              s.cls,
+            )}
+            style={{ width: `${share(s.n)}%` }}
+            title={`${s.label}: ${s.n} (${share(s.n)}%)`}
+          >
+            {share(s.n) >= 8 && `${share(s.n)}%`}
+          </div>
         ))}
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {seg.map((s) => (
           <span key={s.label} className="text-muted-foreground flex items-center gap-1 text-[11px]">
-            <span className={cn("h-2 w-2 rounded", s.cls)} />
+            <span className={cn("h-2 w-2 rounded-[2px]", s.cls)} />
             {s.label} {s.n}
+            <span className="opacity-70">({share(s.n)}%)</span>
           </span>
         ))}
       </div>
@@ -89,25 +102,105 @@ function StatusBar({ b }: { b: ProgressBucket }) {
   )
 }
 
-export function ProgressTab({ projectId }: { projectId: string }) {
-  const { data, isLoading } = useProjectProgress(projectId)
+/** The same status split as a donut: the bar reads proportions, this reads shape. */
+function StatusDonut({ b }: { b: ProgressBucket }) {
+  if (b.total === 0) return null
+  const seg = [
+    { name: "Done", value: b.done, fill: "#10b981" },
+    { name: "In progress", value: b.inProgress, fill: "#3b82f6" },
+    { name: "In review", value: b.inReview, fill: "#8b5cf6" },
+    { name: "To do", value: b.todo, fill: "#94a3b8" },
+    { name: "On hold", value: b.onHold, fill: "#f59e0b" },
+    { name: "Discarded", value: b.discarded, fill: "#f87171" },
+  ].filter((s) => s.value > 0)
+
+  return (
+    <ResponsiveContainer width="100%" height={170}>
+      <PieChart>
+        <Pie
+          data={seg}
+          dataKey="value"
+          nameKey="name"
+          innerRadius={42}
+          outerRadius={66}
+          paddingAngle={2}
+          stroke="var(--card)"
+          strokeWidth={2}
+        >
+          {seg.map((s) => (
+            <Cell key={s.name} fill={s.fill} />
+          ))}
+        </Pie>
+        <Tooltip
+          content={({ active, payload }) =>
+            active && payload?.length ? (
+              <div className="bg-popover rounded border p-2 text-xs shadow-md">
+                <p className="font-medium">{String(payload[0]!.name)}</p>
+                <p className="text-muted-foreground">
+                  {payload[0]!.value} tasks ·{" "}
+                  {Math.round((Number(payload[0]!.value) / b.total) * 100)}%
+                </p>
+              </div>
+            ) : null
+          }
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  )
+}
+
+export function ProjectProgressDetail({
+  projectId,
+  range,
+  onSelectMember,
+}: {
+  projectId: string
+  /** Due-date window. Omitted means all time. */
+  range?: { from?: string | null; to?: string | null }
+  /** Set to make member rows open a drill-down. */
+  onSelectMember?: (m: MemberProgress) => void
+}) {
+  const { data, isLoading } = useProjectProgress(projectId, range)
 
   if (isLoading) return <ListSkeleton />
   if (!data) return null
 
   const { summary, byTeam, byMember, trend, upcoming, seo, seoTotals } = data
+  const filtered = !!(range?.from || range?.to)
 
-  if (summary.total === 0 && seo.length === 0) {
+  // With a filter on, "no tasks" means none DUE in that window, which is a
+  // different statement from "this project has no tasks" - and a full report
+  // built from zero tasks would contradict the headline numbers above it.
+  if (summary.total === 0) {
     return (
       <EmptyState
         icon={CheckCircle2}
-        title="Nothing to report yet"
-        description="Once tasks are created or a site is tracked, this tab shows completion, punctuality and search performance."
+        title={filtered ? "No tasks due in this range" : "Nothing to report yet"}
+        description={
+          filtered
+            ? "Nothing on this project falls inside the selected dates. Widen the range, or switch back to All time."
+            : "Once tasks are created or a site is tracked, this shows completion, punctuality and search performance."
+        }
       />
     )
   }
 
   const peakWeek = Math.max(1, ...trend.map((t) => Math.max(t.completed, t.due)))
+
+  // People read as members of a team, not one undifferentiated list. Teamless
+  // members fall into a trailing bucket rather than being dropped.
+  const memberGroups = Object.values(
+    byMember.reduce<Record<string, { team: string; members: MemberProgress[]; total: number }>>(
+      (acc, m) => {
+        const team = m.teamName ?? "No team"
+        acc[team] ??= { team, members: [], total: 0 }
+        acc[team]!.members.push(m)
+        acc[team]!.total += m.total
+        return acc
+      },
+      {},
+    ),
+  ).sort((a, b) => (a.team === "No team" ? 1 : b.team === "No team" ? -1 : b.total - a.total))
 
   return (
     <div className="space-y-4">
@@ -171,6 +264,7 @@ export function ProgressTab({ projectId }: { projectId: string }) {
           <CardContent className="space-y-3 p-4">
             <p className="text-sm font-medium">Where the work stands</p>
             <StatusBar b={summary} />
+            <StatusDonut b={summary} />
           </CardContent>
         </Card>
 
@@ -278,7 +372,7 @@ export function ProgressTab({ projectId }: { projectId: string }) {
             <div className="border-border border-b px-4 py-3">
               <p className="text-sm font-medium">Who is delivering</p>
               <p className="text-muted-foreground text-xs">
-                Per person on this project, busiest first.
+                Grouped by team. Click a person to see their tasks.
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -294,36 +388,59 @@ export function ProgressTab({ projectId }: { projectId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {byMember.map((m) => (
-                    <tr key={m.id} className="border-border/60 border-b last:border-0">
-                      <td className="px-4 py-2">
-                        <div className="flex items-center gap-2">
-                          <AvatarDisplay
-                            src={m.profilePhoto}
-                            firstName={m.name.split(" ")[0] ?? ""}
-                            lastName={m.name.split(" ").slice(1).join(" ")}
-                            size="xs"
-                          />
-                          <span className="font-medium">{m.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2 text-right tabular-nums">{m.total}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{m.done}</td>
-                      <td
-                        className={cn(
-                          "px-4 py-2 text-right tabular-nums",
-                          m.overdue > 0 && "font-medium text-red-600",
-                        )}
-                      >
-                        {m.overdue}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <Rate value={m.completionRate} />
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <Rate value={m.onTimeRate} />
-                      </td>
-                    </tr>
+                  {memberGroups.map((g) => (
+                    <Fragment key={g.team}>
+                      <tr className="bg-muted/40 border-border/60 border-b">
+                        <td
+                          colSpan={6}
+                          className="text-muted-foreground px-4 py-1.5 text-xs font-medium"
+                        >
+                          {g.team}
+                          <span className="ml-2 opacity-70">
+                            {g.members.length} {g.members.length === 1 ? "person" : "people"} ·{" "}
+                            {g.total} {g.total === 1 ? "task" : "tasks"}
+                          </span>
+                        </td>
+                      </tr>
+                      {g.members.map((m) => (
+                        <tr
+                          key={m.id}
+                          onClick={() => onSelectMember?.(m)}
+                          className={cn(
+                            "border-border/60 border-b last:border-0",
+                            onSelectMember && "hover:bg-muted/50 cursor-pointer",
+                          )}
+                        >
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-2">
+                              <AvatarDisplay
+                                src={m.profilePhoto}
+                                firstName={m.name.split(" ")[0] ?? ""}
+                                lastName={m.name.split(" ").slice(1).join(" ")}
+                                size="xs"
+                              />
+                              <span className="font-medium">{m.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums">{m.total}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{m.done}</td>
+                          <td
+                            className={cn(
+                              "px-4 py-2 text-right tabular-nums",
+                              m.overdue > 0 && "font-medium text-red-600",
+                            )}
+                          >
+                            {m.overdue}
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <Rate value={m.completionRate} />
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <Rate value={m.onTimeRate} />
+                          </td>
+                        </tr>
+                      ))}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

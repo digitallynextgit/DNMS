@@ -60,7 +60,7 @@ function DayCell({ d }: { d: CalendarDay }) {
   return (
     <div
       title={d.label ?? d.status}
-      className={cn("flex min-h-19 flex-col rounded p-1.5 text-left", cellStyle(d.status))}
+      className={cn("flex min-h-19 flex-col rounded-[2px] p-1.5 text-left", cellStyle(d.status))}
     >
       <div className="flex items-start justify-between gap-1">
         <span className="text-xs font-semibold">{d.day}</span>
@@ -90,7 +90,7 @@ function DayCell({ d }: { d: CalendarDay }) {
 export function AttendanceCalendar({ days }: { days: CalendarDay[] }) {
   const firstDow = days[0]?.dow ?? 0
   return (
-    <div className="bg-card rounded border p-4">
+    <div className="bg-card rounded-[2px] border p-4">
       <div className="grid grid-cols-7 gap-1">
         {WEEKDAYS.map((w) => (
           <div key={w} className="text-muted-foreground py-1 text-center text-xs font-medium">

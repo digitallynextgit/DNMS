@@ -123,14 +123,14 @@ export default function FloatingHolidaysPage() {
           <Button variant="outline" size="sm" onClick={() => changeYear(year - 1)}>
             &larr; {year - 1}
           </Button>
-          <span className="bg-muted rounded px-3 py-1 text-sm font-medium">{year}</span>
+          <span className="bg-muted rounded-[2px] px-3 py-1 text-sm font-medium">{year}</span>
           <Button variant="outline" size="sm" onClick={() => changeYear(year + 1)}>
             {year + 1} &rarr;
           </Button>
         </div>
         <span
           className={cn(
-            "rounded px-3 py-1 text-xs font-medium",
+            "rounded-[2px] px-3 py-1 text-xs font-medium",
             atLimit ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground",
           )}
         >
@@ -158,7 +158,7 @@ export default function FloatingHolidaysPage() {
                 onClick={() => !disabled && toggle(h)}
                 disabled={disabled}
                 className={cn(
-                  "flex items-start justify-between gap-3 rounded border p-4 text-left transition-colors",
+                  "flex items-start justify-between gap-3 rounded-[2px] border p-4 text-left transition-colors",
                   isSel ? "border-primary bg-primary/5" : "bg-card hover:bg-muted/40",
                   disabled && !isSel && "cursor-not-allowed opacity-50",
                 )}
@@ -174,7 +174,7 @@ export default function FloatingHolidaysPage() {
                 </div>
                 <span
                   className={cn(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-[2px] border",
                     isSel
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-muted-foreground/30",
