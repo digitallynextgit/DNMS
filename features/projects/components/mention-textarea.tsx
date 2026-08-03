@@ -155,7 +155,7 @@ export function MentionTextarea({
       {open && suggestions.length > 0 && (
         <div
           className={cn(
-            "bg-popover absolute z-50 w-72 overflow-hidden rounded-md border shadow-md",
+            "bg-popover absolute z-50 w-72 overflow-hidden rounded border shadow-md",
             dropup ? "bottom-full mb-1" : "mt-1",
           )}
         >

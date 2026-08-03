@@ -194,7 +194,7 @@ export function AiSuggestDialog({
                 aria-checked={on}
                 onClick={() => toggle(item.key)}
                 className={cn(
-                  "flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors",
+                  "flex w-full items-start gap-3 rounded border p-3 text-left transition-colors",
                   on ? "border-primary/50 bg-primary/5" : "hover:bg-muted/50",
                 )}
               >

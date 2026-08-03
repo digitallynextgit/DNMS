@@ -99,7 +99,7 @@ export function TagListInput({
           {values.map((v) => (
             <span
               key={v}
-              className="bg-muted inline-flex max-w-full items-center gap-1 rounded-md px-2 py-1 text-xs"
+              className="bg-muted inline-flex max-w-full items-center gap-1 rounded px-2 py-1 text-xs"
             >
               <span className="truncate" title={v}>
                 {v}

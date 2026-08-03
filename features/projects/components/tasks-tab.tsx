@@ -53,7 +53,7 @@ import {
 import dynamic from "next/dynamic"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { TaskDetailSheet } from "./task-detail-sheet"
-import { formatHours } from "../lib/format-hours"
+import { TaskTime } from "./task-time"
 
 // The Kanban board pulls in @hello-pangea/dnd; load it only when the board view
 // is shown, so the default list view's bundle stays lean.
@@ -331,12 +331,11 @@ function TaskRow({
               size="xs"
             />
             {task.dueDate && <span>Due {formatDate(task.dueDate)}</span>}
-            {task.estimatedHours != null && (
-              <span className="flex items-center gap-0.5">
-                <Clock className="h-3 w-3" />
-                {formatHours(task.estimatedHours)}
-              </span>
-            )}
+            <TaskTime
+              estimatedHours={task.estimatedHours}
+              loggedHours={task.loggedHours}
+              inProgressSince={task.inProgressSince}
+            />
             {task.assignee && (
               <span className="flex items-center gap-1">
                 <AvatarDisplay

@@ -157,7 +157,7 @@ export function SetupGuide({
             </div>
           </div>
           {setup.lockedPoints > 0 && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs">
+            <div className="rounded border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs">
               <p className="flex items-center gap-1.5 font-medium text-amber-600">
                 <Lock className="h-3.5 w-3.5" />
                 {setup.lockedPoints} of 100 scorecard points locked

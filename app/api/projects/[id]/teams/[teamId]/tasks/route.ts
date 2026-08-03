@@ -8,6 +8,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
 import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
+import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
 import type { Session } from "next-auth"
 
 // GET /api/projects/[id]/teams/[teamId]/tasks - list tasks for team (all project members can view)
@@ -124,6 +125,13 @@ export const POST = withSession(
           assignee: { select: { id: true, firstName: true, lastName: true, email: true } },
           creator: { select: { id: true, firstName: true, lastName: true } },
         },
+      })
+
+      await openFirstStatusPeriod(db, {
+        taskId: task.id,
+        status: task.status,
+        actorId: session.user.id,
+        at: task.createdAt,
       })
 
       // Notifications

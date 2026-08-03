@@ -1,15 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react"
+import { useMemo, useState, type CSSProperties } from "react"
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd"
-import { useUrlPage } from "@/hooks/use-url-state"
-import { useUpdateEffect } from "@/hooks/use-update-effect"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
-import { AlertTriangle, Clock, GripVertical, Inbox } from "lucide-react"
+import { AlertTriangle, ChevronDown, ChevronRight, Clock, GripVertical, Inbox } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
-import { Pagination } from "@/components/shared/pagination"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
@@ -34,6 +31,9 @@ import {
 import { formatDate, cn } from "@/lib/utils"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
+import { TaskTime } from "@/features/projects/components/task-time"
+import { TaskHistoryDialog } from "@/features/projects/components/task-history-dialog"
+import { formatHours } from "@/features/projects/lib/format-hours"
 import { TaskStatusReasonDialog } from "@/features/projects/components/task-status-reason-dialog"
 import { TaskCreateDialog } from "@/features/projects/components/task-create-dialog"
 import { Button } from "@/components/ui/button"
@@ -47,6 +47,8 @@ interface MyTask {
   dueDate: string | null
   loggedHours: number
   estimatedHours: number | null
+  /** Non-null while the task sits In Progress and its clock is running. */
+  inProgressSince: string | null
   approvalStatus: "APPROVED" | "PENDING_APPROVAL" | "REJECTED"
   rejectionReason: string | null
   project: { id: string; name: string; code: string }
@@ -69,11 +71,36 @@ async function updateTask(id: string, body: Record<string, unknown>) {
   return res.json()
 }
 
-const PAGE_SIZE = 10
+const NO_DATE = "none"
+
+/** Local calendar day of an ISO date, e.g. "2026-08-03". */
+function dayKey(iso: string | null): string {
+  if (!iso) return NO_DATE
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+/** "Today · Mon, 3 Aug", "Tomorrow · …", or just the date. */
+function dayLabel(key: string): string {
+  if (key === NO_DATE) return "No due date"
+  const [y, m, d] = key.split("-").map(Number)
+  const date = new Date(y!, m! - 1, d!)
+  const pretty = date.toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  })
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((date.getTime() - today.getTime()) / 86_400_000)
+  if (diffDays === 0) return `Today · ${pretty}`
+  if (diffDays === 1) return `Tomorrow · ${pretty}`
+  if (diffDays === -1) return `Yesterday · ${pretty}`
+  return pretty
+}
 
 export default function MyTasksPage() {
   const [statusFilter, setStatusFilter] = useState("all")
-  const [page, setPage] = useUrlPage()
   const [viewMode, setViewMode] = useViewMode("my-tasks")
   const qc = useQueryClient()
 
@@ -89,42 +116,47 @@ export default function MyTasksPage() {
     onError: () => toast.error("Failed to update"),
   })
 
-  // Full filtered list - drives summary stats, the pending-approval callout,
-  // and the total used for pagination metadata.
+  // Full filtered list - drives the summary strip, the pending-approval callout
+  // and the day groups. Nothing is paginated: both non-board views collapse by
+  // day instead, which is what makes a full week fit on one screen.
   const tasks = useMemo(() => {
     return (data?.data ?? []).filter((t) => statusFilter === "all" || t.status === statusFilter)
   }, [data, statusFilter])
 
-  // Reset to the first page whenever the status filter changes (skips mount so a
-  // deep-linked ?page=N survives first render).
-  useUpdateEffect(() => {
-    setPage(1)
-  }, [statusFilter])
+  // A week of allocation is 20+ rows, which is unreadable as one flat list. The
+  // card view groups by DAY (the unit the allocation sheet is written in) and
+  // collapses each day, so you open the day you are working on.
+  const dayGroups = useMemo(() => {
+    const now = new Date()
+    const map = new Map<string, MyTask[]>()
+    for (const t of tasks) {
+      const key = dayKey(t.dueDate)
+      const list = map.get(key)
+      if (list) list.push(t)
+      else map.set(key, [t])
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => (a === NO_DATE ? 1 : b === NO_DATE ? -1 : a.localeCompare(b)))
+      .map(([key, list]) => ({
+        key,
+        label: dayLabel(key),
+        tasks: list,
+        allocated: list.reduce((sum, t) => sum + (t.estimatedHours ?? 0), 0),
+        done: list.filter((t) => t.status === "DONE").length,
+        overdue: list.filter((t) => t.dueDate && new Date(t.dueDate) < now && t.status !== "DONE")
+          .length,
+      }))
+  }, [tasks])
 
-  const total = tasks.length
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
-  // Clamp the page if the filtered list shrinks below the current page.
-  useEffect(() => {
-    if (!isLoading && page > totalPages) setPage(totalPages)
-  }, [page, totalPages, isLoading])
-
-  // Only the current page of tasks is rendered (table rows / grouped cards).
-  const pageTasks = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE
-    return tasks.slice(start, start + PAGE_SIZE)
-  }, [tasks, page])
-
-  // Group the current page by project → team
-  const grouped = useMemo(() => {
-    const groups: Record<string, { project: MyTask["project"]; tasks: MyTask[] }> = {}
-    pageTasks.forEach((t) => {
-      const key = t.project.id
-      if (!groups[key]) groups[key] = { project: t.project, tasks: [] }
-      groups[key].tasks.push(t)
-    })
-    return Object.values(groups)
-  }, [pageTasks])
+  // Undefined means "not touched by the user", so the default (today and
+  // anything overdue open, the rest shut) applies without an effect that would
+  // fight the user's own clicks.
+  const [openDays, setOpenDays] = useState<Record<string, boolean>>({})
+  const todayKey = dayKey(new Date().toISOString())
+  const isDayOpen = (g: (typeof dayGroups)[number]) =>
+    openDays[g.key] ?? (g.key === todayKey || g.overdue > 0)
+  const setAllDays = (open: boolean) =>
+    setOpenDays(Object.fromEntries(dayGroups.map((g) => [g.key, open])))
 
   const pendingApproval = tasks.filter((t) => t.approvalStatus === "PENDING_APPROVAL")
   const doneCount = tasks.filter((t) => t.status === "DONE").length
@@ -211,9 +243,26 @@ export default function MyTasksPage() {
       ),
     },
     {
+      header: "Time",
+      headClassName: "whitespace-nowrap",
+      className: "whitespace-nowrap",
+      cell: (task) => (
+        <TaskTime
+          estimatedHours={task.estimatedHours}
+          loggedHours={task.loggedHours}
+          inProgressSince={task.inProgressSince}
+        />
+      ),
+    },
+    {
       header: "Due",
       className: "text-muted-foreground text-xs whitespace-nowrap",
       cell: (task) => (task.dueDate ? formatDate(task.dueDate) : "-"),
+    },
+    {
+      header: "",
+      align: "right",
+      cell: (task) => <TaskHistoryDialog taskId={task.id} taskTitle={task.title} />,
     },
   ]
 
@@ -291,7 +340,28 @@ export default function MyTasksPage() {
             </SelectContent>
           </Select>
         </div>
-        <ViewToggle value={viewMode} onChange={setViewMode} showKanban />
+        <div className="flex items-center gap-2">
+          {viewMode !== "kanban" && dayGroups.length > 1 && (
+            <div className="text-muted-foreground flex items-center gap-1 text-xs">
+              <button
+                type="button"
+                className="hover:text-foreground"
+                onClick={() => setAllDays(true)}
+              >
+                Expand all
+              </button>
+              <span aria-hidden>·</span>
+              <button
+                type="button"
+                className="hover:text-foreground"
+                onClick={() => setAllDays(false)}
+              >
+                Collapse all
+              </button>
+            </div>
+          )}
+          <ViewToggle value={viewMode} onChange={setViewMode} showKanban />
+        </div>
       </div>
 
       {/* Groups or table */}
@@ -305,127 +375,199 @@ export default function MyTasksPage() {
           onCommit={(id, payload) => updateMut.mutate({ id, ...payload })}
         />
       ) : viewMode === "table" ? (
-        <DataTable
-          columns={columns}
-          rows={pageTasks}
-          rowKey={(task) => task.id}
-          showSerial
-          serialOffset={(page - 1) * PAGE_SIZE}
-          pagination={{
-            page,
-            totalPages,
-            total,
-            onPageChange: setPage,
-            itemLabel: "task",
-          }}
-        />
+        // Same day-wise accordion as the card view: a week of allocation is 20+
+        // rows, and one flat table of them is the thing that was unreadable.
+        dayGroups.map((group) => {
+          const expanded = isDayOpen(group)
+          return (
+            <Card key={group.key} className={cn(!expanded && "bg-muted/20")}>
+              <CardContent className="p-0">
+                <DayHeader
+                  group={group}
+                  expanded={expanded}
+                  onToggle={() => setOpenDays((prev) => ({ ...prev, [group.key]: !expanded }))}
+                />
+                {expanded && (
+                  <div className="border-t">
+                    <DataTable
+                      columns={columns}
+                      rows={group.tasks}
+                      rowKey={(t) => t.id}
+                      showSerial
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })
       ) : (
-        grouped.map(({ project, tasks }) => (
-          <Card key={project.id}>
-            <CardContent className="p-4">
-              <Link
-                href={`/projects/${project.id}`}
-                className="mb-3 inline-block text-sm font-semibold hover:underline"
-              >
-                {project.name}{" "}
-                <Badge variant="outline" className="ml-2 font-mono text-[10px]">
-                  {project.code}
-                </Badge>
-              </Link>
-              <div className="space-y-2">
-                {tasks.map((task) => {
-                  const isOverdue =
-                    task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "DONE"
-                  const isPending = task.approvalStatus === "PENDING_APPROVAL"
-                  const isRejected = task.approvalStatus === "REJECTED"
+        dayGroups.map((group) => {
+          const expanded = isDayOpen(group)
+          return (
+            <Card key={group.key} className={cn(!expanded && "bg-muted/20")}>
+              <CardContent className="p-0">
+                <DayHeader
+                  group={group}
+                  expanded={expanded}
+                  onToggle={() => setOpenDays((prev) => ({ ...prev, [group.key]: !expanded }))}
+                />
 
-                  return (
-                    <div
-                      key={task.id}
-                      className={cn(
-                        "flex items-center gap-3 rounded border p-2.5",
-                        isOverdue &&
-                          "border-red-200 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
-                        isPending &&
-                          "border-amber-200 bg-amber-50/40 dark:border-amber-900/60 dark:bg-amber-950/20",
-                        isRejected && "border-red-200 bg-red-50/40",
-                        !isOverdue && !isPending && !isRejected && "border-border",
-                      )}
-                    >
-                      <TaskStatusSelect
-                        value={task.status}
-                        disabled={isPending || isRejected}
-                        triggerClassName="h-8 w-32 text-xs"
-                        onCommit={(payload) => updateMut.mutate({ id: task.id, ...payload })}
-                      />
+                {expanded && (
+                  <div className="space-y-2 border-t px-4 py-3">
+                    {group.tasks.map((task) => {
+                      const isOverdue =
+                        task.dueDate &&
+                        new Date(task.dueDate) < new Date() &&
+                        task.status !== "DONE"
+                      const isPending = task.approvalStatus === "PENDING_APPROVAL"
+                      const isRejected = task.approvalStatus === "REJECTED"
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-sm font-medium">{task.title}</p>
-                          {isPending && (
-                            <Badge
-                              variant="outline"
-                              className="border-amber-200 bg-amber-100 text-[10px] text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
-                            >
-                              <Clock className="mr-0.5 inline h-3 w-3" />
-                              Pending
-                            </Badge>
+                      return (
+                        <div
+                          key={task.id}
+                          className={cn(
+                            "flex items-center gap-3 rounded border p-2.5",
+                            isOverdue &&
+                              "border-red-200 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
+                            isPending &&
+                              "border-amber-200 bg-amber-50/40 dark:border-amber-900/60 dark:bg-amber-950/20",
+                            isRejected && "border-red-200 bg-red-50/40",
+                            !isOverdue && !isPending && !isRejected && "border-border",
                           )}
-                          {isRejected && (
-                            <Badge
-                              variant="outline"
-                              className="border-red-200 bg-red-100 text-[10px] text-red-700"
-                            >
-                              Rejected
-                            </Badge>
-                          )}
-                          {isOverdue && (
-                            <Badge
-                              variant="outline"
-                              className="border-red-200 bg-red-50 text-[10px] text-red-700"
-                            >
-                              <AlertTriangle className="mr-0.5 inline h-3 w-3" />
-                              Overdue
-                            </Badge>
-                          )}
-                        </div>
-                        {task.rejectionReason && (
-                          <p className="mt-0.5 text-[11px] text-red-700">
-                            Reason: {task.rejectionReason}
-                          </p>
-                        )}
-                        <div className="text-muted-foreground mt-1 flex items-center gap-2 text-[11px]">
-                          {task.team && <span>{task.team.name}</span>}
-                          {task.team && (task.dueDate || task.priority) && <span>·</span>}
-                          <StatusBadge
-                            status={task.priority}
-                            colorMap={TASK_PRIORITY_COLORS}
-                            labelMap={TASK_PRIORITY_LABELS}
-                            size="xs"
+                        >
+                          <TaskStatusSelect
+                            value={task.status}
+                            disabled={isPending || isRejected}
+                            triggerClassName="h-8 w-32 text-xs"
+                            onCommit={(payload) => updateMut.mutate({ id: task.id, ...payload })}
                           />
-                          {task.dueDate && <span>Due {formatDate(task.dueDate)}</span>}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        ))
-      )}
 
-      {/* Pagination - the table view renders its own inside <DataTable />. */}
-      {!isLoading && total > 0 && !(viewMode === "table" && grouped.length > 0) && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          total={total}
-          onPageChange={setPage}
-          itemLabel="task"
-        />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-medium">{task.title}</p>
+                              {isPending && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-amber-200 bg-amber-100 text-[10px] text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+                                >
+                                  <Clock className="mr-0.5 inline h-3 w-3" />
+                                  Pending
+                                </Badge>
+                              )}
+                              {isRejected && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-red-200 bg-red-100 text-[10px] text-red-700"
+                                >
+                                  Rejected
+                                </Badge>
+                              )}
+                              {isOverdue && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-red-200 bg-red-50 text-[10px] text-red-700"
+                                >
+                                  <AlertTriangle className="mr-0.5 inline h-3 w-3" />
+                                  Overdue
+                                </Badge>
+                              )}
+                            </div>
+                            {task.rejectionReason && (
+                              <p className="mt-0.5 text-[11px] text-red-700">
+                                Reason: {task.rejectionReason}
+                              </p>
+                            )}
+                            <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                              <Link
+                                href={`/projects/${task.project.id}`}
+                                className="hover:text-foreground hover:underline"
+                              >
+                                {task.project.name}
+                              </Link>
+                              {task.team && <span>· {task.team.name}</span>}
+                              <StatusBadge
+                                status={task.priority}
+                                colorMap={TASK_PRIORITY_COLORS}
+                                labelMap={TASK_PRIORITY_LABELS}
+                                size="xs"
+                              />
+                              <TaskTime
+                                estimatedHours={task.estimatedHours}
+                                loggedHours={task.loggedHours}
+                                inProgressSince={task.inProgressSince}
+                              />
+                              <TaskHistoryDialog taskId={task.id} taskTitle={task.title} />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })
       )}
     </div>
+  )
+}
+
+interface DayGroup {
+  key: string
+  label: string
+  tasks: MyTask[]
+  allocated: number
+  done: number
+  overdue: number
+}
+
+/**
+ * Accordion header for one day: the FAQ pattern, so a week of allocation reads
+ * as five closed rows rather than one 22-row wall. Carries the day's totals so
+ * a collapsed day still tells you whether it needs opening.
+ */
+function DayHeader({
+  group,
+  expanded,
+  onToggle,
+}: {
+  group: DayGroup
+  expanded: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={expanded}
+      onClick={onToggle}
+      className="hover:bg-muted/40 flex w-full items-center gap-3 rounded px-4 py-3 text-left transition-colors"
+    >
+      {expanded ? (
+        <ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
+      ) : (
+        <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
+      )}
+      <span className="text-sm font-semibold">{group.label}</span>
+      <span className="text-muted-foreground text-xs">
+        {group.tasks.length} {group.tasks.length === 1 ? "task" : "tasks"}
+        {group.allocated > 0 && ` · ${formatHours(group.allocated)} allocated`}
+      </span>
+      <span className="ml-auto flex shrink-0 items-center gap-1.5">
+        {group.overdue > 0 && (
+          <Badge variant="outline" className="border-red-300 py-0 text-[10px] text-red-700">
+            <AlertTriangle className="mr-0.5 inline h-3 w-3" />
+            {group.overdue} overdue
+          </Badge>
+        )}
+        {group.done > 0 && (
+          <Badge variant="outline" className="border-emerald-300 py-0 text-[10px] text-emerald-700">
+            {group.done} done
+          </Badge>
+        )}
+      </span>
+    </button>
   )
 }
 
@@ -550,35 +692,46 @@ function MyTasksBoard({
                                   isOverdue && "border-red-300 dark:border-red-900/60",
                                 )}
                               >
-                                <div className="flex items-start gap-1.5">
+                                {/* Header: handle | title + project | history.
+                                    The handle is h-4 and the gap is 2 (8px), so
+                                    every row below aligns on pl-6 (24px) with
+                                    the title - one gutter, not three. */}
+                                <div className="flex items-start gap-2">
                                   <span
                                     {...drag.dragHandleProps}
                                     aria-label={locked ? "Locked" : `Drag ${task.title}`}
                                     className={cn(
-                                      "mt-0.5 shrink-0",
+                                      "mt-px shrink-0",
                                       locked
                                         ? "cursor-not-allowed"
                                         : "text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing",
                                     )}
                                   >
-                                    <GripVertical className="h-3.5 w-3.5" />
+                                    <GripVertical className="h-4 w-4" />
                                   </span>
                                   {/* Full title, wrapped rather than clipped. A task
                                       you cannot read is a task you cannot action. */}
-                                  <p className="min-w-0 flex-1 text-sm leading-snug font-medium break-words">
-                                    {task.title}
-                                  </p>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm leading-snug font-medium break-words">
+                                      {task.title}
+                                    </p>
+                                    <Link
+                                      href={`/projects/${task.project.id}`}
+                                      className="text-muted-foreground mt-0.5 block truncate text-[11px] hover:underline"
+                                      title={task.project.name}
+                                    >
+                                      {task.project.name}
+                                    </Link>
+                                  </div>
+                                  <TaskHistoryDialog
+                                    taskId={task.id}
+                                    taskTitle={task.title}
+                                    iconOnly
+                                    className="-mt-0.5 -mr-1 shrink-0"
+                                  />
                                 </div>
 
-                                <Link
-                                  href={`/projects/${task.project.id}`}
-                                  className="text-muted-foreground block truncate pl-5 text-xs hover:underline"
-                                  title={task.project.name}
-                                >
-                                  {task.project.name}
-                                </Link>
-
-                                <div className="flex flex-wrap items-center gap-1.5 pl-5">
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-6">
                                   <StatusBadge
                                     status={task.priority}
                                     colorMap={TASK_PRIORITY_COLORS}
@@ -588,33 +741,38 @@ function MyTasksBoard({
                                   {task.dueDate && (
                                     <span
                                       className={cn(
-                                        "text-[11px]",
+                                        "inline-flex items-center gap-1 text-[11px]",
                                         isOverdue
                                           ? "font-medium text-red-600 dark:text-red-400"
                                           : "text-muted-foreground",
                                       )}
                                     >
-                                      {isOverdue && (
-                                        <AlertTriangle className="mr-0.5 inline h-3 w-3" />
-                                      )}
+                                      {isOverdue && <AlertTriangle className="h-3.5 w-3.5" />}
                                       {formatDate(task.dueDate)}
                                     </span>
                                   )}
                                   {task.approvalStatus === "PENDING_APPROVAL" && (
                                     <Badge
                                       variant="outline"
-                                      className="border-amber-300 py-0 text-[10px] text-amber-700"
+                                      className="gap-1 border-amber-300 py-0 text-[10px] text-amber-700"
                                     >
-                                      <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                      <Clock className="h-3 w-3" />
                                       Pending
                                     </Badge>
                                   )}
                                 </div>
 
+                                <TaskTime
+                                  estimatedHours={task.estimatedHours}
+                                  loggedHours={task.loggedHours}
+                                  inProgressSince={task.inProgressSince}
+                                  className="pl-6"
+                                />
+
                                 <TaskStatusSelect
                                   value={task.status}
                                   disabled={locked}
-                                  triggerClassName="h-7 w-full text-xs"
+                                  triggerClassName="h-8 w-full text-xs"
                                   onCommit={(payload) => commit(task.id, { ...payload })}
                                 />
                               </div>

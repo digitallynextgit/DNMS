@@ -84,7 +84,7 @@ export function AiAssistant() {
 
       {/* Panel */}
       {open && (
-        <div className="bg-card fixed right-5 bottom-5 z-50 flex h-[min(560px,calc(100vh-6rem))] w-[min(400px,calc(100vw-2.5rem))] flex-col rounded-lg border shadow-2xl">
+        <div className="bg-card fixed right-5 bottom-5 z-50 flex h-[min(560px,calc(100vh-6rem))] w-[min(400px,calc(100vw-2.5rem))] flex-col rounded border shadow-2xl">
           <div className="flex items-center justify-between border-b px-4 py-2.5">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
@@ -141,7 +141,7 @@ export function AiAssistant() {
               >
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+                    "max-w-[85%] rounded px-3 py-2 text-sm",
                     m.role === "user"
                       ? "bg-primary text-primary-foreground whitespace-pre-wrap"
                       : "bg-muted leading-relaxed",

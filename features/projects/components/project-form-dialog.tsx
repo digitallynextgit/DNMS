@@ -65,7 +65,7 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
 
   // Resolve the currently-selected manager's name so the combobox can show it
   // before the user opens/searches (edit mode, where we only get an id).
-  const { data: empsData } = useEmployees({ status: "ACTIVE", limit: 100 })
+  const { data: empsData } = useEmployees({ status: "ACTIVE", limit: 100 }, { enabled: open })
   const selectedManager = (empsData?.data ?? []).find((e) => e.id === form.accountManagerId)
   const managerLabel = useMemo(
     () =>

@@ -190,11 +190,18 @@ async function fetchDesignations(): Promise<{ data: Designation[] }> {
 
 // ─── Hooks ─────────────────────────────────────────────────────────────────────
 
-export function useEmployees(filters: EmployeeFilters = {}) {
+/**
+ * `enabled: false` skips the fetch for callers that mount the hook before they
+ * need it - a dialog rendered closed, say. This endpoint requires the global
+ * `employee:read`, so an eager fetch is not just wasted, it is a 403 in the
+ * console for every project owner who is not also HR/admin.
+ */
+export function useEmployees(filters: EmployeeFilters = {}, opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["employees", filters],
     queryFn: () => fetchEmployees(filters),
     staleTime: 30_000,
+    enabled: opts?.enabled ?? true,
     // Keep the previous page's rows on screen while the next page loads, so the
     // list (and its pagination control) never collapses mid-transition.
     placeholderData: keepPreviousData,

@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatHours } from "../lib/format-hours"
+import { TaskTime } from "./task-time"
+import { TaskTimeline } from "./task-timeline"
 import {
   useTaskComments,
   useAddComment,
@@ -40,6 +41,7 @@ import {
   Send,
   CalendarDays,
   Flag,
+  History,
 } from "lucide-react"
 
 interface Props {
@@ -116,13 +118,14 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
                 Due {formatDate(task.dueDate)}
               </span>
             )}
-            {task.estimatedHours != null && (
-              <span className="text-muted-foreground inline-flex items-center gap-1 text-[11px] font-medium">
-                <Clock className="h-3 w-3" />
-                {formatHours(task.estimatedHours)}
-              </span>
-            )}
           </div>
+
+          <TaskTime
+            estimatedHours={task.estimatedHours}
+            loggedHours={task.loggedHours}
+            inProgressSince={task.inProgressSince}
+            variant="stacked"
+          />
 
           {/* On-hold / discarded context */}
           {task.status === "ON_HOLD" && task.holdReason && (
@@ -183,6 +186,15 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
           {/* Checklist */}
           <div className="border-b px-5 py-4">
             <ChecklistSection taskId={task.id} />
+          </div>
+
+          {/* Status history: created, started, and time in each phase */}
+          <div className="border-b px-5 py-4">
+            <div className="mb-3 flex items-center gap-2">
+              <History className="text-muted-foreground h-3.5 w-3.5" />
+              <span className="text-xs font-semibold">History</span>
+            </div>
+            <TaskTimeline taskId={task.id} open={open} />
           </div>
 
           {/* Comments */}

@@ -76,6 +76,8 @@ export interface ProjectTask {
   completedAt: string | null
   estimatedHours: number | null
   loggedHours: number
+  /** Non-null while the task sits In Progress and its clock is running. */
+  inProgressSince: string | null
   tags: string[]
   createdAt: string
   assignee: EmployeeSnippet | null

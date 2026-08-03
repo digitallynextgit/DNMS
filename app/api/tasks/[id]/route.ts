@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
 import { logActivity } from "@/features/projects/server/activity"
 import { syncTaskToEntry } from "@/features/projects/server/content-task.service"
+import { recordStatusChange } from "@/features/projects/server/task-status-periods"
 import { createNotification } from "@/lib/notifications"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
@@ -79,6 +80,23 @@ export const PATCH = withSession(
       if (status !== undefined) {
         data.status = status
         data.completedAt = status === "DONE" ? new Date() : null
+
+        // Time spent is MEASURED, not typed in: the clock starts the moment a
+        // task enters In Progress and the elapsed stretch is banked into
+        // loggedHours when it leaves. A task can be started and paused any
+        // number of times; each stretch adds to the total.
+        if (status !== auth.task.status) {
+          if (status === "IN_PROGRESS") {
+            data.inProgressSince = new Date()
+          } else if (auth.task.inProgressSince) {
+            const elapsedHours = (Date.now() - auth.task.inProgressSince.getTime()) / 3_600_000
+            // Round to the second so repeated start/stop cycles cannot drift.
+            data.loggedHours =
+              Math.round((auth.task.loggedHours + Math.max(0, elapsedHours)) * 3600) / 3600
+            data.inProgressSince = null
+          }
+        }
+
         if (status === "ON_HOLD") {
           const reason = (holdReason ?? "").toString().trim()
           if (!reason)
@@ -122,13 +140,29 @@ export const PATCH = withSession(
       if (typeof isMilestone === "boolean") data.isMilestone = isMilestone
 
       const prevStatus = auth.task.status
+      const statusChanged = status !== undefined && status !== prevStatus
 
-      const task = await db.projectTask.update({
-        where: { id: ctx.params.id },
-        data,
-        include: {
-          assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
-        },
+      // The task row and its status history move together: a recorded status
+      // with no period (or the reverse) would make every duration wrong from
+      // that point on.
+      const task = await db.$transaction(async (tx) => {
+        const updated = await tx.projectTask.update({
+          where: { id: ctx.params.id },
+          data,
+          include: {
+            assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
+          },
+        })
+        if (statusChanged) {
+          await recordStatusChange(tx, {
+            taskId: updated.id,
+            from: prevStatus,
+            to: updated.status,
+            actorId: session.user.id,
+            taskCreatedAt: auth.task.createdAt,
+          })
+        }
+        return updated
       })
 
       await createAuditLog(session, {

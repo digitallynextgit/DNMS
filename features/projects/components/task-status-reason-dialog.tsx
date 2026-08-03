@@ -14,7 +14,7 @@ import {
 import { buttonVariants } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Input } from "@/components/ui/input"
+import { DateField } from "@/components/shared/date-field"
 import { cn } from "@/lib/utils"
 
 export interface TaskStatusPayload {
@@ -40,6 +40,19 @@ export function TaskStatusReasonDialog({
 }) {
   const [reason, setReason] = React.useState("")
   const [date, setDate] = React.useState("")
+
+  // Midnight today, so "before today" excludes past days without excluding today
+  // itself. Memoised: a fresh Date each render would remount the calendar.
+  const today = React.useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
+  const oneYearOut = React.useMemo(() => {
+    const d = new Date(today)
+    d.setFullYear(d.getFullYear() + 1)
+    return d
+  }, [today])
 
   React.useEffect(() => {
     if (mode) {
@@ -90,7 +103,17 @@ export function TaskStatusReasonDialog({
               <Label className="text-sm">
                 Expected completion date<span className="text-destructive"> *</span>
               </Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              {/* A date the work is expected to be finished by can only be in
+                  the future, so past days are not selectable. */}
+              <DateField
+                value={date}
+                onChange={setDate}
+                placeholder="Pick the expected date"
+                startMonth={today}
+                endMonth={oneYearOut}
+                disabled={(d) => d < today}
+                modal
+              />
             </div>
           )}
         </div>

@@ -171,7 +171,7 @@ export function LeaveMailPreview({
             {/* The letter - a distinct edit box so it's obviously editable. This
                 exact text is what gets emailed. Border stays static (no focus
                 highlight - the box already reads as an input). */}
-            <div className="bg-background relative rounded-md border p-3">
+            <div className="bg-background relative rounded border p-3">
               <span className="text-muted-foreground/60 pointer-events-none absolute top-1.5 right-2 z-10 inline-flex items-center gap-0.5 text-[9px] font-medium tracking-wide uppercase">
                 <Pencil className="h-2.5 w-2.5" /> Editable
               </span>

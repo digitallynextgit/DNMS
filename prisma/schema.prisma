@@ -478,6 +478,7 @@ model Employee {
   projectMemberships ProjectMember[]
   assignedTasks      ProjectTask[]          @relation("TaskAssignee")
   createdTasks       ProjectTask[]          @relation("TaskCreator")
+  taskStatusChanges  TaskStatusPeriod[]     @relation("TaskStatusActor")
   contentEntries     ContentCalendarEntry[] @relation("ContentAssignee")
   timesheets         Timesheet[]
   ownedProjects      Project[]              @relation("ProjectOwner")
@@ -1384,6 +1385,10 @@ model ProjectTask {
   completedAt      DateTime?          @map("completed_at")
   estimatedHours   Float?             @map("estimated_hours")
   loggedHours      Float              @default(0) @map("logged_hours")
+  // Set the moment a task enters IN_PROGRESS, cleared when it leaves. The time
+  // between the two is added to loggedHours, so "time spent" is measured rather
+  // than remembered. Non-null therefore means "the clock is running right now".
+  inProgressSince  DateTime?          @map("in_progress_since")
   tags             String[]           @map("tags")
   approvalStatus   TaskApprovalStatus @default(APPROVED) @map("approval_status")
   isManagerCreated Boolean            @default(true) @map("is_manager_created")
@@ -1411,6 +1416,7 @@ model ProjectTask {
   timesheets     Timesheet[]
   comments       TaskComment[]
   checklistItems TaskChecklistItem[]
+  statusPeriods  TaskStatusPeriod[]
   // Set when this task was generated from a content-calendar post.
   contentEntry   ContentCalendarEntry?
 
@@ -1449,6 +1455,38 @@ model TaskChecklistItem {
 
   @@index([taskId])
   @@map("task_checklist_items")
+}
+
+/**
+ * One row per stretch a task spent in a single status.
+ * The open row (endedAt = null) is the status the task is in right now. On every
+ * status change the open row is closed with its duration and a new one opened,
+ * which makes "how long did this sit in To-do / In Progress / On Hold" a read
+ * rather than a reconstruction. The first row is created lazily on the first
+ * transition, backdated to the task's createdAt, so history is complete for
+ * tasks that existed before this table did.
+ */
+model TaskStatusPeriod {
+  id              String     @id @default(uuid()) @map("id")
+  taskId          String     @map("task_id")
+  status          TaskStatus @map("status")
+  /**
+   * Who moved the task INTO this status. Null for the backdated first row.
+   */
+  actorId         String?    @map("actor_id")
+  startedAt       DateTime   @map("started_at")
+  endedAt         DateTime?  @map("ended_at")
+  /**
+   * Denormalised endedAt - startedAt, so totals do not need date maths in SQL.
+   */
+  durationSeconds Int?       @map("duration_seconds")
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  task  ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor Employee?   @relation("TaskStatusActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, startedAt])
+  @@map("task_status_periods")
 }
 
 model ProjectActivity {
@@ -1950,12 +1988,12 @@ model SeoProperty {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  snapshots   SeoSnapshot[]
-  vitals      SeoVitals[]
-  traffic     SeoTraffic[]
-  scorecards  SeoScorecard[]
-  audits      SeoTechnicalAudit[]
+  project          Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  snapshots        SeoSnapshot[]
+  vitals           SeoVitals[]
+  traffic          SeoTraffic[]
+  scorecards       SeoScorecard[]
+  audits           SeoTechnicalAudit[]
   // Work being done for this specific site.
   tasks            ProjectTask[]
   seoKeywords      SeoKeyword[]
@@ -2302,11 +2340,11 @@ model SeoMonitorRun {
   id         String @id @default(uuid()) @map("id")
   propertyId String @map("property_id")
 
-  status      String @map("status") // OK | ISSUES
-  pagesOk     Int    @default(0) @map("pages_ok")
-  pagesTotal  Int    @default(0) @map("pages_total")
+  status     String @map("status") // OK | ISSUES
+  pagesOk    Int    @default(0) @map("pages_ok")
+  pagesTotal Int    @default(0) @map("pages_total")
   /// [{ url, level, code, detail }] - only real accidents (down / noindex / robots block)
-  issues      Json   @map("issues")
+  issues     Json   @map("issues")
 
   createdAt DateTime @default(now()) @map("created_at")
 

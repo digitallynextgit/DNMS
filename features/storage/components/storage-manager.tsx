@@ -196,7 +196,7 @@ export function StorageManager() {
       />
 
       {/* Usage gauge */}
-      <div className="bg-card rounded-lg border p-5">
+      <div className="bg-card rounded border p-5">
         <div className="mb-2 flex items-end justify-between">
           <div>
             <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
@@ -275,7 +275,7 @@ export function StorageManager() {
           placeholder="Search files or owner..."
           className="max-w-xs"
         />
-        <div className="bg-card inline-flex items-center rounded-lg border p-0.5 text-xs">
+        <div className="bg-card inline-flex items-center rounded border p-0.5 text-xs">
           {(["all", "live", "orphan"] as const).map((s) => (
             <button
               key={s}
@@ -363,11 +363,11 @@ function FolderCard({
     <button
       onClick={onClick}
       className={cn(
-        "bg-card flex items-center gap-3 rounded-lg border p-3 text-left transition-colors",
+        "bg-card flex items-center gap-3 rounded border p-3 text-left transition-colors",
         active ? "border-primary ring-primary/30 ring-1" : "hover:bg-muted/40",
       )}
     >
-      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", tint)}>
+      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded", tint)}>
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">

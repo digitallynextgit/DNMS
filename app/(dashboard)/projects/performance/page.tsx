@@ -182,7 +182,7 @@ export default function ProjectPerformancePage() {
     { header: "On-time", align: "right", cell: (e) => <Rate value={e.onTimeRate} /> },
     { header: "Overdue", align: "right", cell: (e) => <Overdue n={e.overdue} /> },
     {
-      header: "In Process",
+      header: "In Progress",
       align: "right",
       className: "text-muted-foreground",
       cell: (e) => e.inProgress,

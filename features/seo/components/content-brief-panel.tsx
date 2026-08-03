@@ -271,7 +271,7 @@ function BriefCard({
             )}
 
             {brief.qa && (
-              <div className="rounded-md border p-3">
+              <div className="rounded border p-3">
                 <p className="mb-2 text-xs font-medium">
                   QA {brief.qa.pass ? "passed" : "failed"} · score {brief.qa.score}/100 ·{" "}
                   <span className="text-muted-foreground">

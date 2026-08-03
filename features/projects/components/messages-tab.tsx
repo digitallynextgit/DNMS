@@ -100,7 +100,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
 
   return (
     <>
-      <div className="bg-card flex h-[68vh] min-h-120 overflow-hidden rounded-lg border">
+      <div className="bg-card flex h-[68vh] min-h-120 overflow-hidden rounded border">
         {/* LEFT: chat list */}
         <div
           className={cn(
@@ -499,7 +499,7 @@ function Bubble({
       )}
       <div
         className={cn(
-          "relative max-w-[78%] rounded-2xl px-3 py-2 text-sm shadow-sm sm:max-w-[70%]",
+          "relative max-w-[78%] rounded px-3 py-2 text-sm shadow-sm sm:max-w-[70%]",
           own
             ? "rounded-br-sm bg-emerald-600 text-white dark:bg-emerald-700"
             : "bg-muted text-foreground rounded-bl-sm",

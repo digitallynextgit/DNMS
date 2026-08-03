@@ -461,7 +461,7 @@ export const PROJECT_STATUS_COLORS: Record<string, string> = {
 
 export const TASK_STATUS_LABELS: Record<string, string> = {
   TODO: "To-do",
-  IN_PROGRESS: "In Process",
+  IN_PROGRESS: "In Progress",
   IN_REVIEW: "In Review", // legacy
   DONE: "Completed",
   CANCELLED: "Cancelled", // legacy

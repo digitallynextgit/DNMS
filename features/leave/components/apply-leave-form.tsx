@@ -404,7 +404,7 @@ export function ApplyLeaveForm() {
 
           {/* AI suggestions - the employee picks one, or ignores them. */}
           {variants.length > 0 && (
-            <div className="space-y-1.5 rounded-md border p-2">
+            <div className="space-y-1.5 rounded border p-2">
               <div className="flex items-center justify-between">
                 <p className="text-muted-foreground flex items-center gap-1 text-[11px] font-medium">
                   <Sparkles className="h-3 w-3" /> Pick a version

@@ -159,7 +159,7 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
     <div className="space-y-4">
       {/* Date range + sync */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="bg-card inline-flex items-center rounded-lg border p-0.5 text-xs">
+        <div className="bg-card inline-flex items-center rounded border p-0.5 text-xs">
           {RANGES.map((r) => (
             <button
               key={r.label}

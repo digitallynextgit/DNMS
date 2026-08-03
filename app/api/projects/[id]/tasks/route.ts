@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withProjectAccess, withProjectManager } from "@/features/projects/server/project-access"
 import { createNotification } from "@/lib/notifications"
+import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
 import type { Session } from "next-auth"
 
 export const GET = withProjectAccess(
@@ -66,6 +67,13 @@ export const POST = withProjectManager(
           assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
           creator: { select: { id: true, firstName: true, lastName: true } },
         },
+      })
+
+      await openFirstStatusPeriod(db, {
+        taskId: task.id,
+        status: task.status,
+        actorId: session.user.id,
+        at: task.createdAt,
       })
 
       // Notify assignee if assigned to someone other than the creator

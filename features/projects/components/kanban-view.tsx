@@ -16,12 +16,12 @@ import { TaskStatusReasonDialog } from "./task-status-reason-dialog"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { cn, formatDate } from "@/lib/utils"
 import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
-import { formatHours } from "../lib/format-hours"
+import { TaskTime } from "./task-time"
 import { AlertTriangle, Clock, Milestone, GripVertical } from "lucide-react"
 
 const COLUMNS: { id: string; label: string; color: string }[] = [
   { id: "TODO", label: "To-do", color: "bg-slate-100 dark:bg-slate-800" },
-  { id: "IN_PROGRESS", label: "In Process", color: "bg-blue-50 dark:bg-blue-950/30" },
+  { id: "IN_PROGRESS", label: "In Progress", color: "bg-blue-50 dark:bg-blue-950/30" },
   { id: "DONE", label: "Completed", color: "bg-emerald-50 dark:bg-emerald-950/30" },
   { id: "ON_HOLD", label: "On Hold", color: "bg-amber-50 dark:bg-amber-950/30" },
   { id: "DISCARDED", label: "Discarded", color: "bg-red-50 dark:bg-red-950/30" },
@@ -194,7 +194,7 @@ export function KanbanView({
                                   variant="outline"
                                   className="border-amber-300 py-0 text-[10px] text-amber-700"
                                 >
-                                  <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                  <Clock className="mr-1 h-3 w-3" />
                                   Pending
                                 </Badge>
                               )}
@@ -205,17 +205,18 @@ export function KanbanView({
                                     variant="outline"
                                     className="border-red-300 py-0 text-[10px] text-red-700"
                                   >
-                                    <AlertTriangle className="mr-0.5 h-2.5 w-2.5" />
+                                    <AlertTriangle className="mr-1 h-3 w-3" />
                                     Overdue
                                   </Badge>
                                 )}
                             </div>
 
-                            {task.estimatedHours != null && (
-                              <p className="text-muted-foreground mt-1.5 text-[10px]">
-                                {formatHours(task.estimatedHours)}
-                              </p>
-                            )}
+                            <TaskTime
+                              estimatedHours={task.estimatedHours}
+                              loggedHours={task.loggedHours}
+                              inProgressSince={task.inProgressSince}
+                              className="mt-1.5"
+                            />
 
                             <div className="mt-2 flex items-center justify-between">
                               {task.dueDate && (
