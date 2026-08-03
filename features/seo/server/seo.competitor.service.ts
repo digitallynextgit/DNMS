@@ -89,11 +89,13 @@ function tokenize(phrase: string): string[] {
 /** A display-friendly topic: trimmed, and stripped of a trailing " | Brand" or
  *  " - Brand" site-name suffix that titles usually carry. */
 function cleanTopic(phrase: string): string {
-  return phrase
-    // Titles usually end with a separator then the brand: "Topic | Brand".
-    .split(/\s+[|–—-]\s+/)[0]!
-    .trim()
-    .replace(/\s+/g, " ")
+  return (
+    phrase
+      // Titles usually end with a separator then the brand: "Topic | Brand".
+      .split(/\s+[|–—-]\s+/)[0]!
+      .trim()
+      .replace(/\s+/g, " ")
+  )
 }
 
 interface CompetitorReport {

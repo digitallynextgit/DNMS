@@ -39,6 +39,7 @@ import {
   Plug,
   BarChart3,
   Search,
+  TrendingUp,
 } from "lucide-react"
 import { ProjectFormDialog } from "@/features/projects"
 
@@ -56,6 +57,9 @@ const IntegrationTab = dynamic(() => import("@/features/projects").then((m) => m
   loading: tabFallback,
 })
 const InsightsTab = dynamic(() => import("@/features/projects").then((m) => m.InsightsTab), {
+  loading: tabFallback,
+})
+const ProgressTab = dynamic(() => import("@/features/projects").then((m) => m.ProgressTab), {
   loading: tabFallback,
 })
 const SeoTab = dynamic(() => import("@/features/seo").then((m) => m.SeoTab), {
@@ -210,6 +214,10 @@ export default function ProjectDetailPage() {
               <Layers className="h-3.5 w-3.5" />
               Overview
             </TabsTrigger>
+            <TabsTrigger value="progress" className="gap-1.5">
+              <TrendingUp className="h-3.5 w-3.5" />
+              Progress
+            </TabsTrigger>
             <TabsTrigger value="brand" className="gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
               Brand
@@ -314,6 +322,10 @@ export default function ProjectDetailPage() {
 
           {/* Renders only when the project actually tracks sites. */}
           <ProjectSitesCard projectId={projectId} onOpenSeo={() => handleTabChange("seo")} />
+        </TabsContent>
+
+        <TabsContent value="progress" className="mt-4">
+          <ProgressTab projectId={projectId} />
         </TabsContent>
 
         <TabsContent value="brand">

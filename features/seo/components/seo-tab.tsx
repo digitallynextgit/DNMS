@@ -245,7 +245,7 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
             {/* The trigger's default [&>span]:line-clamp-1 sets display:-webkit-box
                 on the value span, which would break the flex row inside it. Swap it
                 for flex + truncate so the label ellipsises cleanly instead. */}
-            <SelectTrigger className="w-full min-w-0 sm:w-72 [&>span]:flex [&>span]:min-w-0 [&>span]:overflow-hidden [&>span]:line-clamp-none">
+            <SelectTrigger className="w-full min-w-0 sm:w-72 [&>span]:line-clamp-none [&>span]:flex [&>span]:min-w-0 [&>span]:overflow-hidden">
               {/* Children here override Radix's default of echoing the selected
                   item's markup, so the two-line options below can be richer than
                   what the single-line trigger shows. */}
@@ -304,11 +304,7 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
 
         {canManage && (
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFormOpen(true)}
-            >
+            <Button variant="outline" size="sm" onClick={() => setFormOpen(true)}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Add site
             </Button>
@@ -802,7 +798,11 @@ function SiteReport({
   // the same window.
   const [periodEnd, setPeriodEnd] = useState<string | null>(null)
   const [weeks, setWeeks] = useState(1)
-  const { data: o, isLoading, isFetching } = useSeoOverview(projectId, propertyId, {
+  const {
+    data: o,
+    isLoading,
+    isFetching,
+  } = useSeoOverview(projectId, propertyId, {
     end: periodEnd,
     weeks,
   })
@@ -1287,7 +1287,8 @@ function SiteWork({ o }: { o: SeoOverview }) {
         <CardContent className="p-4 text-sm">
           <p className="font-medium">No open work for this site</p>
           <p className="text-muted-foreground text-xs">
-            Create a task from the Tasks tab and set its <strong>Site</strong> to {o.config.label} - it will show up here.
+            Create a task from the Tasks tab and set its <strong>Site</strong> to {o.config.label} -
+            it will show up here.
           </p>
         </CardContent>
       </Card>

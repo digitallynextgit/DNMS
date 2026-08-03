@@ -222,7 +222,9 @@ export function KeywordBacklog({
                                 {k.sourceDomain ?? "competitor"}
                               </span>
                             ) : (
-                              <span className="text-muted-foreground text-[10px]">Search Console</span>
+                              <span className="text-muted-foreground text-[10px]">
+                                Search Console
+                              </span>
                             )}
                           </td>
                           <td className="px-3 py-2">

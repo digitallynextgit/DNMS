@@ -245,7 +245,8 @@ function StepCard({
       className={cn(
         "group relative flex h-full flex-col overflow-hidden transition-all duration-150",
         "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
-        interactive && "hover:border-primary/50 cursor-pointer hover:-translate-y-0.5 hover:shadow-md",
+        interactive &&
+          "hover:border-primary/50 cursor-pointer hover:-translate-y-0.5 hover:shadow-md",
         step.done && "bg-muted/30",
         isNext && !step.done && "border-primary/60 bg-primary/5 shadow-sm",
         busy && "pointer-events-none opacity-60",
@@ -335,7 +336,9 @@ function StepCard({
             >
               {step.action === "EDIT_SITE" && !step.done && <Settings2 className="mr-1 h-3 w-3" />}
               {step.done ? "Redo" : ACTION_LABEL[step.action]}
-              {!step.done && <ArrowRight className="ml-1 h-3 w-3 transition-transform group-hover:translate-x-0.5" />}
+              {!step.done && (
+                <ArrowRight className="ml-1 h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+              )}
             </Button>
           </div>
         )}

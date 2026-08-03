@@ -1,209 +1,436 @@
-DIGITALLY NEXT | WORK ALLOCATION SHEET | WEB DEVELOPER
+DIGITALLY NEXT | WORK ALLOCATION SHEET | WEB, CONTENT AND DESIGN
 WEEK: 3 AUGUST 2026 - 7 AUGUST 2026
-REPORTING TO: MANPREET JANGRA
 PREPARED BY: DIWAKAR JHA (WEB LEAD)
+REPORTING TO: MANPREET JANGRA
 
-Total: 3 developers x 8 hours x 5 days = 120 hours
-All 64 tasks are seeded in DNMS under their respective projects.
+7 people x 8 hours x 5 days = 280 hours
+  Web      3 people   120 hrs   Diwakar Jha, Mridul Singh Bisht, Karan Joshi
+  Content  1 person    40 hrs   Aashutosh Jaiswal
+  Design   3 people   120 hrs   Hemant Nandal, Komal Gautam, Gavisha Dhonsi
 
 
 ====================================================================
-DEADLINE RADAR
+READ THIS FIRST: THE DELIVERY CHAIN
 ====================================================================
-STATUS      DUE          DELIVERABLE                              OWNER
+Nothing on this sheet is independent. Work flows in one direction:
+
+    CONTENT  ->  DESIGN  ->  WEB  ->  LAUNCH
+
+Which means a slip in content does not delay content. It delays the
+launch. The three live chains this week:
+
+RUDIONE                                          launch 20 Aug
+  Content   packaging + homepage + product   DONE
+  Content   category page                    due  5 Aug
+  Design    wireframe                        due 31 Jul  OVERDUE
+  Design    UI/UX                            due 16 Aug
+  Web       build, payment, shipping         due 15-20 Aug
+  RISK: design finishes 16 Aug, launch is 20 Aug. Four days of
+  buffer for the entire web build. Any design slip moves the launch.
+
+HAPPY GANGA                                      launch 22 Aug
+  Content   homepage drafted                 due  4 Aug
+  Content   product + category               due  6 Aug
+  Content   packaging content                NOT STARTED
+  Design    wireframe                        due 31 Jul  BLOCKED
+  Design    packaging                        due  1 Aug  BLOCKED
+  Design    UI/UX                            due 14 Aug
+  Web       build, payment, shipping         due 15-22 Aug
+  BLOCKER: the wireframe needs the sitemap, and the sitemap is
+  itself overdue (was 28 Jul, Karan clears it Monday). Packaging
+  design needs box/label content that has not been written.
+
+KYG MAIN WEBSITE                                 go live 28 Aug
+  Content   Mens, Women, Wellness copy        DONE
+  Content   test pages Skin, Kidney, Eye      due  6 Aug
+  Design    UI/UX of main website             due 10 Aug
+  Web       page build and QA                 due 10-28 Aug
+  NOTE: this is the blocker that stalled the web team all last
+  week. It clears on 6 August. The web plan below assumes it does.
+
+
+====================================================================
+DEADLINE RADAR (ALL TEAMS)
+====================================================================
+STATUS    DUE      TEAM      DELIVERABLE                      OWNER
 --------------------------------------------------------------------
-OVERDUE     08 Jul       RealtyCanvas 3 SEO pages                 Diwakar
-OVERDUE     24 Jul       H2S FAQ checks and changes               Karan
-OVERDUE     28 Jul       Happy Ganga sitemap                      Karan
-UPCOMING    15 Aug       Rudione payment gateway testing          Mridul
-UPCOMING    15 Aug       Rudione shipping integration             Mridul
-UPCOMING    15 Aug       Happy Ganga shipping integration         Karan
-UPCOMING    17 Aug       Happy Ganga payment gateway testing      Karan
-UPCOMING    20 Aug       Rudione website development              Mridul
-UPCOMING    22 Aug       Happy Ganga website development          Karan
-UPCOMING    27 Aug       Leocym website development               Diwakar
-UPCOMING    28 Aug       KYG main website go live                 Diwakar
+OVERDUE   08 Jul   Web       RealtyCanvas 3 SEO pages         Diwakar
+OVERDUE   24 Jul   Web       H2S FAQ checks and changes       Karan
+OVERDUE   28 Jul   Web       Happy Ganga sitemap              Karan
+OVERDUE   30 Jul   Design    H2S packaging                    Gavisha
+OVERDUE   31 Jul   Design    Rudione wireframe                Hemant
+OVERDUE   31 Jul   Design    Happy Ganga wireframe            Gavisha
+DUE       01 Aug   Design    Happy Ganga packaging            Gavisha
+DUE       03 Aug   Content   Rudione homepage content         Aashutosh
+DUE       04 Aug   Content   Happy Ganga homepage content     Aashutosh
+DUE       04 Aug   Content   KYG Quora and Reddit calendar    Aashutosh
+DUE       04 Aug   Content   H2S paid ads video scripts       Aashutosh
+DUE       04 Aug   Design    KYG B2B and D2C brochures        Hemant
+DUE       05 Aug   Content   Rudione category page content    Aashutosh
+DUE       05 Aug   Content   H2S Quora and Reddit calendar    Aashutosh
+DUE       06 Aug   Content   KYG test pages Skin Kidney Eye   Aashutosh
+DUE       06 Aug   Content   Happy Ganga product and category Aashutosh
+DUE       06 Aug   Design    KYG one page brochure            Komal
+DUE       07 Aug   Design    KYG test cards and infographics  Komal
+DUE       07 Aug   Design    KYG how genetic testing works    Komal
+UPCOMING  10 Aug   Design    KYG UI/UX main website           Hemant
+UPCOMING  14 Aug   Design    Happy Ganga UI/UX                Hemant
+UPCOMING  15 Aug   Web       Rudione payment and shipping     Mridul
+UPCOMING  16 Aug   Design    Rudione UI/UX                    Hemant
+UPCOMING  17 Aug   Web       Happy Ganga payment gateway      Karan
+UPCOMING  20 Aug   Web       Rudione website live             Mridul
+UPCOMING  22 Aug   Web       Happy Ganga website live         Karan
+UPCOMING  27 Aug   Web       Leocym website                   Diwakar
+UPCOMING  28 Aug   Web       KYG main website go live         Diwakar
 
 
 ====================================================================
+WEB TEAM
+====================================================================
+
+--------------------------------------------------------------------
 DIWAKAR JHA | WEB LEAD | 40 HOURS
-====================================================================
-
-MONDAY 3 AUGUST                                              8.0 hrs
 --------------------------------------------------------------------
-KYG          Wellness test pages UI build                       3.0
-KYG          Order page UI development                          2.0
-DigitallyNext  SEO and GEO checks                               0.75
-RealtyCanvas   SEO and GEO checks                               0.75
-DNMS         Team planning and weekly allocation                1.5
+MON 3 AUG                                                    8.0 hrs
+  KYG            Wellness test pages UI build                 3.0
+  KYG            Order page UI development                    2.0
+  DigitallyNext  SEO and GEO checks                           0.75
+  RealtyCanvas   SEO and GEO checks                           0.75
+  DNMS           Team planning and weekly allocation          1.5
 
-TUESDAY 4 AUGUST                                             8.0 hrs
+TUE 4 AUG                                                    8.0 hrs
+  Rudione/Leocym Leocym homepage and core page development    4.0
+  KYG            User journey mapping for wellness tests      2.0
+  DNMS           Team management and ad hoc support           2.0
+
+WED 5 AUG                                                    8.0 hrs
+  Rudione/Leocym Leocym collection and product structure      3.0
+  RealtyCanvas   3 new SEO pages (clearing overdue)           3.0
+  H2S            SEO and GEO checks                           0.5
+  TalentiFi-X    SEO and GEO checks                           0.5
+  DNMS           Team management                              1.0
+
+THU 6 AUG                                                    8.0 hrs
+  KYG            Subdomain pages and go live page mapping     3.0
+  DigitallyNext  Main website case study pages                2.0
+  TalentiFi-X    2 SEO and AEO pages                          2.0
+  DNMS           Team management                              1.0
+
+FRI 7 AUG                                                    8.0 hrs
+  KYG            QA pass on wellness and order pages          2.0
+  DNMS           Onboard remaining clients onto SEO suite     2.0
+  DNMS           Weekly scorecard review across properties    2.0
+  DNMS           Weekly report and next week planning         2.0
+
 --------------------------------------------------------------------
-Rudione/Leocym  Leocym homepage and core page development       4.0
-KYG          User journey mapping for wellness tests            2.0
-DNMS         Team management and ad hoc support                 2.0
-
-WEDNESDAY 5 AUGUST                                           8.0 hrs
---------------------------------------------------------------------
-Rudione/Leocym  Leocym collection and product structure         3.0
-RealtyCanvas 3 new SEO pages (clearing overdue)                 3.0
-H2S          SEO and GEO checks                                 0.5
-TalentiFi-X  SEO and GEO checks                                 0.5
-DNMS         Team management                                    1.0
-
-THURSDAY 6 AUGUST                                            8.0 hrs
---------------------------------------------------------------------
-KYG          Subdomain pages and go live page mapping           3.0
-DigitallyNext  Main website case study pages                    2.0
-TalentiFi-X  2 SEO and AEO pages                                2.0
-DNMS         Team management                                    1.0
-
-FRIDAY 7 AUGUST                                              8.0 hrs
---------------------------------------------------------------------
-KYG          QA pass on wellness and order pages                2.0
-DNMS         Onboard remaining clients onto the SEO suite       2.0
-DNMS         Weekly scorecard review across client properties   2.0
-DNMS         Weekly report and next week planning               2.0
-
-
-====================================================================
 MRIDUL SINGH BISHT | WEB DEVELOPER | 40 HOURS
-Focus: Rudione critical path (payment and shipping due 15 Aug)
-====================================================================
-
-MONDAY 3 AUGUST                                              8.0 hrs
+Focus: Rudione critical path, payment and shipping due 15 Aug
 --------------------------------------------------------------------
-Rudione      Payment gateway live config and test transactions  4.0
-Rudione      Product data structure and CSV template            3.0
-H2S          Ad hoc support                                     1.0
+MON 3 AUG                                                    8.0 hrs
+  Rudione        Payment gateway live config and test         4.0
+  Rudione        Product data structure and CSV template      3.0
+  H2S            Ad hoc support                               1.0
 
-TUESDAY 4 AUGUST                                             8.0 hrs
+TUE 4 AUG                                                    8.0 hrs
+  Rudione        Shipping integration, rate rules and test    4.0
+  Rudione        Product catalogue upload                     3.0
+  H2S            Ad hoc support                               1.0
+
+WED 5 AUG                                                    8.0 hrs
+  Rudione        Collection and category page development     4.0
+  Rudione        Product detail page template                 3.0
+  H2S            Ad hoc support                               1.0
+
+THU 6 AUG                                                    8.0 hrs
+  Rudione        Cart and checkout end to end QA              4.0
+  Rudione        Mobile and cross browser QA, bug fixes       3.0
+  TalentiFi-X    Website edits: media section start           1.0
+
+FRI 7 AUG                                                    8.0 hrs
+  Rudione        Order flow test cycle and fix list           3.0
+  Rudione        Policy pages, footer, transactional emails   2.0
+  TalentiFi-X    Media section and ISO certification          2.0
+  DNMS           Weekly report                                1.0
+
 --------------------------------------------------------------------
-Rudione      Shipping integration, rate rules and test          4.0
-Rudione      Product catalogue upload: images, variants, price  3.0
-H2S          Ad hoc support                                     1.0
-
-WEDNESDAY 5 AUGUST                                           8.0 hrs
---------------------------------------------------------------------
-Rudione      Collection and category page development           4.0
-Rudione      Product detail page template                       3.0
-H2S          Ad hoc support                                     1.0
-
-THURSDAY 6 AUGUST                                            8.0 hrs
---------------------------------------------------------------------
-Rudione      Cart and checkout end to end QA                    4.0
-Rudione      Mobile and cross browser QA, bug fixes             3.0
-TalentiFi-X  Website edits: media section start                 1.0
-
-FRIDAY 7 AUGUST                                              8.0 hrs
---------------------------------------------------------------------
-Rudione      Order flow test cycle and fix list                 3.0
-Rudione      Policy pages, footer and transactional emails      2.0
-TalentiFi-X  Media section and ISO certification completion     2.0
-DNMS         Weekly report                                      1.0
-
-
-====================================================================
 KARAN JOSHI | WEB DEVELOPER | 40 HOURS
 Focus: Happy Ganga build plus recurring content and maintenance
-====================================================================
-
-MONDAY 3 AUGUST                                              8.0 hrs
 --------------------------------------------------------------------
-Happy Ganga  Sitemap finalisation and submission (overdue)      2.0
-Happy Ganga  Homepage development: hero, sections, responsive   3.0
-KYG          Domain maintenance, 5 domains                      1.5
-DigitallyNext  Blog uploads                                     0.5
-KYG          Blog uploads                                       0.5
-H2S          Ad hoc support                                     0.5
+MON 3 AUG                                                    8.0 hrs
+  Happy Ganga    Sitemap finalisation (overdue, unblocks
+                 the design wireframe)                        2.0
+  Happy Ganga    Homepage development                         3.0
+  KYG            Domain maintenance, 5 domains                1.5
+  DigitallyNext  Blog uploads                                 0.5
+  KYG            Blog uploads                                 0.5
+  H2S            Ad hoc support                               0.5
 
-TUESDAY 4 AUGUST                                             8.0 hrs
---------------------------------------------------------------------
-Happy Ganga  Payment gateway sandbox and test transactions      3.0
-Happy Ganga  Collection and category pages                      2.5
-KYG          Domain maintenance, 5 domains                      1.0
-DigitallyNext  Blog uploads                                     0.5
-KYG          Blog uploads                                       0.5
-H2S          Blog uploads                                       0.5
+TUE 4 AUG                                                    8.0 hrs
+  Happy Ganga    Payment gateway sandbox and test             3.0
+  Happy Ganga    Collection and category pages                2.5
+  KYG            Domain maintenance, 5 domains                1.0
+  DigitallyNext  Blog uploads                                 0.5
+  KYG            Blog uploads                                 0.5
+  H2S            Blog uploads                                 0.5
 
-WEDNESDAY 5 AUGUST                                           8.0 hrs
---------------------------------------------------------------------
-Happy Ganga  Shipping integration config and test               3.0
-Happy Ganga  Product detail page structure                      2.5
-KYG          Domain maintenance, 5 domains                      1.0
-RealtyCanvas Blog uploads                                       1.0
-TalentiFi-X  Blog uploads                                       0.5
+WED 5 AUG                                                    8.0 hrs
+  Happy Ganga    Shipping integration config and test         3.0
+  Happy Ganga    Product detail page structure                2.5
+  KYG            Domain maintenance, 5 domains                1.0
+  RealtyCanvas   Blog uploads                                 1.0
+  TalentiFi-X    Blog uploads                                 0.5
 
-THURSDAY 6 AUGUST                                            8.0 hrs
---------------------------------------------------------------------
-H2S          Main product page edits                            3.0
-H2S          FAQ checks and changes (clearing overdue)          2.0
-KYG          Domain maintenance, 5 domains                      1.5
-H2S          Blog uploads                                       1.0
-TalentiFi-X  Blog uploads                                       0.5
+THU 6 AUG                                                    8.0 hrs
+  H2S            Main product page edits                      3.0
+  H2S            FAQ checks and changes (clearing overdue)    2.0
+  KYG            Domain maintenance, 5 domains                1.5
+  H2S            Blog uploads                                 1.0
+  TalentiFi-X    Blog uploads                                 0.5
 
-FRIDAY 7 AUGUST                                              8.0 hrs
---------------------------------------------------------------------
-Happy Ganga  Mobile and responsive QA, bug fixes                3.0
-KYG          2 subdomain pages                                  2.5
-KYG          Domain maintenance, 5 domains                      1.0
-RealtyCanvas Blog uploads                                       1.0
-KYG          Blog uploads                                       0.5
+FRI 7 AUG                                                    8.0 hrs
+  Happy Ganga    Mobile and responsive QA, bug fixes          3.0
+  KYG            2 subdomain pages                            2.5
+  KYG            Domain maintenance, 5 domains                1.0
+  RealtyCanvas   Blog uploads                                 1.0
+  KYG            Blog uploads                                 0.5
 
 
 ====================================================================
-HOURS BY PROJECT
+CONTENT TEAM
 ====================================================================
-PROJECT                TASKS    HOURS
+
 --------------------------------------------------------------------
-Rudione / Leocym          12     40.0
-KYG                       14     22.0
-Happy Ganga                7     19.0
-DNMS                       8     12.5
-H2S                        9     10.5
-TalentiFi-X                6      6.5
-RealtyCanvas               4      5.75
-DigitallyNext              4      3.75
+AASHUTOSH JAISWAL | CONTENT SPECIALIST | 40 HOURS
+Sequenced so the items that UNBLOCK design and web come first.
 --------------------------------------------------------------------
-TOTAL                     64    120.0
+MON 3 AUG                                                    8.0 hrs
+  Rudione        Category page content (due 5 Aug, blocks
+                 the Rudione UI/UX)                           3.0
+  Happy Ganga    Homepage content finalisation (due 4 Aug)    3.0
+  KYG            Blogs, long form                             2.0
+
+TUE 4 AUG                                                    8.0 hrs
+  Happy Ganga    Homepage content delivered to design         1.0
+  KYG            Quora and Reddit calendar (due today)        2.0
+  H2S            Paid ads video scripts, 5 reels (due today)  3.0
+  KYG            Blogs, long form                             2.0
+
+WED 5 AUG                                                    8.0 hrs
+  Rudione        Category page delivered and QA               1.0
+  H2S            Quora and Reddit calendar (due today)        2.0
+  KYG            Test page content: Skin                      3.0
+  KYG            Blogs, long form                             2.0
+
+THU 6 AUG                                                    8.0 hrs
+  KYG            Test page content: Kidney and Eye (due
+                 today, unblocks web and design)              4.0
+  Happy Ganga    Product and category page content (due
+                 today)                                       3.0
+  KYG            Blogs, long form                             1.0
+
+FRI 7 AUG                                                    8.0 hrs
+  KYG            Content audit of 13+1 domains                3.0
+  H2S            Content audit of website                     1.5
+  RealtyCanvas   Content audit                                1.5
+  All            Social media content pipeline                2.0
+
+NOT FITTED THIS WEEK (see the capacity note):
+  KYG blogs at 6 per day, H2S blogs at 5 per week, KYG performance
+  ads, Happy Ganga packaging content, Rudione and Leocym social
+  media. Roughly 10 of the 30 KYG blogs are covered above.
 
 
 ====================================================================
-BLOCKED ON CLIENT INPUT (ALL DATES NOW PASSED)
+DESIGN TEAM
 ====================================================================
-INPUT REQUIRED                                WAS DUE     IMPACT
+
 --------------------------------------------------------------------
-KYG test page and order page designs          27 Jul      Blocks Diwakar Mon
-                                                          and Tue. Puts the
-                                                          28 Aug go live at risk.
-Happy Ganga page list and scope sign-off      27 Jul      Blocks sitemap
-Leocym scope decision (ecomm vs brochure)     27 Jul      Blocks all Leocym
-                                                          planning
-Rudione designs and brand assets              30 Jul      Blocks page dev
-Payment and shipping merchant accounts        30 Jul      CRITICAL. KYC takes
-                                                          several days and both
-                                                          gateways are due
-                                                          15 to 17 Aug.
-Product catalogues and images (Rudione, HG)   31 Jul      Blocks catalogue upload
-Blog content pipeline owner (KYG 5 per week)  not named   27 blog uploads per
-                                                          week across 5 clients
+HEMANT NANDAL | DESIGN TEAM LEAD | 40 HOURS
+Focus: the UI/UX that three launches depend on
+--------------------------------------------------------------------
+MON 3 AUG                                                    8.0 hrs
+  Rudione        Wireframe (overdue, sitemap is ready)        2.0
+  KYG            UI/UX of main website (due 10 Aug)           5.0
+  Design         Team review and allocation                   1.0
+
+TUE 4 AUG                                                    8.0 hrs
+  KYG            B2B brochure, A4 (due today)                 2.5
+  KYG            D2C brochure, A4 (due today)                 2.5
+  KYG            UI/UX of main website                        2.0
+  Design         Team review                                  1.0
+
+WED 5 AUG                                                    8.0 hrs
+  KYG            UI/UX of main website                        5.0
+  Happy Ganga    Wireframe (once Karan's sitemap lands)       2.0
+  Design         Team review                                  1.0
+
+THU 6 AUG                                                    8.0 hrs
+  KYG            UI/UX of main website                        5.0
+  Rudione        UI/UX start (due 16 Aug)                     2.0
+  Design         Team review                                  1.0
+
+FRI 7 AUG                                                    8.0 hrs
+  KYG            UI/UX of main website                        4.0
+  Rudione        UI/UX build out                              3.0
+  Design         Weekly review and handover                   1.0
+
+--------------------------------------------------------------------
+KOMAL GAUTAM | DESIGN SPECIALIST | 40 HOURS
+Focus: KYG creatives, brochures and infographics
+--------------------------------------------------------------------
+MON 3 AUG                                                    8.0 hrs
+  KYG            Test cards and infographics (due 7 Aug)      4.0
+  KYG            Blog images                                  2.0
+  KYG            Social media assets                          2.0
+
+TUE 4 AUG                                                    8.0 hrs
+  KYG            One page brochure (due 6 Aug)                3.0
+  KYG            Test cards: segment and combo packages       3.0
+  KYG            Blog images                                  2.0
+
+WED 5 AUG                                                    8.0 hrs
+  KYG            How genetic testing works: explainer
+                 infographic (due 7 Aug)                      2.0
+  KYG            How genetic testing works: website
+                 section visual (due 7 Aug)                   2.0
+  KYG            Test cards: offer and individual test        2.0
+  KYG            Social media assets                          2.0
+
+THU 6 AUG                                                    8.0 hrs
+  KYG            Test cards: who should take this, and
+                 pricing variants (due 7 Aug)                 4.0
+  KYG            Segment wise why take this test creatives    2.0
+  KYG            Blog images                                  2.0
+
+FRI 7 AUG                                                    8.0 hrs
+  KYG            Images for the 13 additional domains         4.0
+  KYG            Social media assets                          2.0
+  KYG            Blog images                                  2.0
+
+--------------------------------------------------------------------
+GAVISHA DHONSI | DESIGN ASSOCIATE | 40 HOURS
+Focus: H2S, RealtyCanvas, TalentiFi-X, DigitallyNext, Happy Ganga
+--------------------------------------------------------------------
+MON 3 AUG                                                    8.0 hrs
+  H2S            Packaging (overdue from 30 Jul)              3.0
+  H2S            Social media assets, 7 per week              3.0
+  H2S            Blog images and QC                           2.0
+
+TUE 4 AUG                                                    8.0 hrs
+  Happy Ganga    Packaging (needs box and label content)      2.0
+  RealtyCanvas   Social media assets                          3.0
+  DigitallyNext  Blog images                                  3.0
+
+WED 5 AUG                                                    8.0 hrs
+  Happy Ganga    Wireframe support (once sitemap lands)       2.0
+  TalentiFi-X    Social media assets, TX and Chet             3.0
+  H2S            Paid ads assets, MRP changes                 3.0
+
+THU 6 AUG                                                    8.0 hrs
+  DigitallyNext  Social media calendar assets                 3.0
+  H2S            Website images and banners                   3.0
+  RealtyCanvas   Website images and banners                   2.0
+
+FRI 7 AUG                                                    8.0 hrs
+  H2S            Social media and blog images                 4.0
+  TalentiFi-X    Blog images                                  2.0
+  DigitallyNext  Blog images                                  1.0
+  Design         Weekly handover                              1.0
 
 
 ====================================================================
-CAPACITY NOTE
+CAPACITY: THE HONEST NUMBERS
 ====================================================================
-Recurring commitments consume roughly 28 of the 120 hours before any
-project work begins:
 
-  Blog uploads (KYG 5, H2S 6, RC 6, TFX 5, DN 5)   27/wk    ~11.0 hrs
-  KYG domain maintenance (5 per day)               25/wk     ~6.0 hrs
-  SEO and AEO pages (RC 3, TFX 2)                   5/wk     ~7.5 hrs
-  SEO and GEO checks (4 accounts)                   4/wk     ~4.0 hrs
+CONTENT IS ONE PERSON AND THE ASK IS NOT ACHIEVABLE
+--------------------------------------------------------------------
+Aashutosh Jaiswal is the only person in the Content department. The
+recurring blog ask alone:
 
-13 of the 27 weekly blog uploads are fitted into this plan. The
-remaining 14 do not fit without displacing Happy Ganga, which is due
-22 August. A content pipeline owner needs naming.
+    KYG    6 per day    = 30 long form blogs per week
+    H2S    5 per week   =  5 long form blogs per week
+    TOTAL               = 35 long form blogs per week
 
-The two items to escalate first are the merchant account KYC and the
-KYG page designs. Everything else in this plan can absorb a day of
-slippage. Those two cannot.
+That is 7 long form blogs every working day from one person, before
+any of the following, all of which are also on his sheet:
+
+    KYG test pages (Skin, Kidney, Eye)      due 6 Aug
+    KYG Quora and Reddit calendar           due 4 Aug
+    H2S Quora and Reddit calendar           due 5 Aug
+    H2S paid ads video scripts, 5 reels     due 4 Aug
+    Rudione category page content           due 5 Aug
+    Happy Ganga homepage content            due 4 Aug
+    Happy Ganga product and category        due 6 Aug
+    Happy Ganga packaging content           not started
+    Content audits: KYG 13+1 domains, H2S, RealtyCanvas
+    Social media for KYG, H2S, Rudione, Leocym, Happy Ganga
+    KYG performance ads
+
+The plan above covers roughly 10 of the 30 KYG blogs. The other 20,
+plus the H2S 5, do not fit. This needs one of:
+    a) a second content writer,
+    b) the blog target reduced to a real number, or
+    c) the launch content prioritised and blogs formally paused.
+
+Note a contradiction to settle: the KYG deliverables sheet says
+blogs 5 per week, the content sheet says 6 per day. Those differ by
+a factor of six. Confirm which is the commitment.
+
+WEB RECURRING LOAD
+--------------------------------------------------------------------
+    Blog uploads across 5 clients          27/wk      ~11.0 hrs
+    KYG domain maintenance, 5 per day      25/wk       ~6.0 hrs
+    SEO and AEO pages (RC 3, TFX 2)         5/wk       ~7.5 hrs
+    SEO and GEO checks, 4 accounts          4/wk       ~4.0 hrs
+                                                      ---------
+                                                      ~28.5 hrs
+
+13 of the 27 weekly blog uploads are fitted. The remaining 14 do not
+fit without displacing Happy Ganga, which launches 22 August.
+
+DESIGN LOAD
+--------------------------------------------------------------------
+KYG alone carries 18 design deliverables. Seven are already done
+(master announcement, certificate, stamp, report, review, coupon,
+highlight covers). The live ones are fitted above. Recurring social
+and blog images for five clients consume roughly half of Komal's and
+Gavisha's weeks, which is why Hemant carries the UI/UX alone.
+
+
+====================================================================
+BLOCKED, AND WHO CAN UNBLOCK IT
+====================================================================
+INPUT REQUIRED                          BLOCKS                  ASK
+--------------------------------------------------------------------
+Happy Ganga sitemap                     HG wireframe (design)   Karan
+  Overdue from 28 Jul. Karan clears it Monday morning, which is
+  why the design wireframe is scheduled for Wednesday not Monday.
+
+Happy Ganga box and label content       HG packaging (design)   Content
+  Not started. Packaging design was due 1 Aug and cannot begin.
+
+KYG test page designs                   KYG page build (web)    Design
+  The web team lost most of last week to this. Content lands
+  6 Aug, design UI/UX 10 Aug. Anything later puts 28 Aug at risk.
+
+Payment and shipping merchant accounts  Both store launches     Client
+  KYC takes several days and the gateway deadlines are 15 to
+  17 Aug. This is the highest risk item on the sheet.
+
+Rudione designs and brand assets        Rudione UI/UX           Client
+Product catalogues and images           Catalogue upload (web)  Client
+TalentiFi-X new page content            TFX page UI (design)    Manpreet
+Blog content pipeline owner             27 uploads per week     Manpreet
+
+
+====================================================================
+WHAT TO ESCALATE TODAY
+====================================================================
+1. Merchant account KYC for Rudione and Happy Ganga. Everything
+   else can absorb a day of slippage. This cannot.
+2. A second content writer, or a formal reduction of the blog
+   target. One person cannot produce 35 long form blogs a week
+   alongside four launch content sets.
+3. Rudione has four days between design UI/UX finishing (16 Aug)
+   and launch (20 Aug). Either pull the design date forward or
+   move the launch.

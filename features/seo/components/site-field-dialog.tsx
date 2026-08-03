@@ -195,7 +195,10 @@ export function SiteFieldDialog({
           <div className="space-y-4 py-1">
             {field === "identity" && (
               <>
-                <Field label="Name" hint='How it appears in reports, such as "Main site" or "Blog".'>
+                <Field
+                  label="Name"
+                  hint='How it appears in reports, such as "Main site" or "Blog".'
+                >
                   <Input value={label} onChange={(e) => setLabel(e.target.value)} autoFocus />
                 </Field>
                 <Field label="Domain" hint="Just the host. Any https:// or path is stripped.">
@@ -258,7 +261,9 @@ export function SiteFieldDialog({
                   placeholder={`https://${site.domain}/pricing`}
                   autoFocus
                   normalize={(v) =>
-                    /^https?:\/\//i.test(v.trim()) ? v.trim() : `https://${v.trim().replace(/^\/+/, "")}`
+                    /^https?:\/\//i.test(v.trim())
+                      ? v.trim()
+                      : `https://${v.trim().replace(/^\/+/, "")}`
                   }
                   validate={(v) => {
                     try {
@@ -367,7 +372,11 @@ export function SiteFieldDialog({
               </Button>
             )}
             <div className="flex gap-2 sm:ml-auto">
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={update.isPending}>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={update.isPending}
+              >
                 Cancel
               </Button>
               <Button onClick={save} disabled={update.isPending || invalid}>

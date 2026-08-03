@@ -171,7 +171,14 @@ function combineRows<T extends { clicks: number; impressions: number; position: 
 ) {
   const map = new Map<
     string,
-    { key: string; clicks: number; impressions: number; weighted: number; posSum: number; n: number }
+    {
+      key: string
+      clicks: number
+      impressions: number
+      weighted: number
+      posSum: number
+      n: number
+    }
   >()
   for (const r of rows) {
     const cur = map.get(r.key)

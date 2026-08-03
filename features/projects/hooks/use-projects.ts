@@ -189,6 +189,84 @@ export function useProject(id: string | undefined) {
   })
 }
 
+// ─── Progress ────────────────────────────────────────────────────────────────
+
+export interface ProgressBucket {
+  total: number
+  todo: number
+  inProgress: number
+  inReview: number
+  done: number
+  onHold: number
+  discarded: number
+  overdue: number
+  onTime: number
+  late: number
+  /** null when there is nothing to measure, which is not the same as 0. */
+  completionRate: number | null
+  onTimeRate: number | null
+  estimatedHours: number
+  loggedHours: number
+}
+export interface TeamProgress extends ProgressBucket {
+  id: string
+  name: string
+  members: number
+}
+export interface MemberProgress extends ProgressBucket {
+  id: string
+  name: string
+  profilePhoto: string | null
+  teamName: string | null
+}
+export interface UpcomingTask {
+  id: string
+  title: string
+  status: string
+  priority: string
+  dueDate: string
+  assigneeName: string | null
+  teamName: string | null
+  overdue: boolean
+}
+export interface SeoSiteProgress {
+  id: string
+  label: string
+  domain: string
+  clicks: number
+  clicksChange: number | null
+  impressions: number
+  position: number
+  score: number | null
+  coverage: number | null
+  band: string | null
+  openTasks: number
+  overdueTasks: number
+  criticalAlerts: number
+}
+export interface ProjectProgress {
+  summary: ProgressBucket
+  byTeam: TeamProgress[]
+  byMember: MemberProgress[]
+  trend: { weekStart: string; completed: number; due: number }[]
+  upcoming: UpcomingTask[]
+  seo: SeoSiteProgress[]
+  seoTotals: { clicks: number; clicksChange: number | null; impressions: number } | null
+}
+
+/** Delivery and search progress for one project. */
+export function useProjectProgress(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-progress", projectId],
+    queryFn: () =>
+      apiFetch<{ data: ProjectProgress }>(`/api/projects/${projectId}/progress`).then(
+        (r) => r.data,
+      ),
+    enabled: !!projectId,
+    staleTime: 30_000,
+  })
+}
+
 // Teams
 export function useProjectTeams(projectId: string | undefined) {
   return useQuery({
