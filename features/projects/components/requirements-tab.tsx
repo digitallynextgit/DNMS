@@ -20,7 +20,7 @@ import {
   REQUIREMENT_STATUS_LABELS,
   REQUIREMENT_TYPE_LABELS,
 } from "@/lib/constants"
-import { cn, formatDate } from "@/lib/utils"
+import { cn, formatDate, formatRelativeTime } from "@/lib/utils"
 import {
   useDeleteRequirement,
   useProjectRequirements,
@@ -30,6 +30,38 @@ import {
 import { RequirementDialog } from "./requirement-dialog"
 
 const OPEN = ["OPEN", "IN_PROGRESS"]
+
+/** One side of the "who asked / who owes" pair on a requirement card. */
+function Person({
+  person,
+  caption,
+  designation,
+}: {
+  person: { firstName: string; lastName: string; profilePhoto?: string | null }
+  caption: string
+  designation: string | null
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <AvatarDisplay
+        src={person.profilePhoto}
+        firstName={person.firstName}
+        lastName={person.lastName}
+        size="sm"
+        className="shrink-0"
+      />
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium">
+          {person.firstName} {person.lastName}
+        </p>
+        <p className="text-muted-foreground truncate text-[11px]">
+          {caption}
+          {designation ? ` · ${designation}` : ""}
+        </p>
+      </div>
+    </div>
+  )
+}
 
 /** Past its needed-by date and still not provided. */
 function isOverdue(r: ProjectRequirement): boolean {
@@ -115,14 +147,39 @@ export function RequirementsTab({
                   !OPEN.includes(r.status) && "bg-muted/20",
                 )}
               >
-                <CardContent className="space-y-2 p-4">
-                  <div className="flex flex-wrap items-start gap-2">
-                    <StatusBadge
-                      status={r.status}
-                      colorMap={REQUIREMENT_STATUS_COLORS}
-                      labelMap={REQUIREMENT_STATUS_LABELS}
-                      size="xs"
-                    />
+                <CardContent className="space-y-3 p-4">
+                  {/* Title left, deadline right - the two things you scan for. */}
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 flex-1 text-base font-semibold">{r.title}</p>
+                    {r.neededBy && (
+                      <span
+                        className={cn(
+                          "flex shrink-0 items-center gap-1 text-xs",
+                          late ? "font-medium text-red-600" : "text-muted-foreground",
+                        )}
+                        title={`Needed by ${formatDate(r.neededBy)}`}
+                      >
+                        {late ? (
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                        ) : (
+                          <Clock className="h-3.5 w-3.5" />
+                        )}
+                        {late ? "Overdue" : `Needed ${formatRelativeTime(r.neededBy)}`}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {/* Open needs no badge - it is the default state and every
+                        card would carry one. Anything else is worth calling out. */}
+                    {r.status !== "OPEN" && (
+                      <StatusBadge
+                        status={r.status}
+                        colorMap={REQUIREMENT_STATUS_COLORS}
+                        labelMap={REQUIREMENT_STATUS_LABELS}
+                        size="xs"
+                      />
+                    )}
                     <Badge variant="outline" className="text-[10px]">
                       {REQUIREMENT_TYPE_LABELS[r.type] ?? r.type}
                     </Badge>
@@ -131,45 +188,21 @@ export function RequirementsTab({
                         {r.team.name}
                       </Badge>
                     )}
-                    {late && (
-                      <Badge variant="outline" className="border-red-300 text-[10px] text-red-700">
-                        <AlertTriangle className="mr-0.5 inline h-3 w-3" />
-                        Overdue
-                      </Badge>
-                    )}
-                    <p className="min-w-0 flex-1 text-sm font-semibold">{r.title}</p>
                   </div>
 
                   {r.details && (
                     <p className="text-muted-foreground text-xs whitespace-pre-line">{r.details}</p>
                   )}
 
-                  <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-                    <span className="flex items-center gap-1">
-                      <AvatarDisplay
-                        src={r.raisedBy.profilePhoto}
-                        firstName={r.raisedBy.firstName}
-                        lastName={r.raisedBy.lastName}
-                        size="chip"
-                      />
-                      {r.raisedBy.firstName} raised this
-                    </span>
-                    <span>→</span>
-                    <span className="flex items-center gap-1">
-                      <AvatarDisplay
-                        src={r.requestedFrom.profilePhoto}
-                        firstName={r.requestedFrom.firstName}
-                        lastName={r.requestedFrom.lastName}
-                        size="chip"
-                      />
-                      {r.requestedFrom.firstName} {r.requestedFrom.lastName}
-                    </span>
-                    {r.neededBy && (
-                      <span className={cn("flex items-center gap-1", late && "text-red-600")}>
-                        <Clock className="h-3 w-3" />
-                        needed by {formatDate(r.neededBy)}
-                      </span>
-                    )}
+                  {/* Both people side by side, each with their role under the
+                      name, so "who asked / who owes" reads at a glance. */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Person
+                      person={r.raisedBy}
+                      caption="Raised by"
+                      designation={r.team?.name ?? null}
+                    />
+                    <Person person={r.requestedFrom} caption="Waiting on" designation={null} />
                   </div>
 
                   {r.blockedTasks.length > 0 && (

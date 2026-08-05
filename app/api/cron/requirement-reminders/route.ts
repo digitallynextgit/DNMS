@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
+import { addEmailJob } from "@/lib/queue"
+import { renderRequirementEmail } from "@/lib/email-layout"
+import { REQUIREMENT_TYPE_LABELS } from "@/lib/constants"
 
 // Nudges people about requirements a team is still waiting on:
 //   - needed TODAY and not provided  -> "due today"
@@ -39,9 +42,13 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         title: true,
+        details: true,
+        type: true,
         neededBy: true,
         requestedFromId: true,
         raisedById: true,
+        requestedFrom: { select: { email: true, firstName: true } },
+        raisedBy: { select: { firstName: true, lastName: true } },
         project: { select: { id: true, name: true, slug: true } },
         team: { select: { name: true, managerId: true } },
         _count: { select: { blockedTasks: true } },
@@ -71,6 +78,30 @@ export async function GET(req: NextRequest) {
           link,
         })
         notified++
+      }
+
+      // Email only the person who can actually resolve it, and only once it is
+      // genuinely late - a "due today" in-app nudge does not warrant an inbox.
+      if (overdue && r.requestedFrom?.email) {
+        const mail = renderRequirementEmail({
+          recipientFirstName: r.requestedFrom.firstName,
+          raisedByName: `${r.raisedBy.firstName} ${r.raisedBy.lastName}`.trim(),
+          projectName: r.project.name,
+          teamName: r.team?.name ?? null,
+          type: REQUIREMENT_TYPE_LABELS[r.type] ?? r.type,
+          title: r.title,
+          details: r.details,
+          neededBy: r.neededBy ? r.neededBy.toISOString().slice(0, 10) : null,
+          blockedTaskCount: r._count.blockedTasks,
+          overdue: true,
+          url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}${link}`,
+        })
+        addEmailJob({
+          to: r.requestedFrom.email,
+          subject: mail.subject,
+          html: mail.html,
+          text: mail.text,
+        })
       }
 
       await db.projectRequirement.update({

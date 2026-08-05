@@ -3,6 +3,8 @@ import "server-only"
 import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
 import { addEmailJob } from "@/lib/queue"
+import { renderRequirementEmail } from "@/lib/email-layout"
+import { REQUIREMENT_TYPE_LABELS } from "@/lib/constants"
 import { logActivity } from "@/features/projects/server/activity"
 import type { RequirementStatus } from "@prisma/client"
 
@@ -108,17 +110,21 @@ export async function createRequirement(args: {
     select: { email: true, firstName: true },
   })
   if (owner && args.requestedFromId !== args.raisedById) {
-    addEmailJob({
-      to: owner.email,
-      subject: `Requirement: ${requirement.title} - ${project?.name ?? "project"}`,
-      html: `<p>Hi ${owner.firstName},</p>
-             <p><strong>${who}</strong> has raised a requirement on <strong>${project?.name ?? "a project"}</strong>:</p>
-             <p><strong>${requirement.title}</strong></p>
-             ${requirement.details ? `<p>${requirement.details}</p>` : ""}
-             ${requirement.neededBy ? `<p>Needed by: ${requirement.neededBy.toISOString().slice(0, 10)}</p>` : ""}
-             <p>${requirement.blockedTasks.length} task(s) are waiting on this.</p>`,
-      text: `${who} raised a requirement: ${requirement.title}`,
+    // Same branded template as the leave/decision letters, rather than ad-hoc
+    // HTML - this lands in a client-facing person's inbox.
+    const mail = renderRequirementEmail({
+      recipientFirstName: owner.firstName,
+      raisedByName: who,
+      projectName: project?.name ?? "a project",
+      teamName: requirement.team?.name ?? null,
+      type: REQUIREMENT_TYPE_LABELS[requirement.type] ?? requirement.type,
+      title: requirement.title,
+      details: requirement.details,
+      neededBy: requirement.neededBy ? requirement.neededBy.toISOString().slice(0, 10) : null,
+      blockedTaskCount: requirement.blockedTasks.length,
+      url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}${link}`,
     })
+    addEmailJob({ to: owner.email, subject: mail.subject, html: mail.html, text: mail.text })
   }
 
   await logActivity({

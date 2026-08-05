@@ -300,6 +300,127 @@ export function renderDecisionEmail(input: {
 }
 
 /**
+ * "A team needs something from you" - the email behind a project requirement.
+ *
+ * Same branded shell as the leave and decision letters: the detail table states
+ * the facts, the deadline is called out (red once it is in the past), and the
+ * single button goes straight to the Requirements tab. Table-based and inline
+ * styled, like every other template here, because Gmail and Outlook strip
+ * <style> blocks.
+ */
+export function renderRequirementEmail(input: {
+  /** Who has to act. */
+  recipientFirstName: string
+  raisedByName: string
+  projectName: string
+  teamName?: string | null
+  type: string
+  title: string
+  details?: string | null
+  /** "yyyy-MM-dd" */
+  neededBy?: string | null
+  blockedTaskCount?: number
+  overdue?: boolean
+  url?: string
+}): { subject: string; html: string; text: string } {
+  const {
+    recipientFirstName,
+    raisedByName,
+    projectName,
+    teamName,
+    type,
+    title,
+    details,
+    neededBy,
+    blockedTaskCount = 0,
+    overdue = false,
+    url,
+  } = input
+
+  const subject = overdue
+    ? `Overdue requirement: ${title} - ${projectName}`
+    : `Requirement: ${title} - ${projectName}`
+  const by = formatEmailDate(neededBy)
+  const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
+  const who = teamName ? `the ${escapeHtml(teamName)} team` : "a team"
+
+  const body = `
+    <h1 style="margin:0 0 14px; font-size:20px; font-weight:600; color:${overdue ? "#dc2626" : "#111827"};">
+      ${overdue ? "Requirement overdue" : "A team is waiting on you"}
+    </h1>
+
+    <p style="margin:0 0 18px; font-size:15px; color:#111827;">Hi ${escapeHtml(recipientFirstName)},</p>
+
+    <p style="${para}">
+      <strong style="color:#111827;">${escapeHtml(raisedByName)}</strong> has raised a requirement on
+      <strong style="color:#111827;">${escapeHtml(projectName)}</strong>. Until it is provided,
+      ${who} cannot carry on with this work.
+    </p>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+      ${detailRow("What is needed", escapeHtml(title))}
+      ${detailRow("Type", escapeHtml(type))}
+      ${detailRow("Project", escapeHtml(projectName))}
+      ${teamName ? detailRow("Blocked team", escapeHtml(teamName)) : ""}
+      ${detailRow("Raised by", escapeHtml(raisedByName))}
+      ${
+        by
+          ? `<tr><td style="padding:10px 0; border-bottom:1px solid #f0f0f0;">
+               <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:#9ca3af;">Needed by</div>
+               <div style="font-size:15px; margin-top:2px; color:${overdue ? "#dc2626" : "#111827"};">
+                 ${by}${overdue ? " &middot; overdue" : ""}
+               </div>
+             </td></tr>`
+          : ""
+      }
+      ${blockedTaskCount > 0 ? detailRow("Tasks blocked", String(blockedTaskCount)) : ""}
+    </table>
+
+    ${
+      details
+        ? `<div style="margin:0 0 20px; padding:14px 16px; background:#f9fafb; border-left:3px solid #d4d4d8; border-radius:3px;">
+             <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:#9ca3af; margin-bottom:6px;">Details</div>
+             <div style="font-size:14px; line-height:1.7; color:#374151;">${escapeHtml(details).replace(/\n/g, "<br />")}</div>
+           </div>`
+        : ""
+    }
+
+    ${
+      url
+        ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 0;">
+             <tr><td style="border-radius:4px; background:#171717;">
+               <a href="${url}" style="display:inline-block; padding:12px 24px; font-size:14px; font-weight:600; color:#ffffff; text-decoration:none;">
+                 Open in ${BRAND_NAME}
+               </a>
+             </td></tr>
+           </table>`
+        : ""
+    }`
+
+  const text = [
+    overdue ? "Requirement overdue" : "A team is waiting on you",
+    "",
+    `Hi ${recipientFirstName},`,
+    "",
+    `${raisedByName} has raised a requirement on ${projectName}.`,
+    "",
+    `What is needed: ${title}`,
+    `Type: ${type}`,
+    teamName ? `Blocked team: ${teamName}` : "",
+    by ? `Needed by: ${by}${overdue ? " (overdue)" : ""}` : "",
+    blockedTaskCount > 0 ? `Tasks blocked: ${blockedTaskCount}` : "",
+    details ? `\nDetails:\n${details}` : "",
+    url ? `\n${url}` : "",
+    "",
+    `- ${BRAND_NAME}`,
+  ]
+    .filter(Boolean)
+    .join("\n")
+
+  return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
+}
+
+/**
  * The employee's email signature block, mirroring the one staff use in Gmail:
  * logo | name / designation / socials / phone / website / email / address.
  *
