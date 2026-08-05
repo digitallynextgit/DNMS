@@ -34,6 +34,7 @@ import { TaskStatusSelect } from "@/features/projects/components/task-status-sel
 import { TaskTime } from "@/features/projects/components/task-time"
 import { TaskHistoryDialog } from "@/features/projects/components/task-history-dialog"
 import { formatHours } from "@/features/projects/lib/format-hours"
+import { projectHref } from "@/features/projects/lib/project-href"
 import { TaskStatusReasonDialog } from "@/features/projects/components/task-status-reason-dialog"
 import { TaskCreateDialog } from "@/features/projects/components/task-create-dialog"
 import { Button } from "@/components/ui/button"
@@ -51,7 +52,7 @@ interface MyTask {
   inProgressSince: string | null
   approvalStatus: "APPROVED" | "PENDING_APPROVAL" | "REJECTED"
   rejectionReason: string | null
-  project: { id: string; name: string; code: string }
+  project: { id: string; name: string; code: string; slug: string | null }
   team?: { id: string; name: string } | null
 }
 
@@ -221,7 +222,7 @@ export default function MyTasksPage() {
     {
       header: "Project",
       cell: (task) => (
-        <Link href={`/projects/${task.project.id}`} className="text-xs hover:underline">
+        <Link href={projectHref(task.project)} className="text-xs hover:underline">
           {task.project.name}
         </Link>
       ),
@@ -480,7 +481,7 @@ export default function MyTasksPage() {
                             )}
                             <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-[11px]">
                               <Link
-                                href={`/projects/${task.project.id}`}
+                                href={projectHref(task.project)}
                                 className="hover:text-foreground hover:underline"
                               >
                                 {task.project.name}
@@ -716,7 +717,7 @@ function MyTasksBoard({
                                       {task.title}
                                     </p>
                                     <Link
-                                      href={`/projects/${task.project.id}`}
+                                      href={projectHref(task.project)}
                                       className="text-muted-foreground mt-0.5 block truncate text-[11px] hover:underline"
                                       title={task.project.name}
                                     >

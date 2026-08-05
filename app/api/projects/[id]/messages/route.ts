@@ -42,6 +42,56 @@ export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId } = await ctx.params
+      const q = _req.nextUrl.searchParams.get("q")?.trim()
+
+      // ── Search mode ────────────────────────────────────────────────────────
+      // The plain list only carries the LAST reply, so searching client-side can
+      // never see a match buried mid-conversation. This looks inside every reply
+      // in SQL and hands back the matching ones, so the UI can show the actual
+      // line that matched and jump straight to it.
+      if (q) {
+        const like = { contains: q, mode: "insensitive" as const }
+        const results = await db.projectMessage.findMany({
+          where: {
+            projectId,
+            OR: [{ title: like }, { content: like }, { replies: { some: { content: like } } }],
+          },
+          orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+          include: {
+            author: { select: AUTHOR_SELECT },
+            _count: { select: { replies: true } },
+            replies: {
+              where: { content: like },
+              orderBy: { createdAt: "asc" },
+              take: 5,
+              select: {
+                id: true,
+                content: true,
+                createdAt: true,
+                author: { select: { firstName: true, lastName: true } },
+              },
+            },
+          },
+        })
+
+        const needle = q.toLowerCase()
+        return NextResponse.json({
+          data: results.map(({ replies, ...m }) => ({
+            ...m,
+            lastReply: null,
+            lastActivityAt: m.createdAt,
+            titleMatch: m.title.toLowerCase().includes(needle),
+            contentMatch: m.content.toLowerCase().includes(needle),
+            matchedReplies: replies.map((r) => ({
+              id: r.id,
+              content: r.content,
+              createdAt: r.createdAt,
+              authorName: `${r.author.firstName} ${r.author.lastName}`.trim(),
+            })),
+          })),
+        })
+      }
+
       const messages = await db.projectMessage.findMany({
         where: { projectId },
         orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],

@@ -27,4 +27,5 @@ export * from "./hooks/use-integration"
 export * from "./brand"
 
 export { formatHours } from "./lib/format-hours"
+export { projectHref } from "./lib/project-href"
 export * from "./lib/report-options"

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import { createNotifications } from "@/lib/notifications"
+import { isWithinEditWindow } from "@/features/projects/lib/edit-window"
 import type { Session } from "next-auth"
 import { resolveProjectMemberIds } from "../route"
 
@@ -12,7 +13,7 @@ export const PATCH = withProjectAccess(
       const { id: projectId, messageId } = await ctx.params
       const msg = await db.projectMessage.findUnique({
         where: { id: messageId },
-        select: { id: true, authorId: true, title: true, mentionedIds: true },
+        select: { id: true, authorId: true, title: true, mentionedIds: true, createdAt: true },
       })
       if (!msg) return NextResponse.json({ error: "Message not found" }, { status: 404 })
       if (msg.authorId !== session.user.id) {
@@ -23,6 +24,16 @@ export const PATCH = withProjectAccess(
       if (body.title?.trim()) data.title = body.title.trim()
       if (body.content?.trim()) data.content = body.content.trim()
       if (typeof body.isPinned === "boolean") data.isPinned = body.isPinned
+
+      // Rewriting the text closes after 15 minutes. Pinning does NOT - that is
+      // organising the chat list, not altering the record, so it stays available.
+      const editsText = data.title !== undefined || data.content !== undefined
+      if (editsText && !isWithinEditWindow(msg.createdAt)) {
+        return NextResponse.json(
+          { error: "This chat can no longer be edited - the 15 minute window has closed." },
+          { status: 403 },
+        )
+      }
 
       // Only recompute mentions when the caller sends them (pin toggles don't).
       let newlyMentioned: string[] = []
@@ -70,12 +81,18 @@ export const DELETE = withProjectAccess(
       const { messageId } = await ctx.params
       const msg = await db.projectMessage.findUnique({
         where: { id: messageId },
-        select: { id: true, authorId: true },
+        select: { id: true, authorId: true, createdAt: true },
       })
       if (!msg) return NextResponse.json({ error: "Message not found" }, { status: 404 })
       if (msg.authorId !== session.user.id) {
         return NextResponse.json(
           { error: "You can only delete your own messages" },
+          { status: 403 },
+        )
+      }
+      if (!isWithinEditWindow(msg.createdAt)) {
+        return NextResponse.json(
+          { error: "This chat can no longer be deleted - the 15 minute window has closed." },
           { status: 403 },
         )
       }

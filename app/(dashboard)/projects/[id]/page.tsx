@@ -102,7 +102,10 @@ const PROJECT_TABS = [
 
 export default function ProjectDetailPage() {
   const params = useParams()
-  const projectId = params.id as string
+  // What the URL carries: a slug ("rudione-leocym") for anything created or
+  // linked since slugs landed, a uuid for older links. Only the two lookups
+  // below may use it - see `projectId` further down.
+  const slugOrId = params.id as string
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -123,11 +126,30 @@ export default function ProjectDetailPage() {
     router.replace(`${pathname}?${next.toString()}`, { scroll: false })
   }
 
-  const { data, isLoading } = useProject(projectId)
+  // Only this lookup takes the raw URL value - GET /api/projects/[id] is behind
+  // `withProjectAccess`, which resolves a slug or an id.
+  const { data, isLoading } = useProject(slugOrId)
   const project = data?.data
-  const { data: teamsData } = useProjectTeams(projectId)
+
+  // Keyed on the real id, so these share a cache entry with the Teams and
+  // Messages tabs. Keyed on the slug they would be separate entries, and the
+  // header counts would go stale the moment a tab invalidated its own copy.
+  // Both hooks are `enabled: !!projectId`, so they simply wait.
+  const { data: teamsData } = useProjectTeams(project?.id)
   const teams = teamsData?.data ?? []
-  const { data: unreadMessages = 0 } = useUnreadMessageCount(projectId)
+  const { data: unreadMessages = 0 } = useUnreadMessageCount(project?.id)
+
+  /**
+   * The REAL project id, for everything handed to a tab.
+   *
+   * Tabs build their own request URLs from this, and a good number of those
+   * endpoints authenticate with plain `withSession`/`withAuth` rather than a
+   * project guard - they compare `params.id` against a stored `projectId`
+   * directly, so a slug reaches them unresolved and they 404 ("Team not found"
+   * when adding a member, and the same for tasks, resources and brand assets).
+   * Tabs only render once `project` has loaded, so this is always the uuid.
+   */
+  const projectId = project?.id ?? slugOrId
 
   // Admins/PMs with project:write can manage any project; the project's ACCOUNT
   // MANAGER (owner) can fully manage their own project too.

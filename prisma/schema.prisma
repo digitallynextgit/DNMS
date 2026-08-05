@@ -1083,6 +1083,11 @@ model Project {
   name           String        @map("name")
   description    String?       @map("description") @db.Text
   code           String        @unique @map("code")
+  // URL identifier, derived from the name at creation ("RUDIONE / LEOCYM" ->
+  // "rudione-leocym"). Nullable so pre-existing rows stay valid; every read path
+  // falls back to the id, and /projects/[id] resolves either form. Deliberately
+  // NOT regenerated on rename - a slug that moves breaks every link already shared.
+  slug           String?       @unique @map("slug")
   status         ProjectStatus @default(PLANNING) @map("status")
   priority       TaskPriority  @default(MEDIUM) @map("priority")
   ownerId        String        @map("owner_id")

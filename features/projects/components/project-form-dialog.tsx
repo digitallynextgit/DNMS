@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { FormDialog } from "@/components/shared/form-dialog"
+import { DateField } from "@/components/shared/date-field"
 import { EmployeeCombobox, useEmployees } from "@/features/employees"
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, PROJECT_STATUS_LABELS, TASK_PRIORITY_LABELS } from "@/lib/constants"
@@ -244,12 +245,15 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="onboarding-date">Onboarding Date</Label>
-          <Input
-            id="onboarding-date"
-            type="date"
+          <Label>Onboarding Date</Label>
+          {/* Shared shadcn calendar popover - the same picker the employee forms
+              use, so dates look and behave identically across the app. `modal`
+              because this sits inside a Dialog. */}
+          <DateField
             value={form.startDate}
-            onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+            onChange={(v) => setForm((f) => ({ ...f, startDate: v }))}
+            placeholder="Pick the onboarding date"
+            modal
           />
           <p className="text-muted-foreground text-[11px]">
             The day the client / project was onboarded.

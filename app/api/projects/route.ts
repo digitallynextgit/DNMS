@@ -4,6 +4,7 @@ import { withAuth, withSession } from "@/server/api-handler"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
 import { listProjects } from "@/features/projects/server/projects.queries"
+import { generateProjectSlug } from "@/features/projects/server/project-slug"
 import type { Session } from "next-auth"
 
 export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
@@ -68,6 +69,7 @@ export const POST = withAuth(
           name,
           description,
           code,
+          slug: await generateProjectSlug(name, code),
           status: status ?? "PLANNING",
           priority: priority ?? "MEDIUM",
           ownerId,

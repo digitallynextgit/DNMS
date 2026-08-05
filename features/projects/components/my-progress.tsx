@@ -14,6 +14,7 @@ import { apiFetch } from "@/lib/api-fetch"
 import { cn, formatDate } from "@/lib/utils"
 import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { formatHours } from "../lib/format-hours"
+import { projectHref } from "../lib/project-href"
 
 // =============================================================================
 // "My Progress": what I still have to do, and what I have done.
@@ -35,7 +36,7 @@ interface MyTask {
   completedAt: string | null
   estimatedHours: number | null
   loggedHours: number
-  project: { id: string; name: string; code: string }
+  project: { id: string; name: string; code: string; slug: string | null }
   team?: { id: string; name: string } | null
 }
 
@@ -86,7 +87,7 @@ function TaskRow({ t, done = false }: { t: MyTask; done?: boolean }) {
           {t.title}
         </p>
         <Link
-          href={`/projects/${t.project.id}`}
+          href={projectHref(t.project)}
           className="text-muted-foreground hover:text-foreground truncate text-[11px] hover:underline"
         >
           {t.project.name}
@@ -161,11 +162,15 @@ export function MyProgress() {
     )
 
     // My own work, rolled up per project: what is left where.
-    const map = new Map<string, { name: string; id: string; open: number; done: number }>()
+    const map = new Map<
+      string,
+      { name: string; id: string; slug: string | null; open: number; done: number }
+    >()
     for (const t of tasks) {
       const e = map.get(t.project.id) ?? {
         name: t.project.name,
         id: t.project.id,
+        slug: t.project.slug,
         open: 0,
         done: 0,
       }
@@ -266,7 +271,7 @@ export function MyProgress() {
               return (
                 <div key={p.id} className="flex items-center gap-3">
                   <Link
-                    href={`/projects/${p.id}`}
+                    href={projectHref(p)}
                     className="w-40 shrink-0 truncate text-xs hover:underline"
                   >
                     {p.name}

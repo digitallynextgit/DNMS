@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { cn } from "@/lib/utils"
@@ -25,6 +25,8 @@ export function MentionTextarea({
   initialMentions,
   onSubmit,
   dropup,
+  className,
+  autoGrow,
 }: {
   value: string
   onChange: (value: string, mentionIds: string[]) => void
@@ -41,8 +43,27 @@ export function MentionTextarea({
   onSubmit?: () => void
   /** Open the suggestion list ABOVE the field (for inputs pinned to the bottom). */
   dropup?: boolean
+  /** Override the textarea's own styling - e.g. to sit borderless inside a composer bar. */
+  className?: string
+  /**
+   * Grow with the text instead of scrolling inside a fixed box. The caller caps
+   * it with a `max-h-*` class; past that the field stops growing and scrolls,
+   * which is the behaviour every messenger composer has.
+   */
+  autoGrow?: boolean
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Measured, not calculated: `scrollHeight` accounts for wrapping, so a single
+  // long line that wraps three times grows the box exactly like three typed
+  // lines would. Reset to "auto" first or the box can only ever get taller.
+  useLayoutEffect(() => {
+    if (!autoGrow) return
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${el.scrollHeight}px`
+  }, [autoGrow, value])
   // Everyone ever picked in this editor; the live mention set is derived by
   // checking which "@Label" tokens still survive in the text.
   const pickedRef = useRef<{ id: string; label: string }[]>(
@@ -151,6 +172,7 @@ export function MentionTextarea({
         rows={rows}
         placeholder={placeholder}
         autoFocus={autoFocus}
+        className={className}
       />
       {open && suggestions.length > 0 && (
         <div

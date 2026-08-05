@@ -2189,6 +2189,7 @@ async function main() {
     data: {
       name: "Acme Website Redesign",
       code: "DN00001",
+      slug: "acme-website-redesign",
       description:
         "Complete redesign and rebuild of Acme's marketing website with new branding, content, and SEO foundation.",
       status: "ACTIVE",
@@ -2325,6 +2326,7 @@ async function main() {
     data: {
       name: "Q2 Marketing Campaign",
       code: "DN00002",
+      slug: "q2-marketing-campaign",
       description:
         "Multi-channel marketing campaign for new product launch - paid ads, SEO content, social, video.",
       status: "ACTIVE",
@@ -2395,6 +2397,7 @@ async function main() {
     data: {
       name: "DNMS Internal Improvements",
       code: "DN00003",
+      slug: "dnms-internal-improvements",
       description:
         "Q2 enhancements to the internal DNMS platform - payroll auto-gen, performance scoring, mobile responsiveness.",
       status: "PLANNING",

@@ -3,7 +3,7 @@
 import { Session } from "next-auth"
 import { signOut } from "next-auth/react"
 import { useTheme } from "next-themes"
-import { Bell, LogOut, User, ChevronDown, PanelLeft, PanelLeftClose } from "lucide-react"
+import { Bell, LogOut, User, ChevronDown, PanelLeft, PanelLeftClose, Sparkles } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,8 +17,10 @@ import { Button } from "@/components/ui/button"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { useSidebarStore } from "@/stores/sidebar-store"
 import { useThemeStore } from "@/stores/theme-store"
+import { useAiAssistantStore } from "@/stores/ai-assistant-store"
 import { useEmployee } from "@/features/employees"
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
+import { cn } from "@/lib/utils"
 import { ThemePicker } from "./theme-picker"
 import Link from "next/link"
 
@@ -43,6 +45,11 @@ export function Topbar({ session }: { session: Session }) {
   }
 
   const { data: unreadCount = 0 } = useUnreadNotificationCount()
+
+  // The assistant's panel is rendered by the dashboard layout; this only drives
+  // its open state.
+  const aiOpen = useAiAssistantStore((s) => s.open)
+  const toggleAi = useAiAssistantStore((s) => s.toggle)
 
   return (
     <header className="bg-background border-border flex h-14.25 shrink-0 items-center justify-between border-b px-4">
@@ -75,6 +82,24 @@ export function Topbar({ session }: { session: Session }) {
       </div>
 
       <div className="flex items-center gap-1">
+        {/* AI assistant. Lives here rather than as a floating bubble, which sat
+            on top of whatever occupied the bottom-right of the page. The panel
+            itself still opens in that corner. */}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={toggleAi}
+          title="Ask DNMS"
+          aria-label="Ask DNMS"
+          aria-pressed={aiOpen}
+          className={cn(
+            "text-muted-foreground hover:text-foreground",
+            aiOpen && "bg-muted text-foreground",
+          )}
+        >
+          <Sparkles className="h-4 w-4" />
+        </Button>
+
         <ThemePicker />
 
         {/* Notifications */}

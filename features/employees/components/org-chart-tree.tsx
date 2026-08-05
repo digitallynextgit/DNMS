@@ -207,7 +207,19 @@ export function OrgChartTree({ nodes }: OrgChartTreeProps) {
         >
           <div
             ref={contentRef}
-            style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+              // MUST be max-content. This element is what `measure()` reads
+              // scrollWidth from, and its parent's width is natW * scale. As a
+              // plain block it would inherit that width, so at any scale > 1
+              // each measurement fed a bigger natW back in and the box grew by
+              // the zoom factor on every ResizeObserver tick - the inner flex
+              // is `items-center`, so the nodes were centred in a runaway-wide
+              // box and left the viewport entirely. Sizing to content keeps the
+              // measurement natural and independent of the scale.
+              width: "max-content",
+            }}
           >
             <div className="flex min-w-max flex-col items-center gap-12 p-8">
               {nodes.map((root) => (

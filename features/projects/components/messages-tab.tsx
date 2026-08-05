@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import {
   useProjectMessages,
   useProjectMembers,
@@ -11,8 +11,11 @@ import {
   useCreateReply,
   useDeleteReply,
   useMarkMessagesSeen,
+  useProjectMessageSearch,
+  useUpdateReply,
   type ProjectMessage,
   type ProjectMember,
+  type MessageSearchHit,
 } from "@/features/projects/hooks/use-projects"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,7 +25,7 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { FormDialog } from "@/components/shared/form-dialog"
-import { cn, formatRelativeTime } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
   Plus,
@@ -34,8 +37,14 @@ import {
   ArrowLeft,
   MessageSquare,
   Megaphone,
+  Smile,
+  Pencil,
 } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Textarea } from "@/components/ui/textarea"
 import { MentionTextarea, renderWithMentions } from "./mention-textarea"
+import { editWindowRemaining, formatWindowLeft, isWithinEditWindow } from "../lib/edit-window"
+import { dayKey, formatChatTime, formatClockTime, formatDaySeparator } from "../lib/chat-time"
 
 interface Props {
   projectId: string
@@ -59,6 +68,44 @@ function toMentionPairs(ids: string[], members: ProjectMember[]) {
 
 const shortName = (full: string) => full.split(" ")[0] || full
 
+/** Below this a query matches almost everything, so the search doesn't run. */
+const MIN_QUERY = 2
+
+/**
+ * A window of text around the first match, so a hit buried in a long message is
+ * shown in context instead of from the top of the paragraph.
+ */
+function snippet(text: string, query: string, pad = 40): string {
+  const at = text.toLowerCase().indexOf(query.toLowerCase())
+  if (at < 0) return text.length > 120 ? `${text.slice(0, 120)}…` : text
+  const start = Math.max(0, at - pad)
+  const end = Math.min(text.length, at + query.length + pad)
+  return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`
+}
+
+/** Wrap every occurrence of the query in a <mark> so the hit is visible at a glance. */
+function highlight(text: string, query: string) {
+  if (!query) return text
+  const lower = text.toLowerCase()
+  const needle = query.toLowerCase()
+  const out: React.ReactNode[] = []
+  let i = 0
+  let n = 0
+  for (;;) {
+    const at = lower.indexOf(needle, i)
+    if (at < 0) break
+    if (at > i) out.push(text.slice(i, at))
+    out.push(
+      <mark key={n++} className="rounded-sm bg-amber-300/80 px-0.5 text-black">
+        {text.slice(at, at + needle.length)}
+      </mark>,
+    )
+    i = at + needle.length
+  }
+  out.push(text.slice(i))
+  return out
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // Chat shell: a WhatsApp-style two-pane layout - the list of "chats" (each
 // subject is a conversation) on the left, the open conversation on the right.
@@ -75,6 +122,17 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
+  /**
+   * Which bubble to scroll to and flash when a chat is opened from a search hit.
+   * "root" is the opening post; anything else is a reply id. Cleared once the
+   * user picks a chat normally, so an old hit can't keep re-highlighting.
+   */
+  const [jumpTo, setJumpTo] = useState<string | null>(null)
+
+  const query = search.trim()
+  const searching = query.length >= MIN_QUERY
+  const { data: searchData, isFetching: searchLoading } = useProjectMessageSearch(projectId, query)
+  const hits = useMemo(() => searchData?.data ?? [], [searchData])
   const [newChatOpen, setNewChatOpen] = useState(false)
   const [newChatInitial, setNewChatInitial] = useState<ComposeDraft | null>(null)
 
@@ -100,7 +158,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
 
   return (
     <>
-      <div className="bg-card flex h-[68vh] min-h-120 overflow-hidden rounded-[2px] border">
+      <div className="bg-card flex h-[68vh] min-h-120 overflow-hidden rounded-sm border">
         {/* LEFT: chat list */}
         <div
           className={cn(
@@ -131,13 +189,28 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
             </Button>
           </div>
 
-          <ChatList
-            threads={threads}
-            search={search}
-            selectedId={selectedId}
-            currentUserId={currentUserId}
-            onSelect={setSelectedId}
-          />
+          {searching ? (
+            <SearchResults
+              hits={hits}
+              query={query}
+              loading={searchLoading}
+              selectedId={selectedId}
+              onOpen={(threadId, target) => {
+                setSelectedId(threadId)
+                setJumpTo(target)
+              }}
+            />
+          ) : (
+            <ChatList
+              threads={threads}
+              selectedId={selectedId}
+              currentUserId={currentUserId}
+              onSelect={(id) => {
+                setSelectedId(id)
+                setJumpTo(null)
+              }}
+            />
+          )}
         </div>
 
         {/* RIGHT: conversation */}
@@ -151,6 +224,8 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
               canManage={canManage}
               members={members}
               memberNames={memberNames}
+              jumpTo={jumpTo}
+              onJumped={() => setJumpTo(null)}
               onBack={() => setSelectedId(null)}
               onDeleted={() => setSelectedId(null)}
             />
@@ -188,32 +263,20 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
 // ─── Chat list (left pane) ──────────────────────────────────────────────────
 function ChatList({
   threads,
-  search,
   selectedId,
   currentUserId,
   onSelect,
 }: {
   threads: ProjectMessage[]
-  search: string
   selectedId: string | null
   currentUserId: string
   onSelect: (id: string) => void
 }) {
-  const q = search.trim().toLowerCase()
-  const filtered = q
-    ? threads.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          t.content.toLowerCase().includes(q) ||
-          (t.lastReply?.content ?? "").toLowerCase().includes(q),
-      )
-    : threads
-
-  if (filtered.length === 0) {
+  if (threads.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center p-6">
         <p className="text-muted-foreground text-center text-xs">
-          {q ? "No chats match your search." : "No conversations yet. Start one with +."}
+          No conversations yet. Start one with +.
         </p>
       </div>
     )
@@ -221,7 +284,7 @@ function ChatList({
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {filtered.map((t) => {
+      {threads.map((t) => {
         const preview = t.lastReply
           ? `${shortName(t.lastReply.authorName)}: ${t.lastReply.content}`
           : t.content
@@ -248,7 +311,7 @@ function ChatList({
                 {t.isPinned && <Pin className="h-3 w-3 shrink-0 text-amber-500" />}
                 <p className="min-w-0 flex-1 truncate text-sm font-semibold">{t.title}</p>
                 <span className="text-muted-foreground shrink-0 text-[10px]">
-                  {formatRelativeTime(time)}
+                  {formatChatTime(time)}
                 </span>
               </div>
               <p className="text-muted-foreground truncate text-xs">
@@ -263,6 +326,182 @@ function ChatList({
   )
 }
 
+// ─── Emoji picker ───────────────────────────────────────────────────────────
+/**
+ * A small curated set rather than a full emoji library: this is a work chat, the
+ * long tail is never used, and a picker package would add a dependency (and its
+ * sprite sheet) for a button. Grouped so the common reactions are reachable
+ * without scrolling.
+ */
+const EMOJI_GROUPS: { label: string; emoji: string[] }[] = [
+  {
+    label: "Reactions",
+    emoji: ["👍", "👌", "🙌", "👏", "🙏", "💪", "🤝", "✅", "❌", "⚠️", "❗", "❓"],
+  },
+  {
+    label: "Faces",
+    emoji: ["🙂", "😄", "😅", "😂", "😉", "😍", "🤔", "😐", "😴", "😭", "😤", "🤯"],
+  },
+  {
+    label: "Work",
+    emoji: ["🔥", "🚀", "🎯", "📌", "📅", "⏰", "📈", "📉", "💡", "🛠️", "🐞", "📝"],
+  },
+  {
+    label: "Other",
+    emoji: ["🎉", "🎊", "☕", "🍕", "❤️", "⭐", "👀", "🤖", "🧠", "💯", "✨", "🙈"],
+  },
+]
+
+function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          // h-9 matches the field's min-h-9, so with `items-end` the icon lines
+          // up dead centre against a single-row composer and stays anchored to
+          // the bottom as the field grows.
+          className="text-muted-foreground hover:text-foreground h-9 w-9 shrink-0 rounded-sm"
+          title="Insert emoji"
+          aria-label="Insert emoji"
+        >
+          <Smile className="h-5 w-5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" side="top" className="w-72 rounded-sm p-2">
+        <div className="max-h-64 space-y-3 overflow-y-auto">
+          {EMOJI_GROUPS.map((g) => (
+            <div key={g.label}>
+              <p className="text-muted-foreground mb-1 text-[10px] font-medium tracking-wide uppercase">
+                {g.label}
+              </p>
+              <div className="grid grid-cols-6 gap-0.5">
+                {g.emoji.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    // Stays open: picking two or three in a row is normal, and
+                    // reopening between each one is the annoying part.
+                    onClick={() => onPick(e)}
+                    className="hover:bg-accent rounded-sm py-1 text-xl leading-none transition-colors"
+                    aria-label={`Insert ${e}`}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// ─── Search results (left pane, while a query is typed) ─────────────────────
+/**
+ * One row per MATCH, not per chat: a subject hit, the opening post, and each
+ * matching reply are separate rows, because "which message was that in" is the
+ * question being asked. Clicking a row opens the chat and jumps to that bubble.
+ */
+function SearchResults({
+  hits,
+  query,
+  loading,
+  selectedId,
+  onOpen,
+}: {
+  hits: MessageSearchHit[]
+  query: string
+  loading: boolean
+  selectedId: string | null
+  onOpen: (threadId: string, target: string) => void
+}) {
+  const rows = hits.flatMap((h) => {
+    const out: { key: string; threadId: string; target: string; where: string; text: string }[] = []
+    if (h.titleMatch) {
+      out.push({
+        key: `${h.id}-title`,
+        threadId: h.id,
+        target: "root",
+        where: "Chat name",
+        text: h.title,
+      })
+    }
+    if (h.contentMatch) {
+      out.push({
+        key: `${h.id}-root`,
+        threadId: h.id,
+        target: "root",
+        where: `${shortName(`${h.author.firstName} ${h.author.lastName}`)} · opening message`,
+        text: snippet(h.content, query),
+      })
+    }
+    for (const r of h.matchedReplies) {
+      out.push({
+        key: r.id,
+        threadId: h.id,
+        target: r.id,
+        where: `${shortName(r.authorName)} · ${formatChatTime(r.createdAt)}`,
+        text: snippet(r.content, query),
+      })
+    }
+    return out
+  })
+
+  if (loading && rows.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <p className="text-muted-foreground text-xs">Searching…</p>
+      </div>
+    )
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <p className="text-muted-foreground text-center text-xs">
+          Nothing matches “{query}” in this project’s chats.
+        </p>
+      </div>
+    )
+  }
+
+  const byThread = new Map(hits.map((h) => [h.id, h]))
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <p className="text-muted-foreground bg-muted/40 border-b px-3 py-1.5 text-[11px]">
+        {rows.length} {rows.length === 1 ? "match" : "matches"}
+      </p>
+      {rows.map((row) => (
+        <button
+          key={row.key}
+          type="button"
+          onClick={() => onOpen(row.threadId, row.target)}
+          className={cn(
+            "flex w-full flex-col gap-0.5 border-b px-3 py-2.5 text-left transition-colors",
+            row.threadId === selectedId ? "bg-muted" : "hover:bg-muted/50",
+          )}
+        >
+          <div className="flex items-center gap-1.5">
+            <MessageSquare className="text-muted-foreground h-3 w-3 shrink-0" />
+            <p className="min-w-0 flex-1 truncate text-xs font-semibold">
+              {byThread.get(row.threadId)?.title}
+            </p>
+          </div>
+          <p className="text-muted-foreground text-[10px]">{row.where}</p>
+          {/* The matched line itself, with the query marked. */}
+          <p className="line-clamp-3 text-xs break-words">{highlight(row.text, query)}</p>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ─── Conversation (right pane) ──────────────────────────────────────────────
 function ChatView({
   thread,
@@ -271,6 +510,8 @@ function ChatView({
   canManage,
   members,
   memberNames,
+  jumpTo,
+  onJumped,
   onBack,
   onDeleted,
 }: {
@@ -280,6 +521,9 @@ function ChatView({
   canManage: boolean
   members: ProjectMember[]
   memberNames: Set<string>
+  /** Bubble to scroll to when opened from a search hit: "root" or a reply id. */
+  jumpTo: string | null
+  onJumped: () => void
   onBack: () => void
   onDeleted: () => void
 }) {
@@ -290,18 +534,55 @@ function ChatView({
   const delChat = useDeleteMessage(projectId)
   const update = useUpdateMessage(projectId)
 
+  const updateReply = useUpdateReply(projectId, thread.id)
+
   const [content, setContent] = useState("")
   const [mentionIds, setMentionIds] = useState<string[]>([])
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [editChatOpen, setEditChatOpen] = useState(false)
+  /** Reply queued for deletion, held until the confirm dialog is answered. */
+  const [confirmDeleteReply, setConfirmDeleteReply] = useState<string | null>(null)
+
+  // A message stops being editable 15 minutes after it was posted, and that has
+  // to happen while the user is looking at it - not at the next re-render. One
+  // interval for the whole conversation re-evaluates every window each second.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
 
   const scrollRef = useRef<HTMLDivElement>(null)
-  const canManageChat = thread.authorId === currentUserId || canManage
 
-  // Keep the view pinned to the newest message.
+  // Editing and deleting are the AUTHOR'S, inside the window - not a management
+  // power. The server enforces exactly this (author + window, no admin override),
+  // so showing these to an admin would just produce a 403.
+  const isAuthor = thread.authorId === currentUserId
+  const chatWindowMs = editWindowRemaining(thread.createdAt, now)
+  const canEditChat = isAuthor && chatWindowMs > 0
+
+  // Keep the view pinned to the newest message - UNLESS we were sent here by a
+  // search hit, in which case the jump below owns the scroll position.
   useEffect(() => {
+    if (jumpTo) return
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [replies.length, thread.id, isLoading])
+  }, [replies.length, thread.id, isLoading, jumpTo])
+
+  // Scroll the matched bubble into view once its replies have rendered. The
+  // flash lives in `flashId` rather than staying on forever, so the highlight
+  // reads as "here it is" and then gets out of the way.
+  const [flashId, setFlashId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!jumpTo || isLoading) return
+    const el = document.getElementById(`msg-${thread.id}-${jumpTo}`)
+    el?.scrollIntoView({ block: "center", behavior: "smooth" })
+    setFlashId(jumpTo)
+    onJumped()
+    const t = setTimeout(() => setFlashId(null), 2500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpTo, isLoading, replies.length, thread.id])
 
   function send() {
     if (!content.trim()) return
@@ -353,24 +634,37 @@ function ChatView({
             message{replies.length === 0 ? "" : "s"}
           </p>
         </div>
-        {canManageChat && (
+        {/* Pinning is organising the chat list, not rewriting it, so it has no
+            time limit and stays with the author / project managers. */}
+        {(isAuthor || canManage) && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground"
+            title={thread.isPinned ? "Unpin chat" : "Pin chat"}
+            onClick={() =>
+              update.mutate({ messageId: thread.id, body: { isPinned: !thread.isPinned } })
+            }
+          >
+            {thread.isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+          </Button>
+        )}
+        {canEditChat && (
           <>
             <Button
               variant="ghost"
               size="icon-sm"
               className="text-muted-foreground hover:text-foreground"
-              title={thread.isPinned ? "Unpin chat" : "Pin chat"}
-              onClick={() =>
-                update.mutate({ messageId: thread.id, body: { isPinned: !thread.isPinned } })
-              }
+              title={`Edit chat · ${formatWindowLeft(chatWindowMs)}`}
+              onClick={() => setEditChatOpen(true)}
             >
-              {thread.isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+              <Pencil className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="icon-sm"
               className="text-muted-foreground hover:text-destructive"
-              title="Delete chat"
+              title={`Delete chat · ${formatWindowLeft(chatWindowMs)}`}
               onClick={() => setConfirmDelete(true)}
             >
               <Trash2 className="h-4 w-4" />
@@ -381,8 +675,13 @@ function ChatView({
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
+        {/* Every conversation opens under the day it started on. */}
+        <DaySeparator date={thread.createdAt} />
+
         {/* The subject's opening message is the first bubble. */}
         <Bubble
+          domId={`msg-${thread.id}-root`}
+          flash={flashId === "root"}
           own={thread.authorId === currentUserId}
           authorName={`${thread.author.firstName} ${thread.author.lastName}`}
           photo={thread.author.profilePhoto}
@@ -391,63 +690,141 @@ function ChatView({
           content={thread.content}
           createdAt={thread.createdAt}
           memberNames={memberNames}
+          edited={thread.updatedAt !== thread.createdAt}
+          windowLeft={formatWindowLeft(chatWindowMs)}
+          onEdit={
+            canEditChat
+              ? (next) => update.mutate({ messageId: thread.id, body: { content: next } })
+              : undefined
+          }
           opener
         />
 
         {isLoading ? (
           <p className="text-muted-foreground py-2 text-center text-xs">Loading messages…</p>
         ) : (
-          replies.map((r) => (
-            <Bubble
-              key={r.id}
-              own={r.authorId === currentUserId}
-              authorName={`${r.author.firstName} ${r.author.lastName}`}
-              photo={r.author.profilePhoto}
-              firstName={r.author.firstName}
-              lastName={r.author.lastName}
-              content={r.content}
-              createdAt={r.createdAt}
-              memberNames={memberNames}
-              onDelete={r.authorId === currentUserId ? () => delReply.mutate(r.id) : undefined}
-            />
+          replies.map((r, i) => (
+            <Fragment key={r.id}>
+              {/* A separator whenever the calendar day changes. The opening post
+                  is the message before the first reply, so that comparison is
+                  against the thread itself. */}
+              {dayKey(r.createdAt) !==
+                dayKey(i === 0 ? thread.createdAt : replies[i - 1]!.createdAt) && (
+                <DaySeparator date={r.createdAt} />
+              )}
+              <Bubble
+                domId={`msg-${thread.id}-${r.id}`}
+                flash={flashId === r.id}
+                own={r.authorId === currentUserId}
+                authorName={`${r.author.firstName} ${r.author.lastName}`}
+                photo={r.author.profilePhoto}
+                firstName={r.author.firstName}
+                lastName={r.author.lastName}
+                content={r.content}
+                createdAt={r.createdAt}
+                memberNames={memberNames}
+                edited={r.updatedAt !== r.createdAt}
+                windowLeft={formatWindowLeft(editWindowRemaining(r.createdAt, now))}
+                // Own reply, still inside the window. Once it closes these go
+                // undefined and both controls vanish from the bubble.
+                onEdit={
+                  r.authorId === currentUserId && isWithinEditWindow(r.createdAt, now)
+                    ? (next) =>
+                        updateReply.mutate({
+                          replyId: r.id,
+                          content: next,
+                          mentionedIds: r.mentionedIds ?? [],
+                        })
+                    : undefined
+                }
+                onDelete={
+                  r.authorId === currentUserId && isWithinEditWindow(r.createdAt, now)
+                    ? () => setConfirmDeleteReply(r.id)
+                    : undefined
+                }
+              />
+            </Fragment>
           ))
         )}
       </div>
 
-      {/* Composer */}
-      <div className="flex items-end gap-2 border-t p-3">
-        <div className="min-w-0 flex-1">
-          <MentionTextarea
-            value={content}
-            onChange={(v, ids) => {
-              setContent(v)
-              setMentionIds(ids)
-            }}
-            members={members}
-            rows={1}
-            dropup
-            onSubmit={send}
-            placeholder="Type a message…  @ to mention, Enter to send"
-          />
+      {/* Composer: one bar holding the emoji button, the field and Send, the way
+          a messenger reads - rather than three separate controls in a row. The
+          textarea is stripped of its own chrome so the BAR owns the border and
+          the focus ring. Square corners (rounded-sm) on purpose - the house
+          style everywhere else, not WhatsApp's pill. */}
+      <div className="border-t p-3">
+        <div className="border-input bg-background focus-within:ring-ring/50 flex items-end gap-1 rounded-sm border px-1.5 py-1 transition-shadow focus-within:ring-2">
+          <EmojiPicker onPick={(e) => setContent((c) => c + e)} />
+          <div className="min-w-0 flex-1">
+            <MentionTextarea
+              value={content}
+              onChange={(v, ids) => {
+                setContent(v)
+                setMentionIds(ids)
+              }}
+              members={members}
+              rows={1}
+              dropup
+              autoGrow
+              onSubmit={send}
+              placeholder="Type a message…  @ to mention, Enter to send"
+              // The bar draws the border and the ring, so the field itself must
+              // draw neither - otherwise there are two boxes inside one another.
+              // max-h-32 is where the growing stops and the scrollbar starts.
+              className="max-h-32 min-h-9 resize-none overflow-y-auto border-0 bg-transparent px-1 py-1.5 shadow-none focus-visible:ring-0"
+            />
+          </div>
+          <Button
+            size="icon"
+            className="h-9 w-9 shrink-0 rounded-sm"
+            disabled={!content.trim() || create.isPending}
+            onClick={send}
+            title="Send"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
         </div>
-        <Button
-          size="icon"
-          className="h-10 w-10 shrink-0 rounded"
-          disabled={!content.trim() || create.isPending}
-          onClick={send}
-          title="Send"
-        >
-          <Send className="h-4 w-4" />
-        </Button>
       </div>
+
+      <EditChatDialog
+        open={editChatOpen}
+        onClose={() => setEditChatOpen(false)}
+        thread={thread}
+        onSave={(title, content) =>
+          update.mutate(
+            { messageId: thread.id, body: { title, content } },
+            { onSuccess: () => setEditChatOpen(false) },
+          )
+        }
+        isPending={update.isPending}
+      />
+
+      {/* Deleting a message is not undoable, so the button holds for 3 seconds
+          before it will take the click. */}
+      <ConfirmDialog
+        open={!!confirmDeleteReply}
+        onOpenChange={(o) => !o && setConfirmDeleteReply(null)}
+        title="Delete this message?"
+        description="It is removed for everyone in this chat. This cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        confirmDelaySeconds={3}
+        isLoading={delReply.isPending}
+        onConfirm={() => {
+          if (confirmDeleteReply)
+            delReply.mutate(confirmDeleteReply, { onSuccess: () => setConfirmDeleteReply(null) })
+        }}
+      />
 
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title="Delete this chat?"
-        description="This removes the whole conversation and all its replies for everyone."
+        description="This removes the whole conversation and all its replies for everyone. This cannot be undone."
         confirmLabel="Delete"
         variant="destructive"
+        confirmDelaySeconds={3}
         isLoading={delChat.isPending}
         onConfirm={() =>
           delChat.mutate(thread.id, {
@@ -473,7 +850,12 @@ function Bubble({
   createdAt,
   memberNames,
   onDelete,
+  onEdit,
+  windowLeft,
+  edited,
   opener,
+  domId,
+  flash,
 }: {
   own: boolean
   authorName: string
@@ -484,10 +866,39 @@ function Bubble({
   createdAt: string
   memberNames: Set<string>
   onDelete?: () => void
+  onEdit?: (next: string) => void
+  /** "12m left" - the remaining edit window, shown on the controls. */
+  windowLeft?: string
+  edited?: boolean
   opener?: boolean
+  /** Scroll target for a search jump. */
+  domId?: string
+  /** Briefly ringed after being jumped to, so the eye lands on the right bubble. */
+  flash?: boolean
 }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(content)
+
+  const startEdit = () => {
+    setDraft(content)
+    setEditing(true)
+  }
+  const cancelEdit = () => setEditing(false)
+  const saveEdit = () => {
+    const next = draft.trim()
+    if (!next || next === content) return cancelEdit()
+    onEdit?.(next)
+    setEditing(false)
+  }
+
   return (
-    <div className={cn("group flex items-end gap-2", own ? "flex-row-reverse" : "flex-row")}>
+    <div
+      id={domId}
+      className={cn(
+        "group flex scroll-mt-4 items-end gap-2",
+        own ? "flex-row-reverse" : "flex-row",
+      )}
+    >
       {!own && (
         <AvatarDisplay
           src={photo}
@@ -499,10 +910,11 @@ function Bubble({
       )}
       <div
         className={cn(
-          "relative max-w-[78%] rounded-[2px] px-3 py-2 text-sm shadow-sm sm:max-w-[70%]",
+          "relative max-w-[78%] rounded-sm px-3 py-2 text-sm shadow-sm transition-shadow sm:max-w-[70%]",
           own
             ? "rounded-br-sm bg-emerald-600 text-white dark:bg-emerald-700"
             : "bg-muted text-foreground rounded-bl-sm",
+          flash && "ring-2 ring-amber-400 ring-offset-1",
         )}
       >
         {!own && (
@@ -519,29 +931,177 @@ function Bubble({
             <Megaphone className="h-3 w-3" /> Opening message
           </p>
         )}
-        <div className="leading-relaxed whitespace-pre-wrap">
-          {renderWithMentions(content, memberNames)}
-        </div>
+        {editing ? (
+          // Inline editor: same bubble, so the message keeps its place in the
+          // conversation instead of jumping into a modal.
+          <div className="space-y-1.5">
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={3}
+              autoFocus
+              className={cn(
+                "resize-y text-sm",
+                own && "border-white/30 bg-white/10 text-white placeholder:text-white/50",
+              )}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.stopPropagation()
+                  cancelEdit()
+                }
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveEdit()
+              }}
+            />
+            <div className="flex items-center justify-end gap-1.5">
+              <Button
+                size="sm"
+                variant="ghost"
+                className={cn("h-7 px-2 text-xs", own && "text-white hover:bg-white/15")}
+                onClick={cancelEdit}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={!draft.trim() || draft.trim() === content}
+                onClick={saveEdit}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="leading-relaxed whitespace-pre-wrap">
+            {renderWithMentions(content, memberNames)}
+          </div>
+        )}
         <div
           className={cn(
-            "mt-0.5 text-right text-[10px]",
+            "mt-0.5 flex items-center justify-end gap-1.5 text-[10px]",
             own ? "text-white/70" : "text-muted-foreground",
           )}
         >
-          {formatRelativeTime(createdAt)}
+          {edited && <span className="italic">edited</span>}
+          {/* Time only - the day is on the separator above this run of messages. */}
+          <span>{formatClockTime(createdAt)}</span>
         </div>
       </div>
-      {onDelete && (
-        <button
-          type="button"
-          onClick={onDelete}
-          title="Delete message"
-          className="text-muted-foreground hover:text-destructive mb-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+
+      {/* Author controls. They exist only inside the 15 minute window - the
+          parent stops passing the handlers once it closes, and re-renders on a
+          timer so they disappear on their own rather than at the next click. */}
+      {!editing && (onEdit || onDelete) && (
+        <div className="mb-4 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={startEdit}
+              title={windowLeft ? `Edit message · ${windowLeft}` : "Edit message"}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              title={windowLeft ? `Delete message · ${windowLeft}` : "Delete message"}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       )}
     </div>
+  )
+}
+
+// ─── Day separator ──────────────────────────────────────────────────────────
+/**
+ * The centred "Today / Yesterday / Saturday / 5 Aug" chip between days. This is
+ * what lets the bubbles carry a bare clock time: the day is stated once for the
+ * run of messages beneath it instead of being repeated on every bubble.
+ */
+function DaySeparator({ date }: { date: string }) {
+  return (
+    <div className="flex justify-center py-2">
+      <span className="bg-muted text-muted-foreground rounded-sm px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase shadow-sm">
+        {formatDaySeparator(date)}
+      </span>
+    </div>
+  )
+}
+
+// ─── Edit chat dialog (subject + opening message) ───────────────────────────
+/**
+ * The chat's subject line and its opening post are one record, so they are
+ * edited together. Only reachable inside the 15 minute window - the header stops
+ * rendering the button after that, and the API refuses regardless.
+ */
+function EditChatDialog({
+  open,
+  onClose,
+  thread,
+  onSave,
+  isPending,
+}: {
+  open: boolean
+  onClose: () => void
+  thread: ProjectMessage
+  onSave: (title: string, content: string) => void
+  isPending: boolean
+}) {
+  const [title, setTitle] = useState(thread.title)
+  const [content, setContent] = useState(thread.content)
+
+  // Re-seed each time it opens, so a cancelled edit is genuinely discarded.
+  useEffect(() => {
+    if (open) {
+      setTitle(thread.title)
+      setContent(thread.content)
+    }
+  }, [open, thread.title, thread.content])
+
+  const dirty = title.trim() !== thread.title || content.trim() !== thread.content
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={(o) => !o && !isPending && onClose()}
+      title="Edit chat"
+      isEdit
+      isPending={isPending}
+      submitDisabled={!title.trim() || !content.trim() || !dirty}
+      submitLabel="Save changes"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSave(title.trim(), content.trim())
+      }}
+    >
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="edit-chat-title">Subject</Label>
+          <Input
+            id="edit-chat-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="What is this chat about?"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-chat-content">Opening message</Label>
+          <Textarea
+            id="edit-chat-content"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={6}
+          />
+        </div>
+      </div>
+    </FormDialog>
   )
 }
 

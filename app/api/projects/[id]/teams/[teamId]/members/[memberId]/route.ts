@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { canStaffTeam } from "@/features/projects/server/project-access"
+import { canStaffTeam, resolveProjectId } from "@/features/projects/server/project-access"
 import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
@@ -14,7 +14,11 @@ import type { Session } from "next-auth"
 export const DELETE = withSession(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
-      const { id: projectId, teamId, memberId } = ctx.params
+      const { teamId, memberId } = ctx.params
+      // The URL carries a slug now; every check below needs the real id. This
+      // route is not behind a slug-aware project guard, so resolve it here.
+      const projectId = await resolveProjectId(ctx.params.id)
+      if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 
       const team = await db.projectTeam.findUnique({
         where: { id: teamId },
@@ -79,7 +83,7 @@ export const DELETE = withSession(
       })
 
       // Revoke the removed member's Drive access (fire-and-forget).
-      syncProjectFolderAccessAsync(ctx.params.id)
+      syncProjectFolderAccessAsync(projectId)
 
       return NextResponse.json({ success: true })
     } catch (error) {

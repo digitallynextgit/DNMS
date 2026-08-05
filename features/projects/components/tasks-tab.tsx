@@ -73,8 +73,33 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
   const teams = teamsData?.data ?? []
   const [activeTeamId, setActiveTeamId] = useState<string | "all">("all")
   const [statusFilter, setStatusFilter] = useState<string>("ALL")
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all")
   const [showPendingOnly, setShowPendingOnly] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+
+  // Who the Employee picker offers: the chosen team's members, or everyone on
+  // the project when no team is chosen. Deduped by id because one person can
+  // (in older data) appear under more than one team.
+  const assignableMembers = useMemo(() => {
+    const source = activeTeamId === "all" ? teams : teams.filter((t) => t.id === activeTeamId)
+    const byId = new Map<string, { id: string; name: string }>()
+    for (const team of source) {
+      for (const m of team.members) {
+        byId.set(m.employeeId, {
+          id: m.employeeId,
+          name: `${m.employee.firstName} ${m.employee.lastName}`.trim(),
+        })
+      }
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [teams, activeTeamId])
+
+  // Narrowing the team can strand a selection on someone who is not in it, which
+  // would silently show an empty board. Drop back to "everyone" instead.
+  useEffect(() => {
+    if (assigneeFilter === "all" || assigneeFilter === "unassigned") return
+    if (!assignableMembers.some((m) => m.id === assigneeFilter)) setAssigneeFilter("all")
+  }, [assignableMembers, assigneeFilter])
 
   // Default the Team filter to the team the viewer manages (once, on load) - a
   // manager lands straight on their own team's board.
@@ -117,6 +142,23 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
           </Select>
         </div>
         <div className="flex items-center gap-2">
+          <Label className="text-xs">Employee</Label>
+          <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+            <SelectTrigger className="h-8 w-44 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All employees</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {assignableMembers.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
           <Label className="text-xs">Status</Label>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="h-8 w-36 text-sm">
@@ -152,6 +194,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
         isAdmin={isAdmin}
         teamFilter={activeTeamId}
         statusFilter={statusFilter}
+        assigneeFilter={assigneeFilter}
         showPendingOnly={showPendingOnly}
       />
 

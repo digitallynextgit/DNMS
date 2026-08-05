@@ -14,6 +14,26 @@ import type { Session } from "next-auth"
 //     can do anything inside it, even without the global permission.
 // =============================================================================
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Turn whatever is in the URL into a real project id.
+ *
+ * Project URLs are slugs now (/projects/rudione-leocym), but every id already
+ * shared or stored - notification links, bookmarks - is a uuid, so both must
+ * keep working. Anything uuid-shaped is taken as an id without a query; only a
+ * slug costs a lookup. Returns null when nothing matches.
+ */
+export async function resolveProjectId(idOrSlug: string): Promise<string | null> {
+  if (!idOrSlug) return null
+  if (UUID_RE.test(idOrSlug)) return idOrSlug
+  const project = await db.project.findUnique({
+    where: { slug: idOrSlug },
+    select: { id: true },
+  })
+  return project?.id ?? null
+}
+
 export async function canManageProject(session: Session, projectId: string): Promise<boolean> {
   if (hasPermission(session, PERMISSIONS.PROJECT_WRITE)) return true
   if (!projectId) return false
@@ -92,7 +112,11 @@ type ProjectHandler = (
  */
 export function withProjectManager(handler: ProjectHandler) {
   return withSession(async (req, ctx, session) => {
-    const projectId = ctx.params.id
+    const projectId = await resolveProjectId(ctx.params.id)
+    if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    // Downstream handlers read ctx.params.id directly, so hand them the real id -
+    // that is what makes every /api/projects/[id]/* route slug-tolerant at once.
+    ctx.params.id = projectId
     if (!(await canManageProject(session, projectId))) {
       return NextResponse.json(
         { error: "Only the Account Manager or a project admin can do this" },
@@ -111,7 +135,10 @@ export function withProjectManager(handler: ProjectHandler) {
  */
 export function withTeamStaffing(handler: ProjectHandler) {
   return withSession(async (req, ctx, session) => {
-    if (!(await canStaffTeam(session, ctx.params.id, ctx.params.teamId))) {
+    const projectId = await resolveProjectId(ctx.params.id)
+    if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    ctx.params.id = projectId
+    if (!(await canStaffTeam(session, projectId, ctx.params.teamId))) {
       return NextResponse.json(
         { error: "Only a project admin, the Account Manager or a team manager can do this" },
         { status: 403 },
@@ -128,7 +155,10 @@ export function withTeamStaffing(handler: ProjectHandler) {
  */
 export function withProjectAccess(handler: ProjectHandler) {
   return withSession(async (req, ctx, session) => {
-    if (!(await canAccessProject(session, ctx.params.id))) {
+    const projectId = await resolveProjectId(ctx.params.id)
+    if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    ctx.params.id = projectId
+    if (!(await canAccessProject(session, projectId))) {
       return NextResponse.json({ error: "You don't have access to this project" }, { status: 403 })
     }
     return handler(req, ctx, session)

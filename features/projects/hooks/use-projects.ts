@@ -11,6 +11,8 @@ export interface ProjectListItem {
   id: string
   name: string
   code: string
+  /** URL identifier. Null on rows created before slugs existed - fall back to id. */
+  slug: string | null
   description: string | null
   status: string
   priority: string
@@ -131,6 +133,14 @@ export interface ProjectMessage {
   // Chat-list decorations added by the messages list endpoint.
   lastReply?: { content: string; createdAt: string; authorName: string } | null
   lastActivityAt?: string
+}
+
+/** A chat that matched a search, plus WHICH parts of it matched. */
+export interface MessageSearchHit extends ProjectMessage {
+  titleMatch: boolean
+  contentMatch: boolean
+  /** Replies whose text contains the query, oldest first (capped server-side). */
+  matchedReplies: { id: string; content: string; createdAt: string; authorName: string }[]
 }
 
 export interface ProjectMessageReply {
@@ -820,6 +830,25 @@ export function useProjectMessages(projectId: string | undefined) {
 }
 
 /**
+ * Full-text search across a project's chats - subject lines, opening posts AND
+ * every reply. Separate from useProjectMessages so the plain chat list keeps its
+ * own cache entry and polling; this one only runs while a query is typed.
+ */
+export function useProjectMessageSearch(projectId: string | undefined, q: string) {
+  const query = q.trim()
+  return useQuery({
+    queryKey: ["project-messages-search", projectId, query],
+    queryFn: () =>
+      apiFetch<{ data: MessageSearchHit[] }>(
+        `/api/projects/${projectId}/messages?q=${encodeURIComponent(query)}`,
+      ),
+    // One character matches nearly everything and costs a round trip per keystroke.
+    enabled: !!projectId && query.length >= 2,
+    staleTime: 10_000,
+  })
+}
+
+/**
  * Employees the "Add member" picker can choose from, scoped to this project.
  * Uses the project-scoped route rather than /api/employees, which needs the
  * global `employee:read` an Account Manager typically doesn't have.
@@ -956,6 +985,37 @@ export function useCreateReply(projectId: string, messageId: string) {
         ["project-messages", projectId],
         ["project-activity", projectId],
       ],
+    }),
+  )
+}
+
+/** Edit an own reply. Rejected server-side once the 15 minute window closes. */
+export function useUpdateReply(projectId: string, messageId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: ({
+        replyId,
+        content,
+        mentionedIds,
+      }: {
+        replyId: string
+        content: string
+        mentionedIds: string[]
+      }) =>
+        apiFetch<{ data: ProjectMessageReply }>(
+          `/api/projects/${projectId}/messages/${messageId}/replies/${replyId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content, mentionedIds }),
+          },
+        ),
+      invalidate: [
+        ["project-message-replies", projectId, messageId],
+        ["project-messages", projectId],
+      ],
+      success: "Message updated",
     }),
   )
 }

@@ -27,7 +27,10 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
   const { status, mine } = opts
   const { page, limit, skip, take } = resolvePagination({ page: opts.page, limit: opts.limit }, 20)
 
-  const where: Record<string, unknown> = { isArchived: false }
+  // NOTE: no `isArchived` filter. Archiving was removed from the product, so the
+  // column is vestigial and must NOT hide rows - a project flagged by the old
+  // feature would otherwise be invisible with no way to bring it back.
+  const where: Record<string, unknown> = {}
   if (status) where.status = status
   // Admins/PMs (project:write) can see all projects; everyone else is always
   // restricted to projects they own or are a team member of (the `mine`

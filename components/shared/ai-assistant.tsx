@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { MarkdownLite } from "@/components/shared/markdown-lite"
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
+import { useAiAssistantStore } from "@/stores/ai-assistant-store"
 
 interface ChatMessage {
   role: "user" | "assistant"
@@ -20,12 +21,17 @@ const SUGGESTIONS = [
 ]
 
 /**
- * Floating assistant: a bubble pinned bottom-right that opens a chat panel.
- * Answers come from /api/ai/chat, which is grounded in a permission-scoped
- * snapshot of the caller's data - it can't see anything they can't.
+ * The assistant panel, pinned bottom-right. Answers come from /api/ai/chat,
+ * which is grounded in a permission-scoped snapshot of the caller's data - it
+ * can't see anything they can't.
+ *
+ * The launcher is NOT here: as a floating bubble it sat on top of whatever was
+ * in the bottom-right corner of the page (the chat Send button, most visibly).
+ * It lives in the Topbar now and drives this through `useAiAssistantStore`.
  */
 export function AiAssistant() {
-  const [open, setOpen] = React.useState(false)
+  const open = useAiAssistantStore((s) => s.open)
+  const setOpen = useAiAssistantStore((s) => s.setOpen)
   const [input, setInput] = React.useState("")
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [pending, setPending] = React.useState(false)
@@ -70,19 +76,7 @@ export function AiAssistant() {
 
   return (
     <>
-      {/* Launcher */}
-      {!open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Open AI assistant"
-          className="bg-primary text-primary-foreground fixed right-5 bottom-5 z-50 flex h-12 w-12 items-center justify-center rounded-[2px] shadow-lg transition-transform hover:scale-105"
-        >
-          <Sparkles className="h-5 w-5" />
-        </button>
-      )}
-
-      {/* Panel */}
+      {/* Panel - opened from the Topbar launcher. */}
       {open && (
         <div className="bg-card fixed right-5 bottom-5 z-50 flex h-[min(560px,calc(100vh-6rem))] w-[min(400px,calc(100vw-2.5rem))] flex-col rounded-[2px] border shadow-2xl">
           <div className="flex items-center justify-between border-b px-4 py-2.5">

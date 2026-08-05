@@ -33,6 +33,7 @@ interface Props {
   isAdmin: boolean
   teamFilter: string // "all" or teamId
   statusFilter?: string // "ALL" or a status
+  assigneeFilter?: string // "all", an employeeId, or "unassigned"
   showPendingOnly?: boolean
 }
 
@@ -42,6 +43,7 @@ export function KanbanView({
   isAdmin,
   teamFilter,
   statusFilter = "ALL",
+  assigneeFilter = "all",
   showPendingOnly = false,
 }: Props) {
   const qc = useQueryClient()
@@ -63,6 +65,15 @@ export function KanbanView({
     }
     if (teamFilter !== "all" && t.teamId !== teamFilter) return false
     if (statusFilter !== "ALL" && t.status !== statusFilter) return false
+    // "unassigned" is a real answer to "whose work is this", not a missing
+    // value - a task nobody owns is exactly what a manager goes looking for.
+    if (assigneeFilter === "unassigned" && t.assigneeId) return false
+    if (
+      assigneeFilter !== "all" &&
+      assigneeFilter !== "unassigned" &&
+      t.assigneeId !== assigneeFilter
+    )
+      return false
     return true
   })
 
