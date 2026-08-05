@@ -50,7 +50,7 @@
               "slug": "content-writers-copywriters",
               "meta": null,
               "summary": null,
-              "order": 0,
+              "order": 1,
               "intro": "It’s Only Words ..and the words are all I have ..to take your heart away… Or Country Roads take me home …. Or Har rang kuchh kehta hai… We are looking for those who can feel the soul of seasons, the flora and fauna, the mountains, and the river…similarly if they feel the soul, the character of a brand to communicate and build the connect with its audience!",
               "jobEssence": "Having a sound understanding of storytelling in terms of creative writing on digital and social mediums, PR outreach, business and commercial aspects. Ideal to be adept in both short and long form writing.",
               "keyRequirements": [
@@ -80,7 +80,7 @@
               "slug": "digital-marketing-executive",
               "meta": null,
               "summary": null,
-              "order": 1,
+              "order": 7,
               "intro": "Driving brands from visibility to impact. In today’s fast-moving digital landscape, marketing is more than posting content, it’s about building meaningful connections, generating engagement, and creating measurable business growth. If you’re creative, data-driven, and passionate about digital trends, this role is for you.",
               "jobEssence": "The role focuses on planning, executing, and optimizing digital marketing campaigns across multiple online channels. This includes content strategy, social media management, paid advertising, performance tracking, audience engagement, and leveraging data-driven insights to enhance brand visibility and drive conversions.",
               "keyRequirements": [
@@ -240,6 +240,40 @@
                 {
                   "label": "SEO Lead",
                   "order": 2
+                }
+              ]
+            },
+            {
+              "title": "Genetic Counsellor",
+              "slug": "genetic-counsellor",
+              "meta": null,
+              "summary": null,
+              "order": 0,
+              "intro": "Every genetic report tells a story but it takes the right professional to translate complex science into meaningful guidance. As a Genetic Counsellor, you'll support individuals and families through their genetic healthcare journey by providing accurate risk assessment, compassionate counselling, and clear interpretation of genomic information.",
+              "jobEssence": "The role focuses on providing pre- and post-test genetic counselling, evaluating family and medical histories, assessing inherited disease risks, interpreting genetic test reports, and helping patients make informed healthcare decisions. The role requires a combination of scientific expertise, clinical knowledge, strong communication skills, and empathy to deliver patient-centric care.",
+              "keyRequirements": [
+                "M.Sc. in Genetic Counselling / Human Genetics (Mandatory)",
+                "Pre & Post-Test Genetic Counselling",
+                "Clinical Risk Assessment & Family History Analysis",
+                "Genetic Test Selection & Interpretation",
+                "Genomic Report Interpretation",
+                "Knowledge of Medical Genetics & Inherited Disorders",
+                "Patient Education & Communication Skills",
+                "Ability to explain complex genetic concepts in simple language",
+                "Clinical documentation & case management",
+                "Ethical, legal & confidentiality compliance in genetic counselling",
+                "Collaboration with clinicians, laboratories & multidisciplinary teams",
+                "Strong analytical thinking and empathetic counselling approach",
+                "Freshers with clinical internships & experienced professionals are welcome"
+              ],
+              "openings": [
+                {
+                  "label": "Genetic Counsellor (1-2 Years Exp)",
+                  "order": 0
+                },
+                {
+                  "label": "Senior Genetic Counsellor (4-5 Years Exp)",
+                  "order": 1
                 }
               ]
             }

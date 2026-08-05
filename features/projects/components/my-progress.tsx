@@ -131,13 +131,18 @@ function TaskRow({ t, done = false }: { t: MyTask; done?: boolean }) {
 }
 
 export function MyProgress() {
+  // Shares the ["my-tasks"] cache entry with the My Tasks page, so it must cache
+  // the SAME shape: the `{ data }` envelope, not the unwrapped array. My Tasks
+  // reads `data.data` and patches it on drag (qc.setQueryData), so unwrapping
+  // here made whichever page mounted second read the other one's shape out of
+  // the cache - which is what threw "tasks.filter is not a function".
   const { data, isLoading } = useQuery({
     queryKey: ["my-tasks"],
-    queryFn: () => apiFetch<{ data: MyTask[] }>("/api/tasks?mine=true").then((r) => r.data),
+    queryFn: () => apiFetch<{ data: MyTask[] }>("/api/tasks?mine=true"),
     staleTime: 30_000,
   })
 
-  const tasks = useMemo(() => data ?? [], [data])
+  const tasks = useMemo(() => (Array.isArray(data?.data) ? data.data : []), [data])
 
   const { todo, done, overdue, inProgress, byProject } = useMemo(() => {
     const now = new Date()
