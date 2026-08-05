@@ -37,6 +37,7 @@ export function DateField({
   endMonth,
   disabled,
   modal,
+  className,
 }: {
   value?: string
   onChange: (v: string) => void
@@ -46,6 +47,8 @@ export function DateField({
   disabled?: (date: Date) => boolean
   /** Set when rendered inside a Dialog so the popover layers above it. */
   modal?: boolean
+  /** Size/spacing override for the trigger, e.g. a compact filter-bar field. */
+  className?: string
 }) {
   const [open, setOpen] = useState(false)
   return (
@@ -59,6 +62,7 @@ export function DateField({
             // up with the fields beside it.
             "border-input h-9 w-full justify-start rounded-[2px] px-3 text-left font-normal",
             !value && "text-muted-foreground",
+            className,
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />

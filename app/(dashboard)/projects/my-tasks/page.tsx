@@ -1,11 +1,19 @@
 "use client"
 
-import { useMemo, useState, type CSSProperties } from "react"
+import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
-import { AlertTriangle, ChevronDown, ChevronRight, Clock, GripVertical, Inbox } from "lucide-react"
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  GripVertical,
+  Inbox,
+  X,
+} from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -15,6 +23,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   Select,
+  SelectGroup,
+  SelectLabel,
   SelectContent,
   SelectItem,
   SelectTrigger,
@@ -35,6 +45,9 @@ import { TaskTime } from "@/features/projects/components/task-time"
 import { TaskHistoryDialog } from "@/features/projects/components/task-history-dialog"
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { projectHref } from "@/features/projects/lib/project-href"
+import { useProjects } from "@/features/projects/hooks/use-projects"
+import { DateField } from "@/components/shared/date-field"
+import { useSession } from "next-auth/react"
 import { TaskStatusReasonDialog } from "@/features/projects/components/task-status-reason-dialog"
 import { TaskCreateDialog } from "@/features/projects/components/task-create-dialog"
 import { Button } from "@/components/ui/button"
@@ -54,10 +67,20 @@ interface MyTask {
   rejectionReason: string | null
   project: { id: string; name: string; code: string; slug: string | null }
   team?: { id: string; name: string } | null
+  /** Only meaningful in the team view, where rows are not all yours. */
+  assignee?: { id: string; firstName: string; lastName: string } | null
 }
 
-async function fetchMyTasks(): Promise<{ data: MyTask[] }> {
-  const res = await fetch("/api/tasks?mine=true")
+/** "me" | "all" | "team:<id>" | "user:<id>" - see GET /api/tasks. */
+type TaskScope = string
+
+interface ScopeMeta {
+  teams: { id: string; name: string; projectName: string }[]
+  people: { id: string; name: string }[]
+}
+
+async function fetchMyTasks(scope: TaskScope): Promise<{ data: MyTask[]; meta?: ScopeMeta }> {
+  const res = await fetch(`/api/tasks?mine=true&scope=${encodeURIComponent(scope)}`)
   if (!res.ok) throw new Error("Failed")
   return res.json()
 }
@@ -102,10 +125,54 @@ function dayLabel(key: string): string {
 
 export default function MyTasksPage() {
   const [statusFilter, setStatusFilter] = useState("all")
+  const [projectFilter, setProjectFilter] = useState("all")
+  /** "" means every date; otherwise a "yyyy-MM-dd" due date. */
+  const [dateFilter, setDateFilter] = useState("")
   const [viewMode, setViewMode] = useViewMode("my-tasks")
   const qc = useQueryClient()
 
-  const { data, isLoading } = useQuery({ queryKey: ["my-tasks"], queryFn: fetchMyTasks })
+  const { data: session } = useSession()
+  const myName = session?.user
+    ? `${session.user.firstName} ${session.user.lastName}`.trim()
+    : "My tasks"
+
+  // Every project this person is on (owned or staffed) - the same list the
+  // projects board shows them, so the filter can never offer a project they
+  // cannot open.
+  const { data: projectsData } = useProjects()
+  const myProjects = useMemo(() => projectsData?.data ?? [], [projectsData])
+
+  const [scope, setScope] = useState<TaskScope>("me")
+  const isMine = scope === "me"
+
+  // "me" keeps the bare ["my-tasks"] key: MyProgress shares that entry and the
+  // drag handler patches it in place. Every other scope is a different result
+  // set, so it gets its own entry rather than overwriting theirs.
+  const queryKey = useMemo(() => (isMine ? ["my-tasks"] : ["my-tasks", scope]), [isMine, scope])
+  const { data, isLoading } = useQuery({ queryKey, queryFn: () => fetchMyTasks(scope) })
+
+  // The picker is built from what the server says this person manages, so it can
+  // never offer a team or a colleague they have no business seeing. Held across
+  // refetches: switching scope briefly clears `data`, and rebuilding the list
+  // from an empty response would collapse the menu mid-selection.
+  const [scopeMeta, setScopeMeta] = useState<ScopeMeta>({ teams: [], people: [] })
+  useEffect(() => {
+    if (data?.meta) setScopeMeta(data.meta)
+  }, [data])
+  const managesSomething = scopeMeta.people.length > 0 || scopeMeta.teams.length > 0
+
+  /** What the header should call the current selection. Real names, never "me". */
+  const scopeLabel = useMemo(() => {
+    if (scope === "all") return "Everyone"
+    if (scope.startsWith("team:")) {
+      const t = scopeMeta.teams.find((x) => x.id === scope.slice(5))
+      return t ? `${t.name} · ${t.projectName}` : "Team"
+    }
+    if (scope.startsWith("user:")) {
+      return scopeMeta.people.find((p) => p.id === scope.slice(5))?.name ?? "Teammate"
+    }
+    return myName
+  }, [scope, scopeMeta, myName])
 
   const [createOpen, setCreateOpen] = useState(false)
   const updateMut = useMutation({
@@ -121,8 +188,21 @@ export default function MyTasksPage() {
   // and the day groups. Nothing is paginated: both non-board views collapse by
   // day instead, which is what makes a full week fit on one screen.
   const tasks = useMemo(() => {
-    return (data?.data ?? []).filter((t) => statusFilter === "all" || t.status === statusFilter)
-  }, [data, statusFilter])
+    // Array.isArray, not just `?? []`. This ["my-tasks"] entry is shared with
+    // MyProgress and is patched in place on drag, so a shape mismatch from
+    // either side used to reach `.filter` and take the whole route down with
+    // "a.filter is not a function". An unexpected shape should render empty,
+    // not crash the page.
+    const rows = Array.isArray(data?.data) ? data.data : []
+    return rows.filter((t) => {
+      if (statusFilter !== "all" && t.status !== statusFilter) return false
+      if (projectFilter !== "all" && t.project.id !== projectFilter) return false
+      // Compared as a local calendar day, so a task due "today" matches today
+      // regardless of the time-of-day stored on it.
+      if (dateFilter && dayKey(t.dueDate) !== dateFilter) return false
+      return true
+    })
+  }, [data, statusFilter, projectFilter, dateFilter])
 
   // A week of allocation is 20+ rows, which is unreadable as one flat list. The
   // card view groups by DAY (the unit the allocation sheet is written in) and
@@ -219,6 +299,18 @@ export default function MyTasksPage() {
         )
       },
     },
+    // Whose task it is only matters when the list is not all yours. A single
+    // person's scope doesn't need it either - the header already names them.
+    ...(scope === "all" || scope.startsWith("team:")
+      ? [
+          {
+            header: "Assignee",
+            className: "text-xs whitespace-nowrap",
+            cell: (task: MyTask) =>
+              task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : "-",
+          },
+        ]
+      : []),
     {
       header: "Project",
       cell: (task) => (
@@ -270,12 +362,56 @@ export default function MyTasksPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="My Tasks"
-        description="Tasks assigned to you across all projects."
+        title={isMine ? "My Tasks" : `Tasks · ${scopeLabel}`}
+        description={
+          isMine
+            ? "Tasks assigned to you across all projects."
+            : `Showing ${scopeLabel.toLowerCase()}, across all projects.`
+        }
         actions={
-          <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> New Task
-          </Button>
+          <>
+            {/* Only rendered for someone who actually manages a team or a person.
+                The options come from the server, so the list is also the
+                authorisation - you cannot pick a team that isn't yours. */}
+            {managesSomething && (
+              <Select value={scope} onValueChange={setScope}>
+                <SelectTrigger className="h-8 w-56 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Named, not "Me" - the list reads as people, so the person
+                      you are reads the same way as everyone else on it. */}
+                  <SelectItem value="me">{myName}</SelectItem>
+                  <SelectItem value="all">Everyone</SelectItem>
+
+                  {scopeMeta.teams.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Teams I manage</SelectLabel>
+                      {scopeMeta.teams.map((t) => (
+                        <SelectItem key={t.id} value={`team:${t.id}`}>
+                          {t.name} · {t.projectName}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+
+                  {scopeMeta.people.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>People</SelectLabel>
+                      {scopeMeta.people.map((p) => (
+                        <SelectItem key={p.id} value={`user:${p.id}`}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                </SelectContent>
+              </Select>
+            )}
+            <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" /> New Task
+            </Button>
+          </>
         }
       />
       <TaskCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
@@ -324,9 +460,24 @@ export default function MyTasksPage() {
       )}
 
       {/* Filter + view toggle */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-xs">Status:</span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted-foreground text-xs">Project:</span>
+          <Select value={projectFilter} onValueChange={setProjectFilter}>
+            <SelectTrigger className="h-8 w-48 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All projects</SelectItem>
+              {myProjects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <span className="text-muted-foreground ml-1 text-xs">Status:</span>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="h-8 w-36 text-sm">
               <SelectValue />
@@ -340,6 +491,30 @@ export default function MyTasksPage() {
               ))}
             </SelectContent>
           </Select>
+
+          {/* Due date. Empty = every date, which is the default; the X clears
+              back to it rather than making you hunt for an "All" row inside a
+              calendar that has no such day. */}
+          <span className="text-muted-foreground ml-1 text-xs">Due:</span>
+          <div className="flex items-center gap-1">
+            <DateField
+              value={dateFilter}
+              onChange={setDateFilter}
+              placeholder="All dates"
+              className="h-8 w-40"
+            />
+            {dateFilter && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Show all dates"
+                aria-label="Show all dates"
+                onClick={() => setDateFilter("")}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {viewMode !== "kanban" && dayGroups.length > 1 && (
@@ -372,6 +547,7 @@ export default function MyTasksPage() {
         <EmptyState icon={Inbox} variant="card" title="No tasks match the filter." />
       ) : viewMode === "kanban" ? (
         <MyTasksBoard
+          queryKey={queryKey}
           tasks={tasks}
           onCommit={(id, payload) => updateMut.mutate({ id, ...payload })}
         />
@@ -487,6 +663,11 @@ export default function MyTasksPage() {
                                 {task.project.name}
                               </Link>
                               {task.team && <span>· {task.team.name}</span>}
+                              {(scope === "all" || scope.startsWith("team:")) && task.assignee && (
+                                <span className="text-foreground font-medium">
+                                  · {task.assignee.firstName} {task.assignee.lastName}
+                                </span>
+                              )}
                               <StatusBadge
                                 status={task.priority}
                                 colorMap={TASK_PRIORITY_COLORS}
@@ -594,9 +775,11 @@ const BOARD_COLUMNS: Record<string, string> = {
  */
 function MyTasksBoard({
   tasks,
+  queryKey,
   onCommit,
 }: {
   tasks: MyTask[]
+  queryKey: unknown[]
   onCommit: (id: string, payload: Record<string, unknown>) => void
 }) {
   const qc = useQueryClient()
@@ -609,8 +792,12 @@ function MyTasksBoard({
   /** Move the card immediately, then persist. The board would otherwise snap
    *  back to the old column until the request returned. */
   function commit(taskId: string, payload: Record<string, unknown>) {
-    qc.setQueryData(["my-tasks"], (old: { data: MyTask[] } | undefined) =>
-      old
+    // The ACTIVE key - "mine" and the team view are separate cache entries, and
+    // patching the wrong one leaves the board you are looking at unchanged.
+    qc.setQueryData(queryKey, (old: { data: MyTask[] } | undefined) =>
+      // Patch only a cache entry that is actually the shape we expect; writing a
+      // broken one here is what the readers then choke on.
+      old && Array.isArray(old.data)
         ? {
             ...old,
             data: old.data.map((t) =>

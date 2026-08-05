@@ -16,9 +16,11 @@ import {
 } from "@/components/ui/select"
 import { DateField } from "@/components/shared/date-field"
 import { apiFetch } from "@/lib/api-fetch"
-import { TASK_PRIORITY_LABELS } from "@/lib/constants"
-import { useProjects, useProjectTeams } from "@/features/projects/hooks/use-projects"
+import { PERMISSIONS, TASK_PRIORITY_LABELS } from "@/lib/constants"
+import { useProject, useProjects, useProjectTeams } from "@/features/projects/hooks/use-projects"
+import { usePermissions } from "@/features/admin"
 import { useSeoSites } from "@/features/seo"
+import { useSession } from "next-auth/react"
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"]
 
@@ -67,9 +69,40 @@ export function TaskCreateDialog({
   const sites = projectId ? (seoData?.properties ?? []) : []
 
   const { data: teamsData } = useProjectTeams(projectId || undefined)
-  const teams = teamsData?.data ?? []
-  const team = teams.find((t) => t.id === teamId)
-  const assignees = team?.members ?? []
+  const teams = React.useMemo(() => teamsData?.data ?? [], [teamsData])
+
+  // ── Who may this person allocate work to? ────────────────────────────────
+  // Mirrors the rules the API enforces on POST .../teams/[teamId]/tasks:
+  //   • a project admin / Account Manager may post to any team,
+  //   • a team MANAGER may post to their team and assign anyone in it,
+  //   • a plain member may only raise a task on themselves (which then goes for
+  //     manager approval).
+  // Offering more than that just produced a 403 after the form was filled in.
+  const { data: session } = useSession()
+  const userId = session?.user?.id ?? ""
+  const { can } = usePermissions()
+  const { data: projectData } = useProject(projectId || undefined)
+  const isProjectAdmin =
+    can(PERMISSIONS.PROJECT_WRITE) || (!!userId && projectData?.data?.owner?.id === userId)
+
+  const selectableTeams = React.useMemo(() => {
+    if (isProjectAdmin) return teams
+    return teams.filter(
+      (t) => t.managerId === userId || t.members.some((m) => m.employeeId === userId),
+    )
+  }, [teams, isProjectAdmin, userId])
+
+  const team = selectableTeams.find((t) => t.id === teamId)
+  const canAssignOthers = isProjectAdmin || team?.managerId === userId
+  const assignees = canAssignOthers
+    ? (team?.members ?? [])
+    : (team?.members ?? []).filter((m) => m.employeeId === userId)
+
+  // One team to choose from is not a choice - pick it so the form is usable in
+  // one less click (a team manager's normal case).
+  React.useEffect(() => {
+    if (open && !teamId && selectableTeams.length === 1) setTeamId(selectableTeams[0]!.id)
+  }, [open, teamId, selectableTeams])
 
   // Reset on open, and clear dependent selects when the parent changes.
   React.useEffect(() => {
@@ -172,13 +205,23 @@ export function TaskCreateDialog({
               <SelectValue placeholder={projectId ? "Select a team" : "Pick a project first"} />
             </SelectTrigger>
             <SelectContent>
-              {teams.map((t) => (
+              {selectableTeams.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {projectId && selectableTeams.length === 0 && (
+            <p className="text-muted-foreground text-xs">
+              You are not on a team in this project, so there is nowhere to file a task.
+            </p>
+          )}
+          {projectId && !isProjectAdmin && selectableTeams.length > 0 && (
+            <p className="text-muted-foreground text-xs">
+              Only the {selectableTeams.length === 1 ? "team" : "teams"} you belong to.
+            </p>
+          )}
         </div>
 
         {sites.length > 0 && (
@@ -226,7 +269,9 @@ export function TaskCreateDialog({
             </SelectContent>
           </Select>
           <p className="text-muted-foreground text-xs">
-            Assign it to yourself and it goes to your manager for approval.
+            {teamId && !canAssignOthers
+              ? "You can only raise a task on yourself here; it goes to your team manager for approval."
+              : "Assign it to yourself and it goes to your manager for approval."}
           </p>
         </div>
 

@@ -140,7 +140,7 @@ function StatCard({
 }
 
 export default function ProjectProgressPage() {
-  const { can } = usePermissions()
+  const { can, isLoading: permsLoading } = usePermissions()
   const canManageProjects = can(PERMISSIONS.PROJECT_WRITE)
 
   // Both filters drive the SAME numbers: the tiles are the totals for whatever
@@ -222,6 +222,21 @@ export default function ProjectProgressPage() {
   const currentReport = reportFor === signature(reportConfig) ? report.data : undefined
 
   const s = data?.summary
+
+  // Which of the two pages below to render is a PERMISSION decision, and during
+  // a client-side navigation the session has not resolved yet - `can()` answers
+  // false for everyone for a beat. Rendering on that answer put a manager on the
+  // individual view first and mounted MyProgress underneath them, which is where
+  // the "Couldn't load projects" crash came from. Wait for the real answer.
+  if (permsLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-16 rounded" />
+        <Skeleton className="h-24 rounded" />
+        <Skeleton className="h-64 rounded" />
+      </div>
+    )
+  }
 
   // An individual asks "what do I owe and what have I finished", a manager asks
   // "what is going on across the portfolio". Those are different pages, not the

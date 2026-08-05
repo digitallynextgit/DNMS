@@ -155,13 +155,19 @@ export const authOptions: NextAuthConfig = {
           token.mustChangePassword = data.employee.mustChangePassword
         }
       } else if (trigger === "update" && token.id) {
-        // session.update() after a forced password change: re-read the flag so the
-        // proxy stops redirecting to /change-password.
-        const fresh = await db.employee.findUnique({
-          where: { id: token.id as string },
-          select: { mustChangePassword: true },
-        })
-        if (fresh) token.mustChangePassword = fresh.mustChangePassword
+        // session.update() re-hydrates the whole token from the database.
+        //
+        // Two callers rely on this: a forced password change (the proxy must
+        // stop redirecting to /change-password) and a role change made against
+        // your own account - permissions are READ FROM THIS TOKEN, so without
+        // this the sidebar and every `can()` check keep the grants you signed
+        // in with until the next sign-in.
+        const data = await getUserWithPermissions(token.id as string)
+        if (data) {
+          token.roles = data.roles
+          token.permissions = data.permissions
+          token.mustChangePassword = data.employee.mustChangePassword
+        }
       }
       return token
     },

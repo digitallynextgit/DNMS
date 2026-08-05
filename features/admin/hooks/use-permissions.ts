@@ -4,7 +4,14 @@ import { useSession } from "next-auth/react"
 import { SYSTEM_ROLES } from "@/lib/constants"
 
 export function usePermissions() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
+
+  // While the session is resolving there are NO permissions yet, so every
+  // `can()` answers false. Screens that branch on a permission must wait for
+  // this rather than trusting that first answer - otherwise a manager renders
+  // the non-manager view for a beat, mounting components meant for someone else
+  // before flipping. See the progress page.
+  const isLoading = status === "loading"
 
   const permissions = session?.user.permissions ?? []
   const roles = session?.user.roles ?? []
@@ -26,5 +33,5 @@ export function usePermissions() {
     return scopes.every((s) => permissions.includes(s))
   }
 
-  return { can, canAny, canAll, isAdmin_, permissions, roles, userId }
+  return { can, canAny, canAll, isAdmin_, isLoading, permissions, roles, userId }
 }
