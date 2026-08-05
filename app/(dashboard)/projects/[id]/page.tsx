@@ -14,7 +14,12 @@ import { InfoRow } from "@/components/shared/info-row"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
-import { useProject, useProjectTeams, useUnreadMessageCount } from "@/features/projects"
+import {
+  useProject,
+  useProjectTeams,
+  useUnreadMessageCount,
+  useProjectRequirements,
+} from "@/features/projects"
 import { usePermissions } from "@/features/admin"
 import {
   PERMISSIONS,
@@ -39,6 +44,7 @@ import {
   Plug,
   BarChart3,
   Search,
+  HelpCircle,
 } from "lucide-react"
 import { ProjectFormDialog } from "@/features/projects"
 
@@ -76,6 +82,10 @@ const TeamsTab = dynamic(() => import("@/features/projects").then((m) => m.Teams
 const TasksTab = dynamic(() => import("@/features/projects").then((m) => m.TasksTab), {
   loading: tabFallback,
 })
+const RequirementsTab = dynamic(
+  () => import("@/features/projects").then((m) => m.RequirementsTab),
+  { loading: tabFallback },
+)
 const ActivityTab = dynamic(() => import("@/features/projects").then((m) => m.ActivityTab), {
   loading: tabFallback,
 })
@@ -95,6 +105,7 @@ const PROJECT_TABS = [
   "seo",
   "teams",
   "tasks",
+  "requirements",
   "messages",
   "activity",
   "passwords",
@@ -138,6 +149,12 @@ export default function ProjectDetailPage() {
   const { data: teamsData } = useProjectTeams(project?.id)
   const teams = teamsData?.data ?? []
   const { data: unreadMessages = 0 } = useUnreadMessageCount(project?.id)
+
+  // Badge on the Requirements tab: how much the project is currently blocked on.
+  const { data: requirementsData } = useProjectRequirements(project?.id)
+  const openRequirements = (requirementsData?.data ?? []).filter(
+    (r) => r.status === "OPEN" || r.status === "IN_PROGRESS",
+  ).length
 
   /**
    * The REAL project id, for everything handed to a tab.
@@ -265,6 +282,15 @@ export default function ProjectDetailPage() {
               <FolderKanban className="h-3.5 w-3.5" />
               Tasks
             </TabsTrigger>
+            <TabsTrigger value="requirements" className="gap-1.5">
+              <HelpCircle className="h-3.5 w-3.5" />
+              Requirements
+              {openRequirements > 0 && (
+                <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-sm bg-amber-500 px-1 text-[10px] leading-none font-semibold text-white">
+                  {openRequirements > 99 ? "99+" : openRequirements}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="messages" className="gap-1.5">
               <MessageSquare className="h-3.5 w-3.5" />
               Messages
@@ -374,6 +400,10 @@ export default function ProjectDetailPage() {
 
         <TabsContent value="tasks" className="mt-4">
           <TasksTab projectId={projectId} currentUserId={userId} isAdmin={canManage} />
+        </TabsContent>
+
+        <TabsContent value="requirements" className="mt-4">
+          <RequirementsTab projectId={projectId} currentUserId={userId} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="messages" className="mt-4">

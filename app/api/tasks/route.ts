@@ -110,6 +110,9 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
         project: { select: { id: true, name: true, code: true, slug: true } },
         team: { select: { id: true, name: true } },
         assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
+        // Drives the "Blocked" badge - a task waiting on a requirement should say
+        // so wherever it is listed, not only inside the project.
+        requirement: { select: { id: true, title: true, status: true } },
       },
     })
 

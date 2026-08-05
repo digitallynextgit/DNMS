@@ -14,6 +14,8 @@ export type ActivityType =
   | "TEAM_MEMBER_REMOVED"
   | "MESSAGE_POSTED"
   | "MILESTONE_TOGGLED"
+  | "REQUIREMENT_RAISED"
+  | "REQUIREMENT_STATUS_CHANGED"
 
 export async function logActivity(params: {
   projectId: string

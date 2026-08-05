@@ -469,6 +469,38 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
   DISCARDED: "Discarded",
 }
 
+// ── Project requirements (things a team is waiting on) ───────────────────────
+
+export const REQUIREMENT_TYPE_LABELS: Record<string, string> = {
+  DOCUMENT: "Document",
+  CREDENTIAL: "Credential",
+  ACCESS: "Access",
+  CONTENT: "Content",
+  DESIGN: "Design",
+  APPROVAL: "Approval",
+  PAYMENT: "Payment",
+  OTHER: "Other",
+}
+
+export const REQUIREMENT_STATUS_LABELS: Record<string, string> = {
+  OPEN: "Open",
+  IN_PROGRESS: "In progress",
+  PROVIDED: "Provided",
+  REJECTED: "Rejected",
+  CLOSED: "Closed",
+}
+
+export const REQUIREMENT_STATUS_COLORS: Record<string, string> = {
+  OPEN: TONE.red,
+  IN_PROGRESS: TONE.blue,
+  PROVIDED: TONE.green,
+  REJECTED: TONE.neutral,
+  CLOSED: TONE.neutral,
+}
+
+/** Statuses that still need chasing. */
+export const REQUIREMENT_OPEN_STATUSES = ["OPEN", "IN_PROGRESS"] as const
+
 export const TASK_STATUS_COLORS: Record<string, string> = {
   TODO: TONE.neutral,
   IN_PROGRESS: TONE.blue,

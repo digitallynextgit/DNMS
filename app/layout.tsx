@@ -32,7 +32,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             React 19 only warns about INLINE scripts, not src ones. */}
         <script src="/theme-boot.js" />
       </head>
-      <body className="antialiased">
+      {/* suppressHydrationWarning: browser extensions stamp attributes onto <body>
+          before React hydrates (Bitdefender's `bis_register` /
+          `__processed_<uuid>__`, password managers, Grammarly), and React reports
+          the server/client attribute diff as a hydration mismatch. It is the
+          extension, not our markup. This silences the warning for THIS element's
+          attributes only - a genuine mismatch inside the tree still reports. */}
+      <body className="antialiased" suppressHydrationWarning>
         {/* Navigation progress bar (perceived speed on route changes). */}
         <NextTopLoader color="#ef4444" height={3} showSpinner={false} shadow="0 0 8px #ef4444" />
         <Providers session={session}>{children}</Providers>

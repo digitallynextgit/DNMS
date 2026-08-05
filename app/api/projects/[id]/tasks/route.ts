@@ -22,6 +22,7 @@ export const GET = withProjectAccess(
         include: {
           assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
           creator: { select: { id: true, firstName: true, lastName: true } },
+          requirement: { select: { id: true, title: true, status: true } },
         },
       })
 
@@ -66,6 +67,7 @@ export const POST = withProjectManager(
         include: {
           assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
           creator: { select: { id: true, firstName: true, lastName: true } },
+          requirement: { select: { id: true, title: true, status: true } },
         },
       })
 

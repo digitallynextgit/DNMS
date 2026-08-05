@@ -84,6 +84,9 @@ export interface ProjectTask {
   createdAt: string
   assignee: EmployeeSnippet | null
   creator?: EmployeeSnippet
+  /** Set while this task is waiting on a requirement; cleared when it resolves. */
+  requirementId?: string | null
+  requirement?: { id: string; title: string; status: string } | null
   _count?: { comments: number; checklistItems: number }
 }
 
@@ -827,6 +830,111 @@ export function useProjectMessages(projectId: string | undefined) {
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
   })
+}
+
+// ── Requirements ─────────────────────────────────────────────────────────────
+
+export interface ProjectRequirement {
+  id: string
+  projectId: string
+  teamId: string | null
+  type: string
+  status: "OPEN" | "IN_PROGRESS" | "PROVIDED" | "REJECTED" | "CLOSED"
+  title: string
+  details: string | null
+  neededBy: string | null
+  resolvedAt: string | null
+  resolutionNote: string | null
+  createdAt: string
+  team: { id: string; name: string } | null
+  raisedBy: EmployeeSnippet
+  requestedFrom: EmployeeSnippet
+  blockedTasks: { id: string; title: string; status: string }[]
+}
+
+export function useProjectRequirements(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-requirements", projectId],
+    queryFn: () =>
+      apiFetch<{ data: ProjectRequirement[] }>(`/api/projects/${projectId}/requirements`),
+    enabled: !!projectId,
+    staleTime: 15_000,
+  })
+}
+
+export function useCreateRequirement(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (body: {
+        type: string
+        title: string
+        details?: string | null
+        requestedFromId?: string
+        neededBy?: string | null
+        teamId?: string | null
+        blockedTaskIds?: string[]
+      }) =>
+        apiFetch<{ data: ProjectRequirement }>(`/api/projects/${projectId}/requirements`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      // Tasks carry a "blocked" flag from this, so their caches refresh too.
+      invalidate: [
+        ["project-requirements", projectId],
+        ["project-all-tasks", projectId],
+        ["my-tasks"],
+      ],
+      success: "Requirement raised",
+    }),
+  )
+}
+
+export function useUpdateRequirement(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: ({
+        requirementId,
+        status,
+        resolutionNote,
+      }: {
+        requirementId: string
+        status: ProjectRequirement["status"]
+        resolutionNote?: string | null
+      }) =>
+        apiFetch<{ data: ProjectRequirement }>(
+          `/api/projects/${projectId}/requirements/${requirementId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status, resolutionNote }),
+          },
+        ),
+      invalidate: [
+        ["project-requirements", projectId],
+        ["project-all-tasks", projectId],
+        ["my-tasks"],
+      ],
+      success: "Requirement updated",
+    }),
+  )
+}
+
+export function useDeleteRequirement(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (requirementId: string) =>
+        apiFetch(`/api/projects/${projectId}/requirements/${requirementId}`, { method: "DELETE" }),
+      invalidate: [
+        ["project-requirements", projectId],
+        ["project-all-tasks", projectId],
+      ],
+      success: "Requirement removed",
+    }),
+  )
 }
 
 /**

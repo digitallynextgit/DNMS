@@ -39,10 +39,12 @@ import {
   Clock,
   Milestone,
   MessageSquare,
+  HelpCircle,
 } from "lucide-react"
 import { cn, formatDate } from "@/lib/utils"
 import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
 import { TaskCreateDialog } from "@/features/projects/components/task-create-dialog"
+import { RequirementDialog } from "@/features/projects/components/requirement-dialog"
 import {
   TASK_STATUS_LABELS,
   TASK_STATUS_COLORS,
@@ -54,6 +56,7 @@ import dynamic from "next/dynamic"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { TaskDetailSheet } from "./task-detail-sheet"
 import { TaskTime } from "./task-time"
+import { BlockedBadge } from "./blocked-badge"
 
 // The Kanban board pulls in @hello-pangea/dnd; load it only when the board view
 // is shown, so the default list view's bundle stays lean.
@@ -76,6 +79,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all")
   const [showPendingOnly, setShowPendingOnly] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+  const [requirementOpen, setRequirementOpen] = useState(false)
 
   // Who the Employee picker offers: the chosen team's members, or everyone on
   // the project when no team is chosen. Deduped by id because one person can
@@ -183,7 +187,17 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
           Pending approval only
         </label>
 
-        <Button size="sm" className="ml-auto gap-1.5" onClick={() => setCreateOpen(true)}>
+        {/* Second entry point for requirements: you notice the blocker while
+            looking at the board, not while browsing a separate tab. */}
+        <Button
+          size="sm"
+          variant="outline"
+          className="ml-auto gap-1.5"
+          onClick={() => setRequirementOpen(true)}
+        >
+          <HelpCircle className="h-4 w-4" /> Raise requirement
+        </Button>
+        <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" /> New Task
         </Button>
       </div>
@@ -203,6 +217,12 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
         onOpenChange={setCreateOpen}
         defaultProjectId={projectId}
         lockProject
+      />
+
+      <RequirementDialog
+        open={requirementOpen}
+        onOpenChange={setRequirementOpen}
+        projectId={projectId}
       />
     </div>
   )
@@ -334,6 +354,7 @@ function TaskRow({
           <div className="flex items-center gap-2">
             {task.isMilestone && <Milestone className="h-3.5 w-3.5 shrink-0 text-purple-600" />}
             <p className="truncate text-sm font-medium hover:underline">{task.title}</p>
+            <BlockedBadge requirement={task.requirement} />
             {isPending && (
               <Badge
                 variant="outline"

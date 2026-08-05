@@ -17,6 +17,7 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { cn, formatDate } from "@/lib/utils"
 import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { TaskTime } from "./task-time"
+import { BlockedBadge } from "./blocked-badge"
 import { AlertTriangle, Clock, Milestone, GripVertical } from "lucide-react"
 
 const COLUMNS: { id: string; label: string; color: string }[] = [
@@ -200,6 +201,7 @@ export function KanbanView({
                                 size="xs"
                                 className="py-0"
                               />
+                              <BlockedBadge requirement={task.requirement} />
                               {task.approvalStatus === "PENDING_APPROVAL" && (
                                 <Badge
                                   variant="outline"

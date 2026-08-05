@@ -477,6 +477,8 @@ model Employee {
   // Projects
   projectMemberships ProjectMember[]
   assignedTasks      ProjectTask[]          @relation("TaskAssignee")
+  raisedRequirements ProjectRequirement[]   @relation("RequirementRaiser")
+  ownedRequirements  ProjectRequirement[]   @relation("RequirementOwner")
   createdTasks       ProjectTask[]          @relation("TaskCreator")
   taskStatusChanges  TaskStatusPeriod[]     @relation("TaskStatusActor")
   contentEntries     ContentCalendarEntry[] @relation("ContentAssignee")
@@ -1119,6 +1121,7 @@ model Project {
   integration     ProjectIntegration?
   metaCampaigns   MetaCampaign[]
   seoProperties   SeoProperty[]
+  requirements    ProjectRequirement[]
 
   @@index([status])
   @@index([ownerId])
@@ -1298,9 +1301,10 @@ model ProjectTeam {
 
   project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   manager   Employee?           @relation("TeamManager", fields: [managerId], references: [id], onDelete: SetNull)
-  members   ProjectTeamMember[]
-  tasks     ProjectTask[]
-  resources ProjectResource[]
+  members      ProjectTeamMember[]
+  tasks        ProjectTask[]
+  resources    ProjectResource[]
+  requirements ProjectRequirement[]
 
   @@unique([projectId, name])
   @@index([projectId])
@@ -1413,8 +1417,14 @@ model ProjectTask {
   // being done per subdomain.
   seoPropertyId String? @map("seo_property_id")
 
+  // Set while this task is waiting on a ProjectRequirement. Cleared when the
+  // requirement is resolved, so "blocked" is derived from live data rather than
+  // a flag somebody has to remember to unset.
+  requirementId String? @map("requirement_id")
+
   project        Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
   seoProperty    SeoProperty?          @relation(fields: [seoPropertyId], references: [id], onDelete: SetNull)
+  requirement    ProjectRequirement?   @relation(fields: [requirementId], references: [id], onDelete: SetNull)
   team           ProjectTeam?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   assignee       Employee?             @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   creator        Employee              @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
@@ -1492,6 +1502,64 @@ model TaskStatusPeriod {
 
   @@index([taskId, startedAt])
   @@map("task_status_periods")
+}
+
+// ── Requirements ──────────────────────────────────────────────────────────────
+// A dependency a team has on someone OUTSIDE it: verification documents, client
+// credentials, an access grant, copy, a sign-off. Deliberately not a task (it is
+// not the recipient's delivery work, and it would distort their throughput) and
+// not a chat message (nobody can answer "what is WEB blocked on" from a thread).
+
+enum RequirementType {
+  DOCUMENT
+  CREDENTIAL
+  ACCESS
+  CONTENT
+  DESIGN
+  APPROVAL
+  PAYMENT
+  OTHER
+}
+
+enum RequirementStatus {
+  OPEN
+  IN_PROGRESS
+  PROVIDED
+  REJECTED
+  CLOSED
+}
+
+model ProjectRequirement {
+  id              String            @id @default(uuid()) @map("id")
+  projectId       String            @map("project_id")
+  teamId          String?           @map("team_id") // the blocked team
+  raisedById      String            @map("raised_by_id")
+  requestedFromId String            @map("requested_from_id") // usually the Account Manager
+  type            RequirementType   @default(OTHER) @map("type")
+  status          RequirementStatus @default(OPEN) @map("status")
+  title           String            @map("title")
+  details         String?           @map("details") @db.Text
+  neededBy        DateTime?         @map("needed_by") @db.Date
+  /// Set when it leaves OPEN/IN_PROGRESS, so "how long were we blocked" is stored.
+  resolvedAt      DateTime?         @map("resolved_at")
+  /// Why it was refused, or the note left when provided.
+  resolutionNote  String?           @map("resolution_note") @db.Text
+  /// Suppresses the daily overdue nudge without closing the requirement.
+  remindedAt      DateTime?         @map("reminded_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  team          ProjectTeam? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  raisedBy      Employee     @relation("RequirementRaiser", fields: [raisedById], references: [id], onDelete: Cascade)
+  requestedFrom Employee     @relation("RequirementOwner", fields: [requestedFromId], references: [id], onDelete: Cascade)
+  /// The work this is holding up. A task has at most one blocking requirement.
+  blockedTasks  ProjectTask[]
+
+  @@index([projectId, status])
+  @@index([requestedFromId, status])
+  @@index([raisedById])
+  @@map("project_requirements")
 }
 
 model ProjectActivity {

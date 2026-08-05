@@ -45,6 +45,7 @@ import { TaskTime } from "@/features/projects/components/task-time"
 import { TaskHistoryDialog } from "@/features/projects/components/task-history-dialog"
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { projectHref } from "@/features/projects/lib/project-href"
+import { BlockedBadge } from "@/features/projects/components/blocked-badge"
 import { useProjects } from "@/features/projects/hooks/use-projects"
 import { DateField } from "@/components/shared/date-field"
 import { useSession } from "next-auth/react"
@@ -67,6 +68,8 @@ interface MyTask {
   rejectionReason: string | null
   project: { id: string; name: string; code: string; slug: string | null }
   team?: { id: string; name: string } | null
+  /** Set while this task waits on a requirement; drives the Blocked badge. */
+  requirement?: { id: string; title: string; status: string } | null
   /** Only meaningful in the team view, where rows are not all yours. */
   assignee?: { id: string; firstName: string; lastName: string } | null
 }
@@ -285,6 +288,7 @@ export default function MyTasksPage() {
                   Rejected
                 </Badge>
               )}
+              {task.requirement && <BlockedBadge requirement={task.requirement} />}
               {isOverdue && (
                 <Badge variant="outline" className="bg-red-50 text-[10px] text-red-700">
                   <AlertTriangle className="mr-0.5 inline h-3 w-3" />
@@ -640,6 +644,7 @@ export default function MyTasksPage() {
                                   Rejected
                                 </Badge>
                               )}
+                              <BlockedBadge requirement={task.requirement} />
                               {isOverdue && (
                                 <Badge
                                   variant="outline"
