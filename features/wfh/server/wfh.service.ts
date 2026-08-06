@@ -311,9 +311,10 @@ export async function updateWfhRequest(
       return ok(serialize({ data: updated }))
     }
 
-    // HR (final) or the employee's own manager (advisory) may act. A manager's
-    // decision is recorded but keeps the request PENDING; HR makes the final call
-    // and can approve even over a manager's rejection.
+    // HR or the employee's own manager may act, and the FIRST decision is final.
+    // A manager's call used to be advisory - the request stayed PENDING until HR
+    // repeated it, which meant every WFH day needed two people. Either can now
+    // settle it; the record still stores which of them did.
     const roles = session.user.roles ?? []
     const isHr = roles.some((r) => HR_ROLE_NAMES.includes(r))
     const isManager = request.employee.managerId === session.user.id
@@ -332,15 +333,17 @@ export async function updateWfhRequest(
         })
       : await db.wfhRequest.update({
           where: { id },
-          // Manager review is advisory - stays PENDING for HR's final call.
+          // The manager's decision now settles it, exactly like HR's.
           data:
             action === "APPROVE"
               ? {
+                  status: "APPROVED",
                   managerDecision: "APPROVED",
                   managerApproverId: session.user.id,
                   managerApprovedAt: new Date(),
                 }
               : {
+                  status: "REJECTED",
                   managerDecision: "REJECTED",
                   managerApproverId: session.user.id,
                   rejectionReason: reason,
@@ -376,19 +379,9 @@ export async function updateWfhRequest(
             text: email.text,
           })
         }
-      } else {
-        // Manager decided; HR still has the final call.
-        const approved = updated.managerDecision === "APPROVED"
-        await createNotification({
-          employeeId: request.employeeId,
-          title: approved ? "WFH - manager approved" : "WFH - manager declined",
-          message: approved
-            ? `Your Work From Home request for ${dateStr} was approved by your manager and is awaiting HR's final call.`
-            : `Your manager declined your Work From Home request for ${dateStr} - it's awaiting HR's final call.`,
-          type: "info",
-          link: "/wfh",
-        })
       }
+      // No "awaiting HR" branch any more: a decision by either party is final,
+      // so the request always leaves PENDING here.
     } catch {
       // Non-blocking
     }

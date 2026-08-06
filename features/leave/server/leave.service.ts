@@ -170,11 +170,14 @@ function attachViewerRole<
   return requests.map((r) => {
     let viewerRole: "FINAL" | "ADVISORY" | null = null
     if (r.status === "PENDING" && r.employeeId !== userId) {
-      if (canFinalizeRequest(roles, permissions, r, userId)) viewerRole = "FINAL"
-      else if (
+      // Both tiers are FINAL now: whoever acts first settles the request, so
+      // labelling the manager "ADVISORY" would promise HR a second look that
+      // never comes. "ADVISORY" is kept in the type for in-flight UI code.
+      if (
+        canFinalizeRequest(roles, permissions, r, userId) ||
         canAdviseRequest(roles, { ...r, applicantManagerId: r.employee.managerId ?? null }, userId)
       )
-        viewerRole = "ADVISORY"
+        viewerRole = "FINAL"
     }
     return { ...r, viewerRole }
   })
@@ -1278,19 +1281,12 @@ export async function updateLeaveRequest(
           where: { employeeId: request.employeeId, leaveTypeId: request.leaveTypeId, year },
           data: { pending: { decrement: request.totalDays } },
         })
-      } else if (!isFinalizer && isAdvisor) {
-        // Advisory reporting-manager decision - recorded, but the request stays
-        // PENDING so HR can still make (or override) the final call. The balance
-        // is untouched (it remains held as pending until HR finalises).
-        updatedReq = await tx.leaveRequest.update({
-          where: { id },
-          data:
-            action === "APPROVE"
-              ? { managerDecision: "APPROVED" }
-              : { managerDecision: "REJECTED", rejectionReason: String(rejectionReason).trim() },
-          include: REQUEST_INCLUDE,
-        })
       } else if (action === "APPROVE") {
+        // FIRST DECISION WINS. The reporting manager's call used to be advisory,
+        // leaving the request PENDING until HR repeated it; now whoever acts
+        // first - manager, HR or admin - finalises it. `managerDecision` is still
+        // stamped when the actor is the applicant's manager, so the record shows
+        // who actually made the call.
         updatedReq = await tx.leaveRequest.update({
           where: { id },
           data: {
@@ -1299,6 +1295,7 @@ export async function updateLeaveRequest(
             approvedAt: new Date(),
             approvalStage: null,
             currentApproverId: null,
+            ...(isAdvisor ? { managerDecision: "APPROVED" } : {}),
           },
           include: REQUEST_INCLUDE,
         })
@@ -1327,6 +1324,7 @@ export async function updateLeaveRequest(
             rejectionReason: String(rejectionReason).trim(),
             approvalStage: null,
             currentApproverId: null,
+            ...(isAdvisor ? { managerDecision: "REJECTED" } : {}),
           },
           include: REQUEST_INCLUDE,
         })
