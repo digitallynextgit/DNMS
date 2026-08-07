@@ -23,9 +23,41 @@ import { TASK_EDIT_WINDOW_MS, editWindowRemaining, formatWindowLeft } from "./ed
 export interface TaskEditSubject {
   creatorId: string
   createdAt: string | Date
-  /** The manager of the team the task sits in, when it has one. */
+  /** Whoever plays manager for this task - see resolveTaskManagerId. */
   teamManagerId?: string | null
 }
+
+/**
+ * Who plays "manager" for a task.
+ *
+ * A project task answers to the manager of the team it sits in. An ADHOC task -
+ * a meeting, an interview, internal QC - belongs to no project and no team, so
+ * there is no team manager to answer to; the assignee's LINE manager stands in.
+ * Without this an adhoc task would have no authority over it at all: nobody
+ * could approve it, edit it after the author's window, or delete it.
+ */
+export function resolveTaskManagerId(task: {
+  teamId: string | null
+  teamManagerId?: string | null
+  assigneeManagerId?: string | null
+}): string | null {
+  return task.teamId ? (task.teamManagerId ?? null) : (task.assigneeManagerId ?? null)
+}
+
+/** A task with no project is adhoc: work that belongs to no client. */
+export function isAdhocTask(task: { projectId?: string | null }): boolean {
+  return !task.projectId
+}
+
+/** What adhoc work is called wherever a project name would otherwise go. */
+export const ADHOC_LABEL = "Adhoc"
+export const ADHOC_DESCRIPTION = "Meetings, interviews and other work with no client"
+
+/**
+ * The sheet needs a row id for the adhoc bucket, and every other row is keyed
+ * by project id. A sentinel keeps that one code path instead of two.
+ */
+export const ADHOC_ROW_ID = "__adhoc__"
 
 export interface TaskActor {
   userId: string

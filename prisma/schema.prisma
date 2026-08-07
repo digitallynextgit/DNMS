@@ -1380,9 +1380,14 @@ model ProjectMember {
 }
 
 model ProjectTask {
-  id               String             @id @default(uuid()) @map("id")
-  projectId        String             @map("project_id")
-  teamId           String?            @map("team_id") // v2 - null only for legacy tasks
+  id String @id @default(uuid()) @map("id")
+  // Null = ADHOC: work that belongs to no client - meetings, interviews,
+  // internal QC. It used to be a stand-in "ADHOC" project, which made it show
+  // up everywhere a real client did (portfolio, progress, billing) and read as
+  // an account nobody could name. An adhoc task has no project and no team; the
+  // assignee's line manager stands in for the team manager on it.
+  projectId String? @map("project_id")
+  teamId    String? @map("team_id") // v2 - null for legacy tasks and adhoc work
   title            String             @map("title")
   description      String?            @map("description") @db.Text
   status           TaskStatus         @default(TODO) @map("status")
@@ -1422,7 +1427,7 @@ model ProjectTask {
   // a flag somebody has to remember to unset.
   requirementId String? @map("requirement_id")
 
-  project        Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project        Project?              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   seoProperty    SeoProperty?          @relation(fields: [seoPropertyId], references: [id], onDelete: SetNull)
   requirement    ProjectRequirement?   @relation(fields: [requirementId], references: [id], onDelete: SetNull)
   team           ProjectTeam?          @relation(fields: [teamId], references: [id], onDelete: Cascade)

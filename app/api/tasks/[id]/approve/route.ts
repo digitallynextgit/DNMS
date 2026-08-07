@@ -6,6 +6,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
 import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
+import { resolveTaskManagerId } from "@/features/projects/lib/task-permissions"
 import type { Session } from "next-auth"
 
 // PATCH /api/tasks/[id]/approve - Manager (of the task's team) or Admin
@@ -18,7 +19,7 @@ export const PATCH = withSession(
         where: { id },
         include: {
           team: { select: { id: true, name: true, managerId: true, projectId: true } },
-          assignee: { select: { id: true, firstName: true, email: true } },
+          assignee: { select: { id: true, firstName: true, email: true, managerId: true } },
         },
       })
       if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 })
@@ -26,10 +27,16 @@ export const PATCH = withSession(
         return NextResponse.json({ error: "Only pending tasks can be approved" }, { status: 409 })
       }
 
-      const isManager = task.team?.managerId === session.user.id
+      // Adhoc work has no team, so the assignee's line manager approves it.
+      const managerId = resolveTaskManagerId({
+        teamId: task.teamId,
+        teamManagerId: task.team?.managerId,
+        assigneeManagerId: task.assignee?.managerId,
+      })
+      const isManager = !!managerId && managerId === session.user.id
       const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
       if (!isManager && !isAdmin) {
-        return NextResponse.json({ error: "Only the team manager can approve" }, { status: 403 })
+        return NextResponse.json({ error: "Only the manager can approve" }, { status: 403 })
       }
 
       const updated = await db.projectTask.update({
@@ -45,7 +52,7 @@ export const PATCH = withSession(
             title: "Task approved",
             message: `Your task "${task.title}" has been approved.`,
             type: "success",
-            link: `/projects/${task.team!.projectId}`,
+            link: task.projectId ? `/projects/${task.projectId}` : "/projects/my-tasks",
           })
           addEmailJob({
             to: task.assignee.email,

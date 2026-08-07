@@ -40,8 +40,13 @@ const FALLBACK = { name: "WEB", description: "Website build, maintenance, SEO an
 async function main() {
   console.log(`Backfilling team-less tasks${DRY ? " (dry run)" : ""}...`)
 
+  // `projectId: { not: null }` is doing real work here, not tidying: ADHOC tasks
+  // are team-less BY DESIGN (they belong to no project, so there is no team to
+  // put them in). Without this they would be swept up as legacy orphans and
+  // filed into a project team, which is exactly what retiring the ADHOC project
+  // was meant to stop.
   const orphans = await prisma.projectTask.findMany({
-    where: { teamId: null },
+    where: { teamId: null, projectId: { not: null } },
     select: {
       id: true,
       title: true,
@@ -76,7 +81,10 @@ async function main() {
   for (const task of actionable) {
     const assignee = task.assignee!
     const spec = TEAM_FOR_DEPARTMENT[assignee.department?.name ?? ""] ?? FALLBACK
-    const projectId = task.project.id
+    // Non-null by the query's `projectId: { not: null }` - adhoc tasks never
+    // reach this loop.
+    const project = task.project!
+    const projectId = project.id
 
     // If the assignee is already on a team in this project, that is their team -
     // ProjectTeamMember is unique on (projectId, employeeId), so it is the only
@@ -106,7 +114,7 @@ async function main() {
           teamId = existing.id
         } else if (DRY) {
           teamId = "(would create)"
-          console.log(`  + would create team ${task.project.code} ${spec.name}`)
+          console.log(`  + would create team ${project.code} ${spec.name}`)
         } else {
           const created = await prisma.projectTeam.create({
             data: {
@@ -118,7 +126,7 @@ async function main() {
             select: { id: true },
           })
           teamId = created.id
-          console.log(`  + created team ${task.project.code} ${spec.name}`)
+          console.log(`  + created team ${project.code} ${spec.name}`)
         }
         teamCache.set(cacheKey, teamId)
       }
@@ -143,7 +151,7 @@ async function main() {
     }
 
     console.log(
-      `  ${task.project.code} ${teamName.padEnd(7)} ${assignee.firstName} ${assignee.lastName} | ${task.title}`,
+      `  ${project.code} ${teamName.padEnd(7)} ${assignee.firstName} ${assignee.lastName} | ${task.title}`,
     )
     if (!DRY) {
       await prisma.projectTask.update({ where: { id: task.id }, data: { teamId } })
@@ -153,7 +161,7 @@ async function main() {
 
   if (unassigned.length > 0) {
     console.log(`\n  Left alone (no assignee, so no team can be inferred): ${unassigned.length}`)
-    for (const t of unassigned) console.log(`    ${t.project.code} | ${t.title}`)
+    for (const t of unassigned) console.log(`    ${t.project?.code ?? "ADHOC"} | ${t.title}`)
   }
 
   console.log(`\n  ${DRY ? "Would move" : "Moved"} ${movedCount} task(s) onto a team.`)

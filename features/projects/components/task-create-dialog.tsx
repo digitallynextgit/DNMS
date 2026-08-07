@@ -20,6 +20,11 @@ import { PERMISSIONS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { useProject, useProjects, useProjectTeams } from "@/features/projects/hooks/use-projects"
 import { usePermissions } from "@/features/admin"
 import { useSeoSites } from "@/features/seo"
+import {
+  ADHOC_DESCRIPTION,
+  ADHOC_LABEL,
+  ADHOC_ROW_ID,
+} from "@/features/projects/lib/task-permissions"
 import { useSession } from "next-auth/react"
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"]
@@ -63,12 +68,17 @@ export function TaskCreateDialog({
   const [estMinutes, setEstMinutes] = React.useState("")
   const [seoPropertyId, setSeoPropertyId] = React.useState("")
 
+  // Adhoc is a sentinel, not a real project id - every project-scoped fetch
+  // below has to be told so, or each one fires a request for "__adhoc__".
+  const isAdhoc = projectId === ADHOC_ROW_ID
+  const realProjectId = isAdhoc ? "" : projectId
+
   // Sites tracked under this project. Only offered when the project actually has
   // more than the implicit "whole project" scope.
-  const { data: seoData } = useSeoSites(projectId)
-  const sites = projectId ? (seoData?.properties ?? []) : []
+  const { data: seoData } = useSeoSites(realProjectId)
+  const sites = realProjectId ? (seoData?.properties ?? []) : []
 
-  const { data: teamsData } = useProjectTeams(projectId || undefined)
+  const { data: teamsData } = useProjectTeams(realProjectId || undefined)
   const teams = React.useMemo(() => teamsData?.data ?? [], [teamsData])
 
   // ── Who may this person allocate work to? ────────────────────────────────
@@ -81,7 +91,7 @@ export function TaskCreateDialog({
   const { data: session } = useSession()
   const userId = session?.user?.id ?? ""
   const { can } = usePermissions()
-  const { data: projectData } = useProject(projectId || undefined)
+  const { data: projectData } = useProject(realProjectId || undefined)
   const isProjectAdmin =
     can(PERMISSIONS.PROJECT_WRITE) || (!!userId && projectData?.data?.owner?.id === userId)
 
@@ -128,17 +138,22 @@ export function TaskCreateDialog({
     setAssigneeId("")
   }, [teamId])
 
+  // Adhoc work belongs to no client, so it has no project and no team to file
+  // under - it goes to the plain task endpoint instead of a team's.
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      apiFetch(`/api/projects/${projectId}/teams/${teamId}/tasks`, {
+      apiFetch(isAdhoc ? `/api/tasks` : `/api/projects/${projectId}/teams/${teamId}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-tasks"] })
-      qc.invalidateQueries({ queryKey: ["team-tasks", projectId, teamId] })
-      qc.invalidateQueries({ queryKey: ["project-all-tasks", projectId] })
+      // Adhoc work is on no project board, so there is nothing else to refresh.
+      if (realProjectId) {
+        qc.invalidateQueries({ queryKey: ["team-tasks", realProjectId, teamId] })
+        qc.invalidateQueries({ queryKey: ["project-all-tasks", realProjectId] })
+      }
       toast.success("Task created")
       onOpenChange(false)
     },
@@ -162,7 +177,7 @@ export function TaskCreateDialog({
   const rawEstimate = (Number(estHours) || 0) + (Number(estMinutes) || 0) / 60
   const estimateInHours = rawEstimate > 0 ? Math.round(rawEstimate * 100) / 100 : undefined
 
-  const canSubmit = !!projectId && !!teamId && !!title.trim()
+  const canSubmit = !!projectId && (isAdhoc || !!teamId) && !!title.trim()
 
   return (
     <FormDialog
@@ -186,6 +201,8 @@ export function TaskCreateDialog({
                 <SelectValue placeholder="Select a project" />
               </SelectTrigger>
               <SelectContent>
+                {/* Not a client, so it sits apart from the account list. */}
+                <SelectItem value={ADHOC_ROW_ID}>{ADHOC_LABEL} · no client</SelectItem>
                 {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name} · {p.code}
@@ -193,38 +210,43 @@ export function TaskCreateDialog({
                 ))}
               </SelectContent>
             </Select>
+            {isAdhoc && <p className="text-muted-foreground text-xs">{ADHOC_DESCRIPTION}.</p>}
           </div>
         )}
 
-        <div className="space-y-2">
-          <Label>
-            Team<span className="text-destructive"> *</span>
-          </Label>
-          <Select value={teamId} onValueChange={setTeamId} disabled={!projectId}>
-            <SelectTrigger>
-              <SelectValue placeholder={projectId ? "Select a team" : "Pick a project first"} />
-            </SelectTrigger>
-            <SelectContent>
-              {selectableTeams.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {projectId && selectableTeams.length === 0 && (
-            <p className="text-muted-foreground text-xs">
-              You are not on a team in this project, so there is nowhere to file a task.
-            </p>
-          )}
-          {projectId && !isProjectAdmin && selectableTeams.length > 0 && (
-            <p className="text-muted-foreground text-xs">
-              Only the {selectableTeams.length === 1 ? "team" : "teams"} you belong to.
-            </p>
-          )}
-        </div>
+        {/* Adhoc work has no team - there is nothing to pick, and the line
+            manager stands in for the team manager on approval. */}
+        {!isAdhoc && (
+          <div className="space-y-2">
+            <Label>
+              Team<span className="text-destructive"> *</span>
+            </Label>
+            <Select value={teamId} onValueChange={setTeamId} disabled={!projectId}>
+              <SelectTrigger>
+                <SelectValue placeholder={projectId ? "Select a team" : "Pick a project first"} />
+              </SelectTrigger>
+              <SelectContent>
+                {selectableTeams.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {projectId && selectableTeams.length === 0 && (
+              <p className="text-muted-foreground text-xs">
+                You are not on a team in this project, so there is nowhere to file a task.
+              </p>
+            )}
+            {projectId && !isProjectAdmin && selectableTeams.length > 0 && (
+              <p className="text-muted-foreground text-xs">
+                Only the {selectableTeams.length === 1 ? "team" : "teams"} you belong to.
+              </p>
+            )}
+          </div>
+        )}
 
-        {sites.length > 0 && (
+        {sites.length > 0 && !isAdhoc && (
           <div className="space-y-2">
             <Label>Site</Label>
             <Select
@@ -249,31 +271,39 @@ export function TaskCreateDialog({
           </div>
         )}
 
-        <div className="space-y-2">
-          <Label>Assignee</Label>
-          <Select
-            value={assigneeId || "auto"}
-            onValueChange={(v) => setAssigneeId(v === "auto" ? "" : v)}
-            disabled={!teamId}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Team manager (default)" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">Team manager (default)</SelectItem>
-              {assignees.map((m) => (
-                <SelectItem key={m.employeeId} value={m.employeeId}>
-                  {m.employee.firstName} {m.employee.lastName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Adhoc work has no team to pick an assignee from, so it is raised on
+            yourself - which is what a meeting or an interview is. */}
+        {isAdhoc ? (
           <p className="text-muted-foreground text-xs">
-            {teamId && !canAssignOthers
-              ? "You can only raise a task on yourself here; it goes to your team manager for approval."
-              : "Assign it to yourself and it goes to your manager for approval."}
+            Raised on you. It goes to your line manager for approval.
           </p>
-        </div>
+        ) : (
+          <div className="space-y-2">
+            <Label>Assignee</Label>
+            <Select
+              value={assigneeId || "auto"}
+              onValueChange={(v) => setAssigneeId(v === "auto" ? "" : v)}
+              disabled={!teamId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Team manager (default)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Team manager (default)</SelectItem>
+                {assignees.map((m) => (
+                  <SelectItem key={m.employeeId} value={m.employeeId}>
+                    {m.employee.firstName} {m.employee.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              {teamId && !canAssignOthers
+                ? "You can only raise a task on yourself here; it goes to your team manager for approval."
+                : "Assign it to yourself and it goes to your manager for approval."}
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label>

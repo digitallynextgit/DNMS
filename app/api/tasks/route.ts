@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
+import { hasPermission } from "@/lib/permissions"
+import { PERMISSIONS } from "@/lib/constants"
+import { createNotification } from "@/lib/notifications"
+import { createAuditLog } from "@/lib/audit"
+import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
 import type { Session } from "next-auth"
 
 /**
@@ -36,17 +41,25 @@ async function getManagedScope(userId: string) {
     }),
   ])
 
-  const people = new Map<string, { id: string; name: string }>()
-  for (const r of reports) {
-    people.set(r.id, { id: r.id, name: `${r.firstName} ${r.lastName}`.trim() })
-  }
+  // isReport separates the two ways someone can be "under" you. A DIRECT REPORT
+  // is your subordinate and belongs in the people picker unconditionally; a team
+  // member you merely manage the team of does not - they surface only once that
+  // team is selected. Both are still authorised for scope=all, which is why
+  // this is one list with a flag rather than two.
+  const people = new Map<string, { id: string; name: string; isReport: boolean }>()
   for (const t of managedTeams) {
     for (const m of t.members) {
       people.set(m.employeeId, {
         id: m.employeeId,
         name: `${m.employee.firstName} ${m.employee.lastName}`.trim(),
+        isReport: false,
       })
     }
+  }
+  // After the team pass, so a direct report who is also on a team you manage is
+  // still flagged as a report rather than being overwritten as a plain member.
+  for (const r of reports) {
+    people.set(r.id, { id: r.id, name: `${r.firstName} ${r.lastName}`.trim(), isReport: true })
   }
   // You are not your own subordinate; "Me" is a separate option in the picker.
   people.delete(userId)
@@ -111,7 +124,17 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
         // managerId rides along so the client can apply the same edit/delete
         // rules the API enforces, instead of offering controls that 403.
         team: { select: { id: true, name: true, managerId: true } },
-        assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
+        // managerId: adhoc work has no team, so the assignee's LINE manager is
+        // the authority on it - the client needs that to match the API's rules.
+        assignee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profilePhoto: true,
+            managerId: true,
+          },
+        },
         // Drives the "Blocked" badge - a task waiting on a requirement should say
         // so wherever it is listed, not only inside the project.
         requirement: { select: { id: true, title: true, status: true } },
@@ -129,6 +152,116 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
     })
   } catch (error) {
     console.error("[TASKS_GET]", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+})
+
+// POST /api/tasks - raise an ADHOC task: work that belongs to no client.
+//
+// Meetings, interviews, internal QC. There is no project and no team to file it
+// under, which is the whole point - it used to be forced into a stand-in "ADHOC"
+// project that then behaved like a client account everywhere.
+//
+// Authority mirrors the project flow with the LINE manager standing in for the
+// team manager: raising one on yourself sends it to your manager for approval;
+// a manager raising one on a report is approved on the spot.
+export const POST = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
+  try {
+    const body = await req.json()
+    const title = (body.title ?? "").toString().trim()
+    if (!title) return NextResponse.json({ error: "Title is required" }, { status: 400 })
+
+    const assigneeId: string = body.assigneeId || session.user.id
+    const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+
+    const assignee = await db.employee.findUnique({
+      where: { id: assigneeId },
+      select: { id: true, firstName: true, lastName: true, managerId: true, isActive: true },
+    })
+    if (!assignee || !assignee.isActive) {
+      return NextResponse.json({ error: "Assignee not found" }, { status: 422 })
+    }
+
+    // You may raise adhoc work on yourself, on someone who reports to you, or
+    // anywhere if you administer projects. Without this anyone could drop work
+    // onto anyone, which the project route is careful not to allow either.
+    const isSelf = assigneeId === session.user.id
+    const managesAssignee = assignee.managerId === session.user.id
+    if (!isSelf && !managesAssignee && !isAdmin) {
+      return NextResponse.json(
+        { error: "You can only raise adhoc work on yourself or someone who reports to you." },
+        { status: 403 },
+      )
+    }
+
+    // Self-raised goes to the line manager, exactly as a self-raised project
+    // task goes to the team manager. Nobody above you to ask means nothing to
+    // wait for, so it stands approved rather than pending forever.
+    const needsApproval = isSelf && !isAdmin && !!assignee.managerId
+    const approvalStatus = needsApproval ? "PENDING_APPROVAL" : "APPROVED"
+
+    const task = await db.projectTask.create({
+      data: {
+        projectId: null,
+        teamId: null,
+        title,
+        description: body.description?.trim() || null,
+        status: "TODO",
+        priority: body.priority || "MEDIUM",
+        assigneeId,
+        creatorId: session.user.id,
+        dueDate: body.dueDate ? new Date(body.dueDate) : null,
+        estimatedHours: body.estimatedHours ? Number(body.estimatedHours) : null,
+        tags: Array.isArray(body.tags) ? body.tags : [],
+        approvalStatus,
+        isManagerCreated: !needsApproval,
+      },
+      include: {
+        assignee: { select: { id: true, firstName: true, lastName: true, email: true } },
+        creator: { select: { id: true, firstName: true, lastName: true } },
+      },
+    })
+
+    await openFirstStatusPeriod(db, {
+      taskId: task.id,
+      status: task.status,
+      actorId: session.user.id,
+      at: task.createdAt,
+    })
+
+    try {
+      if (needsApproval && assignee.managerId) {
+        await createNotification({
+          employeeId: assignee.managerId,
+          title: "Adhoc task pending approval",
+          message: `${task.creator.firstName} raised adhoc work: "${task.title}"`,
+          type: "warning",
+          link: "/projects/my-tasks",
+        })
+      } else if (!isSelf) {
+        await createNotification({
+          employeeId: assigneeId,
+          title: "New adhoc task",
+          message: `${task.creator.firstName} assigned you: "${task.title}"`,
+          type: "info",
+          link: "/projects/my-tasks",
+        })
+      }
+    } catch (_e) {
+      /* non-blocking */
+    }
+
+    await createAuditLog(session, {
+      action: "CREATE",
+      module: "project",
+      entityType: "ProjectTask",
+      entityId: task.id,
+      changes: { title: task.title, assigneeId, approvalStatus, adhoc: true },
+    })
+
+    return NextResponse.json({ data: task }, { status: 201 })
+  } catch (error) {
+    console.error("[ADHOC_TASK_POST]", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 })

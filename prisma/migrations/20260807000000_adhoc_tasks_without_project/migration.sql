@@ -1,0 +1,11 @@
+-- Adhoc work belongs to no client.
+--
+-- It used to live under a stand-in "ADHOC" project, which meant meetings,
+-- interviews and internal QC showed up everywhere a real account did. Making
+-- project_id nullable lets a task simply have no project; the assignee's line
+-- manager stands in for the team manager on it.
+--
+-- Detaching the existing ADHOC rows and removing that project is a separate,
+-- reviewable step: see prisma/migrate-adhoc-project.ts. Run it AFTER this
+-- migration and BEFORE anyone relies on the ADHOC project still existing.
+ALTER TABLE "project_tasks" ALTER COLUMN "project_id" DROP NOT NULL;

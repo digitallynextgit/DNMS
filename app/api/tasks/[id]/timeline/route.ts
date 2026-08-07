@@ -13,11 +13,24 @@ export const GET = withSession(
     try {
       const task = await db.projectTask.findUnique({
         where: { id: ctx.params.id },
-        select: { projectId: true },
+        select: {
+          projectId: true,
+          assigneeId: true,
+          creatorId: true,
+          assignee: { select: { managerId: true } },
+        },
       })
       if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 })
 
-      if (!(await canAccessProject(session, task.projectId))) {
+      // Adhoc work has no project to check access against, so it falls back to
+      // the people it actually concerns: whoever it is on, whoever raised it,
+      // and that person's line manager.
+      const allowed = task.projectId
+        ? await canAccessProject(session, task.projectId)
+        : task.assigneeId === session.user.id ||
+          task.creatorId === session.user.id ||
+          task.assignee?.managerId === session.user.id
+      if (!allowed) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }
 

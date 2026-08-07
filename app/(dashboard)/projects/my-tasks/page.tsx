@@ -23,8 +23,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   Select,
-  SelectGroup,
-  SelectLabel,
   SelectContent,
   SelectItem,
   SelectTrigger,
@@ -40,6 +38,7 @@ import {
   TASK_STATUS_COLORS,
 } from "@/lib/constants"
 import { usePermissions } from "@/features/admin"
+import { ADHOC_LABEL, ADHOC_ROW_ID } from "@/features/projects/lib/task-permissions"
 import { formatDate, cn } from "@/lib/utils"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
@@ -74,21 +73,29 @@ interface MyTask {
   /** Who raised it, and when - together these decide the 15-minute edit window. */
   creatorId: string
   createdAt: string
-  project: { id: string; name: string; code: string; slug: string | null }
+  /** Null for ADHOC work - meetings, interviews, anything with no client. */
+  project: { id: string; name: string; code: string; slug: string | null } | null
   team?: { id: string; name: string; managerId: string | null } | null
   /** Set while this task waits on a requirement; drives the Blocked badge. */
   requirement?: { id: string; title: string; status: string } | null
-  /** Only meaningful in the team view, where rows are not all yours. */
-  assignee?: { id: string; firstName: string; lastName: string } | null
+  /** managerId is the authority on adhoc work, which has no team manager. */
+  assignee?: { id: string; firstName: string; lastName: string; managerId?: string | null } | null
 }
 
-/** "me" | "all" | "team:<id>" | "user:<id>" - see GET /api/tasks. */
+/** "me" | "user:<id>" - see GET /api/tasks, which also still accepts "all". */
 type TaskScope = string
 
+/**
+ * Only the people list is read here. The response also carries the teams the
+ * caller manages; this page has no team view, so it ignores them.
+ */
 interface ScopeMeta {
-  teams: { id: string; name: string; projectName: string }[]
-  people: { id: string; name: string }[]
+  /** isReport = a direct subordinate. False = on a team you manage, nothing more. */
+  people: { id: string; name: string; isReport: boolean }[]
 }
+
+/** "Me" - kept distinct from a user id so the query key stays the plain one. */
+const MYSELF = "me"
 
 async function fetchMyTasks(scope: TaskScope): Promise<{ data: MyTask[]; meta?: ScopeMeta }> {
   const res = await fetch(`/api/tasks?mine=true&scope=${encodeURIComponent(scope)}`)
@@ -113,6 +120,22 @@ function dayKey(iso: string | null): string {
   if (!iso) return NO_DATE
   const d = new Date(iso)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+/**
+ * Where a task's client goes. Adhoc work has no project, so there is nothing to
+ * link to - it says "Adhoc" in muted text rather than rendering a dead link or,
+ * worse, an empty gap where every other row names an account.
+ */
+function ProjectLink({ task, className }: { task: MyTask; className?: string }) {
+  if (!task.project) {
+    return <span className={cn("text-muted-foreground", className)}>{ADHOC_LABEL}</span>
+  }
+  return (
+    <Link href={projectHref(task.project)} className={cn("hover:underline", className)}>
+      {task.project.name}
+    </Link>
+  )
 }
 
 /** "Today · Mon, 3 Aug", "Tomorrow · …", or just the date. */
@@ -154,8 +177,14 @@ export default function MyTasksPage() {
   const { data: projectsData } = useProjects()
   const myProjects = useMemo(() => projectsData?.data ?? [], [projectsData])
 
-  const [scope, setScope] = useState<TaskScope>("me")
-  const isMine = scope === "me"
+  // ── Whose tasks ────────────────────────────────────────────────────────────
+  // One dropdown, one question: whose sheet am I looking at. You or one of your
+  // subordinates - never a team, never a merged "everyone" list, because the
+  // sheet reads as ONE person's week and a mixed list is not that.
+  const [person, setPerson] = useState<string>(MYSELF)
+  const isMine = person === MYSELF
+
+  const scope: TaskScope = isMine ? MYSELF : `user:${person}`
 
   // "me" keeps the bare ["my-tasks"] key: MyProgress shares that entry and the
   // drag handler patches it in place. Every other scope is a different result
@@ -163,28 +192,42 @@ export default function MyTasksPage() {
   const queryKey = useMemo(() => (isMine ? ["my-tasks"] : ["my-tasks", scope]), [isMine, scope])
   const { data, isLoading } = useQuery({ queryKey, queryFn: () => fetchMyTasks(scope) })
 
-  // The picker is built from what the server says this person manages, so it can
-  // never offer a team or a colleague they have no business seeing. Held across
-  // refetches: switching scope briefly clears `data`, and rebuilding the list
-  // from an empty response would collapse the menu mid-selection.
-  const [scopeMeta, setScopeMeta] = useState<ScopeMeta>({ teams: [], people: [] })
+  // The pickers are built from what the server says this person manages, so they
+  // can never offer a team or a colleague they have no business seeing. Held
+  // across refetches: switching scope briefly clears `data`, and rebuilding the
+  // list from an empty response would collapse the menu mid-selection.
+  const [scopeMeta, setScopeMeta] = useState<ScopeMeta>({ people: [] })
   useEffect(() => {
     if (data?.meta) setScopeMeta(data.meta)
   }, [data])
-  const managesSomething = scopeMeta.people.length > 0 || scopeMeta.teams.length > 0
+  /**
+   * Your SUBORDINATES - direct reports only.
+   *
+   * Managing a team does not make everyone on it your report, and the old flat
+   * list mixed the two so you could not tell which was which. Only people who
+   * actually report to you are offered here.
+   */
+  const selectablePeople = useMemo(
+    () => scopeMeta.people.filter((p) => p.isReport).sort((a, b) => a.name.localeCompare(b.name)),
+    [scopeMeta.people],
+  )
+  const managesSomething = selectablePeople.length > 0
+
+  // A report who moves away stops being selectable; falling back to yourself
+  // beats a picker displaying a value that is no longer in its own list.
+  useEffect(() => {
+    if (person === MYSELF) return
+    if (!selectablePeople.some((p) => p.id === person)) setPerson(MYSELF)
+  }, [selectablePeople, person])
 
   /** What the header should call the current selection. Real names, never "me". */
-  const scopeLabel = useMemo(() => {
-    if (scope === "all") return "Everyone"
-    if (scope.startsWith("team:")) {
-      const t = scopeMeta.teams.find((x) => x.id === scope.slice(5))
-      return t ? `${t.name} · ${t.projectName}` : "Team"
-    }
-    if (scope.startsWith("user:")) {
-      return scopeMeta.people.find((p) => p.id === scope.slice(5))?.name ?? "Teammate"
-    }
-    return myName
-  }, [scope, scopeMeta, myName])
+  const scopeLabel = useMemo(
+    () =>
+      person === MYSELF
+        ? myName
+        : (scopeMeta.people.find((p) => p.id === person)?.name ?? "Teammate"),
+    [person, scopeMeta.people, myName],
+  )
 
   const [createOpen, setCreateOpen] = useState(false)
   const updateMut = useMutation({
@@ -208,7 +251,8 @@ export default function MyTasksPage() {
     const rows = Array.isArray(data?.data) ? data.data : []
     return rows.filter((t) => {
       if (statusFilter !== "all" && t.status !== statusFilter) return false
-      if (projectFilter !== "all" && t.project.id !== projectFilter) return false
+      // Adhoc work has no project, so it filters on the sentinel rather than an id.
+      if (projectFilter !== "all" && (t.project?.id ?? ADHOC_ROW_ID) !== projectFilter) return false
       // Compared as a local calendar day, so a task due "today" matches today
       // regardless of the time-of-day stored on it. The sheet view is scoped by
       // its own week stepper, so a single-day filter would empty the grid.
@@ -271,8 +315,12 @@ export default function MyTasksPage() {
     [myProjects, projectFilter],
   )
 
+  /** Hide the Adhoc row only when the filter has narrowed to a single client. */
+  const showAdhocRow = projectFilter === "all" || projectFilter === ADHOC_ROW_ID
+
   /** Whose plan is being written. A teammate's sheet files tasks on them. */
-  const sheetAssigneeId = scope.startsWith("user:") ? scope.slice(5) : (session?.user?.id ?? "")
+  /** Whose plan is being written - you, or the report whose sheet is open. */
+  const sheetAssigneeId = isMine ? (session?.user?.id ?? "") : person
 
   const columns: DataTableColumn<MyTask>[] = [
     {
@@ -329,25 +377,11 @@ export default function MyTasksPage() {
         )
       },
     },
-    // Whose task it is only matters when the list is not all yours. A single
-    // person's scope doesn't need it either - the header already names them.
-    ...(scope === "all" || scope.startsWith("team:")
-      ? [
-          {
-            header: "Assignee",
-            className: "text-xs whitespace-nowrap",
-            cell: (task: MyTask) =>
-              task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : "-",
-          },
-        ]
-      : []),
+    // No Assignee column: the list is always exactly one person's, and the page
+    // header already names them.
     {
       header: "Project",
-      cell: (task) => (
-        <Link href={projectHref(task.project)} className="text-xs hover:underline">
-          {task.project.name}
-        </Link>
-      ),
+      cell: (task) => <ProjectLink task={task} className="text-xs" />,
     },
     {
       header: "Team",
@@ -396,45 +430,29 @@ export default function MyTasksPage() {
         description={
           isMine
             ? "Tasks assigned to you across all projects."
-            : `Showing ${scopeLabel.toLowerCase()}, across all projects.`
+            : `${scopeLabel}'s tasks, across all projects.`
         }
         actions={
           <>
-            {/* Only rendered for someone who actually manages a team or a person.
-                The options come from the server, so the list is also the
-                authorisation - you cannot pick a team that isn't yours. */}
+            {/* Only rendered for someone who actually has reports. The options
+                come from the server, so the list is also the authorisation -
+                you cannot pick a person who isn't yours to see. */}
             {managesSomething && (
-              <Select value={scope} onValueChange={setScope}>
-                <SelectTrigger className="h-8 w-56 text-sm">
+              <Select value={person} onValueChange={setPerson}>
+                <SelectTrigger className="h-8 w-48 text-sm" aria-label="Whose tasks">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {/* Named, not "Me" - the list reads as people, so the person
                       you are reads the same way as everyone else on it. */}
-                  <SelectItem value="me">{myName}</SelectItem>
-                  <SelectItem value="all">Everyone</SelectItem>
-
-                  {scopeMeta.teams.length > 0 && (
-                    <SelectGroup>
-                      <SelectLabel>Teams I manage</SelectLabel>
-                      {scopeMeta.teams.map((t) => (
-                        <SelectItem key={t.id} value={`team:${t.id}`}>
-                          {t.name} · {t.projectName}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  )}
-
-                  {scopeMeta.people.length > 0 && (
-                    <SelectGroup>
-                      <SelectLabel>People</SelectLabel>
-                      {scopeMeta.people.map((p) => (
-                        <SelectItem key={p.id} value={`user:${p.id}`}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  )}
+                  <SelectItem value={MYSELF}>{myName}</SelectItem>
+                  {/* No group heading: everyone below is a report, and the list
+                      is short enough that a label just adds a line to read. */}
+                  {selectablePeople.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
@@ -481,7 +499,8 @@ export default function MyTasksPage() {
             <ul className="text-muted-foreground space-y-1 text-xs">
               {pendingApproval.map((t) => (
                 <li key={t.id}>
-                  · <span className="text-foreground">{t.title}</span> - {t.project.name}
+                  · <span className="text-foreground">{t.title}</span> -{" "}
+                  {t.project?.name ?? ADHOC_LABEL}
                 </li>
               ))}
             </ul>
@@ -499,6 +518,8 @@ export default function MyTasksPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All projects</SelectItem>
+              {/* Work with no client is still work you may want to look at alone. */}
+              <SelectItem value={ADHOC_ROW_ID}>{ADHOC_LABEL}</SelectItem>
               {myProjects.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.name}
@@ -587,7 +608,7 @@ export default function MyTasksPage() {
           assigneeId={sheetAssigneeId}
           currentUserId={session?.user?.id ?? ""}
           isAdmin={can(PERMISSIONS.PROJECT_WRITE)}
-          readOnly={scope === "all" || scope.startsWith("team:")}
+          showAdhoc={showAdhocRow}
         />
       ) : tasks.length === 0 ? (
         <EmptyState icon={Inbox} variant="card" title="No tasks match the filter." />
@@ -703,18 +724,8 @@ export default function MyTasksPage() {
                               </p>
                             )}
                             <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                              <Link
-                                href={projectHref(task.project)}
-                                className="hover:text-foreground hover:underline"
-                              >
-                                {task.project.name}
-                              </Link>
+                              <ProjectLink task={task} className="hover:text-foreground" />
                               {task.team && <span>· {task.team.name}</span>}
-                              {(scope === "all" || scope.startsWith("team:")) && task.assignee && (
-                                <span className="text-foreground font-medium">
-                                  · {task.assignee.firstName} {task.assignee.lastName}
-                                </span>
-                              )}
                               <StatusBadge
                                 status={task.priority}
                                 colorMap={TASK_PRIORITY_COLORS}
@@ -950,13 +961,10 @@ function MyTasksBoard({
                                     <p className="text-sm leading-snug font-medium break-words">
                                       {task.title}
                                     </p>
-                                    <Link
-                                      href={projectHref(task.project)}
-                                      className="text-muted-foreground mt-0.5 block truncate text-[11px] hover:underline"
-                                      title={task.project.name}
-                                    >
-                                      {task.project.name}
-                                    </Link>
+                                    <ProjectLink
+                                      task={task}
+                                      className="text-muted-foreground mt-0.5 block truncate text-[11px]"
+                                    />
                                   </div>
                                   <TaskHistoryDialog
                                     taskId={task.id}

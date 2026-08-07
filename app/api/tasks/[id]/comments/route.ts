@@ -50,14 +50,17 @@ export const POST = withSession(
         include: { author: { select: AUTHOR_SELECT } },
       })
 
-      await logActivity({
-        projectId: task.projectId,
-        actorId: session.user.id,
-        type: "COMMENT_ADDED",
-        entityType: "TASK",
-        entityId: taskId,
-        meta: { taskTitle: task.title, commentId: comment.id },
-      })
+      // Adhoc work belongs to no project, so there is no feed to write to.
+      if (task.projectId) {
+        await logActivity({
+          projectId: task.projectId,
+          actorId: session.user.id,
+          type: "COMMENT_ADDED",
+          entityType: "TASK",
+          entityId: taskId,
+          meta: { taskTitle: task.title, commentId: comment.id },
+        })
+      }
 
       return NextResponse.json({ data: comment }, { status: 201 })
     } catch (error) {

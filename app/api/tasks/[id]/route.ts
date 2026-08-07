@@ -7,23 +7,37 @@ import { logActivity } from "@/features/projects/server/activity"
 import { syncTaskToEntry } from "@/features/projects/server/content-task.service"
 import { recordStatusChange } from "@/features/projects/server/task-status-periods"
 import { createNotification } from "@/lib/notifications"
-import { canDeleteTask, taskEditLockReason } from "@/features/projects/lib/task-permissions"
+import {
+  canDeleteTask,
+  resolveTaskManagerId,
+  taskEditLockReason,
+} from "@/features/projects/lib/task-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-// Permission helper: returns roles for the current user against a task
+// Permission helper: returns roles for the current user against a task.
+//
+// "Manager" is the team's manager for project work and the assignee's LINE
+// manager for adhoc work, which has no team - see resolveTaskManagerId.
 async function getTaskAuthContext(taskId: string, userId: string) {
   const task = await db.projectTask.findUnique({
     where: { id: taskId },
     include: {
       team: { select: { id: true, managerId: true, projectId: true } },
+      assignee: { select: { id: true, managerId: true } },
     },
   })
   if (!task) return null
+  const managerId = resolveTaskManagerId({
+    teamId: task.teamId,
+    teamManagerId: task.team?.managerId,
+    assigneeManagerId: task.assignee?.managerId,
+  })
   return {
     task,
+    managerId,
     isAssignee: task.assigneeId === userId,
-    isManager: task.team?.managerId === userId,
+    isManager: !!managerId && managerId === userId,
   }
 }
 
@@ -64,7 +78,7 @@ export const PATCH = withSession(
       const subject = {
         creatorId: auth.task.creatorId,
         createdAt: auth.task.createdAt,
-        teamManagerId: auth.task.team?.managerId ?? null,
+        teamManagerId: auth.managerId,
       }
       const actor = { userId: session.user.id, isAdmin }
 
@@ -190,23 +204,28 @@ export const PATCH = withSession(
         changes: data as object,
       })
 
+      // Null for adhoc work, which belongs to no project - there is no activity
+      // feed to write to and no project page to link a notification at.
       const projectId = auth.task.team?.projectId ?? auth.task.projectId
       if (status !== undefined && status !== prevStatus) {
         // If this task mirrors a content-calendar post, move the plan with it -
         // ticking the task off is how a writer marks the post published.
         await syncTaskToEntry(task.id, task.status)
 
-        await logActivity({
-          projectId,
-          actorId: session.user.id,
-          type: "TASK_STATUS_CHANGED",
-          entityType: "TASK",
-          entityId: task.id,
-          meta: { taskTitle: task.title, from: prevStatus, to: status },
-        })
+        if (projectId) {
+          await logActivity({
+            projectId,
+            actorId: session.user.id,
+            type: "TASK_STATUS_CHANGED",
+            entityType: "TASK",
+            entityId: task.id,
+            meta: { taskTitle: task.title, from: prevStatus, to: status },
+          })
+        }
 
-        // Notify the team manager on the key transitions.
-        const mgrId = auth.task.team?.managerId
+        // Notify whoever manages this task on the key transitions - the team
+        // manager, or the assignee's line manager when it is adhoc.
+        const mgrId = auth.managerId
         if (mgrId && mgrId !== session.user.id) {
           const who = task.assignee
             ? `${task.assignee.firstName} ${task.assignee.lastName}`
@@ -235,11 +254,12 @@ export const PATCH = withSession(
             await createNotification({
               employeeId: mgrId,
               ...notif,
-              link: `/projects/${projectId}`,
+              // Adhoc work has no project page; My Tasks is where it lives.
+              link: projectId ? `/projects/${projectId}` : "/projects/my-tasks",
             })
           }
         }
-      } else if (typeof isMilestone === "boolean") {
+      } else if (typeof isMilestone === "boolean" && projectId) {
         await logActivity({
           projectId,
           actorId: session.user.id,
@@ -272,7 +292,7 @@ export const DELETE = withSession(
         {
           creatorId: auth.task.creatorId,
           createdAt: auth.task.createdAt,
-          teamManagerId: auth.task.team?.managerId ?? null,
+          teamManagerId: auth.managerId,
         },
         { userId: session.user.id, isAdmin: isAdminDel },
       )

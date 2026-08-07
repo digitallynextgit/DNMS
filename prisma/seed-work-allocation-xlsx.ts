@@ -294,43 +294,13 @@ async function main() {
   })
   const byCode = new Map(projects.map((p) => [p.code, p]))
 
-  let adhoc = projects.find((p) => p.name.toUpperCase() === "ADHOC")
-  if (!adhoc) {
-    const lastDn = await db.project.findFirst({
-      where: { code: { startsWith: "DN" } },
-      select: { code: true },
-      orderBy: { code: "desc" },
-    })
-    const next = (Number(lastDn?.code.replace("DN", "") ?? 0) || 0) + 1
-    const code = `DN${String(next).padStart(5, "0")}`
-    console.log(`ADHOC project: will create as ${code}`)
-    if (!COMMIT) {
-      // Stand-in so a dry run still reports what would land in ADHOC instead of
-      // counting all of it as skipped.
-      adhoc = { id: "(pending)", code, name: "ADHOC", ownerId: employees[0]!.id }
-    }
-    if (COMMIT) {
-      adhoc = await db.project.create({
-        data: {
-          name: "ADHOC",
-          code,
-          slug: "adhoc",
-          description:
-            "Internal and unbilled work from the allocation sheet: adhoc support, deliverables QC, brochures and meetings. Not a client project.",
-          status: "ACTIVE",
-          priority: "MEDIUM",
-          ownerId: employees[0]!.id,
-        },
-        select: { id: true, code: true, name: true, ownerId: true },
-      })
-    }
-  } else {
-    console.log(`ADHOC project: reusing ${adhoc.code}`)
-  }
-
+  // Adhoc is no longer a project. Work whose "Client" matches nothing is
+  // imported with NO project - that is what "belongs to no client" now means.
+  // This used to create an "ADHOC" Project, and that row then behaved like a
+  // client account everywhere it was listed. Null here, nothing to create.
   const resolveProject = (client: string) => {
     for (const p of CLIENT_PATTERNS) if (p.re.test(client)) return byCode.get(p.code) ?? null
-    return adhoc ?? null
+    return null
   }
 
   // Teams, and the memberships we may have to create.
@@ -347,7 +317,8 @@ async function main() {
   const planned: {
     employeeId: string
     employeeName: string
-    projectId: string
+    /** Null = adhoc: work the sheet's "Client" column matched no project for. */
+    projectId: string | null
     projectCode: string
     teamId: string | null
     teamName: string
@@ -369,21 +340,20 @@ async function main() {
   for (const e of entries) {
     const emp = sheetEmployee.get(e.sheet)
     if (!emp) continue
+    // No matching client means adhoc: meetings, interviews, internal QC. That is
+    // now the ABSENCE of a project rather than a stand-in ADHOC project, so the
+    // row is imported with no project and no team instead of being skipped.
     const project = resolveProject(e.client)
     if (!project) {
-      skipped.push(`${e.sheet}: no project for "${e.client}"`)
-      continue
-    }
-    if (!CLIENT_PATTERNS.some((p) => p.re.test(e.client))) {
       unmatchedClients.set(e.client, (unmatchedClients.get(e.client) ?? 0) + 1)
     }
 
     // Which team? Their existing one in this project, else the one their role
-    // implies, else the project's first team.
-    const projectTeams = teams.filter((t) => t.projectId === project.id)
+    // implies, else the project's first team. Adhoc work has no team at all.
+    const projectTeams = project ? teams.filter((t) => t.projectId === project.id) : []
     let team = projectTeams.find((t) => t.members.some((m) => m.employeeId === emp.id))
     let teamName = team?.name ?? ""
-    if (!team) {
+    if (project && !team) {
       // The team their ROLE implies, created in this project if it is missing.
       // Falling back to whatever team happens to exist put content and design
       // people on WEB boards, which is worse than a new correctly-named team.
@@ -412,8 +382,8 @@ async function main() {
     planned.push({
       employeeId: emp.id,
       employeeName: emp.name,
-      projectId: project.id,
-      projectCode: project.code,
+      projectId: project?.id ?? null,
+      projectCode: project?.code ?? "ADHOC",
       teamId: team?.id ?? null,
       teamName,
       title: toTitle(source) || `${e.client} work`,
@@ -439,7 +409,7 @@ async function main() {
   for (const p of planned) perProject.set(p.projectCode, (perProject.get(p.projectCode) ?? 0) + 1)
   console.log("\nPer project:")
   for (const [code, c] of [...perProject].sort((a, b) => b[1] - a[1])) {
-    const name = code === adhoc?.code ? "ADHOC" : (byCode.get(code)?.name ?? code)
+    const name = code === "ADHOC" ? "no client" : (byCode.get(code)?.name ?? code)
     console.log(`  ${String(c).padStart(4)}  ${code} ${name}`)
   }
 
@@ -451,7 +421,7 @@ async function main() {
   console.log(`Without a team: ${planned.filter((p) => !p.teamId).length}`)
 
   if (unmatchedClients.size > 0) {
-    console.log("\nRouted to ADHOC (client matched no project):")
+    console.log("\nImported as adhoc, no project (client matched nothing):")
     for (const [c, n] of [...unmatchedClients].sort((a, b) => b[1] - a[1])) {
       console.log(`  ${String(n).padStart(4)}  ${c}`)
     }

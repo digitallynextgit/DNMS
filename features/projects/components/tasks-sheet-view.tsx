@@ -31,8 +31,12 @@ import { cn } from "@/lib/utils"
 import { TASK_STATUS_LABELS, TASK_WORKFLOW_STATUSES } from "@/lib/constants"
 import { formatHours } from "@/features/projects/lib/format-hours"
 import {
+  ADHOC_DESCRIPTION,
+  ADHOC_LABEL,
+  ADHOC_ROW_ID,
   canDeleteTask,
   canEditTaskDetails,
+  resolveTaskManagerId,
   taskEditLockReason,
   taskEditWindowLeft,
 } from "@/features/projects/lib/task-permissions"
@@ -70,8 +74,11 @@ export interface SheetTask {
   /** Who raised it, and when - together these decide the 15-minute window. */
   creatorId: string
   createdAt: string
-  project: { id: string; name: string; code: string; slug: string | null }
+  /** Null for ADHOC work: it belongs to no client and lands in the Adhoc row. */
+  project: { id: string; name: string; code: string; slug: string | null } | null
   team?: { id: string; name: string; managerId: string | null } | null
+  /** managerId is the authority on adhoc work, which has no team manager. */
+  assignee?: { id: string; managerId?: string | null } | null
 }
 
 export interface SheetProject {
@@ -79,6 +86,23 @@ export interface SheetProject {
   name: string
   code: string
 }
+
+/**
+ * The row a task belongs to. Adhoc work has no project, so it collects under a
+ * sentinel row instead of the client rows - one keying rule rather than two.
+ */
+function rowIdOf(task: SheetTask): string {
+  return task.project?.id ?? ADHOC_ROW_ID
+}
+
+const ADHOC_ROW: SheetProject = { id: ADHOC_ROW_ID, name: ADHOC_LABEL, code: "no client" }
+
+/**
+ * The frozen-pane edge on the pinned Client column: a double-weight border plus
+ * a soft shadow, so it reads as a column the rest of the sheet scrolls UNDER
+ * rather than as just another cell boundary.
+ */
+const STICKY_EDGE = "sticky left-0 border-r-2 shadow-[4px_0_6px_-4px_rgb(0_0_0/0.45)]"
 
 /** Status is carried by the colour of the whole line, number included. */
 const STATUS_TEXT: Record<string, string> = {
@@ -94,12 +118,21 @@ const STATUS_TEXT: Record<string, string> = {
 /** Struck through because the work is over, one way or the other. */
 const STATUS_CLOSED = new Set(["DONE", "DISCARDED", "CANCELLED"])
 
-/** The shape the edit/delete rules read, pulled off a sheet row. */
+/**
+ * The shape the edit/delete rules read, pulled off a sheet row. The manager is
+ * resolved the same way the API resolves it - the team's for project work, the
+ * assignee's line manager for adhoc - so the controls shown here match what the
+ * server will actually allow.
+ */
 function subjectOf(task: SheetTask) {
   return {
     creatorId: task.creatorId,
     createdAt: task.createdAt,
-    teamManagerId: task.team?.managerId ?? null,
+    teamManagerId: resolveTaskManagerId({
+      teamId: task.team?.id ?? null,
+      teamManagerId: task.team?.managerId,
+      assigneeManagerId: task.assignee?.managerId,
+    }),
   }
 }
 
@@ -415,6 +448,8 @@ interface Props {
   currentUserId: string
   /** Project admin (PROJECT_WRITE): edits and deletes without restriction. */
   isAdmin?: boolean
+  /** Show the Adhoc row - hidden when the filter has narrowed to one client. */
+  showAdhoc?: boolean
   /** Read-only when the sheet shows a whole team rather than one person. */
   readOnly?: boolean
 }
@@ -425,6 +460,7 @@ export function TasksSheetView({
   assigneeId,
   currentUserId,
   isAdmin = false,
+  showAdhoc = true,
   readOnly = false,
 }: Props) {
   const qc = useQueryClient()
@@ -498,7 +534,7 @@ export function TasksSheetView({
     for (const t of tasks) {
       const key = dayKey(t.dueDate)
       if (!weekKeys.has(key)) continue
-      const cellKey = `${t.project.id}|${key}`
+      const cellKey = `${rowIdOf(t)}|${key}`
       const list = map.get(cellKey)
       if (list) list.push(t)
       else map.set(cellKey, [t])
@@ -508,16 +544,21 @@ export function TasksSheetView({
 
   // Every project the person is on, plus any project that has work in this week
   // but is missing from that list (e.g. a task filed on a project they left).
+  // Adhoc is pinned LAST rather than sorted in: it is not a client, and having
+  // it land between two real accounts alphabetically is what made the old ADHOC
+  // project read as one.
   const rows = useMemo(() => {
     const byId = new Map<string, SheetProject>()
     for (const p of projects) byId.set(p.id, p)
     for (const t of tasks) {
-      if (!byId.has(t.project.id) && weekKeys.has(dayKey(t.dueDate))) {
-        byId.set(t.project.id, t.project)
+      const id = rowIdOf(t)
+      if (t.project && !byId.has(id) && weekKeys.has(dayKey(t.dueDate))) {
+        byId.set(id, t.project)
       }
     }
-    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
-  }, [projects, tasks, weekKeys])
+    const clients = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
+    return showAdhoc ? [...clients, ADHOC_ROW] : clients
+  }, [projects, tasks, weekKeys, showAdhoc])
 
   const weekLabel = useMemo(() => {
     const start = fromKey(weekStart)
@@ -593,13 +634,17 @@ export function TasksSheetView({
       }
 
       if (plan.creates.length > 0) {
-        const teamId = await resolveTeamId(plan.projectId)
-        if (!teamId) {
+        // Adhoc work belongs to no project and no team, so it goes to the plain
+        // task endpoint; everything else has to be filed under a team.
+        const adhoc = plan.projectId === ADHOC_ROW_ID
+        const teamId = adhoc ? null : await resolveTeamId(plan.projectId)
+        if (!adhoc && !teamId) {
           failures.push(`No team in ${plan.projectName} you can file a task in`)
         } else {
+          const url = adhoc ? `/api/tasks` : `/api/projects/${plan.projectId}/teams/${teamId}/tasks`
           for (const line of plan.creates) {
             try {
-              await apiFetch(`/api/projects/${plan.projectId}/teams/${teamId}/tasks`, {
+              await apiFetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -621,7 +666,9 @@ export function TasksSheetView({
       // Always refetch: a cell that failed must snap back to what is actually
       // stored rather than keep showing the text that was rejected.
       await qc.invalidateQueries({ queryKey: ["my-tasks"] })
-      qc.invalidateQueries({ queryKey: ["project-all-tasks", plan.projectId] })
+      if (plan.projectId !== ADHOC_ROW_ID) {
+        qc.invalidateQueries({ queryKey: ["project-all-tasks", plan.projectId] })
+      }
     }
 
     if (failures.length > 0) {
@@ -707,7 +754,8 @@ export function TasksSheetView({
     } finally {
       setBusy(cellKey, false)
       await qc.invalidateQueries({ queryKey: ["my-tasks"] })
-      qc.invalidateQueries({ queryKey: ["project-all-tasks", task.project.id] })
+      // Adhoc work is in no project board, so there is nothing else to refresh.
+      if (task.project) qc.invalidateQueries({ queryKey: ["project-all-tasks", task.project.id] })
     }
   }
 
@@ -797,14 +845,23 @@ export function TasksSheetView({
         </div>
       ) : (
         <div className="bg-card overflow-x-auto rounded-[2px] border">
-          <table className="w-full border-collapse text-sm">
+          {/* border-SEPARATE, not collapse: a collapsed border belongs to the
+              table, not to the cell that declares it, so the Client column's
+              right edge painted underneath the sticky cell and slid away with
+              the scroll - leaving the pinned column visually merged into the
+              day columns. Separated borders stay with their cell. Every cell
+              draws only its right and bottom edge, so nothing doubles up. */}
+          <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
               <tr className="bg-muted/60">
                 {/* Solid, not the row's translucent tint: cells scroll UNDER
                     this column and a see-through header shows them doing it. */}
                 <th
                   rowSpan={2}
-                  className="bg-muted sticky left-0 z-20 w-40 min-w-40 border-r border-b px-3 py-2 text-left text-[11px] font-semibold tracking-wide uppercase"
+                  className={cn(
+                    "bg-muted z-20 w-40 min-w-40 border-b px-3 py-2 text-left text-[11px] font-semibold tracking-wide uppercase",
+                    STICKY_EDGE,
+                  )}
                 >
                   Client
                 </th>
@@ -869,11 +926,21 @@ export function TasksSheetView({
                 const rowTasks = columns.flatMap((c) => cells.get(`${project.id}|${c.key}`) ?? [])
                 const rowAllocated = rowTasks.reduce((s, t) => s + (t.estimatedHours ?? 0), 0)
                 const rowSpent = rowTasks.reduce((s, t) => s + spentHours(t), 0)
+                const isAdhocRow = project.id === ADHOC_ROW_ID
                 return (
-                  <tr key={project.id} className="align-top">
+                  <tr key={project.id} className={cn("align-top", isAdhocRow && "bg-muted/20")}>
                     <th
                       scope="row"
-                      className="bg-card sticky left-0 z-10 border-r border-b px-3 py-2 text-left align-top"
+                      // Tinted and captioned, so the last row reads as "work with
+                      // no client" rather than as another account on the list.
+                      className={cn(
+                        "z-10 border-b px-3 py-2 text-left align-top",
+                        STICKY_EDGE,
+                        // Opaque, always: cells scroll under this column, and a
+                        // translucent tint would show them doing it.
+                        isAdhocRow ? "bg-muted" : "bg-card",
+                      )}
+                      title={isAdhocRow ? ADHOC_DESCRIPTION : undefined}
                     >
                       <span className="block text-xs font-semibold">{project.name}</span>
                       <span className="text-muted-foreground block text-[10px]">
@@ -948,7 +1015,12 @@ export function TasksSheetView({
 
             <tfoot>
               <tr className="bg-muted/60">
-                <th className="bg-muted sticky left-0 z-10 border-r px-3 py-2 text-left text-[11px] font-semibold tracking-wide uppercase">
+                <th
+                  className={cn(
+                    "bg-muted z-10 px-3 py-2 text-left text-[11px] font-semibold tracking-wide uppercase",
+                    STICKY_EDGE,
+                  )}
+                >
                   Daily total
                 </th>
                 {columns.map((c) => {
@@ -1003,7 +1075,7 @@ export function TasksSheetView({
         <ul className="text-muted-foreground marker:text-muted-foreground/40 list-disc space-y-1 pl-4 text-xs">
           <li>
             <Term>Plan</Term> click a cell and write one task per line, with the allocation inline:{" "}
-            <Chip>Fix cart @2h</Chip> — also <Chip>@90m</Chip>, <Chip>@1h30m</Chip>, or a bare{" "}
+            <Chip>Fix cart @2h</Chip> - also <Chip>@90m</Chip>, <Chip>@1h30m</Chip>, or a bare{" "}
             <Chip>@2</Chip> for hours.
           </li>
           <li>
@@ -1019,7 +1091,7 @@ export function TasksSheetView({
           </li>
           <li>
             <Term>Hrs</Term> the top number is the allocation, editable there too; the one under it
-            is time spent — measured off the task clock, never typed.
+            is time spent - measured off the task clock, never typed.
           </li>
           <li>
             Removing a line asks before it deletes the task, and only the team manager can. You can
@@ -1072,7 +1144,7 @@ export function TasksSheetView({
 
 /** The column being described, so the eye can jump straight to its line. */
 function Term({ children }: { children: ReactNode }) {
-  return <strong className="text-foreground font-medium">{children} —</strong>
+  return <strong className="text-foreground font-medium">{children} -</strong>
 }
 
 /** A literal you type: a key, or text that goes in a cell. */
