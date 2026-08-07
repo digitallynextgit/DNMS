@@ -108,7 +108,9 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
       orderBy: [{ dueDate: "asc" }, { priority: "desc" }],
       include: {
         project: { select: { id: true, name: true, code: true, slug: true } },
-        team: { select: { id: true, name: true } },
+        // managerId rides along so the client can apply the same edit/delete
+        // rules the API enforces, instead of offering controls that 403.
+        team: { select: { id: true, name: true, managerId: true } },
         assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
         // Drives the "Blocked" badge - a task waiting on a requirement should say
         // so wherever it is listed, not only inside the project.

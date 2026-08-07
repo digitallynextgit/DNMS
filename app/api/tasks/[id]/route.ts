@@ -7,6 +7,7 @@ import { logActivity } from "@/features/projects/server/activity"
 import { syncTaskToEntry } from "@/features/projects/server/content-task.service"
 import { recordStatusChange } from "@/features/projects/server/task-status-periods"
 import { createNotification } from "@/lib/notifications"
+import { canDeleteTask, taskEditLockReason } from "@/features/projects/lib/task-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
@@ -57,21 +58,37 @@ export const PATCH = withSession(
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }
 
-      // Members can only change status of their own tasks; everything else needs manager
+      // Editing the task's DETAILS is time-boxed for whoever raised it and open
+      // to the manager; moving it through the workflow (status) is not covered -
+      // see task-permissions.ts for why.
+      const subject = {
+        creatorId: auth.task.creatorId,
+        createdAt: auth.task.createdAt,
+        teamManagerId: auth.task.team?.managerId ?? null,
+      }
+      const actor = { userId: session.user.id, isAdmin }
+
+      // Handing the work to someone ELSE is an allocation decision, not a
+      // correction, so it stays with the manager even inside the author's
+      // window - this route does not verify the new assignee is on the team.
+      if (assigneeId !== undefined && !auth.isManager && !isAdmin) {
+        return NextResponse.json(
+          { error: "Only the team manager can reassign a task." },
+          { status: 403 },
+        )
+      }
+
       const isStructuralChange =
         title !== undefined ||
         description !== undefined ||
         priority !== undefined ||
-        assigneeId !== undefined ||
         startDate !== undefined ||
         dueDate !== undefined ||
         estimatedHours !== undefined ||
         tags !== undefined
-      if (isStructuralChange && !auth.isManager && !isAdmin) {
-        return NextResponse.json(
-          { error: "Only the team manager can edit task details. You can update status only." },
-          { status: 403 },
-        )
+      if (isStructuralChange) {
+        const refusal = taskEditLockReason(subject, actor)
+        if (refusal) return NextResponse.json({ error: refusal }, { status: 403 })
       }
 
       const data: Record<string, unknown> = {}
@@ -247,10 +264,21 @@ export const DELETE = withSession(
       const auth = await getTaskAuthContext(ctx.params.id, session.user.id)
       if (!auth) return NextResponse.json({ error: "Task not found" }, { status: 404 })
 
-      const isAdmin = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
-      if (!auth.isManager && !isAdmin) {
+      // Deleting destroys the task's hours, comments and history, so it stays
+      // with the manager - the person who raised it cannot take it back, not
+      // even inside their edit window.
+      const isAdminDel = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+      const deletable = canDeleteTask(
+        {
+          creatorId: auth.task.creatorId,
+          createdAt: auth.task.createdAt,
+          teamManagerId: auth.task.team?.managerId ?? null,
+        },
+        { userId: session.user.id, isAdmin: isAdminDel },
+      )
+      if (!deletable) {
         return NextResponse.json(
-          { error: "Only the team manager can delete tasks" },
+          { error: "Only the team manager can delete a task." },
           { status: 403 },
         )
       }

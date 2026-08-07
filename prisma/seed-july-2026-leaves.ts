@@ -163,7 +163,22 @@ async function main() {
   console.log(`\nCleared ${oldLeave.count} leave + ${oldWfh.count} WFH row(s) from a previous run.`)
 
   const approvedAt = new Date()
+  let skipped = 0
   for (const r of leaveRows) {
+    // Somebody may already have entered this day by hand. Clearing SEED_REASON
+    // above only removes THIS seed's own rows, so without a real-record check
+    // the register is imported on top of them and the person shows two leaves
+    // for one day - and is charged twice on the balance. A cancelled row does
+    // not count: that day was given back.
+    const existing = await db.leaveRequest.count({
+      where: { employeeId: r.employeeId, startDate: r.date, status: { not: "CANCELLED" } },
+    })
+    if (existing > 0) {
+      console.log(`  skip ${r.date.toISOString().slice(0, 10)} ${r.who} - already recorded in DNMS`)
+      skipped++
+      continue
+    }
+
     await db.leaveRequest.create({
       data: {
         employeeId: r.employeeId,
@@ -193,9 +208,19 @@ async function main() {
       update: { used: { increment: 1 } },
     })
   }
-  console.log(`Created ${leaveRows.length} leave request(s) and updated balances.`)
+  console.log(
+    `Created ${leaveRows.length - skipped} leave request(s) and updated balances (${skipped} skipped as already recorded).`,
+  )
 
   for (const r of wfhRows) {
+    // Same guard for WFH: one person cannot have two WFH days on one date.
+    const existingWfh = await db.wfhRequest.count({
+      where: { employeeId: r.employeeId, date: r.date, status: { not: "CANCELLED" } },
+    })
+    if (existingWfh > 0) {
+      console.log(`  skip WFH ${r.date.toISOString().slice(0, 10)} ${r.who} - already recorded`)
+      continue
+    }
     await db.wfhRequest.create({
       data: {
         employeeId: r.employeeId,

@@ -32,12 +32,14 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
+  PERMISSIONS,
   TASK_STATUS_LABELS,
   TASK_WORKFLOW_STATUSES,
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
   TASK_STATUS_COLORS,
 } from "@/lib/constants"
+import { usePermissions } from "@/features/admin"
 import { formatDate, cn } from "@/lib/utils"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
@@ -51,12 +53,15 @@ import { DateField } from "@/components/shared/date-field"
 import { useSession } from "next-auth/react"
 import { TaskStatusReasonDialog } from "@/features/projects/components/task-status-reason-dialog"
 import { TaskCreateDialog } from "@/features/projects/components/task-create-dialog"
+import { TasksSheetView } from "@/features/projects/components/tasks-sheet-view"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 
 interface MyTask {
   id: string
   title: string
+  /** Doubles as the "actual" note in the sheet view: what really happened. */
+  description: string | null
   status: string
   priority: string
   dueDate: string | null
@@ -66,8 +71,11 @@ interface MyTask {
   inProgressSince: string | null
   approvalStatus: "APPROVED" | "PENDING_APPROVAL" | "REJECTED"
   rejectionReason: string | null
+  /** Who raised it, and when - together these decide the 15-minute edit window. */
+  creatorId: string
+  createdAt: string
   project: { id: string; name: string; code: string; slug: string | null }
-  team?: { id: string; name: string } | null
+  team?: { id: string; name: string; managerId: string | null } | null
   /** Set while this task waits on a requirement; drives the Blocked badge. */
   requirement?: { id: string; title: string; status: string } | null
   /** Only meaningful in the team view, where rows are not all yours. */
@@ -135,6 +143,7 @@ export default function MyTasksPage() {
   const qc = useQueryClient()
 
   const { data: session } = useSession()
+  const { can } = usePermissions()
   const myName = session?.user
     ? `${session.user.firstName} ${session.user.lastName}`.trim()
     : "My tasks"
@@ -201,11 +210,12 @@ export default function MyTasksPage() {
       if (statusFilter !== "all" && t.status !== statusFilter) return false
       if (projectFilter !== "all" && t.project.id !== projectFilter) return false
       // Compared as a local calendar day, so a task due "today" matches today
-      // regardless of the time-of-day stored on it.
-      if (dateFilter && dayKey(t.dueDate) !== dateFilter) return false
+      // regardless of the time-of-day stored on it. The sheet view is scoped by
+      // its own week stepper, so a single-day filter would empty the grid.
+      if (viewMode !== "sheet" && dateFilter && dayKey(t.dueDate) !== dateFilter) return false
       return true
     })
-  }, [data, statusFilter, projectFilter, dateFilter])
+  }, [data, statusFilter, projectFilter, dateFilter, viewMode])
 
   // A week of allocation is 20+ rows, which is unreadable as one flat list. The
   // card view groups by DAY (the unit the allocation sheet is written in) and
@@ -247,6 +257,22 @@ export default function MyTasksPage() {
   const overdueCount = tasks.filter(
     (t) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "DONE",
   ).length
+
+  // ── Sheet view inputs ──────────────────────────────────────────────────────
+  // Rows are clients, so the grid needs the project list itself, not just the
+  // projects that happen to have work this week - a blank row is where next
+  // week's plan gets typed. The project filter narrows the rows the same way it
+  // narrows every other view.
+  const sheetProjects = useMemo(
+    () =>
+      myProjects
+        .filter((p) => projectFilter === "all" || p.id === projectFilter)
+        .map((p) => ({ id: p.id, name: p.name, code: p.code })),
+    [myProjects, projectFilter],
+  )
+
+  /** Whose plan is being written. A teammate's sheet files tasks on them. */
+  const sheetAssigneeId = scope.startsWith("user:") ? scope.slice(5) : (session?.user?.id ?? "")
 
   const columns: DataTableColumn<MyTask>[] = [
     {
@@ -498,30 +524,35 @@ export default function MyTasksPage() {
 
           {/* Due date. Empty = every date, which is the default; the X clears
               back to it rather than making you hunt for an "All" row inside a
-              calendar that has no such day. */}
-          <span className="text-muted-foreground ml-1 text-xs">Due:</span>
-          <div className="flex items-center gap-1">
-            <DateField
-              value={dateFilter}
-              onChange={setDateFilter}
-              placeholder="All dates"
-              className="h-8 w-40"
-            />
-            {dateFilter && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                title="Show all dates"
-                aria-label="Show all dates"
-                onClick={() => setDateFilter("")}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
+              calendar that has no such day. Hidden in the sheet view, which
+              steps a whole week at a time instead. */}
+          {viewMode !== "sheet" && (
+            <>
+              <span className="text-muted-foreground ml-1 text-xs">Due:</span>
+              <div className="flex items-center gap-1">
+                <DateField
+                  value={dateFilter}
+                  onChange={setDateFilter}
+                  placeholder="All dates"
+                  className="h-8 w-40"
+                />
+                {dateFilter && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="Show all dates"
+                    aria-label="Show all dates"
+                    onClick={() => setDateFilter("")}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          {viewMode !== "kanban" && dayGroups.length > 1 && (
+          {viewMode !== "kanban" && viewMode !== "sheet" && dayGroups.length > 1 && (
             <div className="text-muted-foreground flex items-center gap-1 text-xs">
               <button
                 type="button"
@@ -540,13 +571,24 @@ export default function MyTasksPage() {
               </button>
             </div>
           )}
-          <ViewToggle value={viewMode} onChange={setViewMode} showKanban />
+          <ViewToggle value={viewMode} onChange={setViewMode} showKanban showSheet />
         </div>
       </div>
 
       {/* Groups or table */}
       {isLoading ? (
         <Skeleton className="h-64 rounded" />
+      ) : viewMode === "sheet" ? (
+        // Before the empty check: an empty week is exactly when you need the
+        // grid, because the blank cells are what you type the plan into.
+        <TasksSheetView
+          tasks={tasks}
+          projects={sheetProjects}
+          assigneeId={sheetAssigneeId}
+          currentUserId={session?.user?.id ?? ""}
+          isAdmin={can(PERMISSIONS.PROJECT_WRITE)}
+          readOnly={scope === "all" || scope.startsWith("team:")}
+        />
       ) : tasks.length === 0 ? (
         <EmptyState icon={Inbox} variant="card" title="No tasks match the filter." />
       ) : viewMode === "kanban" ? (
