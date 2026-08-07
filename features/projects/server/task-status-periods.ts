@@ -1,6 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { getTaskEditHistory, type TaskEdit } from "@/features/projects/server/task-audit"
 import type { Prisma, TaskStatus } from "@prisma/client"
 
 /**
@@ -95,6 +96,8 @@ export interface TaskTimeline {
   entries: TaskTimelineEntry[]
   /** Total seconds per status across every stretch, closed periods only. */
   totals: Record<string, number>
+  /** Field edits - who changed what, from what to what. */
+  edits: TaskEdit[]
   estimatedHours: number | null
   loggedHours: number
   inProgressSince: string | null
@@ -115,11 +118,14 @@ export async function getTaskTimeline(taskId: string): Promise<TaskTimeline | nu
   })
   if (!task) return null
 
-  const periods = await db.taskStatusPeriod.findMany({
-    where: { taskId },
-    orderBy: { startedAt: "asc" },
-    include: { actor: { select: { id: true, firstName: true, lastName: true } } },
-  })
+  const [periods, edits] = await Promise.all([
+    db.taskStatusPeriod.findMany({
+      where: { taskId },
+      orderBy: { startedAt: "asc" },
+      include: { actor: { select: { id: true, firstName: true, lastName: true } } },
+    }),
+    getTaskEditHistory(taskId),
+  ])
 
   // A task that has never changed status has no row yet: show its current status
   // as running since creation rather than an empty history.
@@ -155,6 +161,7 @@ export async function getTaskTimeline(taskId: string): Promise<TaskTimeline | nu
     completedAt: task.completedAt?.toISOString() ?? null,
     entries,
     totals,
+    edits,
     estimatedHours: task.estimatedHours,
     loggedHours: task.loggedHours,
     inProgressSince: task.inProgressSince?.toISOString() ?? null,

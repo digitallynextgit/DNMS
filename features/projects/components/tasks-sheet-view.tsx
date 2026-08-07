@@ -12,7 +12,16 @@ import {
 } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { CalendarRange, Check, ChevronLeft, ChevronRight, Loader2, Lock } from "lucide-react"
+import {
+  CalendarRange,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Link as LinkIcon,
+  Loader2,
+  Lock,
+  X,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -26,6 +35,7 @@ import {
   TaskStatusReasonDialog,
   type TaskStatusPayload,
 } from "@/features/projects/components/task-status-reason-dialog"
+import { TaskHistoryDialog } from "@/features/projects/components/task-history-dialog"
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
 import { TASK_STATUS_LABELS, TASK_WORKFLOW_STATUSES } from "@/lib/constants"
@@ -41,6 +51,9 @@ import {
   taskEditWindowLeft,
 } from "@/features/projects/lib/task-permissions"
 import { isWithinEditWindow, TASK_EDIT_WINDOW_MS } from "@/features/projects/lib/edit-window"
+import { useCommitOnOutsidePointer } from "@/hooks/use-commit-on-outside-pointer"
+import { TaskResources } from "@/features/projects/components/task-resources"
+import { dedupeLinks, isSafeHttpUrl, linkLabel } from "@/features/projects/lib/task-links"
 import type { ProjectTeam } from "@/features/projects/hooks/use-projects"
 
 // =============================================================================
@@ -53,6 +66,7 @@ import type { ProjectTeam } from "@/features/projects/hooks/use-projects"
 //   ACTUAL  what you actually did   -> a note per task
 //   HRS     allocated vs spent      -> allocated is yours to set; spent is
 //                                      measured off the task clock, never typed
+//   RESOURCES  where the work lives -> the brief, the doc, the published page
 //
 // Tasks are NUMBERED, not bulleted, and the numbers are what tie the three
 // columns together: "3." in Hrs is the time for "3." in Plan, whether or not
@@ -68,6 +82,8 @@ export interface SheetTask {
   dueDate: string | null
   estimatedHours: number | null
   loggedHours: number
+  /** The Resources column: brief, doc, published page. Stored as URLs. */
+  links: string[]
   /** Non-null while the task sits In Progress and its clock is running. */
   inProgressSince: string | null
   approvalStatus: "APPROVED" | "PENDING_APPROVAL" | "REJECTED"
@@ -371,37 +387,6 @@ function useTick(active: boolean, everyMs = 30_000) {
     const id = setInterval(() => setTick((n) => n + 1), everyMs)
     return () => clearInterval(id)
   }, [active, everyMs])
-}
-
-/**
- * Close an open cell editor when a pointer goes down anywhere outside it.
- *
- * `onBlur` alone is not enough to mean "clicked away": it never fires when the
- * pointer lands on the table's own scrollbar, on a target whose mousedown is
- * prevented, or when focus leaves the document altogether. A cell editor that
- * silently keeps unsaved text in those cases is the worst outcome, so this runs
- * in the CAPTURE phase - ahead of anything that might swallow the event - and
- * the commit it calls is idempotent, so pairing it with onBlur is safe.
- */
-function useCommitOnOutsidePointer(
-  ref: RefObject<HTMLElement | null>,
-  active: boolean,
-  commit: () => void,
-) {
-  const latest = useRef(commit)
-  latest.current = commit
-
-  useEffect(() => {
-    if (!active) return
-    function onDown(e: PointerEvent) {
-      const el = ref.current
-      if (!el) return
-      if (e.target instanceof Node && el.contains(e.target)) return
-      latest.current()
-    }
-    document.addEventListener("pointerdown", onDown, true)
-    return () => document.removeEventListener("pointerdown", onDown, true)
-  }, [ref, active])
 }
 
 /**
@@ -868,7 +853,7 @@ export function TasksSheetView({
                 {columns.map((c) => (
                   <th
                     key={c.key}
-                    colSpan={3}
+                    colSpan={4}
                     className={cn(
                       "border-r border-b px-3 py-1.5 text-center text-[11px] font-semibold tracking-wide uppercase",
                       c.key === todayKey && "bg-primary/10",
@@ -916,6 +901,15 @@ export function TasksSheetView({
                     >
                       Hrs
                     </th>
+                    <th
+                      className={cn(
+                        "w-40 min-w-40 border-r border-b px-2 py-1 text-left font-medium",
+                        c.key === todayKey && "bg-primary/10",
+                      )}
+                      title="Brief, doc, published page"
+                    >
+                      Resources
+                    </th>
                   </Fragment>
                 ))}
               </tr>
@@ -952,6 +946,7 @@ export function TasksSheetView({
                       const planKey = `${project.id}|${c.key}|plan`
                       const actualKey = `${project.id}|${c.key}|actual`
                       const hoursKey = `${project.id}|${c.key}|hours`
+                      const resourcesKey = `${project.id}|${c.key}|resources`
                       const isToday = c.key === todayKey
                       return (
                         <Fragment key={c.key}>
@@ -988,6 +983,16 @@ export function TasksSheetView({
                                   hoursKey,
                                   hours === null ? "Allocation cleared" : "Allocation saved",
                                 )
+                              }
+                            />
+                          </td>
+                          <td className={cn("border-r border-b p-0", isToday && "bg-primary/5")}>
+                            <ResourcesCell
+                              tasks={cellTasks}
+                              busy={!!busyCells[resourcesKey]}
+                              readOnly={readOnly}
+                              onCommit={(task, links) =>
+                                patchTask(task, { links }, resourcesKey, "Resources saved")
                               }
                             />
                           </td>
@@ -1041,6 +1046,7 @@ export function TasksSheetView({
                           </span>
                         )}
                       </td>
+                      <td className="border-r px-2 py-2" />
                     </Fragment>
                   )
                 })}
@@ -1092,6 +1098,10 @@ export function TasksSheetView({
           <li>
             <Term>Hrs</Term> the top number is the allocation, editable there too; the one under it
             is time spent - measured off the task clock, never typed.
+          </li>
+          <li>
+            <Term>Resources</Term> attach the brief, the doc, the published page - one URL per line.
+            Not time-limited, so you can add the live link whenever the work goes out.
           </li>
           <li>
             Removing a line asks before it deletes the task, and only the team manager can. You can
@@ -1437,7 +1447,7 @@ function PlanCell({
           />
           <span
             className={cn(
-              "min-w-0 break-words",
+              "min-w-0 flex-1 break-words",
               STATUS_TEXT[task.status] ?? "text-foreground",
               STATUS_CLOSED.has(task.status) && "line-through",
               task.approvalStatus === "PENDING_APPROVAL" && "italic",
@@ -1453,6 +1463,15 @@ function PlanCell({
               />
             )}
           </span>
+          {/* Dimmed until pointed at: one of these per line would otherwise be a
+              column of icons competing with the plan itself. It stops its own
+              click, so opening the log never opens the cell editor. */}
+          <TaskHistoryDialog
+            taskId={task.id}
+            taskTitle={task.title}
+            iconOnly
+            className="size-4 shrink-0 opacity-30 transition-opacity hover:opacity-100 focus-visible:opacity-100"
+          />
         </span>
       ))}
     </div>
@@ -1576,6 +1595,50 @@ function ActualCell({
           </span>
         )
       })}
+    </div>
+  )
+}
+
+/**
+ * The RESOURCES cell: where each task's work actually lives.
+ *
+ * Stored as `links` on the task, because that is what they are - URLs. The
+ * column is called Resources because that is what they MEAN to the person
+ * reading the sheet, and because `ProjectResource` (uploaded files) already
+ * owns the word in the data model.
+ *
+ * Not governed by the 15-minute edit window, unlike the rest of a task's
+ * details. Attaching the published URL is something you do WHEN the blog goes
+ * live, which is hours or days after the task was raised - locking it on the
+ * same clock as the title would make the column useless for its main purpose.
+ */
+function ResourcesCell({
+  tasks,
+  busy,
+  readOnly,
+  onCommit,
+}: {
+  tasks: SheetTask[]
+  busy: boolean
+  readOnly: boolean
+  onCommit: (task: SheetTask, links: string[]) => void
+}) {
+  if (busy) return <CellBusy />
+
+  return (
+    <div className="min-h-14 px-2 py-2 text-xs leading-relaxed">
+      {tasks.length === 0 && <span className="text-muted-foreground/40 select-none">–</span>}
+      {tasks.map((task, i) => (
+        <span key={task.id} className="flex items-start gap-1.5 py-0.5">
+          <TaskNumber n={i + 1} status={task.status} />
+          <TaskResources
+            links={task.links ?? []}
+            canEdit={!readOnly}
+            onCommit={(links) => onCommit(task, links)}
+            className="flex-1"
+          />
+        </span>
+      ))}
     </div>
   )
 }

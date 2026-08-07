@@ -1404,6 +1404,10 @@ model ProjectTask {
   // than remembered. Non-null therefore means "the clock is running right now".
   inProgressSince  DateTime?          @map("in_progress_since")
   tags             String[]           @map("tags")
+  // Where the work lives: the brief, the doc, the published page. A blog or a
+  // product page is not finished until there is a URL to point at, and that URL
+  // used to end up in a chat message nobody could find later.
+  links            String[]           @map("links")
   approvalStatus   TaskApprovalStatus @default(APPROVED) @map("approval_status")
   isManagerCreated Boolean            @default(true) @map("is_manager_created")
   rejectionReason  String?            @map("rejection_reason")

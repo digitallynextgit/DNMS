@@ -6,6 +6,8 @@ import { createAuditLog } from "@/lib/audit"
 import { logActivity } from "@/features/projects/server/activity"
 import { syncTaskToEntry } from "@/features/projects/server/content-task.service"
 import { recordStatusChange } from "@/features/projects/server/task-status-periods"
+import { diffTaskFields } from "@/features/projects/server/task-audit"
+import { dedupeLinks, isSafeHttpUrl } from "@/features/projects/lib/task-links"
 import { createNotification } from "@/lib/notifications"
 import {
   canDeleteTask,
@@ -56,6 +58,7 @@ export const PATCH = withSession(
         estimatedHours,
         loggedHours,
         tags,
+        links,
         isMilestone,
         holdReason,
         holdExpectedDate,
@@ -168,6 +171,22 @@ export const PATCH = withSession(
         data.estimatedHours = estimatedHours ? parseFloat(estimatedHours) : null
       if (loggedHours !== undefined) data.loggedHours = parseFloat(loggedHours)
       if (tags !== undefined) data.tags = tags
+      if (links !== undefined) {
+        // Only http(s), and only what parses. A cell where anyone can type is a
+        // cell where "javascript:..." can be typed, and these render as
+        // clickable anchors for the whole team.
+        // Deduped server-side too: the client already does it, but a repeated
+        // URL is stored data that then renders as two identical chips sharing a
+        // React key, and the API cannot assume the client bothered.
+        const cleaned = dedupeLinks((Array.isArray(links) ? links : []).map((l) => String(l)))
+        const bad = cleaned.filter((l) => !isSafeHttpUrl(l))
+        if (bad.length > 0) {
+          return NextResponse.json({ error: `Not a valid web link: ${bad[0]}` }, { status: 422 })
+        }
+        // 20 is far past "the brief, the doc, the live page" and stops a paste
+        // of someone's whole clipboard becoming a row nobody can read.
+        data.links = cleaned.slice(0, 20)
+      }
       if (typeof isMilestone === "boolean") data.isMilestone = isMilestone
 
       const prevStatus = auth.task.status
@@ -196,12 +215,15 @@ export const PATCH = withSession(
         return updated
       })
 
+      // Before AND after, not just the new value: "who moved the deadline, and
+      // from what" is the question the activity log gets asked, and recording
+      // only the result made it unanswerable the moment it was written.
       await createAuditLog(session, {
         action: "UPDATE",
         module: "project",
         entityType: "ProjectTask",
         entityId: ctx.params.id,
-        changes: data as object,
+        changes: { fields: diffTaskFields(auth.task, data) ?? {}, applied: data } as object,
       })
 
       // Null for adhoc work, which belongs to no project - there is no activity

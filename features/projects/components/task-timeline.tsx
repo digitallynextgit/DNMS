@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-fetch"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { TASK_STATUS_LABELS, TASK_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
-import { CircleDot, Flag, Play, Plus } from "lucide-react"
+import { ArrowRight, CircleDot, Flag, Pencil, Play, Plus } from "lucide-react"
 
 interface TimelineEntry {
   id: string
@@ -18,12 +18,20 @@ interface TimelineEntry {
   actor: { id: string; firstName: string; lastName: string } | null
 }
 
+interface EditEntry {
+  id: string
+  at: string
+  actor: { id: string; firstName: string; lastName: string } | null
+  changes: { label: string; from: string; to: string }[]
+}
+
 interface Timeline {
   createdAt: string
   startedAt: string | null
   completedAt: string | null
   entries: TimelineEntry[]
   totals: Record<string, number>
+  edits: EditEntry[]
   estimatedHours: number | null
   loggedHours: number
   inProgressSince: string | null
@@ -62,6 +70,10 @@ function formatMoment(iso: string): string {
   })
 }
 
+function actorName(a: { firstName: string; lastName: string } | null): string | null {
+  return a ? `${a.firstName} ${a.lastName}`.trim() : null
+}
+
 /** Re-render every 30s so an open period's elapsed time stays current. */
 function useTick(active: boolean) {
   const [, setTick] = useState(0)
@@ -72,35 +84,57 @@ function useTick(active: boolean) {
   }, [active])
 }
 
+/** One rail, two kinds of thing that happened to the task. */
+type Moment =
+  | { kind: "phase"; at: string; phase: TimelineEntry }
+  | { kind: "edit"; at: string; edit: EditEntry }
+
 /**
- * Status history for a task: created, started, and every stretch it spent in
- * each status with how long that stretch lasted.
+ * The task's activity log: every phase it passed through and every edit anyone
+ * made, on ONE chronology.
  *
- * The open period counts up live, so a task sitting In Progress shows the time
- * it has been there rather than a stale number.
+ * Phases and edits used to be separate ideas - the timeline knew the first, the
+ * audit log the second, and neither could answer "what happened to this task".
+ * Interleaved by time they read as the story they are, so a title rewritten
+ * mid-flight sits exactly where it happened rather than in another list.
  */
 export function TaskTimeline({ taskId, open }: { taskId: string | undefined; open: boolean }) {
   const { data, isLoading } = useTaskTimeline(taskId, open)
   const hasOpenPeriod = !!data?.entries.some((e) => !e.endedAt)
   useTick(open && hasOpenPeriod)
 
+  const moments = useMemo<Moment[]>(() => {
+    if (!data) return []
+    const phases: Moment[] = data.entries.map((p) => ({
+      kind: "phase",
+      at: p.startedAt,
+      phase: p,
+    }))
+    const edits: Moment[] = (data.edits ?? []).map((e) => ({ kind: "edit", at: e.at, edit: e }))
+    return [...phases, ...edits].sort((a, b) => a.at.localeCompare(b.at))
+  }, [data])
+
   if (isLoading) return <Skeleton className="h-32 rounded" />
   if (!data) return null
 
-  const totalTracked = Object.values(data.totals).reduce((a, b) => a + b, 0)
+  // Only worth a summary when a status was entered more than once - otherwise it
+  // just repeats the single number already sitting on that row.
+  const repeated = Object.entries(data.totals).filter(
+    ([status]) => data.entries.filter((e) => e.status === status).length > 1,
+  )
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* The three moments people actually ask about. */}
       <div className="grid grid-cols-3 gap-2 text-xs">
-        <Moment icon={Plus} label="Created" value={formatMoment(data.createdAt)} />
-        <Moment
+        <MomentCard icon={Plus} label="Created" value={formatMoment(data.createdAt)} />
+        <MomentCard
           icon={Play}
           label="Started"
           value={data.startedAt ? formatMoment(data.startedAt) : "Not started"}
           muted={!data.startedAt}
         />
-        <Moment
+        <MomentCard
           icon={Flag}
           label="Completed"
           value={data.completedAt ? formatMoment(data.completedAt) : "Not completed"}
@@ -108,10 +142,9 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
         />
       </div>
 
-      {/* Time in each status, across every stretch. */}
-      {totalTracked > 0 && (
+      {repeated.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {Object.entries(data.totals)
+          {repeated
             .sort((a, b) => b[1] - a[1])
             .map(([status, seconds]) => (
               <span
@@ -119,7 +152,7 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
                 className="bg-muted/60 inline-flex items-center gap-1.5 rounded-[2px] px-2 py-1 text-[11px]"
               >
                 <span className="text-muted-foreground">
-                  {TASK_STATUS_LABELS[status] ?? status}
+                  {TASK_STATUS_LABELS[status] ?? status} total
                 </span>
                 <span className="font-medium">{formatDuration(seconds)}</span>
               </span>
@@ -127,49 +160,80 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
         </div>
       )}
 
-      {/* Every stretch, oldest first. */}
       <ol className="space-y-0">
-        {data.entries.map((entry, i) => {
-          const running = !entry.endedAt
-          const seconds = running
-            ? (Date.now() - new Date(entry.startedAt).getTime()) / 1000
-            : (entry.durationSeconds ?? 0)
-          const last = i === data.entries.length - 1
+        {moments.map((m, i) => {
+          const last = i === moments.length - 1
+          const running = m.kind === "phase" && !m.phase.endedAt
+          const who = actorName(m.kind === "phase" ? m.phase.actor : m.edit.actor)
 
           return (
-            <li key={entry.id} className="relative flex gap-3 pb-3 last:pb-0">
-              {/* Rail */}
+            <li
+              key={`${m.kind}-${m.kind === "phase" ? m.phase.id : m.edit.id}`}
+              className="flex gap-3 pb-4 last:pb-0"
+            >
+              {/* Rail: a dot for a phase, a pencil for an edit, so the two are
+                  distinguishable before reading a word of either. */}
               <div className="flex flex-col items-center">
-                <CircleDot
-                  className={cn(
-                    "mt-0.5 h-3 w-3 shrink-0",
-                    running ? "animate-pulse text-blue-500" : "text-muted-foreground/40",
-                  )}
-                />
+                {m.kind === "phase" ? (
+                  <CircleDot
+                    className={cn(
+                      "mt-0.5 h-3 w-3 shrink-0",
+                      running ? "animate-pulse text-blue-500" : "text-muted-foreground/40",
+                    )}
+                  />
+                ) : (
+                  <Pencil className="text-muted-foreground/40 mt-0.5 h-3 w-3 shrink-0" />
+                )}
                 {!last && <span className="bg-border mt-1 w-px flex-1" />}
               </div>
 
               <div className="min-w-0 flex-1 -translate-y-0.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge
-                    status={entry.status}
-                    colorMap={TASK_STATUS_COLORS}
-                    labelMap={TASK_STATUS_LABELS}
-                    size="xs"
-                  />
-                  <span
-                    className={cn(
-                      "text-[11px]",
-                      running ? "font-medium text-blue-600 dark:text-blue-400" : "font-medium",
-                    )}
-                  >
-                    {formatDuration(seconds)}
-                    {running && " so far"}
-                  </span>
-                </div>
-                <p className="text-muted-foreground mt-0.5 text-[11px]">
-                  {formatMoment(entry.startedAt)}
-                  {entry.actor && ` · ${entry.actor.firstName} ${entry.actor.lastName}`}
+                {m.kind === "phase" ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge
+                      status={m.phase.status}
+                      colorMap={TASK_STATUS_COLORS}
+                      labelMap={TASK_STATUS_LABELS}
+                      size="xs"
+                    />
+                    <span
+                      className={cn(
+                        "text-[11px] font-medium",
+                        running && "text-blue-600 dark:text-blue-400",
+                      )}
+                    >
+                      {formatDuration(
+                        running
+                          ? (Date.now() - new Date(m.phase.startedAt).getTime()) / 1000
+                          : (m.phase.durationSeconds ?? 0),
+                      )}
+                      {running && " so far"}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-medium">
+                      Edited{m.edit.changes.length > 1 && ` · ${m.edit.changes.length} fields`}
+                    </span>
+                    {m.edit.changes.map((c) => (
+                      <div
+                        key={c.label}
+                        className="bg-muted/40 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-[2px] px-2 py-1 text-[11px]"
+                      >
+                        <span className="text-muted-foreground">{c.label}</span>
+                        {/* Old struck through, new plain: which is which has to
+                            be readable at a glance, not inferred from order. */}
+                        <span className="text-muted-foreground/70 line-through">{c.from}</span>
+                        <ArrowRight className="text-muted-foreground/50 h-3 w-3 shrink-0" />
+                        <span className="font-medium">{c.to}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-muted-foreground mt-1 text-[11px]">
+                  {formatMoment(m.at)}
+                  {who && ` · ${who}`}
                 </p>
               </div>
             </li>
@@ -180,7 +244,7 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
   )
 }
 
-function Moment({
+function MomentCard({
   icon: Icon,
   label,
   value,

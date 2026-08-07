@@ -1,23 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react"
-import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
-import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  GripVertical,
-  Inbox,
-  X,
-} from "lucide-react"
+import { AlertTriangle, ChevronDown, ChevronRight, Clock, Inbox, Lock, X } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
-import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatStrip } from "@/components/shared/stat-strip"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -35,11 +25,17 @@ import {
   TASK_WORKFLOW_STATUSES,
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
-  TASK_STATUS_COLORS,
 } from "@/lib/constants"
 import { usePermissions } from "@/features/admin"
-import { ADHOC_LABEL, ADHOC_ROW_ID } from "@/features/projects/lib/task-permissions"
-import { formatDate, cn } from "@/lib/utils"
+import {
+  ADHOC_LABEL,
+  ADHOC_ROW_ID,
+  canEditTaskDetails,
+  resolveTaskManagerId,
+  taskEditLockReason,
+} from "@/features/projects/lib/task-permissions"
+import { TaskResources } from "@/features/projects/components/task-resources"
+import { cn } from "@/lib/utils"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
 import { TaskTime } from "@/features/projects/components/task-time"
@@ -50,7 +46,6 @@ import { BlockedBadge } from "@/features/projects/components/blocked-badge"
 import { useProjects } from "@/features/projects/hooks/use-projects"
 import { DateField } from "@/components/shared/date-field"
 import { useSession } from "next-auth/react"
-import { TaskStatusReasonDialog } from "@/features/projects/components/task-status-reason-dialog"
 import { TaskCreateDialog } from "@/features/projects/components/task-create-dialog"
 import { TasksSheetView } from "@/features/projects/components/tasks-sheet-view"
 import { Button } from "@/components/ui/button"
@@ -66,6 +61,8 @@ interface MyTask {
   dueDate: string | null
   loggedHours: number
   estimatedHours: number | null
+  /** The sheet's Resources column: brief, doc, published page. */
+  links: string[]
   /** Non-null while the task sits In Progress and its clock is running. */
   inProgressSince: string | null
   approvalStatus: "APPROVED" | "PENDING_APPROVAL" | "REJECTED"
@@ -96,6 +93,39 @@ interface ScopeMeta {
 
 /** "Me" - kept distinct from a user id so the query key stays the plain one. */
 const MYSELF = "me"
+
+const PERSON_KEY = "my-tasks:person"
+
+/**
+ * Whose sheet you were last looking at, remembered across reloads.
+ *
+ * Read in an effect rather than a lazy initialiser on purpose: localStorage does
+ * not exist while this renders on the server, and seeding state from it on the
+ * client only would make the first client render disagree with the server's and
+ * trip a hydration mismatch. One extra render is the cost of not doing that.
+ */
+function usePersistedPerson(): [string, (v: string) => void] {
+  const [person, setPersonState] = useState<string>(MYSELF)
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(PERSON_KEY)
+      if (stored) setPersonState(stored)
+    } catch {}
+  }, [])
+
+  const setPerson = useCallback((v: string) => {
+    setPersonState(v)
+    try {
+      // Yourself is the default, so it is stored as the ABSENCE of a value -
+      // nothing to clean up later, and no stale id outliving a reporting change.
+      if (v === MYSELF) localStorage.removeItem(PERSON_KEY)
+      else localStorage.setItem(PERSON_KEY, v)
+    } catch {}
+  }, [])
+
+  return [person, setPerson]
+}
 
 async function fetchMyTasks(scope: TaskScope): Promise<{ data: MyTask[]; meta?: ScopeMeta }> {
   const res = await fetch(`/api/tasks?mine=true&scope=${encodeURIComponent(scope)}`)
@@ -138,6 +168,23 @@ function ProjectLink({ task, className }: { task: MyTask; className?: string }) 
   )
 }
 
+/**
+ * The shape the edit rules read. Same resolution the API uses - the team's
+ * manager for project work, the assignee's line manager for adhoc - so the card
+ * shows the same lock the server would enforce.
+ */
+function taskSubject(task: MyTask) {
+  return {
+    creatorId: task.creatorId,
+    createdAt: task.createdAt,
+    teamManagerId: resolveTaskManagerId({
+      teamId: task.team?.id ?? null,
+      teamManagerId: task.team?.managerId,
+      assigneeManagerId: task.assignee?.managerId,
+    }),
+  }
+}
+
 /** "Today · Mon, 3 Aug", "Tomorrow · …", or just the date. */
 function dayLabel(key: string): string {
   if (key === NO_DATE) return "No due date"
@@ -162,7 +209,11 @@ export default function MyTasksPage() {
   const [projectFilter, setProjectFilter] = useState("all")
   /** "" means every date; otherwise a "yyyy-MM-dd" due date. */
   const [dateFilter, setDateFilter] = useState("")
-  const [viewMode, setViewMode] = useViewMode("my-tasks")
+  // Anyone who last used the table or the board still has it in localStorage.
+  // Both are gone, so fold them back to cards rather than render a toggle with
+  // nothing selected over a list that silently fell through to the default.
+  const [storedView, setViewMode] = useViewMode("my-tasks")
+  const viewMode = storedView === "sheet" ? "sheet" : "card"
   const qc = useQueryClient()
 
   const { data: session } = useSession()
@@ -181,7 +232,7 @@ export default function MyTasksPage() {
   // One dropdown, one question: whose sheet am I looking at. You or one of your
   // subordinates - never a team, never a merged "everyone" list, because the
   // sheet reads as ONE person's week and a mixed list is not that.
-  const [person, setPerson] = useState<string>(MYSELF)
+  const [person, setPerson] = usePersistedPerson()
   const isMine = person === MYSELF
 
   const scope: TaskScope = isMine ? MYSELF : `user:${person}`
@@ -197,8 +248,14 @@ export default function MyTasksPage() {
   // across refetches: switching scope briefly clears `data`, and rebuilding the
   // list from an empty response would collapse the menu mid-selection.
   const [scopeMeta, setScopeMeta] = useState<ScopeMeta>({ people: [] })
+  // Distinct from "the list is empty": before the first response arrives nobody
+  // is selectable, and the guard below must not read that as "your selection is
+  // invalid" - that is what reset a restored person straight back to you.
+  const [metaLoaded, setMetaLoaded] = useState(false)
   useEffect(() => {
-    if (data?.meta) setScopeMeta(data.meta)
+    if (!data?.meta) return
+    setScopeMeta(data.meta)
+    setMetaLoaded(true)
   }, [data])
   /**
    * Your SUBORDINATES - direct reports only.
@@ -214,11 +271,13 @@ export default function MyTasksPage() {
   const managesSomething = selectablePeople.length > 0
 
   // A report who moves away stops being selectable; falling back to yourself
-  // beats a picker displaying a value that is no longer in its own list.
+  // beats a picker displaying a value that is no longer in its own list. Only
+  // once the list has actually loaded, or a restored selection is thrown away
+  // before the server has had a chance to confirm it.
   useEffect(() => {
-    if (person === MYSELF) return
+    if (!metaLoaded || person === MYSELF) return
     if (!selectablePeople.some((p) => p.id === person)) setPerson(MYSELF)
-  }, [selectablePeople, person])
+  }, [metaLoaded, selectablePeople, person, setPerson])
 
   /** What the header should call the current selection. Real names, never "me". */
   const scopeLabel = useMemo(
@@ -317,111 +376,14 @@ export default function MyTasksPage() {
 
   /** Hide the Adhoc row only when the filter has narrowed to a single client. */
   const showAdhocRow = projectFilter === "all" || projectFilter === ADHOC_ROW_ID
-
-  /** Whose plan is being written. A teammate's sheet files tasks on them. */
   /** Whose plan is being written - you, or the report whose sheet is open. */
   const sheetAssigneeId = isMine ? (session?.user?.id ?? "") : person
 
-  const columns: DataTableColumn<MyTask>[] = [
-    {
-      header: "Status",
-      headClassName: "w-32",
-      cell: (task) => (
-        <TaskStatusSelect
-          value={task.status}
-          disabled={
-            task.approvalStatus === "PENDING_APPROVAL" || task.approvalStatus === "REJECTED"
-          }
-          triggerClassName="h-7 w-32 text-xs"
-          onCommit={(payload) => updateMut.mutate({ id: task.id, ...payload })}
-        />
-      ),
-    },
-    {
-      header: "Task",
-      cell: (task) => {
-        const isOverdue =
-          task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "DONE"
-        const isPending = task.approvalStatus === "PENDING_APPROVAL"
-        const isRejected = task.approvalStatus === "REJECTED"
-        return (
-          <>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="font-medium">{task.title}</p>
-              {isPending && (
-                <Badge
-                  variant="outline"
-                  className="bg-amber-100 text-[10px] text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
-                >
-                  <Clock className="mr-0.5 inline h-3 w-3" />
-                  Pending
-                </Badge>
-              )}
-              {isRejected && (
-                <Badge variant="outline" className="bg-red-100 text-[10px] text-red-700">
-                  Rejected
-                </Badge>
-              )}
-              {task.requirement && <BlockedBadge requirement={task.requirement} />}
-              {isOverdue && (
-                <Badge variant="outline" className="bg-red-50 text-[10px] text-red-700">
-                  <AlertTriangle className="mr-0.5 inline h-3 w-3" />
-                  Overdue
-                </Badge>
-              )}
-            </div>
-            {task.rejectionReason && (
-              <p className="mt-0.5 text-[11px] text-red-700">Reason: {task.rejectionReason}</p>
-            )}
-          </>
-        )
-      },
-    },
-    // No Assignee column: the list is always exactly one person's, and the page
-    // header already names them.
-    {
-      header: "Project",
-      cell: (task) => <ProjectLink task={task} className="text-xs" />,
-    },
-    {
-      header: "Team",
-      className: "text-muted-foreground text-xs",
-      cell: (task) => task.team?.name ?? "-",
-    },
-    {
-      header: "Priority",
-      cell: (task) => (
-        <StatusBadge
-          status={task.priority}
-          colorMap={TASK_PRIORITY_COLORS}
-          labelMap={TASK_PRIORITY_LABELS}
-          size="xs"
-        />
-      ),
-    },
-    {
-      header: "Time",
-      headClassName: "whitespace-nowrap",
-      className: "whitespace-nowrap",
-      cell: (task) => (
-        <TaskTime
-          estimatedHours={task.estimatedHours}
-          loggedHours={task.loggedHours}
-          inProgressSince={task.inProgressSince}
-        />
-      ),
-    },
-    {
-      header: "Due",
-      className: "text-muted-foreground text-xs whitespace-nowrap",
-      cell: (task) => (task.dueDate ? formatDate(task.dueDate) : "-"),
-    },
-    {
-      header: "",
-      align: "right",
-      cell: (task) => <TaskHistoryDialog taskId={task.id} taskTitle={task.title} />,
-    },
-  ]
+  const isAdmin = can(PERMISSIONS.PROJECT_WRITE)
+  const actor = useMemo(
+    () => ({ userId: session?.user?.id ?? "", isAdmin }),
+    [session?.user?.id, isAdmin],
+  )
 
   return (
     <div className="space-y-6">
@@ -573,7 +535,7 @@ export default function MyTasksPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {viewMode !== "kanban" && viewMode !== "sheet" && dayGroups.length > 1 && (
+          {viewMode !== "sheet" && dayGroups.length > 1 && (
             <div className="text-muted-foreground flex items-center gap-1 text-xs">
               <button
                 type="button"
@@ -592,11 +554,14 @@ export default function MyTasksPage() {
               </button>
             </div>
           )}
-          <ViewToggle value={viewMode} onChange={setViewMode} showKanban showSheet />
+          {/* Two views only: the sheet is the week's plan, the cards are the
+              day-by-day list. A table of the same rows and a board that only
+              moved status both said less than either. */}
+          <ViewToggle value={viewMode} onChange={setViewMode} showTable={false} showSheet />
         </div>
       </div>
 
-      {/* Groups or table */}
+      {/* Sheet or day cards */}
       {isLoading ? (
         <Skeleton className="h-64 rounded" />
       ) : viewMode === "sheet" ? (
@@ -607,44 +572,11 @@ export default function MyTasksPage() {
           projects={sheetProjects}
           assigneeId={sheetAssigneeId}
           currentUserId={session?.user?.id ?? ""}
-          isAdmin={can(PERMISSIONS.PROJECT_WRITE)}
+          isAdmin={isAdmin}
           showAdhoc={showAdhocRow}
         />
       ) : tasks.length === 0 ? (
         <EmptyState icon={Inbox} variant="card" title="No tasks match the filter." />
-      ) : viewMode === "kanban" ? (
-        <MyTasksBoard
-          queryKey={queryKey}
-          tasks={tasks}
-          onCommit={(id, payload) => updateMut.mutate({ id, ...payload })}
-        />
-      ) : viewMode === "table" ? (
-        // Same day-wise accordion as the card view: a week of allocation is 20+
-        // rows, and one flat table of them is the thing that was unreadable.
-        dayGroups.map((group) => {
-          const expanded = isDayOpen(group)
-          return (
-            <Card key={group.key} className={cn(!expanded && "bg-muted/20")}>
-              <CardContent className="p-0">
-                <DayHeader
-                  group={group}
-                  expanded={expanded}
-                  onToggle={() => setOpenDays((prev) => ({ ...prev, [group.key]: !expanded }))}
-                />
-                {expanded && (
-                  <div className="border-t">
-                    <DataTable
-                      columns={columns}
-                      rows={group.tasks}
-                      rowKey={(t) => t.id}
-                      showSerial
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })
       ) : (
         dayGroups.map((group) => {
           const expanded = isDayOpen(group)
@@ -666,6 +598,9 @@ export default function MyTasksPage() {
                         task.status !== "DONE"
                       const isPending = task.approvalStatus === "PENDING_APPROVAL"
                       const isRejected = task.approvalStatus === "REJECTED"
+                      // Same rule the sheet and the API use, so a card never
+                      // offers an edit the server is going to refuse.
+                      const editable = canEditTaskDetails(taskSubject(task), actor)
 
                       return (
                         <div
@@ -690,6 +625,16 @@ export default function MyTasksPage() {
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="truncate text-sm font-medium">{task.title}</p>
+                              {/* The wording is settled - say so here rather
+                                  than after someone tries to change it. */}
+                              {!editable && (
+                                <span
+                                  title={taskEditLockReason(taskSubject(task), actor) ?? undefined}
+                                  className="text-muted-foreground/50 shrink-0"
+                                >
+                                  <Lock className="h-3 w-3" aria-label="Locked" />
+                                </span>
+                              )}
                               {isPending && (
                                 <Badge
                                   variant="outline"
@@ -723,6 +668,14 @@ export default function MyTasksPage() {
                                 Reason: {task.rejectionReason}
                               </p>
                             )}
+                            {/* What actually happened - the sheet's Actual
+                                column. Read-only here: the card is a list you
+                                scan, and the sheet is where a week gets written. */}
+                            {task.description && (
+                              <p className="text-muted-foreground mt-0.5 text-[11px] whitespace-pre-wrap">
+                                {task.description}
+                              </p>
+                            )}
                             <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-[11px]">
                               <ProjectLink task={task} className="hover:text-foreground" />
                               {task.team && <span>· {task.team.name}</span>}
@@ -739,6 +692,16 @@ export default function MyTasksPage() {
                               />
                               <TaskHistoryDialog taskId={task.id} taskTitle={task.title} />
                             </div>
+                            {/* Resources are editable here, unlike the rest:
+                                attaching the published URL is what you do when
+                                the work goes out, and that is as likely to be
+                                from this list as from the sheet. */}
+                            <TaskResources
+                              links={task.links ?? []}
+                              canEdit={!isPending && !isRejected}
+                              onCommit={(links) => updateMut.mutate({ id: task.id, links })}
+                              className="mt-1"
+                            />
                           </div>
                         </div>
                       )
@@ -808,250 +771,5 @@ function DayHeader({
         )}
       </span>
     </button>
-  )
-}
-
-/** Colour per column, matching the project board so the two read the same. */
-const BOARD_COLUMNS: Record<string, string> = {
-  TODO: "bg-slate-100 dark:bg-slate-800/50",
-  IN_PROGRESS: "bg-blue-50 dark:bg-blue-950/30",
-  DONE: "bg-emerald-50 dark:bg-emerald-950/30",
-  ON_HOLD: "bg-amber-50 dark:bg-amber-950/30",
-  DISCARDED: "bg-red-50 dark:bg-red-950/30",
-}
-
-/**
- * Kanban board of the current user's tasks, grouped by workflow status.
- *
- * Drag a card between columns to change its status, the same interaction the
- * project board uses. Moving to On Hold or Discarded pauses for the required
- * reason before committing, so a drag can never write an incomplete record.
- *
- * The status dropdown stays on every card: dragging is not reachable by keyboard
- * for every user, and it is the only way to change status on a touch device
- * where the board scrolls horizontally.
- */
-function MyTasksBoard({
-  tasks,
-  queryKey,
-  onCommit,
-}: {
-  tasks: MyTask[]
-  queryKey: unknown[]
-  onCommit: (id: string, payload: Record<string, unknown>) => void
-}) {
-  const qc = useQueryClient()
-  // A drag onto On Hold / Discarded waits here while the reason is collected.
-  const [pendingDrag, setPendingDrag] = useState<{
-    taskId: string
-    mode: "ON_HOLD" | "DISCARDED"
-  } | null>(null)
-
-  /** Move the card immediately, then persist. The board would otherwise snap
-   *  back to the old column until the request returned. */
-  function commit(taskId: string, payload: Record<string, unknown>) {
-    // The ACTIVE key - "mine" and the team view are separate cache entries, and
-    // patching the wrong one leaves the board you are looking at unchanged.
-    qc.setQueryData(queryKey, (old: { data: MyTask[] } | undefined) =>
-      // Patch only a cache entry that is actually the shape we expect; writing a
-      // broken one here is what the readers then choke on.
-      old && Array.isArray(old.data)
-        ? {
-            ...old,
-            data: old.data.map((t) =>
-              t.id === taskId ? { ...t, status: payload.status as string } : t,
-            ),
-          }
-        : old,
-    )
-    onCommit(taskId, payload)
-  }
-
-  function onDragEnd(result: DropResult) {
-    const { destination, source, draggableId } = result
-    if (!destination || destination.droppableId === source.droppableId) return
-
-    const next = destination.droppableId
-    if (next === "ON_HOLD" || next === "DISCARDED") {
-      setPendingDrag({ taskId: draggableId, mode: next })
-      return
-    }
-    commit(draggableId, { status: next })
-  }
-
-  return (
-    <>
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {TASK_WORKFLOW_STATUSES.map((status) => {
-            const col = tasks.filter((t) => t.status === status)
-            return (
-              <div key={status} className="flex w-72 shrink-0 flex-col">
-                <div className="mb-2 flex items-center justify-between px-1">
-                  <span className="text-xs font-semibold tracking-wide uppercase">
-                    {TASK_STATUS_LABELS[status] ?? status}
-                  </span>
-                  <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
-                    {col.length}
-                  </Badge>
-                </div>
-
-                <Droppable droppableId={status}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className={cn(
-                        "min-h-32 flex-1 space-y-2 rounded-[2px] p-2 transition-colors",
-                        BOARD_COLUMNS[status] ?? "bg-muted/40",
-                        snapshot.isDraggingOver && "ring-primary/50 ring-2",
-                      )}
-                    >
-                      {col.map((task, index) => {
-                        const locked =
-                          task.approvalStatus === "PENDING_APPROVAL" ||
-                          task.approvalStatus === "REJECTED"
-                        const isOverdue =
-                          task.dueDate &&
-                          new Date(task.dueDate) < new Date() &&
-                          task.status !== "DONE"
-
-                        return (
-                          <Draggable
-                            key={task.id}
-                            draggableId={task.id}
-                            index={index}
-                            // A task awaiting approval or already rejected must not
-                            // be moved by dragging past the approval gate.
-                            isDragDisabled={locked}
-                          >
-                            {(drag, snap) => (
-                              <div
-                                ref={drag.innerRef}
-                                {...drag.draggableProps}
-                                style={drag.draggableProps.style as CSSProperties}
-                                className={cn(
-                                  "bg-card space-y-2 rounded-[2px] border p-2.5 shadow-sm transition-shadow",
-                                  !locked && "hover:border-primary/40 hover:shadow-md",
-                                  snap.isDragging && "ring-primary/50 rotate-1 shadow-lg ring-2",
-                                  locked && "opacity-70",
-                                  isOverdue && "border-red-300 dark:border-red-900/60",
-                                )}
-                              >
-                                {/* Header: handle | title + project | history.
-                                    The handle is h-4 and the gap is 2 (8px), so
-                                    every row below aligns on pl-6 (24px) with
-                                    the title - one gutter, not three. */}
-                                <div className="flex items-start gap-2">
-                                  <span
-                                    {...drag.dragHandleProps}
-                                    aria-label={locked ? "Locked" : `Drag ${task.title}`}
-                                    className={cn(
-                                      "mt-px shrink-0",
-                                      locked
-                                        ? "cursor-not-allowed"
-                                        : "text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing",
-                                    )}
-                                  >
-                                    <GripVertical className="h-4 w-4" />
-                                  </span>
-                                  {/* Full title, wrapped rather than clipped. A task
-                                      you cannot read is a task you cannot action. */}
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-sm leading-snug font-medium break-words">
-                                      {task.title}
-                                    </p>
-                                    <ProjectLink
-                                      task={task}
-                                      className="text-muted-foreground mt-0.5 block truncate text-[11px]"
-                                    />
-                                  </div>
-                                  <TaskHistoryDialog
-                                    taskId={task.id}
-                                    taskTitle={task.title}
-                                    iconOnly
-                                    className="-mt-0.5 -mr-1 shrink-0"
-                                  />
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-6">
-                                  <StatusBadge
-                                    status={task.priority}
-                                    colorMap={TASK_PRIORITY_COLORS}
-                                    labelMap={TASK_PRIORITY_LABELS}
-                                    size="xs"
-                                  />
-                                  {task.dueDate && (
-                                    <span
-                                      className={cn(
-                                        "inline-flex items-center gap-1 text-[11px]",
-                                        isOverdue
-                                          ? "font-medium text-red-600 dark:text-red-400"
-                                          : "text-muted-foreground",
-                                      )}
-                                    >
-                                      {isOverdue && <AlertTriangle className="h-3.5 w-3.5" />}
-                                      {formatDate(task.dueDate)}
-                                    </span>
-                                  )}
-                                  {task.approvalStatus === "PENDING_APPROVAL" && (
-                                    <Badge
-                                      variant="outline"
-                                      className="gap-1 border-amber-300 py-0 text-[10px] text-amber-700"
-                                    >
-                                      <Clock className="h-3 w-3" />
-                                      Pending
-                                    </Badge>
-                                  )}
-                                </div>
-
-                                <TaskTime
-                                  estimatedHours={task.estimatedHours}
-                                  loggedHours={task.loggedHours}
-                                  inProgressSince={task.inProgressSince}
-                                  className="pl-6"
-                                />
-
-                                <TaskStatusSelect
-                                  value={task.status}
-                                  disabled={locked}
-                                  triggerClassName="h-8 w-full text-xs"
-                                  onCommit={(payload) => commit(task.id, { ...payload })}
-                                />
-                              </div>
-                            )}
-                          </Draggable>
-                        )
-                      })}
-                      {provided.placeholder}
-                      {col.length === 0 && !snapshot.isDraggingOver && (
-                        <p className="text-muted-foreground/60 py-6 text-center text-[11px]">
-                          Drop a task here
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </Droppable>
-              </div>
-            )
-          })}
-        </div>
-      </DragDropContext>
-
-      <TaskStatusReasonDialog
-        mode={pendingDrag?.mode ?? null}
-        onOpenChange={(open) => {
-          if (!open) {
-            // Cancelled: refetch so the card returns to the column it came from.
-            qc.invalidateQueries({ queryKey: ["my-tasks"] })
-            setPendingDrag(null)
-          }
-        }}
-        onConfirm={(payload) => {
-          if (pendingDrag) commit(pendingDrag.taskId, { ...payload })
-          setPendingDrag(null)
-        }}
-      />
-    </>
   )
 }

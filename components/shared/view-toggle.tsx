@@ -14,6 +14,8 @@ interface Props {
   showKanban?: boolean
   /** The week-grid "Excel" view. Only meaningful where rows have a due date. */
   showSheet?: boolean
+  /** Card and table are the usual pair; opt out where table earns nothing. */
+  showTable?: boolean
   className?: string
 }
 
@@ -22,6 +24,7 @@ export function ViewToggle({
   onChange,
   showKanban = false,
   showSheet = false,
+  showTable = true,
   className,
 }: Props) {
   return (
@@ -47,21 +50,23 @@ export function ViewToggle({
       >
         <LayoutGrid className="h-3.5 w-3.5" />
       </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={value === "table"}
-        title="Table view"
-        onClick={() => onChange("table")}
-        className={cn(
-          "flex h-7 w-8 items-center justify-center rounded-[2px] transition-colors",
-          value === "table"
-            ? "bg-muted text-foreground"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-        )}
-      >
-        <List className="h-3.5 w-3.5" />
-      </button>
+      {showTable && (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={value === "table"}
+          title="Table view"
+          onClick={() => onChange("table")}
+          className={cn(
+            "flex h-7 w-8 items-center justify-center rounded-[2px] transition-colors",
+            value === "table"
+              ? "bg-muted text-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+          )}
+        >
+          <List className="h-3.5 w-3.5" />
+        </button>
+      )}
       {showKanban && (
         <button
           type="button"
