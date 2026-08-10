@@ -18,7 +18,7 @@ import { cn, formatDate } from "@/lib/utils"
 import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { TaskTime } from "./task-time"
 import { BlockedBadge } from "./blocked-badge"
-import { AlertTriangle, Clock, Milestone, GripVertical } from "lucide-react"
+import { AlertTriangle, Milestone, GripVertical } from "lucide-react"
 
 const COLUMNS: { id: string; label: string; color: string }[] = [
   { id: "TODO", label: "To-do", color: "bg-slate-100 dark:bg-slate-800" },
@@ -35,7 +35,6 @@ interface Props {
   teamFilter: string // "all" or teamId
   statusFilter?: string // "ALL" or a status
   assigneeFilter?: string // "all", an employeeId, or "unassigned"
-  showPendingOnly?: boolean
 }
 
 export function KanbanView({
@@ -45,7 +44,6 @@ export function KanbanView({
   teamFilter,
   statusFilter = "ALL",
   assigneeFilter = "all",
-  showPendingOnly = false,
 }: Props) {
   const qc = useQueryClient()
   const { data, isLoading } = useProjectAllTasks(projectId)
@@ -59,11 +57,8 @@ export function KanbanView({
   } | null>(null)
 
   const allTasks = (data?.data ?? []).filter((t) => {
-    if (showPendingOnly) {
-      if (t.approvalStatus !== "PENDING_APPROVAL") return false
-    } else if (t.approvalStatus === "REJECTED") {
-      return false
-    }
+    // Rejected tasks are history, not work: the board never shows them.
+    if (t.approvalStatus === "REJECTED") return false
     if (teamFilter !== "all" && t.teamId !== teamFilter) return false
     if (statusFilter !== "ALL" && t.status !== statusFilter) return false
     // "unassigned" is a real answer to "whose work is this", not a missing
@@ -169,7 +164,6 @@ export function KanbanView({
                             className={cn(
                               "bg-background cursor-pointer rounded-[2px] border p-3 shadow-sm select-none",
                               snap.isDragging && "ring-primary/50 rotate-1 shadow-lg ring-2",
-                              task.approvalStatus === "PENDING_APPROVAL" && "border-amber-300",
                             )}
                             onClick={() => {
                               setSelectedTask(task)
@@ -202,15 +196,6 @@ export function KanbanView({
                                 className="py-0"
                               />
                               <BlockedBadge requirement={task.requirement} />
-                              {task.approvalStatus === "PENDING_APPROVAL" && (
-                                <Badge
-                                  variant="outline"
-                                  className="border-amber-300 py-0 text-[10px] text-amber-700"
-                                >
-                                  <Clock className="mr-1 h-3 w-3" />
-                                  Pending
-                                </Badge>
-                              )}
                               {task.dueDate &&
                                 new Date(task.dueDate) < new Date() &&
                                 task.status !== "DONE" && (

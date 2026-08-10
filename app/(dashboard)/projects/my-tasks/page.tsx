@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import Link from "next/link"
-import { AlertTriangle, ChevronDown, ChevronRight, Clock, Inbox, Lock, X } from "lucide-react"
+import { AlertTriangle, ChevronDown, ChevronRight, Inbox, Lock, X } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -154,7 +154,7 @@ function dayKey(iso: string | null): string {
 
 /**
  * Where a task's client goes. Adhoc work has no project, so there is nothing to
- * link to - it says "Adhoc" in muted text rather than rendering a dead link or,
+ * link to - it says "ADHOC" in muted text rather than rendering a dead link or,
  * worse, an empty gap where every other row names an account.
  */
 function ProjectLink({ task, className }: { task: MyTask; className?: string }) {
@@ -355,7 +355,6 @@ export default function MyTasksPage() {
   const setAllDays = (open: boolean) =>
     setOpenDays(Object.fromEntries(dayGroups.map((g) => [g.key, open])))
 
-  const pendingApproval = tasks.filter((t) => t.approvalStatus === "PENDING_APPROVAL")
   const doneCount = tasks.filter((t) => t.status === "DONE").length
   const overdueCount = tasks.filter(
     (t) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "DONE",
@@ -436,39 +435,12 @@ export default function MyTasksPage() {
             tone: doneCount > 0 ? "success" : "default",
           },
           {
-            label: "Pending approval",
-            value: pendingApproval.length,
-            tone: pendingApproval.length > 0 ? "warning" : "default",
-          },
-          {
             label: "Overdue",
             value: overdueCount,
             tone: overdueCount > 0 ? "danger" : "default",
           },
         ]}
       />
-
-      {/* Pending approval callout */}
-      {pendingApproval.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50/30 dark:border-amber-900/40 dark:bg-amber-950/20">
-          <CardContent className="p-4">
-            <div className="mb-2 flex items-center gap-2">
-              <Clock className="h-4 w-4 text-amber-700 dark:text-amber-400" />
-              <p className="text-sm font-medium">
-                Awaiting manager approval ({pendingApproval.length})
-              </p>
-            </div>
-            <ul className="text-muted-foreground space-y-1 text-xs">
-              {pendingApproval.map((t) => (
-                <li key={t.id}>
-                  · <span className="text-foreground">{t.title}</span> -{" "}
-                  {t.project?.name ?? ADHOC_LABEL}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Filter + view toggle */}
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -596,7 +568,6 @@ export default function MyTasksPage() {
                         task.dueDate &&
                         new Date(task.dueDate) < new Date() &&
                         task.status !== "DONE"
-                      const isPending = task.approvalStatus === "PENDING_APPROVAL"
                       const isRejected = task.approvalStatus === "REJECTED"
                       // Same rule the sheet and the API use, so a card never
                       // offers an edit the server is going to refuse.
@@ -609,15 +580,13 @@ export default function MyTasksPage() {
                             "flex items-center gap-3 rounded-[2px] border p-2.5",
                             isOverdue &&
                               "border-red-200 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
-                            isPending &&
-                              "border-amber-200 bg-amber-50/40 dark:border-amber-900/60 dark:bg-amber-950/20",
                             isRejected && "border-red-200 bg-red-50/40",
-                            !isOverdue && !isPending && !isRejected && "border-border",
+                            !isOverdue && !isRejected && "border-border",
                           )}
                         >
                           <TaskStatusSelect
                             value={task.status}
-                            disabled={isPending || isRejected}
+                            disabled={isRejected}
                             triggerClassName="h-8 w-32 text-xs"
                             onCommit={(payload) => updateMut.mutate({ id: task.id, ...payload })}
                           />
@@ -634,15 +603,6 @@ export default function MyTasksPage() {
                                 >
                                   <Lock className="h-3 w-3" aria-label="Locked" />
                                 </span>
-                              )}
-                              {isPending && (
-                                <Badge
-                                  variant="outline"
-                                  className="border-amber-200 bg-amber-100 text-[10px] text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
-                                >
-                                  <Clock className="mr-0.5 inline h-3 w-3" />
-                                  Pending
-                                </Badge>
                               )}
                               {isRejected && (
                                 <Badge
@@ -698,7 +658,7 @@ export default function MyTasksPage() {
                                 from this list as from the sheet. */}
                             <TaskResources
                               links={task.links ?? []}
-                              canEdit={!isPending && !isRejected}
+                              canEdit={!isRejected}
                               onCommit={(links) => updateMut.mutate({ id: task.id, links })}
                               className="mt-1"
                             />

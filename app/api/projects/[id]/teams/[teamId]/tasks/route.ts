@@ -34,8 +34,12 @@ export const GET = withProjectAccess(
 )
 
 // POST /api/projects/[id]/teams/[teamId]/tasks - create task
-// Manager-created (assigneeId !== caller) → APPROVED + isManagerCreated=true
-// Self-task (assigneeId === caller OR not set) → PENDING_APPROVAL (unless caller IS the manager)
+//
+// Tasks are self-service: a member plans their own week and starts on it. There
+// is no approval gate - a self-raised task used to land in PENDING_APPROVAL and
+// sit there unworkable until the team manager noticed it, which only delayed
+// work the person had already committed to. Who may assign to WHOM is still
+// checked above; only the approval step is gone.
 export const POST = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
@@ -100,9 +104,9 @@ export const POST = withSession(
         }
       }
 
-      // Determine approval status
-      // Manager OR admin creates → APPROVED. Member creates self-task → PENDING_APPROVAL.
-      const approvalStatus = isManager || isAdmin ? "APPROVED" : "PENDING_APPROVAL"
+      // Every task is workable the moment it is raised. isManagerCreated still
+      // records WHO raised it, because "my manager gave me this" and "I planned
+      // this myself" read differently in a history, but neither one waits.
       const isManagerCreated = isManager || isAdmin
 
       const task = await db.projectTask.create({
@@ -118,7 +122,7 @@ export const POST = withSession(
           dueDate: dueDate ? new Date(dueDate) : null,
           estimatedHours: estimatedHours ? Number(estimatedHours) : null,
           tags: Array.isArray(tags) ? tags : [],
-          approvalStatus,
+          approvalStatus: "APPROVED",
           isManagerCreated,
           seoPropertyId,
         },
@@ -153,12 +157,13 @@ export const POST = withSession(
             text: `New task assigned: ${task.title}`,
           })
         } else if (!isManager && team.managerId) {
-          // Member self-created task - notify manager for approval
+          // Member planned their own work. The manager is told, not asked -
+          // they still want to know what their team put on this week.
           await createNotification({
             employeeId: team.managerId,
-            title: "Task pending approval",
-            message: `${task.creator.firstName} created a self-task: "${task.title}"`,
-            type: "warning",
+            title: "New task in your team",
+            message: `${task.creator.firstName} added a task in ${team.name}: "${task.title}"`,
+            type: "info",
             link: `/projects/${projectId}`,
           })
         }
@@ -175,7 +180,6 @@ export const POST = withSession(
           teamId,
           title: task.title,
           assigneeId: finalAssigneeId,
-          approvalStatus,
           isManagerCreated,
           seoPropertyId,
         },

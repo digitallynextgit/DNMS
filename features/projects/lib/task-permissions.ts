@@ -50,7 +50,7 @@ export function isAdhocTask(task: { projectId?: string | null }): boolean {
 }
 
 /** What adhoc work is called wherever a project name would otherwise go. */
-export const ADHOC_LABEL = "Adhoc"
+export const ADHOC_LABEL = "ADHOC"
 export const ADHOC_DESCRIPTION = "Meetings, interviews and other work with no client"
 
 /**

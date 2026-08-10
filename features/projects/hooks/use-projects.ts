@@ -474,33 +474,6 @@ export function useCreateTask(projectId: string, teamId: string) {
   )
 }
 
-export function useApproveTask() {
-  const qc = useQueryClient()
-  return useMutation(
-    mutationWithToast(qc, {
-      mutationFn: (taskId: string) => apiFetch(`/api/tasks/${taskId}/approve`, { method: "PATCH" }),
-      invalidate: [["team-tasks"], ["my-tasks"], ["project-all-tasks"]],
-      success: "Task approved",
-    }),
-  )
-}
-
-export function useRejectTask() {
-  const qc = useQueryClient()
-  return useMutation(
-    mutationWithToast(qc, {
-      mutationFn: ({ taskId, reason }: { taskId: string; reason: string }) =>
-        apiFetch(`/api/tasks/${taskId}/reject`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason }),
-        }),
-      invalidate: [["team-tasks"], ["my-tasks"], ["project-all-tasks"]],
-      success: "Task rejected",
-    }),
-  )
-}
-
 export function useUpdateTask() {
   const qc = useQueryClient()
   return useMutation({

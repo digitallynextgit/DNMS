@@ -1429,20 +1429,16 @@ function PlanCell({
         <span
           key={task.id}
           className="flex items-start gap-1.5 py-0.5"
-          title={[
-            TASK_STATUS_LABELS[task.status] ?? task.status,
-            task.approvalStatus === "PENDING_APPROVAL" && "awaiting approval",
-            editHint(task),
-          ]
+          title={[TASK_STATUS_LABELS[task.status] ?? task.status, editHint(task)]
             .filter(Boolean)
             .join(" · ")}
         >
           <StatusNumber
             n={i + 1}
             task={task}
-            // A task waiting on approval, or already rejected, must not be moved
-            // through the workflow - the same gate the board and list enforce.
-            disabled={readOnly || busy || task.approvalStatus !== "APPROVED"}
+            // A rejected task must not be moved through the workflow - the same
+            // gate the board and list enforce.
+            disabled={readOnly || busy || task.approvalStatus === "REJECTED"}
             onPick={onPickStatus}
           />
           <span
@@ -1450,7 +1446,6 @@ function PlanCell({
               "min-w-0 flex-1 break-words",
               STATUS_TEXT[task.status] ?? "text-foreground",
               STATUS_CLOSED.has(task.status) && "line-through",
-              task.approvalStatus === "PENDING_APPROVAL" && "italic",
             )}
           >
             {task.title}

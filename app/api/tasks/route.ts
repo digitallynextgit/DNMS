@@ -162,9 +162,9 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
 // under, which is the whole point - it used to be forced into a stand-in "ADHOC"
 // project that then behaved like a client account everywhere.
 //
-// Authority mirrors the project flow with the LINE manager standing in for the
-// team manager: raising one on yourself sends it to your manager for approval;
-// a manager raising one on a report is approved on the spot.
+// Who may raise work on WHOM still follows the line manager, but nothing waits
+// for approval: adhoc work you raise on yourself is workable immediately, the
+// same as a project task.
 export const POST = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
   try {
     const body = await req.json()
@@ -194,12 +194,6 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, session:
       )
     }
 
-    // Self-raised goes to the line manager, exactly as a self-raised project
-    // task goes to the team manager. Nobody above you to ask means nothing to
-    // wait for, so it stands approved rather than pending forever.
-    const needsApproval = isSelf && !isAdmin && !!assignee.managerId
-    const approvalStatus = needsApproval ? "PENDING_APPROVAL" : "APPROVED"
-
     const task = await db.projectTask.create({
       data: {
         projectId: null,
@@ -213,8 +207,9 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, session:
         dueDate: body.dueDate ? new Date(body.dueDate) : null,
         estimatedHours: body.estimatedHours ? Number(body.estimatedHours) : null,
         tags: Array.isArray(body.tags) ? body.tags : [],
-        approvalStatus,
-        isManagerCreated: !needsApproval,
+        approvalStatus: "APPROVED",
+        // Records who raised it, not who cleared it - nothing needs clearing.
+        isManagerCreated: !isSelf,
       },
       include: {
         assignee: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -230,15 +225,7 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, session:
     })
 
     try {
-      if (needsApproval && assignee.managerId) {
-        await createNotification({
-          employeeId: assignee.managerId,
-          title: "Adhoc task pending approval",
-          message: `${task.creator.firstName} raised adhoc work: "${task.title}"`,
-          type: "warning",
-          link: "/projects/my-tasks",
-        })
-      } else if (!isSelf) {
+      if (!isSelf) {
         await createNotification({
           employeeId: assigneeId,
           title: "New adhoc task",
@@ -256,7 +243,7 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, session:
       module: "project",
       entityType: "ProjectTask",
       entityId: task.id,
-      changes: { title: task.title, assigneeId, approvalStatus, adhoc: true },
+      changes: { title: task.title, assigneeId, adhoc: true },
     })
 
     return NextResponse.json({ data: task }, { status: 201 })

@@ -1408,7 +1408,12 @@ model ProjectTask {
   // product page is not finished until there is a URL to point at, and that URL
   // used to end up in a chat message nobody could find later.
   links            String[]           @map("links")
+  // Nothing writes PENDING_APPROVAL any more - tasks are self-service, so every
+  // new one is APPROVED. The column stays for the REJECTED rows already on
+  // record (with their rejectionReason), which the views still hide.
   approvalStatus   TaskApprovalStatus @default(APPROVED) @map("approval_status")
+  // Raised by a manager/admin for someone else, rather than planned by the
+  // assignee themselves. Informational only - it gates nothing.
   isManagerCreated Boolean            @default(true) @map("is_manager_created")
   rejectionReason  String?            @map("rejection_reason")
   // ON_HOLD requires a reason + the date it's expected to resume/finish by;

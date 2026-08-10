@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { FormDialog } from "@/components/shared/form-dialog"
-import { RejectReasonDialog } from "@/components/shared/reject-reason-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -23,24 +22,12 @@ import {
   useProjectTeams,
   useTeamTasks,
   useCreateTask,
-  useApproveTask,
-  useRejectTask,
   useUpdateTask,
   useDeleteTask,
   type ProjectTask,
   type ProjectTeam,
 } from "@/features/projects/hooks/use-projects"
-import {
-  Plus,
-  Check,
-  X,
-  AlertTriangle,
-  Trash2,
-  Clock,
-  Milestone,
-  MessageSquare,
-  HelpCircle,
-} from "lucide-react"
+import { Plus, AlertTriangle, Trash2, Milestone, MessageSquare, HelpCircle } from "lucide-react"
 import { cn, formatDate } from "@/lib/utils"
 import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
 import { TaskCreateDialog } from "@/features/projects/components/task-create-dialog"
@@ -77,7 +64,6 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
   const [activeTeamId, setActiveTeamId] = useState<string | "all">("all")
   const [statusFilter, setStatusFilter] = useState<string>("ALL")
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all")
-  const [showPendingOnly, setShowPendingOnly] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [requirementOpen, setRequirementOpen] = useState(false)
 
@@ -178,15 +164,6 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
             </SelectContent>
           </Select>
         </div>
-        <label className="flex cursor-pointer items-center gap-1.5 text-xs">
-          <input
-            type="checkbox"
-            checked={showPendingOnly}
-            onChange={(e) => setShowPendingOnly(e.target.checked)}
-          />
-          Pending approval only
-        </label>
-
         {/* Second entry point for requirements: you notice the blocker while
             looking at the board, not while browsing a separate tab. */}
         <Button
@@ -209,7 +186,6 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
         teamFilter={activeTeamId}
         statusFilter={statusFilter}
         assigneeFilter={assigneeFilter}
-        showPendingOnly={showPendingOnly}
       />
 
       <TaskCreateDialog
@@ -234,14 +210,12 @@ function TeamTasksSection({
   currentUserId,
   isAdmin,
   statusFilter,
-  showPendingOnly,
 }: {
   team: ProjectTeam
   projectId: string
   currentUserId: string
   isAdmin: boolean
   statusFilter: string
-  showPendingOnly: boolean
 }) {
   const { data, isLoading } = useTeamTasks(projectId, team.id)
   const tasks = data?.data ?? []
@@ -251,12 +225,12 @@ function TeamTasksSection({
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
-      if (showPendingOnly && t.approvalStatus !== "PENDING_APPROVAL") return false
-      if (!showPendingOnly && t.approvalStatus === "REJECTED") return false
+      // Rejected tasks are history, not work: they stay out of the list.
+      if (t.approvalStatus === "REJECTED") return false
       if (statusFilter !== "ALL" && t.status !== statusFilter) return false
       return true
     })
-  }, [tasks, showPendingOnly, statusFilter])
+  }, [tasks, statusFilter])
 
   return (
     <Card>
@@ -317,16 +291,12 @@ function TaskRow({
   isManager: boolean
   currentUserId: string
 }) {
-  const approve = useApproveTask()
-  const reject = useRejectTask()
   const update = useUpdateTask()
   const del = useDeleteTask()
-  const [rejectOpen, setRejectOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const isAssignee = task.assigneeId === currentUserId
-  const isPending = task.approvalStatus === "PENDING_APPROVAL"
   const isRejected = task.approvalStatus === "REJECTED"
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "DONE"
 
@@ -335,10 +305,9 @@ function TaskRow({
       <div
         className={cn(
           "flex items-center gap-3 rounded-[2px] border p-2.5",
-          isPending &&
-            "border-amber-300 bg-amber-50/40 dark:border-amber-900/60 dark:bg-amber-950/20",
-          isRejected && "border-red-300 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
-          !isPending && !isRejected && "border-border",
+          isRejected
+            ? "border-red-300 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20"
+            : "border-border",
         )}
       >
         <TaskStatusSelect
@@ -355,15 +324,6 @@ function TaskRow({
             {task.isMilestone && <Milestone className="h-3.5 w-3.5 shrink-0 text-purple-600" />}
             <p className="truncate text-sm font-medium hover:underline">{task.title}</p>
             <BlockedBadge requirement={task.requirement} />
-            {isPending && (
-              <Badge
-                variant="outline"
-                className="border-amber-200 bg-amber-100 text-[10px] text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-              >
-                <Clock className="mr-1 inline h-3 w-3" />
-                Pending approval
-              </Badge>
-            )}
             {isRejected && (
               <Badge
                 variant="outline"
@@ -423,29 +383,7 @@ function TaskRow({
           >
             <MessageSquare className="h-3.5 w-3.5" />
           </Button>
-          {isPending && isManager && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-emerald-700 dark:text-emerald-400"
-                onClick={() => approve.mutate(task.id)}
-              >
-                <Check className="mr-0.5 h-3.5 w-3.5" />
-                Approve
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive h-7"
-                onClick={() => setRejectOpen(true)}
-              >
-                <X className="mr-0.5 h-3.5 w-3.5" />
-                Reject
-              </Button>
-            </>
-          )}
-          {isManager && !isPending && (
+          {isManager && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -456,20 +394,6 @@ function TaskRow({
             </Button>
           )}
         </div>
-
-        <RejectReasonDialog
-          open={rejectOpen}
-          onOpenChange={setRejectOpen}
-          title="Reject Task"
-          reasonLabel="Reason"
-          reasonPlaceholder="Explain why this task is being rejected..."
-          required
-          confirmLabel="Reject"
-          isLoading={reject.isPending}
-          onConfirm={(reason) => {
-            reject.mutate({ taskId: task.id, reason }, { onSuccess: () => setRejectOpen(false) })
-          }}
-        />
 
         <ConfirmDialog
           open={confirmOpen}
