@@ -32,8 +32,8 @@ const FRI = "2026-08-07"
 /** Sheet client name -> the project it belongs to. */
 const PROJECTS = {
   RUDIONE: { code: "DN00005", name: "RUDIONE / LEOCYM" },
-  H2S: { code: "DN00006", name: "H2S" },
-  KYG: { code: "DN00007", name: "KYG" },
+  H2S: { code: "DN00006", name: "HARD2SOFT" },
+  KYG: { code: "DN00007", name: "KNOW YOUR GENES" },
   TFX: { code: "DN00008", name: "TALENTIFI-X" },
   RC: { code: "DN00009", name: "REALTY CANVAS" },
   DN: { code: "DN00010", name: "DIGITALLY NEXT" },
