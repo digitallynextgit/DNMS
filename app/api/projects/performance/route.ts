@@ -55,6 +55,8 @@ export const GET = withSession(
           dueDate: true,
           completedAt: true,
           assigneeId: true,
+          estimatedHours: true,
+          loggedHours: true,
           assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
           project: { select: { id: true, name: true, code: true } },
         },
@@ -83,6 +85,20 @@ export const GET = withSession(
         discarded: number
         dueThisWeek: number
         doneThisWeek: number
+        // ── Mutually exclusive display states ────────────────────────────────
+        // `inProgress` and `overdue` above OVERLAP - a late in-progress task
+        // increments both - which is right for "how many are late" but wrong for
+        // any part-to-whole chart, where it would count that task twice and the
+        // slices would not sum to the total. These split the same tasks into
+        // buckets that each own a task exactly once:
+        //   completed + discarded + onHold + overdue + openProgress + openTodo
+        //   = assigned
+        // Added alongside the originals rather than replacing them, so the AI
+        // briefing and the drill-downs keep the numbers they were written for.
+        openTodo: number
+        openProgress: number
+        allocatedHours: number
+        spentHours: number
       }
       const zero = (): Bucket => ({
         assigned: 0,
@@ -95,6 +111,10 @@ export const GET = withSession(
         discarded: 0,
         dueThisWeek: 0,
         doneThisWeek: 0,
+        openTodo: 0,
+        openProgress: 0,
+        allocatedHours: 0,
+        spentHours: 0,
       })
 
       const summary = zero()
@@ -106,6 +126,8 @@ export const GET = withSession(
 
       const classify = (b: Bucket, t: (typeof tasks)[number]) => {
         b.assigned++
+        b.allocatedHours += t.estimatedHours ?? 0
+        b.spentHours += t.loggedHours
         if (inWeek(t.dueDate)) b.dueThisWeek++
         const done = t.status === "DONE"
         if (done) {
@@ -125,7 +147,17 @@ export const GET = withSession(
           b.onHold++
         } else {
           if (t.status === "IN_PROGRESS") b.inProgress++
-          if (t.dueDate && new Date(t.dueDate) < todayStart) b.overdue++
+          // Overdue = past its due day and STILL actionable. Work on hold or
+          // discarded never reaches here, so it is never counted late: that was
+          // a decision, not a slip.
+          const late = !!t.dueDate && new Date(t.dueDate) < todayStart
+          if (late) {
+            b.overdue++
+          } else if (t.status === "IN_PROGRESS" || t.status === "IN_REVIEW") {
+            b.openProgress++
+          } else {
+            b.openTodo++
+          }
         }
       }
 

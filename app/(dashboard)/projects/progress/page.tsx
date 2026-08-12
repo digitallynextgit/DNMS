@@ -62,6 +62,10 @@ const EMPTY_BUCKET = {
   discarded: 0,
   dueThisWeek: 0,
   doneThisWeek: 0,
+  openTodo: 0,
+  openProgress: 0,
+  allocatedHours: 0,
+  spentHours: 0,
   completionRate: null,
   onTimeRate: null,
 }
@@ -88,6 +92,15 @@ interface Bucket {
   discarded: number
   dueThisWeek: number
   doneThisWeek: number
+  /**
+   * Mutually exclusive display states - see the API. `inProgress` and `overdue`
+   * overlap, so any part-to-whole chart has to use these instead or it counts a
+   * late in-progress task twice.
+   */
+  openTodo: number
+  openProgress: number
+  allocatedHours: number
+  spentHours: number
   completionRate: number | null
   onTimeRate: number | null
 }

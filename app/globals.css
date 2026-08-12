@@ -120,6 +120,23 @@
     --viz-2: #eb6834;
     --viz-grid: #e1e0d9;
     --viz-axis: #898781;
+
+    /* Task-state fills. NOT categorical slots - these encode a STATE, so they
+       are kept apart from --viz-1/2 and never used for a series.
+       Validated as an ordered set against the card surface in both modes; the
+       ORDER is the CVD mechanism, so stack/legend segments must follow it:
+       overdue -> todo -> hold -> progress -> done. (Worst adjacent CVD dE 15.0
+       light / 10.4 dark; normal-vision 20.8 / 22.6.) Re-run the validator
+       before reordering or adding a state.
+       --state-todo is deliberately near-gray: "not started" is the absence of
+       progress, so it recedes rather than competing for identity. Because it,
+       amber and green sit under 3:1 on the light card, every chart using these
+       ships direct labels + a legend - hue never carries meaning alone. */
+    --state-overdue: #ef4444;
+    --state-todo: #94a3b8;
+    --state-hold: #f59e0b;
+    --state-progress: #3b82f6;
+    --state-done: #10b981;
   }
 
   .dark {
@@ -162,6 +179,15 @@
     --viz-2: #d95926;
     --viz-grid: #2c2c2a;
     --viz-axis: #898781;
+
+    /* Selected for the dark card, not flipped from light: the light steps for
+       todo/hold/done sit outside the dark lightness band and would glare. Same
+       order, re-validated against the dark surface. */
+    --state-overdue: #ef4444;
+    --state-todo: #64748b;
+    --state-hold: #d97706;
+    --state-progress: #3b82f6;
+    --state-done: #059669;
   }
 }
 
