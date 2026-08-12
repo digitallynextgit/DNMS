@@ -2,6 +2,7 @@ import "server-only"
 
 import type { Prisma, ProjectTask } from "@prisma/client"
 import { db } from "@/server/db"
+import { openFirstStatusPeriod } from "./task-status-periods"
 
 // =============================================================================
 // Putting work on hold without losing it.
@@ -105,6 +106,12 @@ export async function upsertResumeTask(
     },
     select: { id: true, title: true, dueDate: true, estimatedHours: true },
   })
+
+  // Same as every other creation path (see app/api/tasks/route.ts): a task with
+  // no open period has no history at all, so its own leg would be invisible in
+  // the activity log until somebody happened to move it.
+  await openFirstStatusPeriod(tx, { taskId: created.id, status: "TODO", actorId })
+
   return { ...created, dueDate: created.dueDate ?? task.holdExpectedDate, created: true }
 }
 

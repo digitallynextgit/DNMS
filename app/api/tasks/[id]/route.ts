@@ -256,6 +256,10 @@ export const PATCH = withSession(
             to: updated.status,
             actorId: session.user.id,
             taskCreatedAt: auth.task.createdAt,
+            // Kept ON the period: the task's own holdReason is cleared the moment
+            // the work resumes, so the history would otherwise lose why it was
+            // ever parked.
+            note: updated.holdReason ?? updated.discardReason ?? null,
           })
         }
         // Hold books the unfinished hours onto a task dated for the day the work

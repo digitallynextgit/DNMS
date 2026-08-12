@@ -1575,6 +1575,14 @@ model TaskStatusPeriod {
    * Denormalised endedAt - startedAt, so totals do not need date maths in SQL.
    */
   durationSeconds Int?       @map("duration_seconds")
+  /**
+   * Why the task was moved INTO this status - the hold reason, the discard
+   * reason. Stored per period rather than read off the task, because the task
+   * only carries its CURRENT reason: coming off hold clears holdReason, so the
+   * history would lose the answer to "why was this parked in June" the moment
+   * the work resumed.
+   */
+  note            String?    @map("note") @db.Text
   createdAt       DateTime   @default(now()) @map("created_at")
 
   task  ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
