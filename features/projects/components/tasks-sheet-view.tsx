@@ -146,6 +146,10 @@ function subjectOf(task: SheetTask) {
   return {
     creatorId: task.creatorId,
     createdAt: task.createdAt,
+    // Null project = adhoc, which is what lets someone keep editing work they
+    // raised for themselves. Must be the real value, never a fallback.
+    projectId: task.project?.id ?? null,
+    assigneeId: task.assignee?.id ?? null,
     teamManagerId: resolveTaskManagerId({
       teamId: task.team?.id ?? null,
       teamManagerId: task.team?.managerId,
@@ -487,7 +491,10 @@ export function TasksSheetView({
     if (readOnly) return undefined
     if (!mayEdit(task)) return taskEditLockReason(subjectOf(task), actor) ?? undefined
     if (task.creatorId !== currentUserId) return undefined
-    const left = taskEditWindowLeft(task)
+    // Your own adhoc work never expires, so a countdown here would promise a
+    // deadline that does not exist.
+    if (!task.project && task.assignee?.id === currentUserId) return "Yours to edit"
+    const left = taskEditWindowLeft(subjectOf(task))
     return left ? `Yours to edit - ${left}` : undefined
   }
 

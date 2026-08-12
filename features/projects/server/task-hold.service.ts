@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { Prisma, ProjectTask } from "@prisma/client"
+import { db } from "@/server/db"
 
 // =============================================================================
 // Putting work on hold without losing it.
@@ -157,12 +158,10 @@ const PRISTINE_FOLLOW_UP = {
  * automatically, so its assignee can decline it without needing a manager. The
  * moment it has any real content this returns false and the usual rule applies.
  */
-export async function canRemoveUntouchedFollowUp(
-  tx: Prisma.TransactionClient,
-  taskId: string,
-  userId: string,
-): Promise<boolean> {
-  const match = await tx.projectTask.findFirst({
+export async function canRemoveUntouchedFollowUp(taskId: string, userId: string): Promise<boolean> {
+  // Reads the shared client rather than taking a transaction client: this is a
+  // permission check made before any write, so it has nothing to join.
+  const match = await db.projectTask.findFirst({
     where: {
       id: taskId,
       assigneeId: userId,

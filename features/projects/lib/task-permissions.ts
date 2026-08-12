@@ -25,6 +25,14 @@ export interface TaskEditSubject {
   createdAt: string | Date
   /** Whoever plays manager for this task - see resolveTaskManagerId. */
   teamManagerId?: string | null
+  /**
+   * Null = adhoc. REQUIRED, not optional, and deliberately so: the own-adhoc
+   * exemption below keys off "no project", so an omitted field would silently
+   * read every project task as adhoc and hand the exemption to everyone. Making
+   * it required means a forgotten call site is a compile error, not a hole.
+   */
+  projectId: string | null
+  assigneeId: string | null
 }
 
 /**
@@ -69,6 +77,25 @@ function isManagerOrAdmin(task: TaskEditSubject, actor: TaskActor): boolean {
   return actor.isAdmin || (!!task.teamManagerId && task.teamManagerId === actor.userId)
 }
 
+/**
+ * Your own adhoc work: no project, you raised it, and it is assigned to you.
+ *
+ * The 15-minute window exists because a task is a commitment other people plan
+ * around - which is simply not true of a client-less task you booked for
+ * yourself. Nobody is scheduled against your internal QC slot, so needing your
+ * line manager to fix its wording an hour later is friction that buys nothing.
+ * All three conditions are required: hand it to someone else, or raise it on a
+ * project, and it becomes a commitment again and the window applies.
+ */
+function isOwnAdhocTask(task: TaskEditSubject, actor: TaskActor): boolean {
+  return (
+    task.projectId === null &&
+    task.creatorId === actor.userId &&
+    task.assigneeId !== null &&
+    task.assigneeId === actor.userId
+  )
+}
+
 /** May this person change the task's details (not its status) right now? */
 export function canEditTaskDetails(
   task: TaskEditSubject,
@@ -76,6 +103,7 @@ export function canEditTaskDetails(
   now = Date.now(),
 ): boolean {
   if (isManagerOrAdmin(task, actor)) return true
+  if (isOwnAdhocTask(task, actor)) return true
   if (task.creatorId !== actor.userId) return false
   return editWindowRemaining(task.createdAt, now, TASK_EDIT_WINDOW_MS) > 0
 }
@@ -95,10 +123,14 @@ export function taskEditLockReason(
   now = Date.now(),
 ): string | null {
   if (canEditTaskDetails(task, actor, now)) return null
+  // Adhoc work has no team, so "the team manager" names nobody and sends the
+  // reader looking for a person who does not exist. Their line manager is who
+  // actually holds the task - see resolveTaskManagerId.
+  const authority = task.projectId ? "the team manager" : "your manager"
   if (task.creatorId === actor.userId) {
-    return "The 15-minute window to edit this task has closed. Ask the team manager to change it."
+    return `The 15-minute window to edit this task has closed. Ask ${authority} to change it.`
   }
-  return "Only the team manager can edit a task you did not raise."
+  return `Only ${authority} can edit a task you did not raise.`
 }
 
 /** "12m left" while the author can still edit, empty once it has closed. */

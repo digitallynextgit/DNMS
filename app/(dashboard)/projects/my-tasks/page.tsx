@@ -180,6 +180,10 @@ function taskSubject(task: MyTask) {
   return {
     creatorId: task.creatorId,
     createdAt: task.createdAt,
+    // Null project = adhoc, which is what lets someone keep editing work they
+    // raised for themselves. Must be the real value, never a fallback.
+    projectId: task.project?.id ?? null,
+    assigneeId: task.assignee?.id ?? null,
     teamManagerId: resolveTaskManagerId({
       teamId: task.team?.id ?? null,
       teamManagerId: task.team?.managerId,

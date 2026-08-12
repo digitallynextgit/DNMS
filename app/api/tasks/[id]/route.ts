@@ -88,6 +88,10 @@ export const PATCH = withSession(
       const subject = {
         creatorId: auth.task.creatorId,
         createdAt: auth.task.createdAt,
+        // Straight off the stored row - a task with no project is adhoc, and its
+        // own author/assignee keeps editing rights indefinitely.
+        projectId: auth.task.projectId,
+        assigneeId: auth.task.assigneeId,
         teamManagerId: auth.managerId,
       }
       const actor = { userId: session.user.id, isAdmin }
@@ -405,6 +409,8 @@ export const DELETE = withSession(
         {
           creatorId: auth.task.creatorId,
           createdAt: auth.task.createdAt,
+          projectId: auth.task.projectId,
+          assigneeId: auth.task.assigneeId,
           teamManagerId: auth.managerId,
         },
         { userId: session.user.id, isAdmin: isAdminDel },
@@ -414,7 +420,7 @@ export const DELETE = withSession(
       // assignee may decline it without chasing a manager - which is what the
       // "Remove task" answer in the follow-up dialog does.
       const ownUntouchedFollowUp =
-        !deletable && (await canRemoveUntouchedFollowUp(db, ctx.params.id, session.user.id))
+        !deletable && (await canRemoveUntouchedFollowUp(ctx.params.id, session.user.id))
 
       if (!deletable && !ownUntouchedFollowUp) {
         return NextResponse.json(
