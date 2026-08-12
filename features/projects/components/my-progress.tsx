@@ -15,6 +15,7 @@ import { cn, formatDate } from "@/lib/utils"
 import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { formatHours } from "../lib/format-hours"
 import { projectHref } from "../lib/project-href"
+import { ADHOC_LABEL, ADHOC_ROW_ID } from "../lib/task-permissions"
 
 // =============================================================================
 // "My Progress": what I still have to do, and what I have done.
@@ -36,7 +37,13 @@ interface MyTask {
   completedAt: string | null
   estimatedHours: number | null
   loggedHours: number
-  project: { id: string; name: string; code: string; slug: string | null }
+  /**
+   * NULL for adhoc work - meetings, interviews, internal QC - which belongs to
+   * no client. This type used to say non-null, which is why nothing here was
+   * written to handle it and the whole page died on `t.project.id` the moment
+   * one adhoc task existed. The API has always been able to return null.
+   */
+  project: { id: string; name: string; code: string; slug: string | null } | null
   team?: { id: string; name: string } | null
 }
 
@@ -86,13 +93,19 @@ function TaskRow({ t, done = false }: { t: MyTask; done?: boolean }) {
         <p className={cn("truncate font-medium", done && "text-muted-foreground line-through")}>
           {t.title}
         </p>
-        <Link
-          href={projectHref(t.project)}
-          className="text-muted-foreground hover:text-foreground truncate text-[11px] hover:underline"
-        >
-          {t.project.name}
-          {t.team ? ` · ${t.team.name}` : ""}
-        </Link>
+        {/* Adhoc work has no project page to link to, so it names itself in
+            muted text rather than rendering a dead link. */}
+        {t.project ? (
+          <Link
+            href={projectHref(t.project)}
+            className="text-muted-foreground hover:text-foreground truncate text-[11px] hover:underline"
+          >
+            {t.project.name}
+            {t.team ? ` · ${t.team.name}` : ""}
+          </Link>
+        ) : (
+          <span className="text-muted-foreground truncate text-[11px]">{ADHOC_LABEL}</span>
+        )}
       </div>
 
       {!done && (
@@ -167,16 +180,20 @@ export function MyProgress() {
       { name: string; id: string; slug: string | null; open: number; done: number }
     >()
     for (const t of tasks) {
-      const e = map.get(t.project.id) ?? {
-        name: t.project.name,
-        id: t.project.id,
-        slug: t.project.slug,
+      // Adhoc work rolls up into its own bucket under a sentinel key, the same
+      // one the My Tasks sheet uses, rather than being dropped from the summary
+      // or crashing it.
+      const key = t.project?.id ?? ADHOC_ROW_ID
+      const e = map.get(key) ?? {
+        name: t.project?.name ?? ADHOC_LABEL,
+        id: key,
+        slug: t.project?.slug ?? null,
         open: 0,
         done: 0,
       }
       if (t.status === "DONE") e.done++
       else if (OPEN.includes(t.status)) e.open++
-      map.set(t.project.id, e)
+      map.set(key, e)
     }
 
     return {
@@ -270,12 +287,20 @@ export function MyProgress() {
               const t = p.open + p.done
               return (
                 <div key={p.id} className="flex items-center gap-3">
-                  <Link
-                    href={projectHref(p)}
-                    className="w-40 shrink-0 truncate text-xs hover:underline"
-                  >
-                    {p.name}
-                  </Link>
+                  {/* The adhoc bucket is a sentinel, not a project - linking it
+                      would 404. */}
+                  {p.id === ADHOC_ROW_ID ? (
+                    <span className="text-muted-foreground w-40 shrink-0 truncate text-xs">
+                      {p.name}
+                    </span>
+                  ) : (
+                    <Link
+                      href={projectHref(p)}
+                      className="w-40 shrink-0 truncate text-xs hover:underline"
+                    >
+                      {p.name}
+                    </Link>
+                  )}
                   {/* gap-0.5 keeps a 2px gutter between the two fills. */}
                   <div className="bg-muted flex h-2 flex-1 gap-0.5 overflow-hidden rounded-[2px]">
                     {p.done > 0 && (
