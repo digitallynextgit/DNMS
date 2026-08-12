@@ -47,9 +47,18 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
           buttonVariants({ variant: "ghost" }),
           "size-8 rounded-[2px] p-0 font-normal aria-selected:opacity-100",
         ),
-        range_end: "day-range-end",
         selected:
           "[&>button]:bg-primary [&>button]:text-primary-foreground [&>button:hover]:bg-primary [&>button:hover]:text-primary-foreground rounded",
+        // Range mode only - these modifiers never apply to a single-date picker,
+        // so they cannot affect the existing DateField. The two ends keep the
+        // solid `selected` fill; the days between are a soft band instead, which
+        // is what makes a range read as one span rather than 30 selected days.
+        // The `!` is load-bearing: `selected` also matches every middle day, and
+        // without it which background wins depends on CSS source order.
+        range_start: "rounded-l-[2px] rounded-r-none",
+        range_end: "day-range-end rounded-r-[2px] rounded-l-none",
+        range_middle:
+          "bg-accent rounded-none [&>button]:!bg-transparent [&>button]:!text-accent-foreground",
         today: "[&>button]:bg-accent [&>button]:text-accent-foreground rounded",
         outside: "text-muted-foreground/50",
         disabled: "text-muted-foreground opacity-50",

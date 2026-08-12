@@ -10,19 +10,19 @@ crontab below is what turns all of this on.
 
 ## The jobs
 
-| Job | Schedule | What it does | Safe to enable now? |
-| --- | --- | --- | --- |
-| `task-reminders` | every minute | Warns an assignee their booked time is nearly up | Yes |
-| `attendance-sync` | every 30 min | Polls Hikvision devices for punches | Yes |
-| `birthdays` | 09:00 daily | Birthday notifications | Yes |
-| `content-reminders` | 09:00 daily | Nudges on content-calendar posts | Yes |
-| `document-expiry` | 09:10 daily | Warns on expiring documents | Yes |
-| `requirement-reminders` | 09:30 daily | Chases requirements due/overdue | Yes |
-| `seo-daily` | 07:00 daily | SEO accident monitor | Yes |
-| `seo-weekly` | Mon 06:00 | Search Console pull + audit + scorecard | Yes |
-| `evaluation-autocreate` | 06:00 on 1st & 16th | Creates the period's evaluations | **Read note** |
-| `leave-accrual` | 02:00 on the 1st | Monthly leave accrual | **Read note** |
-| `leave-rollover` | 03:00 on 1 Jan | Carry-forward, lapses the rest | **Read note** |
+| Job                     | Schedule            | What it does                                     | Safe to enable now? |
+| ----------------------- | ------------------- | ------------------------------------------------ | ------------------- |
+| `task-reminders`        | every minute        | Warns an assignee their booked time is nearly up | Yes                 |
+| `attendance-sync`       | every 30 min        | Polls Hikvision devices for punches              | Yes                 |
+| `birthdays`             | 09:00 daily         | Birthday notifications                           | Yes                 |
+| `content-reminders`     | 09:00 daily         | Nudges on content-calendar posts                 | Yes                 |
+| `document-expiry`       | 09:10 daily         | Warns on expiring documents                      | Yes                 |
+| `requirement-reminders` | 09:30 daily         | Chases requirements due/overdue                  | Yes                 |
+| `seo-daily`             | 07:00 daily         | SEO accident monitor                             | Yes                 |
+| `seo-weekly`            | Mon 06:00           | Search Console pull + audit + scorecard          | Yes                 |
+| `evaluation-autocreate` | 06:00 on 1st & 16th | Creates the period's evaluations                 | **Read note**       |
+| `leave-accrual`         | 02:00 on the 1st    | Monthly leave accrual                            | **Read note**       |
+| `leave-rollover`        | 03:00 on 1 Jan      | Carry-forward, lapses the rest                   | **Read note**       |
 
 `el-accrual` is deprecated - it delegates to `leave-accrual`. Do **not** schedule both, or accrual
 runs twice.

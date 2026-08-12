@@ -11,9 +11,15 @@ import type { Session } from "next-auth"
 export const GET = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
-      const daysParam = req.nextUrl.searchParams.get("days")
+      // Either a rolling window (?days=30) or an explicit span (?from=&to=).
+      // The service treats from/to as inclusive days and ignores anything that
+      // is not a yyyy-MM-dd, so a hand-edited URL widens the range at worst.
+      const params = req.nextUrl.searchParams
+      const daysParam = params.get("days")
       const days = daysParam ? Math.min(365, Math.max(1, Number(daysParam))) : undefined
-      return NextResponse.json({ data: await getMetaDashboard(ctx.params.id, days) })
+      const from = params.get("from") ?? undefined
+      const to = params.get("to") ?? undefined
+      return NextResponse.json({ data: await getMetaDashboard(ctx.params.id, { days, from, to }) })
     } catch (error) {
       console.error("[PROJECT_INTEGRATION_GET]", error)
       return NextResponse.json({ error: "Failed to load integration" }, { status: 500 })

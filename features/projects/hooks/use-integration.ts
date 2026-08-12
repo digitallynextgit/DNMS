@@ -7,13 +7,36 @@ import type { MetaDashboard } from "../server/meta-sync.service"
 
 const key = (projectId: string) => ["project-integration", projectId]
 
-/** `days` limits the metrics window (undefined = all synced data). */
-export function useProjectIntegration(projectId: string, days?: number) {
+/**
+ * Which metrics window to load: a rolling `days` count, or an explicit
+ * `from`/`to` span of inclusive "yyyy-MM-dd" days. Omit everything for all data.
+ */
+export interface IntegrationRange {
+  days?: number
+  from?: string
+  to?: string
+}
+
+/** `range` limits the metrics window (undefined = all synced data). */
+export function useProjectIntegration(projectId: string, range?: IntegrationRange) {
+  const { days, from, to } = range ?? {}
+  // An explicit span wins over the rolling window, matching the server.
+  const query = new URLSearchParams()
+  if (from && to) {
+    query.set("from", from)
+    query.set("to", to)
+  } else if (days) {
+    query.set("days", String(days))
+  }
+  const qs = query.toString()
+
   return useQuery({
-    queryKey: [...key(projectId), days ?? "all"],
+    // The querystring IS the cache key: two different ranges must not share an
+    // entry, and it changes exactly when the request does.
+    queryKey: [...key(projectId), qs || "all"],
     queryFn: () =>
       apiFetch<{ data: MetaDashboard }>(
-        `/api/projects/${projectId}/integration${days ? `?days=${days}` : ""}`,
+        `/api/projects/${projectId}/integration${qs ? `?${qs}` : ""}`,
       ).then((r) => r.data),
     staleTime: 30_000,
     placeholderData: (prev) => prev, // keep previous data while a new range loads

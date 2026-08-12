@@ -187,11 +187,59 @@ export interface MetaDashboard {
 
 const num = (v: unknown): number => (v == null ? 0 : Number(v))
 
-/** Integration status + the aggregated Meta data the dashboard renders. `sinceDays`
+/**
+ * Which slice of the synced metrics the dashboard should aggregate.
+ * `from`/`to` are inclusive "yyyy-MM-dd" days and win over `days` when present;
+ * an empty object (or nothing) means every day ever synced.
+ */
+export interface MetaDashboardRange {
+  /** Rolling window ending today, e.g. 30 for the last 30 days. */
+  days?: number
+  from?: string
+  to?: string
+}
+
+/**
+ * "yyyy-MM-dd" -> that day at UTC midnight, which is exactly how a `@db.Date`
+ * column stores it. Anything unparseable returns null so a junk query string
+ * widens the range rather than producing an Invalid Date that matches nothing.
+ */
+function parseDay(value: string | undefined): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const date = new Date(`${value}T00:00:00.000Z`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+/**
+ * The Prisma date filter for a range, or null for "no filter at all".
+ * Both bounds are inclusive: `date` is a DATE column stored at UTC midnight, so
+ * `lte` the last day includes that whole day rather than cutting it off.
+ */
+function metricDateFilter(range?: MetaDashboardRange): { gte?: Date; lte?: Date } | null {
+  if (!range) return null
+
+  const from = parseDay(range.from)
+  const to = parseDay(range.to)
+  if (from || to) {
+    // A backwards range (someone picked the end first) is read as the span
+    // between the two dates rather than returning nothing.
+    if (from && to && from > to) return { gte: to, lte: from }
+    return { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) }
+  }
+
+  if (range.days && range.days > 0) {
+    return {
+      gte: new Date(new Date(Date.now() - range.days * 86_400_000).toISOString().slice(0, 10)),
+    }
+  }
+  return null
+}
+
+/** Integration status + the aggregated Meta data the dashboard renders. `range`
  *  limits the metrics window (undefined = all synced data). */
 export async function getMetaDashboard(
   projectId: string,
-  sinceDays?: number,
+  range?: MetaDashboardRange,
 ): Promise<MetaDashboard> {
   const integration = await db.projectIntegration.findUnique({ where: { projectId } })
   const empty: MetaDashboard = {
@@ -216,12 +264,10 @@ export async function getMetaDashboard(
   }
   if (!integration) return empty
 
-  const cutoff = sinceDays
-    ? new Date(Date.now() - sinceDays * 86_400_000).toISOString().slice(0, 10)
-    : null
+  const dateFilter = metricDateFilter(range)
   const campaigns = await db.metaCampaign.findMany({
     where: { projectId },
-    include: { metrics: cutoff ? { where: { date: { gte: new Date(cutoff) } } } : true },
+    include: { metrics: dateFilter ? { where: { date: dateFilter } } : true },
   })
 
   const byDay = new Map<string, { spend: number; purchases: number; purchaseValue: number }>()

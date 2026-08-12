@@ -40,6 +40,7 @@ import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 import { TONE } from "@/lib/constants"
 import { FacebookIcon, inr, compact, CAMPAIGN_STATUS_COLORS } from "./meta-shared"
+import { DateRangePicker, type DayRange } from "./date-range-picker"
 import { useProjectIntegration, useSyncMeta } from "../hooks/use-integration"
 
 /**
@@ -82,7 +83,14 @@ const PAGE_SIZE = 10
 
 function MetaInsights({ projectId, canManage }: { projectId: string; canManage: boolean }) {
   const [rangeDays, setRangeDays] = useState<number | undefined>(30)
-  const { data, isLoading } = useProjectIntegration(projectId, rangeDays)
+  // Set only while a custom span is active. It overrides the preset rather than
+  // replacing it, so clearing the custom range falls back to whatever preset was
+  // last chosen instead of leaving the filter with nothing selected.
+  const [customRange, setCustomRange] = useState<DayRange | undefined>()
+  const { data, isLoading } = useProjectIntegration(
+    projectId,
+    customRange ? { from: customRange.from, to: customRange.to } : { days: rangeDays },
+  )
   const sync = useSyncMeta(projectId)
 
   // Campaigns table controls
@@ -165,11 +173,13 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
               key={r.label}
               onClick={() => {
                 setRangeDays(r.days)
+                setCustomRange(undefined)
                 setPage(1)
               }}
               className={cn(
                 "rounded-[2px] px-2.5 py-1 font-medium transition-colors",
-                rangeDays === r.days
+                // A preset is only "on" when no custom span is overriding it.
+                !customRange && rangeDays === r.days
                   ? "bg-muted text-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
@@ -178,6 +188,18 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
             </button>
           ))}
         </div>
+
+        <DateRangePicker
+          value={customRange}
+          onChange={(range) => {
+            setCustomRange(range)
+            setPage(1)
+          }}
+          onClear={() => {
+            setCustomRange(undefined)
+            setPage(1)
+          }}
+        />
         {data.lastSyncedAt && (
           <span className="text-muted-foreground text-xs">
             Last synced {new Date(data.lastSyncedAt).toLocaleString("en-IN")}
