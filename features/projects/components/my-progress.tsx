@@ -107,8 +107,9 @@ function stateOf(task: MyTask, today: number): State | null {
 
 // ─── Date range ───────────────────────────────────────────────────────────────
 
-type PresetKey = "week" | "month" | "30d" | "all"
+type PresetKey = "today" | "week" | "month" | "30d" | "all"
 const PRESETS: { key: PresetKey; label: string }[] = [
+  { key: "today", label: "Today" },
   { key: "week", label: "This week" },
   { key: "month", label: "This month" },
   { key: "30d", label: "Last 30 days" },
@@ -119,6 +120,7 @@ function presetRange(key: PresetKey): { from: number; to: number } | null {
   if (key === "all") return null
   const now = new Date()
   const today = dayStart(now)
+  if (key === "today") return { from: today, to: today }
   if (key === "30d") return { from: today - 29 * 86_400_000, to: today }
   if (key === "month") {
     return { from: dayStart(new Date(now.getFullYear(), now.getMonth(), 1)), to: today }
@@ -316,24 +318,7 @@ export function MyProgress() {
 
                 {/* Legend + direct values. Required, not decorative: three of
                     these fills are under 3:1 on the light card. */}
-                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
-                  {STATES.map((s) => {
-                    const Icon = s.icon
-                    return (
-                      <div key={s.key} className="flex items-center gap-1.5 text-xs">
-                        <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
-                          style={{ background: s.fill }}
-                        />
-                        <Icon className="text-muted-foreground h-3 w-3 shrink-0" />
-                        <span className="text-muted-foreground truncate">{s.label}</span>
-                        <span className="ml-auto font-medium tabular-nums">
-                          {view.counts[s.key]}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
+                <StateLegend counts={view.counts} columns />
               </CardContent>
             </Card>
 
@@ -372,8 +357,13 @@ export function MyProgress() {
                       tickLine={false}
                       axisLine={false}
                     />
-                    <Tooltip cursor={{ fill: "var(--viz-grid)", opacity: 0.35 }} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} iconType="square" iconSize={9} />
+                    {/* Custom content, not the default: recharts paints its
+                        tooltip text in the SERIES colour and lists every series
+                        including the zeros, which is both unreadable and noise. */}
+                    <Tooltip
+                      cursor={{ fill: "var(--viz-grid)", opacity: 0.35 }}
+                      content={<StateTooltip />}
+                    />
                     {STATES.map((s) => (
                       <Bar
                         key={s.key}
@@ -389,6 +379,11 @@ export function MyProgress() {
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
+
+                {/* Our own legend rather than recharts': theirs colours the
+                    labels with the series colour and sorts them alphabetically,
+                    so it disagreed with the donut's legend right beside it. */}
+                <StateLegend />
 
                 {/* The chart's table twin. Not optional decoration: segment
                     values otherwise exist only inside a tooltip, and three of
@@ -483,7 +478,16 @@ export function MyProgress() {
                       cursor={{ fill: "var(--viz-grid)", opacity: 0.35 }}
                       content={<HoursTooltip />}
                     />
-                    <Legend wrapperStyle={{ fontSize: 11 }} iconType="square" iconSize={9} />
+                    {/* formatter, because recharts otherwise paints the label in
+                        the series colour - text wears text tokens, always. */}
+                    <Legend
+                      wrapperStyle={{ fontSize: 11 }}
+                      iconType="square"
+                      iconSize={9}
+                      formatter={(value) => (
+                        <span className="text-muted-foreground text-xs">{value}</span>
+                      )}
+                    />
                     {/* The one CATEGORICAL pair on the page - two measures of the
                         same unit on one axis, so no second scale is needed. */}
                     <Bar dataKey="allocated" name="Booked" fill="var(--viz-1)" radius={2} />
@@ -521,25 +525,104 @@ export function MyProgress() {
   )
 }
 
-/** Slice tooltip: name, count and share, so the donut is readable without maths. */
+/**
+ * The state legend, in the FIXED state order.
+ *
+ * Ours rather than recharts' `<Legend>`: theirs paints each label in its series
+ * colour (text must wear text tokens, so a colour never has to be read as a
+ * word) and sorts alphabetically, which made the two legends on this page
+ * disagree about the order of the very same five states.
+ */
+function StateLegend({
+  counts,
+  columns = false,
+}: {
+  counts?: Record<State, number>
+  columns?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        "mt-2 gap-x-4 gap-y-1.5",
+        columns ? "grid grid-cols-2 sm:grid-cols-3" : "flex flex-wrap",
+      )}
+    >
+      {STATES.map((s) => {
+        const Icon = s.icon
+        return (
+          <div key={s.key} className="flex items-center gap-1.5 text-xs">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: s.fill }} />
+            <Icon className="text-muted-foreground h-3 w-3 shrink-0" />
+            <span className="text-muted-foreground truncate">{s.label}</span>
+            {counts && (
+              <span className={cn("font-medium tabular-nums", columns && "ml-auto")}>
+                {counts[s.key]}
+              </span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Tooltip for the state charts.
+ *
+ * Handles both the donut (one slice, with its share) and the stacked bar (a
+ * client, with the states it actually has). Zero rows are dropped: the default
+ * tooltip listed every state including the four sitting at 0, which buried the
+ * one number the reader was pointing at.
+ */
 function StateTooltip({
   active,
   payload,
+  label,
   total,
 }: {
   active?: boolean
-  payload?: { name?: string; value?: number }[]
-  total: number
+  payload?: { name?: string; value?: number; color?: string; fill?: string }[]
+  label?: string
+  total?: number
 }) {
   if (!active || !payload?.length) return null
-  const p = payload[0]!
-  const value = p.value ?? 0
+  const rows = payload.filter((p) => Number(p.value) > 0)
+  if (rows.length === 0) return null
+
+  // A donut hands over a single slice; a stacked bar hands over the whole stack.
+  const isSlice = total != null && rows.length === 1 && !label
+  if (isSlice) {
+    const p = rows[0]!
+    const value = p.value ?? 0
+    return (
+      <div className="bg-card rounded-[2px] border px-2 py-1 text-xs shadow-sm">
+        <span className="font-medium">{p.name}</span>
+        <span className="text-muted-foreground ml-2 tabular-nums">
+          {value} · {total > 0 ? Math.round((value / total) * 100) : 0}%
+        </span>
+      </div>
+    )
+  }
+
+  const sum = rows.reduce((a, p) => a + Number(p.value ?? 0), 0)
   return (
-    <div className="bg-card rounded-[2px] border px-2 py-1 text-xs shadow-sm">
-      <span className="font-medium">{p.name}</span>
-      <span className="text-muted-foreground ml-2 tabular-nums">
-        {value} · {total > 0 ? Math.round((value / total) * 100) : 0}%
-      </span>
+    <div className="bg-card min-w-36 rounded-[2px] border px-2 py-1.5 text-xs shadow-sm">
+      {label && <p className="mb-1 font-medium">{label}</p>}
+      {rows.map((p) => (
+        <p key={p.name} className="flex items-center gap-2">
+          <span
+            className="h-2 w-2 shrink-0 rounded-[1px]"
+            style={{ background: p.fill ?? p.color }}
+          />
+          {/* Label in muted ink, value in primary - never in the series colour. */}
+          <span className="text-muted-foreground">{p.name}</span>
+          <span className="text-foreground ml-auto font-medium tabular-nums">{p.value}</span>
+        </p>
+      ))}
+      <p className="mt-1 flex items-center gap-2 border-t pt-1">
+        <span className="text-muted-foreground">All</span>
+        <span className="text-foreground ml-auto font-medium tabular-nums">{sum}</span>
+      </p>
     </div>
   )
 }

@@ -458,7 +458,16 @@ export function PortfolioCharts({
                     unit, so they share one axis and need no second scale. */}
                 <Bar dataKey="allocatedHours" name="Booked" fill="var(--viz-1)" radius={2} />
                 <Bar dataKey="spentHours" name="Spent" fill="var(--viz-2)" radius={2} />
-                <Legend wrapperStyle={{ fontSize: 11 }} iconType="square" iconSize={9} />
+                {/* formatter, because recharts otherwise paints the label in the
+                    series colour - text wears text tokens, always. */}
+                <Legend
+                  wrapperStyle={{ fontSize: 11 }}
+                  iconType="square"
+                  iconSize={9}
+                  formatter={(value) => (
+                    <span className="text-muted-foreground text-xs">{value}</span>
+                  )}
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
