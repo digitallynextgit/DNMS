@@ -4,6 +4,7 @@ import { db } from "@/server/db"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Topbar } from "@/components/layout/topbar"
 import { RealtimeNotifications } from "@/components/providers/realtime-notifications"
+import { FollowUpConflictDialog } from "@/components/providers/follow-up-conflict-dialog"
 import { AiAssistant } from "@/components/shared/ai-assistant"
 import { AccountDeactivated } from "@/features/auth"
 
@@ -25,6 +26,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="dashboard-shell bg-background fixed inset-0 grid grid-cols-[auto_1fr] overflow-hidden">
       <RealtimeNotifications />
+      {/* Mounted once for the whole app: the "keep or remove this follow-up?"
+          question can be raised from any screen that changes a task's status. */}
+      <FollowUpConflictDialog />
       <Sidebar session={session} />
       <div className="grid h-full min-h-0 min-w-0 grid-rows-[auto_1fr] overflow-hidden">
         <Topbar session={session} />

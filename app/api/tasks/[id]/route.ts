@@ -6,8 +6,15 @@ import { createAuditLog } from "@/lib/audit"
 import { logActivity } from "@/features/projects/server/activity"
 import { syncTaskToEntry } from "@/features/projects/server/content-task.service"
 import { recordStatusChange } from "@/features/projects/server/task-status-periods"
+import {
+  upsertResumeTask,
+  removeResumeTaskIfPristine,
+  canRemoveUntouchedFollowUp,
+  type ResumeTaskResult,
+} from "@/features/projects/server/task-hold.service"
 import { diffTaskFields } from "@/features/projects/server/task-audit"
 import { dedupeLinks, isSafeHttpUrl } from "@/features/projects/lib/task-links"
+import { formatHours } from "@/features/projects/lib/format-hours"
 import { createNotification } from "@/lib/notifications"
 import {
   canDeleteTask,
@@ -108,6 +115,41 @@ export const PATCH = withSession(
         if (refusal) return NextResponse.json({ error: refusal }, { status: 403 })
       }
 
+      // Moving a HOLD FOLLOW-UP whose original has since been picked up again.
+      // The follow-up exists to carry work forward; if the original is already
+      // in progress or finished, that work is happening (or happened) there, and
+      // touching this one silently double-books it. Refuse once with everything
+      // the client needs to ask "keep it, or remove it?" - answering re-sends
+      // with keepFollowUp, so a UI that does not handle the question gets a
+      // plain error instead of quietly doing the wrong thing.
+      if (
+        status !== undefined &&
+        status !== auth.task.status &&
+        auth.task.resumedFromId &&
+        body.keepFollowUp !== true
+      ) {
+        const original = await db.projectTask.findUnique({
+          where: { id: auth.task.resumedFromId },
+          select: { title: true, status: true },
+        })
+        if (original && (original.status === "DONE" || original.status === "IN_PROGRESS")) {
+          const state = original.status === "DONE" ? "already completed" : "already in progress"
+          return NextResponse.json(
+            {
+              error: `The original task "${original.title}" is ${state}.`,
+              details: {
+                reason: "FOLLOW_UP_REDUNDANT",
+                taskId: ctx.params.id,
+                taskTitle: auth.task.title,
+                originalTitle: original.title,
+                originalStatus: original.status,
+              },
+            },
+            { status: 409 },
+          )
+        }
+      }
+
       const data: Record<string, unknown> = {}
       if (title !== undefined) data.title = title
       if (description !== undefined) data.description = description
@@ -195,7 +237,7 @@ export const PATCH = withSession(
       // The task row and its status history move together: a recorded status
       // with no period (or the reverse) would make every duration wrong from
       // that point on.
-      const task = await db.$transaction(async (tx) => {
+      const { task, resumeTask, removedResume } = await db.$transaction(async (tx) => {
         const updated = await tx.projectTask.update({
           where: { id: ctx.params.id },
           data,
@@ -212,7 +254,26 @@ export const PATCH = withSession(
             taskCreatedAt: auth.task.createdAt,
           })
         }
-        return updated
+        // Hold books the unfinished hours onto a task dated for the day the work
+        // is expected to resume. Inside the transaction on purpose: a hold
+        // recorded WITHOUT the task carrying its hours is the exact silent loss
+        // this prevents. `updated` is used rather than auth.task so the carried
+        // hours include the stretch just banked by this very request.
+        // Returned alongside the task rather than assigned to an outer variable:
+        // TypeScript cannot see that a callback ran, so a `let` written only in
+        // here still reads as null afterwards.
+        let resume: ResumeTaskResult | null = null
+        let removedResume: { id: string; dueDate: Date | null } | null = null
+        if (statusChanged && updated.status === "ON_HOLD") {
+          resume = await upsertResumeTask(tx, updated, session.user.id)
+        } else if (statusChanged && prevStatus === "ON_HOLD") {
+          // Coming OFF hold - resumed, finished the same day, or abandoned. The
+          // follow-up meant "the rest of this, later"; that later is now, so an
+          // untouched one is taken back rather than left to double-book the work
+          // into a future week.
+          removedResume = await removeResumeTaskIfPristine(tx, updated.id)
+        }
+        return { task: updated, resumeTask: resume, removedResume }
       })
 
       // Before AND after, not just the new value: "who moved the deadline, and
@@ -281,6 +342,36 @@ export const PATCH = withSession(
             })
           }
         }
+
+        // Tell the assignee where their unfinished hours went. The follow-up sits
+        // on a FUTURE date, so it is not on the board they are looking at when
+        // they hit hold - without this the hours look like they vanished.
+        if (resumeTask && task.assigneeId) {
+          const resumeOn = resumeTask.dueDate.toISOString().slice(0, 10)
+          const carried = resumeTask.estimatedHours
+          await createNotification({
+            employeeId: task.assigneeId,
+            title: resumeTask.created ? "Follow-up task created" : "Follow-up task rescheduled",
+            message: carried
+              ? `"${task.title}" is on hold. ${formatHours(carried)} left to do, booked for ${resumeOn}.`
+              : `"${task.title}" is on hold. Picked up again on ${resumeOn} - no hours left on the estimate, so re-estimate it then.`,
+            type: "info",
+            link: "/projects/my-tasks",
+          })
+        }
+
+        // The mirror of the above: the hours came back to this task, so say so
+        // rather than letting a planned day quietly empty itself.
+        if (removedResume && task.assigneeId) {
+          const wasFor = removedResume.dueDate?.toISOString().slice(0, 10)
+          await createNotification({
+            employeeId: task.assigneeId,
+            title: "Follow-up task removed",
+            message: `"${task.title}" came off hold, so the follow-up${wasFor ? ` booked for ${wasFor}` : ""} was removed.`,
+            type: "info",
+            link: "/projects/my-tasks",
+          })
+        }
       } else if (typeof isMilestone === "boolean" && projectId) {
         await logActivity({
           projectId,
@@ -318,7 +409,14 @@ export const DELETE = withSession(
         },
         { userId: session.user.id, isAdmin: isAdminDel },
       )
-      if (!deletable) {
+      // ...with one exception: an UNTOUCHED hold follow-up. The app raised that
+      // one automatically, and there is nothing in it to destroy, so its
+      // assignee may decline it without chasing a manager - which is what the
+      // "Remove task" answer in the follow-up dialog does.
+      const ownUntouchedFollowUp =
+        !deletable && (await canRemoveUntouchedFollowUp(db, ctx.params.id, session.user.id))
+
+      if (!deletable && !ownUntouchedFollowUp) {
         return NextResponse.json(
           { error: "Only the team manager can delete a task." },
           { status: 403 },

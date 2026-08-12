@@ -17,9 +17,25 @@ export async function apiFetch<T>(input: string, init?: RequestInit): Promise<T>
   if (!res.ok) {
     const message =
       body?.error?.message ?? body?.error ?? body?.message ?? `Request failed (${res.status})`
-    throw new Error(typeof message === "string" ? message : `Request failed (${res.status})`)
+    const error = new Error(
+      typeof message === "string" ? message : `Request failed (${res.status})`,
+    ) as ApiError
+    // Carry the machine-readable part of the failure, not just its prose. A
+    // caller that wants to ACT on a specific rejection (ask the user a question,
+    // retry with a flag) otherwise has to string-match the message.
+    error.status = res.status
+    error.code = body?.error?.code
+    error.details = body?.error?.details ?? body?.details
+    throw error
   }
   return body as T
+}
+
+/** What `apiFetch` throws: a normal Error plus the server's error envelope. */
+export interface ApiError extends Error {
+  status?: number
+  code?: string
+  details?: unknown
 }
 
 /**

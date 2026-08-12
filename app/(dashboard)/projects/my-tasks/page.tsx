@@ -42,6 +42,9 @@ import { TaskTime } from "@/features/projects/components/task-time"
 import { TaskHistoryDialog } from "@/features/projects/components/task-history-dialog"
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { projectHref } from "@/features/projects/lib/project-href"
+import { followUpConflictFrom } from "@/features/projects/lib/follow-up-conflict"
+import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
+import { apiFetch } from "@/lib/api-fetch"
 import { BlockedBadge } from "@/features/projects/components/blocked-badge"
 import { useProjects } from "@/features/projects/hooks/use-projects"
 import { DateField } from "@/components/shared/date-field"
@@ -133,14 +136,14 @@ async function fetchMyTasks(scope: TaskScope): Promise<{ data: MyTask[]; meta?: 
   return res.json()
 }
 
+// Goes through apiFetch rather than a bare fetch so the server's error CODE and
+// DETAILS survive - the follow-up question below is unanswerable without them.
 async function updateTask(id: string, body: Record<string, unknown>) {
-  const res = await fetch(`/api/tasks/${id}`, {
+  return apiFetch(`/api/tasks/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error("Failed")
-  return res.json()
 }
 
 const NO_DATE = "none"
@@ -215,6 +218,7 @@ export default function MyTasksPage() {
   const [storedView, setViewMode] = useViewMode("my-tasks")
   const viewMode = storedView === "sheet" ? "sheet" : "card"
   const qc = useQueryClient()
+  const askFollowUpConflict = useFollowUpConflictStore((s) => s.ask)
 
   const { data: session } = useSession()
   const { can } = usePermissions()
@@ -295,7 +299,24 @@ export default function MyTasksPage() {
       qc.invalidateQueries({ queryKey: ["my-tasks"] })
       toast.success("Task updated")
     },
-    onError: () => toast.error("Failed to update"),
+    onError: (error: Error, variables) => {
+      // A hold follow-up whose original is already underway: ask rather than
+      // fail, and re-send confirmed if they choose to keep it.
+      const conflict = followUpConflictFrom(error)
+      if (conflict) {
+        const { id, ...body } = variables
+        askFollowUpConflict({
+          ...conflict,
+          keep: async () => {
+            await updateTask(id, { ...body, keepFollowUp: true })
+            qc.invalidateQueries({ queryKey: ["my-tasks"] })
+            toast.success("Task updated")
+          },
+        })
+        return
+      }
+      toast.error(error.message || "Failed to update")
+    },
   })
 
   // Full filtered list - drives the summary strip, the pending-approval callout

@@ -1487,9 +1487,20 @@ model ProjectTask {
   // a flag somebody has to remember to unset.
   requirementId String? @map("requirement_id")
 
+  // The task this one was raised from when that task was put ON_HOLD. Putting
+  // work on hold books the unfinished hours onto a new task dated for the day it
+  // is expected to resume, and this is the link back. It also makes the spawn
+  // idempotent: a task held, resumed and held again updates its existing
+  // follow-up instead of littering the board with copies.
+  resumedFromId String? @map("resumed_from_id")
+
   project        Project?              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   seoProperty    SeoProperty?          @relation(fields: [seoPropertyId], references: [id], onDelete: SetNull)
   requirement    ProjectRequirement?   @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  // SetNull, not Cascade: deleting the held task must not take the follow-up
+  // (and the hours booked on it) with it.
+  resumedFrom    ProjectTask?          @relation("TaskResume", fields: [resumedFromId], references: [id], onDelete: SetNull)
+  resumeTasks    ProjectTask[]         @relation("TaskResume")
   team           ProjectTeam?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   assignee       Employee?             @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   creator        Employee              @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
@@ -1506,6 +1517,9 @@ model ProjectTask {
   @@index([assigneeId])
   @@index([status])
   @@index([approvalStatus])
+  // Serves the "is there already an open follow-up for this task?" lookup done
+  // every time a task is put on hold.
+  @@index([resumedFromId])
   @@map("project_tasks")
 }
 

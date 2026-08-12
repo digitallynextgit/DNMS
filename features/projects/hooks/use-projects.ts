@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
+import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
+import { followUpConflictFrom } from "../lib/follow-up-conflict"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -476,6 +478,14 @@ export function useCreateTask(projectId: string, teamId: string) {
 
 export function useUpdateTask() {
   const qc = useQueryClient()
+  const askFollowUp = useFollowUpConflictStore((s) => s.ask)
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["team-tasks"] })
+    qc.invalidateQueries({ queryKey: ["my-tasks"] })
+    qc.invalidateQueries({ queryKey: ["project-all-tasks"] })
+  }
+
   return useMutation({
     mutationFn: ({
       taskId,
@@ -492,12 +502,32 @@ export function useUpdateTask() {
         body: JSON.stringify(body),
       }),
     onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ["team-tasks"] })
-      qc.invalidateQueries({ queryKey: ["my-tasks"] })
-      qc.invalidateQueries({ queryKey: ["project-all-tasks"] })
+      invalidate()
       if (!variables.silent) toast.success("Updated")
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error, variables) => {
+      // The server refused because this is a hold follow-up whose original has
+      // already been picked up. That is a QUESTION, not a failure - put it to
+      // the user instead of flashing an error they cannot act on.
+      const conflict = followUpConflictFrom(e)
+      if (conflict) {
+        askFollowUp({
+          ...conflict,
+          // "Keep it" is the same request again, this time confirmed.
+          keep: async () => {
+            await apiFetch(`/api/tasks/${variables.taskId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...variables.body, keepFollowUp: true }),
+            })
+            invalidate()
+            if (!variables.silent) toast.success("Updated")
+          },
+        })
+        return
+      }
+      toast.error(e.message)
+    },
   })
 }
 

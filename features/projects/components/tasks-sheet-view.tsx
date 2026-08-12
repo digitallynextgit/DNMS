@@ -54,6 +54,8 @@ import { isWithinEditWindow, TASK_EDIT_WINDOW_MS } from "@/features/projects/lib
 import { useCommitOnOutsidePointer } from "@/hooks/use-commit-on-outside-pointer"
 import { TaskResources } from "@/features/projects/components/task-resources"
 import { dedupeLinks, isSafeHttpUrl, linkLabel } from "@/features/projects/lib/task-links"
+import { followUpConflictFrom } from "@/features/projects/lib/follow-up-conflict"
+import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
 import type { ProjectTeam } from "@/features/projects/hooks/use-projects"
 
 // =============================================================================
@@ -449,6 +451,7 @@ export function TasksSheetView({
   readOnly = false,
 }: Props) {
   const qc = useQueryClient()
+  const askFollowUpConflict = useFollowUpConflictStore((s) => s.ask)
   const [weekStart, setWeekStart] = useState(() => toKey(mondayOf(new Date())))
   const [busyCells, setBusyCells] = useState<Record<string, boolean>>({})
   /** A Plan edit that would delete tasks, held until it is confirmed. */
@@ -727,15 +730,32 @@ export function TasksSheetView({
     label: string,
   ) {
     setBusy(cellKey, true)
-    try {
-      await apiFetch(`/api/tasks/${task.id}`, {
+    const send = (payload: Record<string, unknown>) =>
+      apiFetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       })
+
+    try {
+      await send(body)
       toast.success(label)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save")
+      // Moving a hold follow-up whose original is already underway is a question
+      // for the user, not an error - see follow-up-conflict.ts.
+      const conflict = followUpConflictFrom(e)
+      if (conflict) {
+        askFollowUpConflict({
+          ...conflict,
+          keep: async () => {
+            await send({ ...body, keepFollowUp: true })
+            toast.success(label)
+            await qc.invalidateQueries({ queryKey: ["my-tasks"] })
+          },
+        })
+      } else {
+        toast.error(e instanceof Error ? e.message : "Could not save")
+      }
     } finally {
       setBusy(cellKey, false)
       await qc.invalidateQueries({ queryKey: ["my-tasks"] })
