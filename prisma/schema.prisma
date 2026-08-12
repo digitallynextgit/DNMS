@@ -499,6 +499,9 @@ model Employee {
   // Password reset
   passwordResets PasswordReset[]
 
+  // Notifications
+  taskReminderPreference TaskReminderPreference?
+
   // Work From Home
   wfhRequests         WfhRequest[] @relation("WfhRequester")
   wfhManagerApprovals WfhRequest[] @relation("WfhManagerApprover")
@@ -683,6 +686,54 @@ model PushSubscription {
 
   @@index([employeeId])
   @@map("push_subscriptions")
+}
+
+/// How an employee wants to be warned that the time budgeted for a running task
+/// is about to run out. One row per employee; a missing row means the defaults
+/// in features/notifications/constants.ts, so nobody has to opt in to be warned.
+model TaskReminderPreference {
+  id         String  @id @default(uuid()) @map("id")
+  employeeId String  @unique @map("employee_id")
+  enabled    Boolean @default(true) @map("enabled")
+
+  /// Minutes before the estimate runs out that the FIRST reminder fires.
+  /// 15 = "a task booked for an hour warns me at the 45-minute mark".
+  leadMinutes Int @default(15) @map("lead_minutes")
+
+  /// How many reminders a single run of a task may produce, the first one
+  /// included. 1 = warn once and stay quiet.
+  reminderCount Int @default(1) @map("reminder_count")
+
+  /// Gap between consecutive reminders. With lead 15 / count 3 / every 5 the
+  /// warnings land 15, 10 and 5 minutes out; a gap that overshoots the deadline
+  /// simply reads as "over the estimate by N minutes".
+  repeatEveryMinutes Int @default(5) @map("repeat_every_minutes")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("task_reminder_preferences")
+}
+
+/// What has already been sent for ONE run of a task, where a run is a single
+/// uninterrupted IN_PROGRESS stretch (identified by the task's inProgressSince).
+/// Pausing and restarting a task therefore earns a fresh set of reminders, and a
+/// cron that runs twice - or catches up after an outage - cannot re-send one.
+model TaskReminderState {
+  id           String    @id @default(uuid()) @map("id")
+  taskId       String    @map("task_id")
+  runStartedAt DateTime  @map("run_started_at")
+  sentCount    Int       @default(0) @map("sent_count")
+  lastSentAt   DateTime? @map("last_sent_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  task ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, runStartedAt])
+  @@index([createdAt])
+  @@map("task_reminder_states")
 }
 
 // =============================================================================
@@ -1446,6 +1497,7 @@ model ProjectTask {
   comments       TaskComment[]
   checklistItems TaskChecklistItem[]
   statusPeriods  TaskStatusPeriod[]
+  reminderStates TaskReminderState[]
   // Set when this task was generated from a content-calendar post.
   contentEntry   ContentCalendarEntry?
 

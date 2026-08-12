@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
 import { useRouter } from "next/navigation"
-import { CheckCircle, Info, AlertCircle, CheckCheck, Trash2 } from "lucide-react"
+import { CheckCircle, Info, AlertCircle, CheckCheck, Trash2, Settings2 } from "lucide-react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
@@ -13,6 +13,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Pagination } from "@/components/shared/pagination"
+import { TaskReminderSettings } from "@/features/notifications"
 import { cn, formatRelativeTime, truncate } from "@/lib/utils"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -77,6 +78,9 @@ export default function NotificationsPage() {
   const qc = useQueryClient()
   const [page, setPage] = useUrlPage()
   const [confirmClear, setConfirmClear] = useState(false)
+  // Collapsed by default: this page is read as a feed, and the settings are
+  // something an employee changes once and then leaves alone.
+  const [showSettings, setShowSettings] = useState(false)
 
   const { data, isLoading } = useQuery<NotificationsResponse>({
     queryKey: ["notifications", page],
@@ -145,6 +149,14 @@ export default function NotificationsPage() {
         description="Your activity feed and system notifications."
         actions={
           <>
+            <Button
+              variant={showSettings ? "default" : "outline"}
+              onClick={() => setShowSettings((s) => !s)}
+              aria-expanded={showSettings}
+            >
+              <Settings2 className="mr-2 h-4 w-4" />
+              Reminder settings
+            </Button>
             {hasUnread && (
               <Button
                 variant="outline"
@@ -169,6 +181,8 @@ export default function NotificationsPage() {
           </>
         }
       />
+
+      {showSettings && <TaskReminderSettings />}
 
       <div className="flex flex-col gap-2">
         {isLoading ? (

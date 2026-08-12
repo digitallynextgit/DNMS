@@ -15,6 +15,7 @@ import {
   Eye,
   EyeOff,
   Shield,
+  Bell,
   Send,
   CheckCircle2,
   Upload,
@@ -33,6 +34,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { ProfileSelfActions } from "@/features/employees"
+import { TaskReminderSettings } from "@/features/notifications"
 import { DocumentList } from "@/features/documents"
 import { DocumentUploadDialog } from "@/features/documents"
 import { useSession } from "next-auth/react"
@@ -265,6 +267,10 @@ export default function ProfilePage() {
           <TabsTrigger value="security" className="flex items-center gap-1.5">
             <Shield className="h-4 w-4" />
             Security
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-1.5">
+            <Bell className="h-4 w-4" />
+            Notifications
           </TabsTrigger>
         </TabsList>
 
@@ -611,6 +617,12 @@ export default function ProfilePage() {
               />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Notifications tab - the same card as the one on /notifications. Both
+            read and write the one preference record, so they cannot disagree. */}
+        <TabsContent value="notifications" className="space-y-6">
+          <TaskReminderSettings />
         </TabsContent>
       </Tabs>
     </div>
