@@ -13,13 +13,17 @@ import {
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
+  Cake,
+  CalendarOff,
   CalendarRange,
   Check,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   Link as LinkIcon,
   Loader2,
   Lock,
+  PartyPopper,
   X,
 } from "lucide-react"
 
@@ -54,6 +58,9 @@ import { isWithinEditWindow, TASK_EDIT_WINDOW_MS } from "@/features/projects/lib
 import { useCommitOnOutsidePointer } from "@/hooks/use-commit-on-outside-pointer"
 import { TaskResources } from "@/features/projects/components/task-resources"
 import { dedupeLinks, isSafeHttpUrl, linkLabel } from "@/features/projects/lib/task-links"
+// From the module, not the leave barrel: the barrel re-exports every leave
+// COMPONENT, and this sheet needs one hook.
+import { useAwayDays } from "@/features/leave/hooks/use-away-days"
 import { followUpConflictFrom } from "@/features/projects/lib/follow-up-conflict"
 import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
 import type { ProjectTeam } from "@/features/projects/hooks/use-projects"
@@ -523,6 +530,11 @@ export function TasksSheetView({
 
   const weekKeys = useMemo(() => new Set(columns.map((c) => c.key)), [columns])
 
+  // Why a column is empty: leave, a half day, or a holiday. Fetched for the
+  // person whose sheet this is, over exactly the days on screen.
+  const { data: awayDays } = useAwayDays(assigneeId, days[0]?.key, days[days.length - 1]?.key)
+  const awayByDay = useMemo(() => new Map((awayDays ?? []).map((d) => [d.date, d])), [awayDays])
+
   // project id + day -> the tasks written in that cell.
   const cells = useMemo(() => {
     const map = new Map<string, SheetTask[]>()
@@ -877,22 +889,52 @@ export function TasksSheetView({
                 >
                   Client
                 </th>
-                {columns.map((c) => (
-                  <th
-                    key={c.key}
-                    colSpan={4}
-                    className={cn(
-                      "border-r border-b px-3 py-1.5 text-center text-[11px] font-semibold tracking-wide uppercase",
-                      c.key === todayKey && "bg-primary/10",
-                      c.key === NO_DATE && "text-muted-foreground",
-                    )}
-                  >
-                    {c.label}
-                    <span className="text-muted-foreground ml-1.5 font-normal normal-case">
-                      {c.sub}
-                    </span>
-                  </th>
-                ))}
+                {columns.map((c) => {
+                  const away = awayByDay.get(c.key)
+                  return (
+                    <th
+                      key={c.key}
+                      colSpan={4}
+                      className={cn(
+                        "border-r border-b px-3 py-1.5 text-center text-[11px] font-semibold tracking-wide uppercase",
+                        c.key === todayKey && "bg-primary/10",
+                        c.key === NO_DATE && "text-muted-foreground",
+                        // A day with nobody in is dimmed, so an empty column
+                        // reads as "not here" rather than "did nothing".
+                        away?.status !== "half-day" && away && "bg-muted/60",
+                      )}
+                    >
+                      {c.label}
+                      <span className="text-muted-foreground ml-1.5 font-normal normal-case">
+                        {c.sub}
+                      </span>
+                      {/* Says WHY the column is empty. Icon + words, never colour
+                          alone - and never the leave type, which is nobody's
+                          business on a task board. */}
+                      {away && (
+                        <span
+                          className={cn(
+                            "mt-0.5 flex items-center justify-center gap-1 text-[10px] font-medium normal-case",
+                            away.status === "half-day"
+                              ? "text-amber-600 dark:text-amber-400"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {away.status === "holiday" ? (
+                            <PartyPopper className="h-3 w-3 shrink-0" />
+                          ) : away.status === "birthday" ? (
+                            <Cake className="h-3 w-3 shrink-0" />
+                          ) : away.status === "half-day" ? (
+                            <Clock3 className="h-3 w-3 shrink-0" />
+                          ) : (
+                            <CalendarOff className="h-3 w-3 shrink-0" />
+                          )}
+                          <span className="truncate">{away.label}</span>
+                        </span>
+                      )}
+                    </th>
+                  )
+                })}
                 <th
                   rowSpan={2}
                   className="w-24 border-b px-2 py-2 text-center text-[11px] font-semibold tracking-wide uppercase"
