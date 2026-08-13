@@ -261,6 +261,16 @@ export const SETTING_FIELDS: SettingField[] = [
     secret: true,
     help: "Optional. A hex key (8-128 chars) for instant recrawl pings to Bing/Yandex/Seznam/Naver. Each tracked site must host it at https://<host>/<key>.txt containing exactly the key.",
   },
+
+  // ── Referrals ───────────────────────────────────────────────────────────────
+  {
+    key: "REFERRAL_REWARD_PERCENT",
+    label: "Referral reward (% of monthly salary)",
+    type: "number",
+    group: "Referrals",
+    placeholder: "10",
+    help: "Paid to the referrer once the person they referred completes one year. Calculated from that new joiner's monthly salary at the time of payout. Blank or 0 disables the reward, and referrals are still tracked.",
+  },
 ]
 
 export const SETTING_KEYS = SETTING_FIELDS.map((f) => f.key)

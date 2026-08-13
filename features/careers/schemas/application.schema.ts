@@ -78,6 +78,16 @@ export const careersApplicationSchema = z.object({
       .default(null),
   }),
 
+  /**
+   * The employee id the candidate typed into "Referred by", or null.
+   *
+   * Deliberately NOT validated against the employee list here: the site cannot
+   * see that list, and a typo must never turn a real application into a 422.
+   * It is stored verbatim and resolved after the fact - an unresolved value
+   * still tells HR who the candidate believed referred them.
+   */
+  referrerEmployeeNo: clean(50).nullable().optional().default(null),
+
   meta: z.object({
     submittedAt: z.string().datetime({ offset: true }),
     sourceUrl: httpUrl(1000),

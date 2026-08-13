@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { createAuditLog } from "@/lib/audit"
+import { notifyReferrerOfStage } from "@/features/referrals/server/referrals.service"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import type { Session } from "next-auth"
 
@@ -71,6 +72,14 @@ export const PATCH = withAuth(
       }
 
       const updated = await db.careerApplication.update({ where: { id: ctx.params.id }, data })
+
+      // If somebody referred this candidate, tell them the moment HR records the
+      // decision. Without it a referrer hears nothing after the introduction,
+      // which is the complaint every referral scheme dies of. No-ops when the
+      // application has no referrer.
+      if (data.status !== undefined) {
+        await notifyReferrerOfStage(ctx.params.id)
+      }
 
       // Applicant PII is audited by reference (id + status), never by content.
       await createAuditLog(session, {

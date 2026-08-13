@@ -31,6 +31,7 @@ import {
   Plug,
   HardDrive,
   PartyPopper,
+  UserPlus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -153,6 +154,9 @@ const EMPLOYEE_ITEMS: NavItem[] = [
   { label: "My Performance", href: "/performance/me", icon: Star },
   { label: "Work From Home", href: "/wfh", icon: Laptop },
   { label: "Holiday Calendar", href: "/holiday-calendar", icon: PartyPopper },
+  // No permission gate: referring somebody is open to every employee, and the
+  // page only ever shows the caller's own referrals.
+  { label: "My Referrals", href: "/referrals", icon: UserPlus },
   { label: "Notifications", href: "/notifications", icon: Bell, badge: "unread-notifications" },
 ]
 
@@ -276,6 +280,7 @@ const HRMS_ITEMS: NavItem[] = [
     children: [
       { label: "Careers", href: "/admin/careers" },
       { label: "Applications", href: "/recruitment/applications" },
+      { label: "Referrals", href: "/admin/referrals" },
     ],
   },
   {

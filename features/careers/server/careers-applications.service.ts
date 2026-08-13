@@ -85,6 +85,23 @@ async function notifyHr(app: {
   }
 }
 
+/**
+ * Employee number -> employee id, or null.
+ *
+ * Matched case-insensitively and trimmed, because this is typed by a candidate
+ * reading it off a message from their friend - "dn0007", " DN0007 " and "DN0007"
+ * are all the same person, and refusing the first two would quietly lose the
+ * referral. An inactive employee still resolves: they referred the candidate
+ * while they were here, and the record should say so.
+ */
+async function resolveReferrer(employeeNo: string): Promise<string | null> {
+  const match = await db.employee.findFirst({
+    where: { employeeNo: { equals: employeeNo, mode: "insensitive" } },
+    select: { id: true },
+  })
+  return match?.id ?? null
+}
+
 export async function createCareerApplication(
   input: CareersApplicationInput,
 ): Promise<CreateApplicationResult> {
@@ -107,6 +124,12 @@ export async function createCareerApplication(
     },
     select: { id: true },
   })
+
+  // 3. Resolve the referrer, if the candidate named one. Stored verbatim either
+  //    way: an id that matches nobody is a typo HR can still act on, and losing
+  //    it would erase the only record that a referral was ever claimed.
+  const referrerEmployeeNo = input.referrerEmployeeNo?.trim() || null
+  const referrerId = referrerEmployeeNo ? await resolveReferrer(referrerEmployeeNo) : null
 
   const id = `app_${randomUUID()}`
   try {
@@ -134,6 +157,8 @@ export async function createCareerApplication(
         submittedAt: new Date(input.meta.submittedAt),
         sourceUrl: input.meta.sourceUrl,
         isRepeat: repeat !== null,
+        referrerEmployeeNo: referrerEmployeeNo,
+        referrerId,
       },
     })
   } catch (err) {

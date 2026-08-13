@@ -502,6 +502,10 @@ model Employee {
   // Notifications
   taskReminderPreference TaskReminderPreference?
 
+  // Referrals - people this employee sent us, and the hire they became.
+  referralsMade      CareerApplication[] @relation("ReferralReferrer")
+  referredHireRecord CareerApplication[] @relation("ReferralHire")
+
   // Work From Home
   wfhRequests         WfhRequest[] @relation("WfhRequester")
   wfhManagerApprovals WfhRequest[] @relation("WfhManagerApprover")
@@ -2101,10 +2105,35 @@ model CareerApplication {
   createdAt DateTime                @default(now()) @map("created_at")
   updatedAt DateTime                @updatedAt @map("updated_at")
 
+  // ── Referral ────────────────────────────────────────────────────────────────
+  // Employee id EXACTLY as the candidate typed it, kept even when it matches
+  // nobody. A typo must never cost a real application, and HR can still see what
+  // was meant and fix the link by hand.
+  referrerEmployeeNo String?   @map("referrer_employee_no")
+  // The resolved referrer. Null = never matched, or the employee record is gone.
+  referrerId         String?   @map("referrer_id")
+  referrer           Employee? @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: SetNull)
+  /// Set by HR when a hired applicant is linked to the employee record created
+  /// for them. This is what starts the one-year clock on the reward.
+  hiredEmployeeId    String?   @map("hired_employee_id")
+  hiredEmployee      Employee? @relation("ReferralHire", fields: [hiredEmployeeId], references: [id], onDelete: SetNull)
+  /// Frozen at payout - the referred employee's salary can change afterwards,
+  /// and what was actually paid must not move with it.
+  rewardAmount       Decimal?  @map("reward_amount") @db.Decimal(12, 2)
+  rewardPaidAt       DateTime? @map("reward_paid_at")
+  /// True once the referrer has been told the reward is due, so the eligibility
+  /// job does not tell them again every time it runs.
+  rewardNotifiedAt   DateTime? @map("reward_notified_at")
+  /// Raised inside DNMS by an employee rather than posted by the careers site.
+  isInternalReferral Boolean   @default(false) @map("is_internal_referral")
+
   @@index([status])
   @@index([email])
   @@index([createdAt])
   @@index([careerRoleId])
+  // Serves "my referrals" and the eligibility sweep.
+  @@index([referrerId])
+  @@index([hiredEmployeeId])
   @@map("career_applications")
 }
 
