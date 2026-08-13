@@ -15,6 +15,7 @@ import {
 import { diffTaskFields } from "@/features/projects/server/task-audit"
 import { dedupeLinks, isSafeHttpUrl } from "@/features/projects/lib/task-links"
 import { formatHours } from "@/features/projects/lib/format-hours"
+import { hasPastTaskAccess } from "@/features/employees/server/task-access.service"
 import { createNotification } from "@/lib/notifications"
 import {
   canDeleteTask,
@@ -94,7 +95,7 @@ export const PATCH = withSession(
         assigneeId: auth.task.assigneeId,
         teamManagerId: auth.managerId,
       }
-      const actor = { userId: session.user.id, isAdmin }
+      const actor = { userId: session.user.id, isAdmin, canEditPastTasks: false }
 
       // Handing the work to someone ELSE is an allocation decision, not a
       // correction, so it stays with the manager even inside the author's
@@ -115,6 +116,10 @@ export const PATCH = withSession(
         estimatedHours !== undefined ||
         tags !== undefined
       if (isStructuralChange) {
+        // Looked up only here, where it can change the answer - a details edit
+        // by someone whose window may have closed. The far commoner status-only
+        // update never pays for it.
+        actor.canEditPastTasks = await hasPastTaskAccess(session.user.id)
         const refusal = taskEditLockReason(subject, actor)
         if (refusal) return NextResponse.json({ error: refusal }, { status: 403 })
       }

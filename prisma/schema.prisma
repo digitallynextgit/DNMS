@@ -499,6 +499,20 @@ model Employee {
   // Password reset
   passwordResets PasswordReset[]
 
+  // ── Task edit override ──────────────────────────────────────────────────────
+  // Normally the person who raised a task may correct it for 15 minutes and no
+  // longer (see lib/edit-window.ts) - after that only the manager can. That is
+  // right for a commitment other people plan around, and wrong when somebody
+  // needs to write up a day they forgot to fill in, or fix last week's sheet.
+  // HR/admin can lift the window for one person from their profile.
+  canEditPastTasks       Boolean   @default(false) @map("can_edit_past_tasks")
+  /// Who granted it and when - a standing bypass of a control has to be
+  /// attributable, or nobody can answer "why can this person rewrite history".
+  pastTaskAccessGrantedAt   DateTime? @map("past_task_access_granted_at")
+  pastTaskAccessGrantedById String?   @map("past_task_access_granted_by_id")
+  pastTaskAccessGrantedBy   Employee? @relation("PastTaskAccessGranter", fields: [pastTaskAccessGrantedById], references: [id], onDelete: SetNull)
+  pastTaskAccessGrants      Employee[] @relation("PastTaskAccessGranter")
+
   // Notifications
   taskReminderPreference TaskReminderPreference?
 

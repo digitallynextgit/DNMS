@@ -71,6 +71,16 @@ export interface TaskActor {
   userId: string
   /** Project admin / PROJECT_WRITE holder - unrestricted. */
   isAdmin: boolean
+  /**
+   * HR has lifted the 15-minute window for this person (Employee
+   * .canEditPastTasks), so they may go back and correct their OWN tasks - fill
+   * in a day they missed, fix last week's sheet.
+   *
+   * Deliberately narrow: it does NOT let them edit work they did not raise, and
+   * it does NOT let them delete anything. It buys back the ability to correct
+   * their own record, not authority over somebody else's.
+   */
+  canEditPastTasks?: boolean
 }
 
 function isManagerOrAdmin(task: TaskEditSubject, actor: TaskActor): boolean {
@@ -105,6 +115,8 @@ export function canEditTaskDetails(
   if (isManagerOrAdmin(task, actor)) return true
   if (isOwnAdhocTask(task, actor)) return true
   if (task.creatorId !== actor.userId) return false
+  // The window, unless HR has lifted it for this person.
+  if (actor.canEditPastTasks) return true
   return editWindowRemaining(task.createdAt, now, TASK_EDIT_WINDOW_MS) > 0
 }
 

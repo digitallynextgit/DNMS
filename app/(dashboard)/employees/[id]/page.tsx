@@ -9,6 +9,7 @@ import {
   Users,
   FileText,
   ShieldCheck,
+  History,
   CalendarDays,
   Wallet,
   Upload,
@@ -17,6 +18,7 @@ import {
 import Link from "next/link"
 import { EmployeeLeaveTab } from "@/features/employees"
 import { EmployeeSalaryTab } from "@/features/employees"
+import { EmployeeTaskAccess } from "@/features/employees"
 import { DocumentList } from "@/features/documents"
 import { DocumentUploadDialog } from "@/features/documents"
 import { Button } from "@/components/ui/button"
@@ -255,6 +257,14 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
             <ShieldCheck className="h-4 w-4" />
             Roles
           </TabsTrigger>
+          {/* HR only: the API behind it is employee:write, so showing the tab to
+              anyone else would only ever produce a 403. */}
+          {canEdit && (
+            <TabsTrigger value="access" className="flex items-center gap-1.5">
+              <History className="h-4 w-4" />
+              Task Access
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ── Info Tab ─────────────────────────────────────────────────────── */}
@@ -442,6 +452,13 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ── Task Access Tab ──────────────────────────────────────────────── */}
+        {canEdit && (
+          <TabsContent value="access">
+            <EmployeeTaskAccess employeeId={emp.id} employeeName={fullName} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )
