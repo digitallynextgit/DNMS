@@ -151,15 +151,20 @@ async function currentPercent(): Promise<number | null> {
 /** Everyone this employee has referred, newest first. */
 export async function getMyReferrals(
   employeeId: string,
-): Promise<{ rows: ReferralRow[]; summary: ReferralSummary }> {
-  const [rows, percent] = await Promise.all([
+): Promise<{ rows: ReferralRow[]; summary: ReferralSummary; me: { employeeNo: string } }> {
+  const [rows, percent, me] = await Promise.all([
     fetchRows({ referrerId: employeeId }),
     currentPercent(),
+    // Their own id, so the page can tell them what to pass on. Nobody knows
+    // their employee number offhand, and "ask HR" is how a referral goes
+    // unclaimed.
+    db.employee.findUnique({ where: { id: employeeId }, select: { employeeNo: true } }),
   ])
   const now = new Date()
   const mapped = rows.map((r) => toRow(r, percent, now))
 
   return {
+    me: { employeeNo: me?.employeeNo ?? "" },
     rows: mapped,
     summary: {
       total: mapped.length,

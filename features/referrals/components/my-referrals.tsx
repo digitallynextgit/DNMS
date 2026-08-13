@@ -55,6 +55,25 @@ export function MyReferrals() {
         }
       />
 
+      {/* What to pass on. Nobody knows their own employee number offhand, and a
+          candidate who guesses gets nothing credited to anybody. */}
+      {data?.me.employeeNo && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center gap-x-3 gap-y-1 p-4 text-sm">
+            <span className="text-muted-foreground">
+              Applying on the careers site? Ask them to put this in
+              <span className="text-foreground font-medium"> &ldquo;Referred by&rdquo;</span>:
+            </span>
+            <code className="bg-muted rounded-[2px] px-2 py-0.5 font-mono text-sm font-semibold">
+              {data.me.employeeNo}
+            </code>
+            <span className="text-muted-foreground text-xs">
+              your work email works too — either one credits the referral to you
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon={Users} label="Referred" value={s?.total ?? 0} loading={isLoading} />
         <Stat icon={CheckCircle2} label="Hired" value={s?.hired ?? 0} loading={isLoading} />

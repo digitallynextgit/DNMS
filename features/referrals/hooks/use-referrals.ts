@@ -35,9 +35,9 @@ export function useMyReferrals() {
     queryKey: MINE,
     queryFn: async () =>
       (
-        await apiFetch<{ data: { rows: ReferralRow[]; summary: ReferralSummary } }>(
-          "/api/referrals",
-        )
+        await apiFetch<{
+          data: { rows: ReferralRow[]; summary: ReferralSummary; me: { employeeNo: string } }
+        }>("/api/referrals")
       ).data,
     staleTime: 60_000,
   })

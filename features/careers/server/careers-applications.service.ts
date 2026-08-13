@@ -86,17 +86,30 @@ async function notifyHr(app: {
 }
 
 /**
- * Employee number -> employee id, or null.
+ * What the candidate typed -> employee id, or null.
  *
- * Matched case-insensitively and trimmed, because this is typed by a candidate
- * reading it off a message from their friend - "dn0007", " DN0007 " and "DN0007"
- * are all the same person, and refusing the first two would quietly lose the
- * referral. An inactive employee still resolves: they referred the candidate
- * while they were here, and the record should say so.
+ * Accepts an employee NUMBER or a work EMAIL, because employee numbers here are
+ * bare digits ("145", "7") plus a few odd ones ("SA-002", "EMP-PENDING-4"): a
+ * candidate cannot guess that, and most employees do not know their own number
+ * offhand. An email is the thing a colleague actually passes on.
+ *
+ * Matched case-insensitively and trimmed - this is typed by a candidate reading
+ * it off a WhatsApp message, so " 145 " and "sa-002" must both land. An INACTIVE
+ * employee still resolves: they made the introduction while they were here, and
+ * the record should say so.
  */
-async function resolveReferrer(employeeNo: string): Promise<string | null> {
+async function resolveReferrer(typed: string): Promise<string | null> {
+  const value = typed.trim()
+  if (!value) return null
+
   const match = await db.employee.findFirst({
-    where: { employeeNo: { equals: employeeNo, mode: "insensitive" } },
+    where: {
+      OR: [
+        { employeeNo: { equals: value, mode: "insensitive" } },
+        { email: { equals: value, mode: "insensitive" } },
+        { personalEmail: { equals: value, mode: "insensitive" } },
+      ],
+    },
     select: { id: true },
   })
   return match?.id ?? null
