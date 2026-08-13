@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { canManageProject, withProjectAccess } from "@/features/projects/server/project-access"
+import {
+  canManageProject,
+  resolveProjectId,
+  withProjectAccess,
+} from "@/features/projects/server/project-access"
 import { randomUUID } from "node:crypto"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
@@ -67,7 +71,11 @@ export const GET = withProjectAccess(
 export const POST = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
-      const { id: projectId } = ctx.params
+      // The URL carries a slug now; this route is behind plain withSession, not
+      // a slug-aware project guard, so resolve it here. The id is written onto
+      // the stored resource, so an unresolved slug would corrupt the row.
+      const projectId = await resolveProjectId(ctx.params.id)
+      if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 
       // 1. Verify project exists
       const project = await db.project.findUnique({

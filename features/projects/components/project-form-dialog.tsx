@@ -17,6 +17,7 @@ import { FormDialog } from "@/components/shared/form-dialog"
 import { DateField } from "@/components/shared/date-field"
 import { EmployeeCombobox, useEmployees } from "@/features/employees"
 import { usePermissions } from "@/features/admin"
+import { ProjectLogoPicker } from "./project-logo-picker"
 import { PERMISSIONS, PROJECT_STATUS_LABELS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { IndianRupee } from "lucide-react"
 
@@ -47,20 +48,34 @@ interface Props {
   mode: "create" | "edit"
   projectId?: string
   initial?: Partial<ProjectFormValues>
+  /** Current logo URL, so edit mode shows it instead of an empty placeholder. */
+  logo?: string | null
   onSuccess?: (projectId: string) => void
 }
 
-export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onSuccess }: Props) {
+export function ProjectFormDialog({
+  open,
+  onClose,
+  mode,
+  projectId,
+  initial,
+  logo,
+  onSuccess,
+}: Props) {
   const qc = useQueryClient()
   const { can } = usePermissions()
   const canSeeBudget = can(PERMISSIONS.PROJECT_WRITE)
 
   const [form, setForm] = useState<ProjectFormValues>(EMPTY_FORM)
+  // Create mode only: the logo can't be uploaded until the project has an id, so
+  // it waits here and is POSTed the moment creation returns one.
+  const [pendingLogo, setPendingLogo] = useState<File | null>(null)
 
   // Reset / hydrate when dialog opens
   useEffect(() => {
     if (open) {
       setForm({ ...EMPTY_FORM, ...initial })
+      setPendingLogo(null)
     }
   }, [open, initial])
 
@@ -87,10 +102,23 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
       }
       return res.json()
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      const newId = data?.data?.id as string | undefined
+      // Send the deferred logo now that there is something to attach it to. A
+      // failure here must not read as "the project wasn't created" - it was.
+      if (newId && pendingLogo) {
+        try {
+          const body = new FormData()
+          body.append("file", pendingLogo)
+          const res = await fetch(`/api/projects/${newId}/logo`, { method: "POST", body })
+          if (!res.ok) throw new Error("logo upload failed")
+        } catch {
+          toast.warning("Project created, but the logo didn't upload. Add it from Edit.")
+        }
+      }
       qc.invalidateQueries({ queryKey: ["projects"] })
       toast.success("Project created")
-      onSuccess?.(data?.data?.id)
+      onSuccess?.(newId as string)
       onClose()
     },
     onError: (e: Error) => toast.error(e.message),
@@ -157,6 +185,15 @@ export function ProjectFormDialog({ open, onClose, mode, projectId, initial, onS
       contentClassName="max-h-[90vh] overflow-y-auto sm:max-w-lg"
     >
       <div className="space-y-4">
+        <div className="space-y-2">
+          <Label>Logo</Label>
+          <ProjectLogoPicker
+            projectId={mode === "edit" ? projectId : undefined}
+            value={mode === "edit" ? logo : null}
+            onPendingFileChange={setPendingLogo}
+          />
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="project-name">Project Name *</Label>
           <Input

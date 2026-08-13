@@ -525,6 +525,10 @@ model Employee {
   messageReads           ProjectMessageRead[]
   createdPasswords       ProjectPasswordEntry[] @relation("PasswordCreator")
 
+  // Client portal administration
+  createdClientUsers  ClientUser[]          @relation("ClientUserCreator")
+  grantedClientAccess ClientProjectAccess[] @relation("ClientAccessGranter")
+
   // Employee had NO indexes at all. These serve the manager/team queues and the
   // status filters used by the directory, dashboard and accrual jobs.
   @@index([managerId])
@@ -1143,6 +1147,12 @@ model Project {
   slug           String?       @unique @map("slug")
   status         ProjectStatus @default(PLANNING) @map("status")
   priority       TaskPriority  @default(MEDIUM) @map("priority")
+  /// Stable serve URL (/api/projects/<id>/logo?v=<ts>), NOT a bucket URL - the
+  /// bucket is private, so the route redirects to a short-lived signed URL. The
+  /// ?v= changes on every upload so cached <img>s refresh.
+  logo           String?       @map("logo")
+  /// The B2 object key behind `logo`. Null for a project with no logo.
+  logoKey        String?       @map("logo_key")
   ownerId        String        @map("owner_id")
   // DEPRECATED: the phase feature was removed from the app; this column is kept
   // only so the shared DB stays compatible with the currently-deployed build.
@@ -1173,6 +1183,11 @@ model Project {
   metaCampaigns   MetaCampaign[]
   seoProperties   SeoProperty[]
   requirements    ProjectRequirement[]
+
+  // Client portal + marketplace
+  clientAccess        ClientProjectAccess[]
+  marketplaceChannels MarketplaceChannel[]
+  products            Product[]
 
   @@index([status])
   @@index([ownerId])
@@ -1350,8 +1365,8 @@ model ProjectTeam {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  manager   Employee?           @relation("TeamManager", fields: [managerId], references: [id], onDelete: SetNull)
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  manager      Employee?            @relation("TeamManager", fields: [managerId], references: [id], onDelete: SetNull)
   members      ProjectTeamMember[]
   tasks        ProjectTask[]
   resources    ProjectResource[]
@@ -1431,14 +1446,14 @@ model ProjectMember {
 }
 
 model ProjectTask {
-  id String @id @default(uuid()) @map("id")
+  id               String             @id @default(uuid()) @map("id")
   // Null = ADHOC: work that belongs to no client - meetings, interviews,
   // internal QC. It used to be a stand-in "ADHOC" project, which made it show
   // up everywhere a real client did (portfolio, progress, billing) and read as
   // an account nobody could name. An adhoc task has no project and no team; the
   // assignee's line manager stands in for the team manager on it.
-  projectId String? @map("project_id")
-  teamId    String? @map("team_id") // v2 - null for legacy tasks and adhoc work
+  projectId        String?            @map("project_id")
+  teamId           String?            @map("team_id") // v2 - null for legacy tasks and adhoc work
   title            String             @map("title")
   description      String?            @map("description") @db.Text
   status           TaskStatus         @default(TODO) @map("status")
@@ -1637,10 +1652,10 @@ model ProjectRequirement {
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
 
-  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  team          ProjectTeam? @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  raisedBy      Employee     @relation("RequirementRaiser", fields: [raisedById], references: [id], onDelete: Cascade)
-  requestedFrom Employee     @relation("RequirementOwner", fields: [requestedFromId], references: [id], onDelete: Cascade)
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  team          ProjectTeam?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  raisedBy      Employee      @relation("RequirementRaiser", fields: [raisedById], references: [id], onDelete: Cascade)
+  requestedFrom Employee      @relation("RequirementOwner", fields: [requestedFromId], references: [id], onDelete: Cascade)
   /// The work this is holding up. A task has at most one blocking requirement.
   blockedTasks  ProjectTask[]
 
@@ -2513,4 +2528,169 @@ model SeoMonitorRun {
 
   @@index([propertyId, createdAt])
   @@map("seo_monitor_runs")
+}
+
+// =============================================================================
+// CLIENT PORTAL
+// =============================================================================
+// External client accounts. Deliberately a SEPARATE table from Employee: an
+// Employee carries payroll, attendance, leave and org-chart relations that make
+// no sense for a client, and dozens of existing queries assume "a row here is
+// staff". Keeping clients out of that table means no existing HR query can ever
+// return one. Their session is tagged kind:"client" (see server/auth.ts) and is
+// rejected by every staff guard.
+//
+// What a client may see is DENY BY DEFAULT: nothing is visible until an employee
+// grants them access to a specific project with a specific package. Two client
+// emails on the SAME project can hold different packages and therefore see
+// different data - that is the whole point of the per-grant package.
+// =============================================================================
+
+enum ClientAccessStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model ClientUser {
+  id           String  @id @default(uuid()) @map("id")
+  email        String  @unique @map("email")
+  name         String  @map("name")
+  phone        String? @map("phone")
+  /// The client's own company/brand, shown in the portal header.
+  company      String? @map("company")
+  /// Null until they set one via the invite flow. Never selected by default
+  /// (see server/db.ts omit list) - only the credentials provider opts back in.
+  passwordHash String? @map("password_hash")
+
+  mustChangePassword Boolean   @default(true) @map("must_change_password")
+  isActive           Boolean   @default(true) @map("is_active")
+  lastLoginAt        DateTime? @map("last_login_at")
+
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy Employee?             @relation("ClientUserCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  access    ClientProjectAccess[]
+
+  @@index([isActive])
+  @@map("client_users")
+}
+
+/// A reusable bundle of portal modules ("Shopify only", "Marketplace + SEO",
+/// "Full suite"). `modules` holds keys from the module registry in
+/// features/client-portal/modules.ts - anything not listed there is ignored at
+/// read time, so a stale key can never widen access.
+/// The grant: THIS client user, on THIS project, sees THESE modules.
+/// One row per (user, project) - a user with no row for a project cannot see it
+/// exists. Modules are stored PER GRANT rather than via a shared package, so two
+/// client emails on the same project can be given different sections, and
+/// changing one client never moves anyone else.
+model ClientProjectAccess {
+  id           String             @id @default(uuid()) @map("id")
+  clientUserId String             @map("client_user_id")
+  projectId    String             @map("project_id")
+  /// Keys from the module registry (features/client-portal/modules.ts). Anything
+  /// not in the registry is ignored at read time, so a stale key narrows access
+  /// rather than widening it.
+  modules      String[]           @map("modules")
+  status       ClientAccessStatus @default(ACTIVE) @map("status")
+  grantedById  String?            @map("granted_by_id")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  clientUser ClientUser @relation(fields: [clientUserId], references: [id], onDelete: Cascade)
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  grantedBy  Employee?  @relation("ClientAccessGranter", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([clientUserId, projectId])
+  @@index([projectId])
+  @@map("client_project_access")
+}
+
+// =============================================================================
+// MARKETPLACE / PRODUCT CATALOG
+// =============================================================================
+// The storage layer behind the product dashboard. Provider-agnostic on purpose:
+// Shopify is the first channel, but Amazon/Flipkart/etc. differ only by
+// `provider` and the credential blob. The actual per-provider SYNC lives
+// separately - this schema is what both the sync and the client portal read.
+// =============================================================================
+
+enum MarketplaceProvider {
+  SHOPIFY
+  AMAZON
+  FLIPKART
+  MEESHO
+  MYNTRA
+  WOOCOMMERCE
+  OTHER
+}
+
+model MarketplaceChannel {
+  id         String              @id @default(uuid()) @map("id")
+  projectId  String              @map("project_id")
+  provider   MarketplaceProvider @map("provider")
+  /// Display name ("Rudione Shopify (IN)") - several channels of one provider
+  /// can belong to one project (multiple storefronts / regions).
+  name       String              @map("name")
+  /// The provider's own account handle - shop domain, seller id, etc.
+  externalId String?             @map("external_id")
+
+  /// Provider credentials, ENCRYPTED with lib/crypto. Never leaves the server
+  /// and is never exposed on any portal route.
+  credentials   String?   @map("credentials") @db.Text
+  status        String    @default("pending") @map("status") // "connected" | "pending" | "error"
+  lastSyncedAt  DateTime? @map("last_synced_at")
+  lastSyncError String?   @map("last_sync_error") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([projectId, provider, name])
+  @@index([projectId])
+  @@map("marketplace_channels")
+}
+
+model Product {
+  id         String  @id @default(uuid()) @map("id")
+  projectId  String  @map("project_id")
+  /// Null for a product entered manually rather than synced from a channel.
+  channelId  String? @map("channel_id")
+  /// The provider's product id, used to upsert on re-sync.
+  externalId String? @map("external_id")
+
+  title       String  @map("title")
+  sku         String? @map("sku")
+  description String? @map("description") @db.Text
+  imageUrl    String? @map("image_url")
+  vendor      String? @map("vendor")
+  category    String? @map("category")
+
+  price          Decimal? @map("price") @db.Decimal(12, 2)
+  compareAtPrice Decimal? @map("compare_at_price") @db.Decimal(12, 2)
+  currency       String   @default("INR") @map("currency")
+  inventoryQty   Int?     @map("inventory_qty")
+
+  /// Provider-native status, normalised to lower case ("active" | "draft" |
+  /// "archived") so the portal can filter without knowing the provider.
+  status String   @default("active") @map("status")
+  tags   String[] @map("tags")
+  /// Public storefront/listing URL, so the client can open the live product.
+  url    String?  @map("url")
+
+  lastSyncedAt DateTime? @map("last_synced_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  project Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  channel MarketplaceChannel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+
+  @@unique([channelId, externalId])
+  @@index([projectId, status])
+  @@index([projectId, title])
+  @@map("products")
 }

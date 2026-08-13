@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { canStaffTeam, withProjectAccess } from "@/features/projects/server/project-access"
+import {
+  canStaffTeam,
+  resolveProjectId,
+  withProjectAccess,
+} from "@/features/projects/server/project-access"
 import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
@@ -40,7 +44,12 @@ export const GET = withProjectAccess(
 export const POST = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
-      const { id: projectId, teamId } = ctx.params
+      const { teamId } = ctx.params
+      // The URL carries a slug now; this route is behind plain withSession, not
+      // a slug-aware guard. The id is WRITTEN onto the created membership row,
+      // so an unresolved slug would corrupt it, not merely 404.
+      const projectId = await resolveProjectId(ctx.params.id)
+      if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
       const body = await req.json()
       const { employeeId } = body
 

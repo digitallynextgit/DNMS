@@ -40,6 +40,32 @@ async function getUserWithPermissions(employeeId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Helper - load an external client account for the JWT.
+// ---------------------------------------------------------------------------
+// Clients are NOT employees (see the ClientUser model): they hold no roles and
+// no permission scopes, so every staff-side `withAuth`/`requirePermission` check
+// fails for them by construction. What they *can* see is resolved per request
+// from client_project_access, never cached in the token - so revoking a project
+// grant takes effect immediately instead of at their next sign-in.
+// ---------------------------------------------------------------------------
+async function getClientForToken(clientUserId: string) {
+  return db.clientUser.findUnique({
+    where: { id: clientUserId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      company: true,
+      isActive: true,
+      mustChangePassword: true,
+    },
+  })
+}
+
+/** The provider id for client sign-in - referenced by the portal login form. */
+export const CLIENT_PROVIDER_ID = "client-credentials"
+
+// ---------------------------------------------------------------------------
 // NextAuth v5 configuration object
 // ---------------------------------------------------------------------------
 export const authOptions: NextAuthConfig = {
@@ -92,6 +118,46 @@ export const authOptions: NextAuthConfig = {
           id: employee.id,
           email: employee.email,
           name: `${employee.firstName} ${employee.lastName}`,
+          kind: "employee" as const,
+        }
+      },
+    }),
+
+    // -----------------------------------------------------------------------
+    // Client credentials - external client accounts (client_users), used by the
+    // /client-login page. A SEPARATE provider on purpose: it must be impossible
+    // for a client password to be checked against the employee table, or for a
+    // client to end up with a staff token. Password-only (no Google): these are
+    // accounts we provision, not self-service sign-ups.
+    // -----------------------------------------------------------------------
+    Credentials({
+      id: CLIENT_PROVIDER_ID,
+      name: "client",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null
+
+        const client = await db.clientUser.findUnique({
+          where: { email: (credentials.email as string).toLowerCase().trim() },
+          // passwordHash is globally omitted (server/db.ts) - opt back in here.
+          omit: { passwordHash: false },
+        })
+
+        // No password set yet = invited but never activated; treat as no account
+        // rather than letting an empty compare decide.
+        if (!client || !client.passwordHash || !client.isActive) return null
+
+        const isValid = await bcrypt.compare(credentials.password as string, client.passwordHash)
+        if (!isValid) return null
+
+        return {
+          id: client.id,
+          email: client.email,
+          name: client.name,
+          kind: "client" as const,
         }
       },
     }),
@@ -140,11 +206,45 @@ export const authOptions: NextAuthConfig = {
     // DB and embed it into the token. On subsequent requests, the token
     // already carries the data, so we just return it as-is.
     // -----------------------------------------------------------------------
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user, trigger, account }) {
+      // --- External client accounts ---------------------------------------
+      // Handled first and returned early so a client token can NEVER pick up
+      // roles or permissions further down: an empty `permissions` array is what
+      // makes every staff-side check fail for them.
+      const isClient =
+        account?.provider === CLIENT_PROVIDER_ID ||
+        user?.kind === "client" ||
+        token.kind === "client"
+
+      if (isClient) {
+        const id = (user?.id ?? token.id) as string | undefined
+        if (id && (user?.id || trigger === "update")) {
+          const client = await getClientForToken(id)
+          if (client) {
+            token.id = client.id
+            token.kind = "client"
+            token.firstName = client.name
+            token.lastName = ""
+            token.employeeNo = ""
+            token.profilePhoto = null
+            token.company = client.company ?? null
+            token.roles = []
+            token.permissions = []
+            token.mustChangePassword = client.mustChangePassword
+          }
+        }
+        // Belt and braces: whatever else happened, a client token carries no grants.
+        token.kind = "client"
+        token.roles = []
+        token.permissions = []
+        return token
+      }
+
       if (user?.id) {
         // First call: hydrate the token from the database.
         const data = await getUserWithPermissions(user.id)
         if (data) {
+          token.kind = "employee"
           token.id = data.employee.id
           token.employeeNo = data.employee.employeeNo
           token.firstName = data.employee.firstName
@@ -178,13 +278,17 @@ export const authOptions: NextAuthConfig = {
     // -----------------------------------------------------------------------
     async session({ session, token }) {
       if (token) {
+        const kind = (token.kind as "employee" | "client" | undefined) ?? "employee"
         session.user.id = token.id as string
+        session.user.kind = kind
         session.user.employeeNo = token.employeeNo as string
         session.user.firstName = token.firstName as string
         session.user.lastName = token.lastName as string
+        session.user.company = (token.company as string | null) ?? null
         session.user.profilePhoto = (token.profilePhoto as string | null) ?? null
-        session.user.roles = (token.roles as string[]) ?? []
-        session.user.permissions = (token.permissions as string[]) ?? []
+        // A client never carries grants, whatever the token says.
+        session.user.roles = kind === "client" ? [] : ((token.roles as string[]) ?? [])
+        session.user.permissions = kind === "client" ? [] : ((token.permissions as string[]) ?? [])
         session.user.mustChangePassword = (token.mustChangePassword as boolean) ?? false
       }
       return session
@@ -196,8 +300,24 @@ export const authOptions: NextAuthConfig = {
     // signIn event - write an audit log entry. Non-critical: a failure here
     // must never block the login itself.
     // -----------------------------------------------------------------------
-    async signIn({ user }) {
+    async signIn({ user, account }) {
       if (!user?.id) return
+
+      // Client sign-ins: stamp last-seen and stop. They must NOT reach the audit
+      // log write below - AuditLog.actorId is a foreign key into `employees`, so
+      // a client id there is a constraint violation, not a log entry.
+      if (account?.provider === CLIENT_PROVIDER_ID || user.kind === "client") {
+        try {
+          await db.clientUser.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date() },
+          })
+        } catch {
+          // Non-critical - never block a login on a bookkeeping write.
+        }
+        return
+      }
+
       try {
         // Admin_ is a silent watch account - never log its logins.
         const isAdmin_ = await db.employeeRole.findFirst({

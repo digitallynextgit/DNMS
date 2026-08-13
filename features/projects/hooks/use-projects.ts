@@ -16,6 +16,8 @@ export interface ProjectListItem {
   /** URL identifier. Null on rows created before slugs existed - fall back to id. */
   slug: string | null
   description: string | null
+  /** Stable route URL for the project logo; null when none has been uploaded. */
+  logo: string | null
   status: string
   priority: string
   startDate: string | null

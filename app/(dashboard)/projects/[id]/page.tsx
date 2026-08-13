@@ -5,7 +5,7 @@ import dynamic from "next/dynamic"
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -39,6 +39,7 @@ import {
   Activity,
   MessageSquare,
   KeyRound,
+  UserCog,
   Sparkles,
   HardDrive,
   Plug,
@@ -46,7 +47,7 @@ import {
   Search,
   HelpCircle,
 } from "lucide-react"
-import { ProjectFormDialog } from "@/features/projects"
+import { ProjectFormDialog, ProjectLogo, ProjectTabsBar } from "@/features/projects"
 
 // The 7 tab bodies are ~4,000 lines combined, but Radix only RENDERS the active
 // one - so statically importing them made every visit download and parse all of
@@ -95,6 +96,10 @@ const MessagesTab = dynamic(() => import("@/features/projects").then((m) => m.Me
 const PasswordsTab = dynamic(() => import("@/features/projects").then((m) => m.PasswordsTab), {
   loading: tabFallback,
 })
+const ProjectClientsTab = dynamic(
+  () => import("@/features/client-portal").then((m) => m.ProjectClientsTab),
+  { loading: tabFallback },
+)
 
 const PROJECT_TABS = [
   "overview",
@@ -109,13 +114,13 @@ const PROJECT_TABS = [
   "messages",
   "activity",
   "passwords",
+  "clients",
 ] as const
 
 export default function ProjectDetailPage() {
   const params = useParams()
   // What the URL carries: a slug ("rudione-leocym") for anything created or
-  // linked since slugs landed, a uuid for older links. Only the two lookups
-  // below may use it - see `projectId` further down.
+  // linked since slugs landed, a uuid for older links. See `projectRef` below.
   const slugOrId = params.id as string
   const router = useRouter()
   const pathname = usePathname()
@@ -137,36 +142,40 @@ export default function ProjectDetailPage() {
     router.replace(`${pathname}?${next.toString()}`, { scroll: false })
   }
 
-  // Only this lookup takes the raw URL value - GET /api/projects/[id] is behind
-  // `withProjectAccess`, which resolves a slug or an id.
-  const { data, isLoading } = useProject(slugOrId)
+  /**
+   * The project reference every request URL and cache key on this page is built
+   * from: the RAW URL segment, i.e. the slug for anything created or linked
+   * since slugs landed, a uuid for older links.
+   *
+   * Every /api/projects/[id]/* route resolves either form - the project guards
+   * (withProjectAccess / withProjectManager / withTeamStaffing) always did, and
+   * the handful behind plain withSession/withAuth now call resolveProjectId
+   * themselves - so the readable form is safe end to end.
+   *
+   * Deliberately the URL segment rather than `project.slug`: it is known before
+   * the project has loaded, so the header hooks below fetch in parallel instead
+   * of waiting on it, and it never changes mid-session. That last part is what
+   * keeps the header and the tabs on ONE cache entry - keyed differently they
+   * would drift, and the header counts would go stale the moment a tab
+   * invalidated its own copy.
+   */
+  const projectRef = slugOrId
+
+  // GET /api/projects/[id] is behind `withProjectAccess`, which resolves a slug
+  // or an id.
+  const { data, isLoading } = useProject(projectRef)
   const project = data?.data
 
-  // Keyed on the real id, so these share a cache entry with the Teams and
-  // Messages tabs. Keyed on the slug they would be separate entries, and the
-  // header counts would go stale the moment a tab invalidated its own copy.
-  // Both hooks are `enabled: !!projectId`, so they simply wait.
-  const { data: teamsData } = useProjectTeams(project?.id)
+  // Same key as the Teams and Messages tabs use, so they share a cache entry.
+  const { data: teamsData } = useProjectTeams(projectRef)
   const teams = teamsData?.data ?? []
-  const { data: unreadMessages = 0 } = useUnreadMessageCount(project?.id)
+  const { data: unreadMessages = 0 } = useUnreadMessageCount(projectRef)
 
   // Badge on the Requirements tab: how much the project is currently blocked on.
-  const { data: requirementsData } = useProjectRequirements(project?.id)
+  const { data: requirementsData } = useProjectRequirements(projectRef)
   const openRequirements = (requirementsData?.data ?? []).filter(
     (r) => r.status === "OPEN" || r.status === "IN_PROGRESS",
   ).length
-
-  /**
-   * The REAL project id, for everything handed to a tab.
-   *
-   * Tabs build their own request URLs from this, and a good number of those
-   * endpoints authenticate with plain `withSession`/`withAuth` rather than a
-   * project guard - they compare `params.id` against a stored `projectId`
-   * directly, so a slug reaches them unresolved and they 404 ("Team not found"
-   * when adding a member, and the same for tasks, resources and brand assets).
-   * Tabs only render once `project` has loaded, so this is always the uuid.
-   */
-  const projectId = project?.id ?? slugOrId
 
   // Admins/PMs with project:write can manage any project; the project's ACCOUNT
   // MANAGER (owner) can fully manage their own project too.
@@ -206,6 +215,7 @@ export default function ProjectDetailPage() {
         className="space-y-4"
         backHref="/projects"
         backLabel="Back to projects"
+        leading={<ProjectLogo src={project.logo} name={project.name} className="h-10 w-10" />}
         title={project.name}
         titleSuffix={
           <span className="bg-muted/50 text-muted-foreground shrink-0 rounded-[2px] border px-2 py-0.5 font-mono text-xs">
@@ -248,68 +258,38 @@ export default function ProjectDetailPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <TabsList>
-            <TabsTrigger value="overview" className="gap-1.5">
-              <Layers className="h-3.5 w-3.5" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="brand" className="gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" />
-              Brand
-            </TabsTrigger>
-            <TabsTrigger value="drive" className="gap-1.5">
-              <HardDrive className="h-3.5 w-3.5" />
-              Files
-            </TabsTrigger>
-            <TabsTrigger value="integration" className="gap-1.5">
-              <Plug className="h-3.5 w-3.5" />
-              Integration
-            </TabsTrigger>
-            <TabsTrigger value="insights" className="gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5" />
-              Insights
-            </TabsTrigger>
-            <TabsTrigger value="seo" className="gap-1.5">
-              <Search className="h-3.5 w-3.5" />
-              SEO
-            </TabsTrigger>
-            <TabsTrigger value="teams" className="gap-1.5">
-              <Users className="h-3.5 w-3.5" />
-              Teams
-            </TabsTrigger>
-            <TabsTrigger value="tasks" className="gap-1.5">
-              <FolderKanban className="h-3.5 w-3.5" />
-              Tasks
-            </TabsTrigger>
-            <TabsTrigger value="requirements" className="gap-1.5">
-              <HelpCircle className="h-3.5 w-3.5" />
-              Requirements
-              {openRequirements > 0 && (
-                <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-sm bg-amber-500 px-1 text-[10px] leading-none font-semibold text-white">
-                  {openRequirements > 99 ? "99+" : openRequirements}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="messages" className="gap-1.5">
-              <MessageSquare className="h-3.5 w-3.5" />
-              Messages
-              {unreadMessages > 0 && (
-                <span className="bg-destructive ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-[2px] px-1 text-[10px] leading-none font-semibold text-white">
-                  {unreadMessages > 99 ? "99+" : unreadMessages}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="activity" className="gap-1.5">
-              <Activity className="h-3.5 w-3.5" />
-              Activity
-            </TabsTrigger>
-            <TabsTrigger value="passwords" className="gap-1.5">
-              <KeyRound className="h-3.5 w-3.5" />
-              Passwords
-            </TabsTrigger>
-          </TabsList>
-        </div>
+        {/* Tabs are DATA now, not markup: ProjectTabsBar measures them to decide
+            where the bar runs out of room, and renders whatever doesn't fit on a
+            second strip. Order here is the order on screen. */}
+        <ProjectTabsBar
+          items={[
+            { value: "overview", label: "Overview", icon: Layers },
+            { value: "brand", label: "Brand", icon: Sparkles },
+            { value: "drive", label: "Files", icon: HardDrive },
+            { value: "integration", label: "Integration", icon: Plug },
+            { value: "insights", label: "Insights", icon: BarChart3 },
+            { value: "seo", label: "SEO", icon: Search },
+            { value: "teams", label: "Teams", icon: Users },
+            { value: "tasks", label: "Tasks", icon: FolderKanban },
+            {
+              value: "requirements",
+              label: "Requirements",
+              icon: HelpCircle,
+              badge: openRequirements,
+              badgeClassName: "bg-amber-500",
+            },
+            {
+              value: "messages",
+              label: "Messages",
+              icon: MessageSquare,
+              badge: unreadMessages,
+            },
+            { value: "activity", label: "Activity", icon: Activity },
+            { value: "passwords", label: "Passwords", icon: KeyRound },
+            // Client access is a manage-only surface: it hands out logins.
+            ...(canManage ? [{ value: "clients", label: "Clients", icon: UserCog }] : []),
+          ]}
+        />
 
         <TabsContent value="overview" className="mt-4 space-y-4">
           <StatStrip
@@ -368,54 +348,58 @@ export default function ProjectDetailPage() {
           {/* Managers get the whole project; everyone else gets their own slice,
               because "the project is 60% done" is not actionable to someone who
               wants to know what they still owe. */}
-          <ProgressOverview projectId={projectId} currentUserId={userId} isAdmin={canManage} />
+          <ProgressOverview projectId={projectRef} currentUserId={userId} isAdmin={canManage} />
 
           {/* Renders only when the project actually tracks sites. */}
-          <ProjectSitesCard projectId={projectId} onOpenSeo={() => handleTabChange("seo")} />
+          <ProjectSitesCard projectId={projectRef} onOpenSeo={() => handleTabChange("seo")} />
         </TabsContent>
 
         <TabsContent value="brand">
-          <BrandTab projectId={projectId} canManage={canManage} />
+          <BrandTab projectId={projectRef} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="drive">
-          <DriveTab projectId={projectId} canManage={canManage} />
+          <DriveTab projectId={projectRef} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="integration">
-          <IntegrationTab projectId={projectId} canManage={canManage} />
+          <IntegrationTab projectId={projectRef} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="insights">
-          <InsightsTab projectId={projectId} canManage={canManage} />
+          <InsightsTab projectId={projectRef} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="seo">
-          <SeoTab projectId={projectId} canManage={canManage} />
+          <SeoTab projectId={projectRef} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="teams" className="mt-4">
-          <TeamsTab projectId={projectId} canManage={canManage} currentUserId={userId} />
+          <TeamsTab projectId={projectRef} canManage={canManage} currentUserId={userId} />
         </TabsContent>
 
         <TabsContent value="tasks" className="mt-4">
-          <TasksTab projectId={projectId} currentUserId={userId} isAdmin={canManage} />
+          <TasksTab projectId={projectRef} currentUserId={userId} isAdmin={canManage} />
         </TabsContent>
 
         <TabsContent value="requirements" className="mt-4">
-          <RequirementsTab projectId={projectId} currentUserId={userId} canManage={canManage} />
+          <RequirementsTab projectId={projectRef} currentUserId={userId} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="messages" className="mt-4">
-          <MessagesTab projectId={projectId} currentUserId={userId} canManage={canManage} />
+          <MessagesTab projectId={projectRef} currentUserId={userId} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="activity" className="mt-4">
-          <ActivityTab projectId={projectId} />
+          <ActivityTab projectId={projectRef} />
         </TabsContent>
 
         <TabsContent value="passwords" className="mt-4">
-          <PasswordsTab projectId={projectId} currentUserId={userId} canManage={canManage} />
+          <PasswordsTab projectId={projectRef} currentUserId={userId} canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="clients" className="mt-4">
+          <ProjectClientsTab projectRef={projectRef} canManage={canManage} />
         </TabsContent>
       </Tabs>
 
@@ -424,7 +408,8 @@ export default function ProjectDetailPage() {
         open={editOpen}
         onClose={() => setEditOpen(false)}
         mode="edit"
-        projectId={projectId}
+        projectId={projectRef}
+        logo={project.logo}
         initial={{
           name: project.name,
           code: project.code,

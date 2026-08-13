@@ -33,6 +33,9 @@ function createClient() {
     //   - lib/mailer.ts         (decrypt the Gmail app password to send as the user)
     omit: {
       employee: { passwordHash: true, gmailAppPassword: true },
+      // Same deny-by-default for external client accounts; only the client
+      // credentials provider in server/auth.ts opts back in.
+      clientUser: { passwordHash: true },
     },
   })
 }

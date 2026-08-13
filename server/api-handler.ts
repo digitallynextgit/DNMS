@@ -24,6 +24,19 @@ export async function getSession(): Promise<Session | null> {
   return auth() as Promise<Session | null>
 }
 
+/**
+ * Staff-only gate. External client-portal accounts hold a valid session but no
+ * roles and no permission scopes, so `withAuth` already fails for them - this
+ * makes it explicit and also covers `withSession`, which asks for no scope at
+ * all and would otherwise let a client reach every "any signed-in user" API.
+ * Client sessions belong on /api/portal/*, which uses withClientSession.
+ */
+function assertStaff(session: Session): void {
+  if (session.user.kind === "client") {
+    throw new ForbiddenError("This endpoint is not available to client accounts")
+  }
+}
+
 // Next 16 passes `params` as a Promise; resolve it once so handlers keep
 // destructuring `ctx.params` synchronously.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,6 +151,7 @@ export function withAuth(requiredPermission: string | string[], handler: AuthedH
     try {
       const session = await getSession()
       if (!session) throw new UnauthorizedError()
+      assertStaff(session)
 
       const permissions = Array.isArray(requiredPermission)
         ? requiredPermission
@@ -160,6 +174,28 @@ export function withSession(handler: AuthedHandler) {
     try {
       const session = await getSession()
       if (!session) throw new UnauthorizedError()
+      assertStaff(session)
+      const params = await resolveParams(context)
+      return await normalize(await handler(req, { params }, session))
+    } catch (err) {
+      return handleError(err)
+    }
+  }
+}
+
+/**
+ * The mirror image: require a signed-in CLIENT. Staff sessions are rejected, so
+ * a portal endpoint can never be driven with an employee's cookie and quietly
+ * skip the per-project access check it exists to enforce.
+ */
+export function withClientSession(handler: AuthedHandler) {
+  return async (req: NextRequest, context: NextRouteContext) => {
+    try {
+      const session = await getSession()
+      if (!session) throw new UnauthorizedError()
+      if (session.user.kind !== "client") {
+        throw new ForbiddenError("This endpoint is for client portal accounts")
+      }
       const params = await resolveParams(context)
       return await normalize(await handler(req, { params }, session))
     } catch (err) {

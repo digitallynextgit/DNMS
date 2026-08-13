@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { canManageProject, withProjectAccess } from "@/features/projects/server/project-access"
+import {
+  canManageProject,
+  resolveProjectId,
+  withProjectAccess,
+} from "@/features/projects/server/project-access"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
@@ -43,7 +47,12 @@ export const GET = withProjectAccess(
 export const POST = withSession(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
-      const { id: projectId, teamId } = ctx.params
+      const { teamId } = ctx.params
+      // The URL carries a slug now; this route is behind plain withSession, not
+      // a slug-aware guard. The id is WRITTEN onto the created task, so an
+      // unresolved slug would corrupt the row, not merely 404.
+      const projectId = await resolveProjectId(ctx.params.id)
+      if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
       const body = await req.json()
       const { title, description, assigneeId, priority, dueDate, estimatedHours, tags } = body
       const seoPropertyId: string | null = body.seoPropertyId || null

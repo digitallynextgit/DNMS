@@ -16,6 +16,13 @@ import type { Session } from "next-auth"
 export async function requireSession(): Promise<Session> {
   const session = await getSession()
   if (!session) throw new ActionError("Unauthorized", 401)
+  // Staff-only. Every service behind this guard reads `employees` by
+  // session.user.id; an external client-portal account has no row there, so
+  // letting one through would produce silent empty results at best. Portal
+  // services use requireClientSession (server/client-guard.ts) instead.
+  if (session.user.kind === "client") {
+    throw new ActionError("Forbidden: not available to client accounts", 403)
+  }
   return session
 }
 

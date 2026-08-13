@@ -24,7 +24,7 @@ import {
 import { usePermissions } from "@/features/admin"
 import { PERMISSIONS, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from "@/lib/constants"
 import { formatDate } from "@/lib/utils"
-import { ProjectFormDialog, projectHref } from "@/features/projects"
+import { ProjectFormDialog, ProjectLogo, projectHref } from "@/features/projects"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 
 interface Project {
@@ -33,6 +33,8 @@ interface Project {
   code: string
   slug: string | null
   description: string | null
+  /** Stable route URL for the logo; null when none has been uploaded. */
+  logo: string | null
   status: string
   priority: string
   startDate: string | null
@@ -112,9 +114,12 @@ export function ProjectsClient() {
     {
       header: "Name",
       cell: (p) => (
-        <Link href={projectHref(p)} className="font-medium hover:underline">
-          {p.name}
-        </Link>
+        <div className="flex items-center gap-2">
+          <ProjectLogo src={p.logo} name={p.name} className="h-6 w-6" />
+          <Link href={projectHref(p)} className="font-medium hover:underline">
+            {p.name}
+          </Link>
+        </div>
       ),
     },
     {
@@ -259,6 +264,11 @@ export function ProjectsClient() {
                           className="focus-visible:ring-ring absolute inset-0 rounded-[2px] focus-visible:ring-2 focus-visible:outline-none"
                         />
                         <div className="flex items-start justify-between gap-2">
+                          <ProjectLogo
+                            src={project.logo}
+                            name={project.name}
+                            className="h-10 w-10"
+                          />
                           <div className="min-w-0 flex-1">
                             <p className="line-clamp-1 text-sm font-medium group-hover:underline">
                               {project.name}
@@ -379,6 +389,7 @@ export function ProjectsClient() {
           onClose={() => setEditing(null)}
           mode="edit"
           projectId={editing.id}
+          logo={editing.logo}
           initial={{
             name: editing.name,
             code: editing.code,

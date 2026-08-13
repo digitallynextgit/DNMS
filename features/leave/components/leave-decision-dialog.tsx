@@ -104,8 +104,8 @@ export function LeaveDecisionDialog({
   const [polishing, setPolishing] = React.useState(false)
   const bodyRef = React.useRef<HTMLTextAreaElement>(null)
 
-  // The reply is signed by, and sent from, the employee's MANAGER - so we preview
-  // the manager's signature (final viewers only; advisory sends no email).
+  // The reply is signed by, and sent from, whoever approves - so we preview the
+  // current user's signature (final viewers only; advisory sends no email).
   const { data: sig } = useQuery({
     queryKey: ["leave-decision-signature", request?.id],
     queryFn: () =>

@@ -269,17 +269,36 @@ export async function resolveLeaveMailEnvelope(
   return { autoApprove: false, to, ccHr, notifyIds }
 }
 
-/** Deterministic Message-ID for a leave request's application email, so the
- *  approve/reject reply can thread onto the same conversation without us having
- *  to capture the async-sent message's id. */
-function buildLeaveThreadMessageId(requestId: string): string {
+/** `<key@host>` using the app's own host, so every id we mint looks local. */
+function buildLeaveMessageId(key: string): string {
   let host = "dnms.digitallynext.com"
   try {
     if (process.env.NEXTAUTH_URL) host = new URL(process.env.NEXTAUTH_URL).host
   } catch {
     // keep the fallback host
   }
-  return `<leave-${requestId}@${host}>`
+  return `<${key}@${host}>`
+}
+
+/** Deterministic Message-ID for a leave request's application email, so the
+ *  approve/reject reply can thread onto the same conversation without us having
+ *  to capture the async-sent message's id. */
+function buildLeaveThreadMessageId(requestId: string): string {
+  return buildLeaveMessageId(`leave-${requestId}`)
+}
+
+/** A phantom "root" id carried in the References header of BOTH the application
+ *  letter and the decision reply. Gmail REWRITES the Message-ID of anything sent
+ *  through smtp.gmail.com, so the reply's In-Reply-To can end up pointing at an
+ *  id that no longer exists on the thread; a References root both messages share
+ *  still links them into one conversation. */
+function buildLeaveThreadRootId(requestId: string): string {
+  return buildLeaveMessageId(`leave-thread-${requestId}`)
+}
+
+/** Deterministic Message-ID for the approve/reject reply. */
+function buildLeaveDecisionMessageId(requestId: string): string {
+  return buildLeaveMessageId(`leave-decision-${requestId}`)
 }
 
 /** Notify on apply: in-app to every approver, plus ONE letter to the manager. */
@@ -379,6 +398,9 @@ async function notifyApprovers(
       // It reads as the employee's letter, so Reply should reach the employee.
       replyTo: applicant?.email ?? undefined,
       messageId,
+      // Shared phantom root - the decision reply carries the same id, so the two
+      // thread together even when Gmail rewrites this message's Message-ID.
+      references: buildLeaveThreadRootId(request.id),
       profile: "notifications",
     })
 
@@ -1346,74 +1368,94 @@ export async function updateLeaveRequest(
         select: { name: true },
       })
       if (emp && action !== "CANCEL") {
-        if (!isFinalizer && isAdvisor) {
-          // Advisory manager decision - the request still needs HR's final call.
-          const approved = action === "APPROVE"
-          await createNotification({
-            employeeId: request.employeeId,
-            title: approved ? "Leave - manager approved" : "Leave - manager declined",
-            message: approved
-              ? `Your ${leaveType?.name ?? "leave"} request was approved by your manager and is awaiting HR's final approval.`
-              : `Your manager declined your ${leaveType?.name ?? "leave"} request - it is awaiting HR's final call.`,
-            type: "info",
-            link: "/leave",
-          })
-        } else {
-          const isApproved = action === "APPROVE"
-          const startDate = new Date(request.startDate).toDateString()
-          await createNotification({
-            employeeId: request.employeeId,
-            title: isApproved ? "Leave Approved" : "Leave Rejected",
-            message: isApproved
-              ? `Your ${leaveType?.name ?? "leave"} request from ${startDate} has been approved.`
-              : `Your ${leaveType?.name ?? "leave"} request from ${startDate} was rejected. ${rejectionReason ? `Reason: ${rejectionReason}` : ""}`,
-            type: isApproved ? "success" : "error",
-            link: "/leave",
-          })
-          // Thread the decision onto the original application email when we
-          // captured its Message-ID at apply time. Subject becomes "Re: <the
-          // exact subject that was sent>"; Cc HR so their copy threads too.
-          const threadId = request.requestMailMessageId ?? undefined
-          const hrEmail = (await getConfig("HR_EMAIL"))?.trim() || null
-          const cc = threadId && hrEmail && hrEmail !== emp.email ? hrEmail : undefined
-          const subject =
-            threadId && request.requestMailSubject
-              ? `Re: ${request.requestMailSubject}`
-              : `Leave ${isApproved ? "approved" : "declined"} - ${emp.firstName}`
+        // FIRST DECISION WINS (see the transaction above): manager, HR and admin
+        // all finalise the request, so every one of them mails the employee. This
+        // used to branch on `!isFinalizer && isAdvisor` and send only an in-app
+        // notice, which left a manager-approved request marked APPROVED in DNMS
+        // with no email ever going out.
+        const isApproved = action === "APPROVE"
+        const startDate = new Date(request.startDate).toDateString()
+        await createNotification({
+          employeeId: request.employeeId,
+          title: isApproved ? "Leave Approved" : "Leave Rejected",
+          message: isApproved
+            ? `Your ${leaveType?.name ?? "leave"} request from ${startDate} has been approved.`
+            : `Your ${leaveType?.name ?? "leave"} request from ${startDate} was rejected. ${rejectionReason ? `Reason: ${rejectionReason}` : ""}`,
+          type: isApproved ? "success" : "error",
+          link: "/leave",
+        })
+        // Thread the decision onto the original application email when we
+        // captured its Message-ID at apply time. Subject becomes "Re: <the
+        // exact subject that was sent>".
+        const threadId = request.requestMailMessageId ?? undefined
+        const threadRoot = buildLeaveThreadRootId(request.id)
+        const hrEmail = (await getConfig("HR_EMAIL"))?.trim() || null
+        const subject =
+          threadId && request.requestMailSubject
+            ? `Re: ${request.requestMailSubject}`
+            : `Leave ${isApproved ? "approved" : "declined"} - ${emp.firstName}`
 
-          // The reply is signed by, and sent from, the employee's reporting
-          // MANAGER (even when HR made the final call) - so the employee hears it
-          // from their direct manager. Falls back to the finaliser when there's no
-          // manager on file.
-          const mgr = applicant?.manager
-          const email = renderLeaveDecisionLetter({
-            employeeFirstName: emp.firstName,
-            approved: isApproved,
-            leaveType: leaveType?.name ?? "leave",
-            startDate: new Date(request.startDate).toISOString().slice(0, 10),
-            endDate: new Date(request.endDate).toISOString().slice(0, 10),
-            totalDays: request.totalDays,
-            reason: !isApproved && rejectionReason ? rejectionReason : null,
-            bodyText: emailBody?.trim() || null,
-            subject,
-            approverName: mgr ? `${mgr.firstName} ${mgr.lastName}`.trim() : "Digitally Next",
-            approverDesignation: mgr?.jobRole?.name ?? mgr?.designation?.title ?? null,
-            approverEmail: mgr?.email ?? null,
-            approverPhone: mgr?.phone ?? null,
-          })
-          // Send AS the manager from their own Gmail so it's authentic and threads
-          // in their Sent. Falls back to the finaliser (then the system mailer) if
-          // the manager has no App Password on file.
-          addEmailAsJob(mgr?.id ?? session.user.id, {
-            to: emp.email,
-            cc,
-            subject: email.subject,
-            html: email.html,
-            text: email.text,
-            inReplyTo: threadId,
-            references: threadId,
-          })
-        }
+        // The reply is signed by, and sent FROM, whoever actually made the call:
+        // the reporting manager when the manager approved, HR when HR did. Falls
+        // back to the manager, then to a plain company signature.
+        const actor = await db.employee.findUnique({
+          where: { id: session.user.id },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            jobRole: { select: { name: true } },
+            designation: { select: { title: true } },
+          },
+        })
+        const signer = actor ?? applicant?.manager ?? null
+        const isHrActor =
+          roles.includes(SYSTEM_ROLES.HR_MANAGER) || roles.includes(SYSTEM_ROLES.HR_EMPLOYEE)
+
+        // Keep the application letter's participants on the trail (HR mailbox +
+        // the reporting manager) so everyone's copy stays one conversation -
+        // minus the sender and the recipient, who are already on it.
+        const onThread = new Set(
+          [emp.email, signer?.email]
+            .filter((e): e is string => Boolean(e))
+            .map((e) => e.toLowerCase()),
+        )
+        const cc = [...new Set([hrEmail, applicant?.manager?.email])]
+          .filter((e): e is string => Boolean(e))
+          .filter((e) => !onThread.has(e.toLowerCase()))
+
+        const email = renderLeaveDecisionLetter({
+          employeeFirstName: emp.firstName,
+          approved: isApproved,
+          leaveType: leaveType?.name ?? "leave",
+          startDate: new Date(request.startDate).toISOString().slice(0, 10),
+          endDate: new Date(request.endDate).toISOString().slice(0, 10),
+          totalDays: request.totalDays,
+          reason: !isApproved && rejectionReason ? rejectionReason : null,
+          bodyText: emailBody?.trim() || null,
+          subject,
+          approverName: signer ? `${signer.firstName} ${signer.lastName}`.trim() : "Digitally Next",
+          approverDesignation: signer?.jobRole?.name ?? signer?.designation?.title ?? null,
+          approverEmail: signer?.email ?? null,
+          approverPhone: signer?.phone ?? null,
+        })
+        // Send AS the approver from their own Gmail so it's authentic and lands in
+        // their Sent. With no App Password on file it falls back to the system
+        // mailer - the "hr" mailbox for an HR approver, notifications otherwise.
+        addEmailAsJob(signer?.id ?? session.user.id, {
+          to: emp.email,
+          cc: cc.length ? cc : undefined,
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
+          replyTo: signer?.email ?? undefined,
+          messageId: buildLeaveDecisionMessageId(request.id),
+          inReplyTo: threadId ?? threadRoot,
+          references: threadId ? [threadRoot, threadId] : [threadRoot],
+          profile: isHrActor ? "hr" : "notifications",
+        })
       }
     } catch {
       // Non-blocking - don't fail the request if email fails

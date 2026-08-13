@@ -25,27 +25,24 @@ const PERSON_SELECT = {
 
 // GET /api/leave/decision/preview?requestId=<id>
 // The signature block that will sign the decision reply. That reply is sent FROM
-// the applicant's reporting MANAGER, so we return the manager's signature (falling
-// back to the current user when there's no manager on file). Read-only.
+// whoever makes the call - the manager when the manager approves, HR when HR does
+// - so we return the CURRENT USER's signature, falling back to the applicant's
+// reporting manager when the viewer has no employee record. Read-only.
 export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const requestId = req.nextUrl.searchParams.get("requestId")
 
-      let person: Person = null
-      if (requestId) {
+      let person: Person = await db.employee.findUnique({
+        where: { id: session.user.id },
+        select: PERSON_SELECT,
+      })
+      if (!person && requestId) {
         const request = await db.leaveRequest.findUnique({
           where: { id: requestId },
           select: { employee: { select: { manager: { select: PERSON_SELECT } } } },
         })
         person = request?.employee.manager ?? null
-      }
-      // Fallback: the current user (e.g. no manager assigned).
-      if (!person) {
-        person = await db.employee.findUnique({
-          where: { id: session.user.id },
-          select: PERSON_SELECT,
-        })
       }
 
       await warmConfig()

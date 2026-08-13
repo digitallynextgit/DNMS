@@ -30,6 +30,9 @@ import type { NextRequest } from "next/server"
 // through (otherwise cron-job.org / the careers site get 401 before the handler).
 const PUBLIC_PREFIXES = [
   "/login",
+  // External client portal sign-in. Its own page so a client never lands on the
+  // staff login (and never sees the Google button, which is employees-only).
+  "/client-login",
   "/forgot-password",
   // The forgot-password flow is used while signed OUT, so its three endpoints
   // must bypass the session guard. Each is self-protected: `forgot` only emails
@@ -187,15 +190,30 @@ export default auth((req: NextRequest & { auth: unknown }) => {
   const session = (
     req as NextRequest & {
       auth: {
-        user?: { mustChangePassword?: boolean; roles?: string[]; permissions?: string[] }
+        user?: {
+          kind?: "employee" | "client"
+          mustChangePassword?: boolean
+          roles?: string[]
+          permissions?: string[]
+        }
       } | null
     }
   ).auth
+
+  const isPortalPath = pathname === "/portal" || pathname.startsWith("/portal/")
+  const isPortalApi = pathname.startsWith("/api/portal")
 
   if (!session?.user) {
     // API routes: return 401 JSON instead of a redirect.
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    // A signed-out visitor to the portal belongs on the CLIENT login page, not
+    // the staff one.
+    if (isPortalPath) {
+      const clientLogin = new URL("/client-login", req.url)
+      clientLogin.search = `callbackUrl=${req.nextUrl.pathname}`
+      return NextResponse.redirect(clientLogin)
     }
 
     // Page routes: redirect to the login page, preserving the original URL as
@@ -209,21 +227,50 @@ export default auth((req: NextRequest & { auth: unknown }) => {
     return NextResponse.redirect(loginUrl)
   }
 
+  // -------------------------------------------------------------------------
+  // Population split. A client session and a staff session must never reach one
+  // another's surface. The API wrappers enforce this too (assertStaff /
+  // withClientSession) - this is the outer fence so a client typing /payroll
+  // gets bounced before any page shell renders.
+  // -------------------------------------------------------------------------
+  const isClient = session.user.kind === "client"
+
+  if (isClient && !isPortalPath && !isPortalApi) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+    // /change-password is staff-only; the portal has its own flow.
+    return NextResponse.redirect(new URL("/portal", req.url))
+  }
+
+  if (!isClient && (isPortalPath || isPortalApi)) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+    // Staff manage client access from a project's Clients tab, not by browsing
+    // the portal with a session that holds no grant.
+    return NextResponse.redirect(new URL("/projects", req.url))
+  }
+
   // Force-password-change gate: a flagged user is funneled to /change-password
   // until they set a new password (which clears the flag). The change endpoint
   // (POST /api/password) and /api/auth/* stay open so they can actually submit
   // the new password and then refresh their session / sign out - otherwise the
   // very request that clears the flag would be blocked by the flag.
+  //
+  // Clients get the SAME gate but on their own pages: /change-password is
+  // staff-only, and the population split above would bounce them straight back
+  // to /portal - an endless redirect. Theirs lives inside /portal.
   if (session.user.mustChangePassword) {
+    const changePath = isClient ? "/portal/set-password" : "/change-password"
+    const changeApi = isClient ? "/api/portal/password" : "/api/password"
     const allowed =
-      pathname === "/change-password" ||
-      pathname === "/api/password" ||
-      pathname.startsWith("/api/auth")
+      pathname === changePath || pathname === changeApi || pathname.startsWith("/api/auth")
     if (!allowed) {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json({ error: "Password change required" }, { status: 403 })
       }
-      return NextResponse.redirect(new URL("/change-password", req.url))
+      return NextResponse.redirect(new URL(changePath, req.url))
     }
   }
 

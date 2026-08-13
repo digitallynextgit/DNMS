@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { getSeoOverview } from "@/features/seo/server/seo.queries"
+import { resolveProjectId } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
 
 // GET - the growth report for ONE tracked site: the chosen window vs the one
@@ -14,7 +15,12 @@ import { PERMISSIONS } from "@/lib/constants"
 export const GET = withAuth(
   PERMISSIONS.PROJECT_READ,
   async (req: NextRequest, ctx: { params: Record<string, string> }) => {
-    const { id: projectId, propertyId } = ctx.params
+    const { propertyId } = ctx.params
+    // The URL carries a slug now, and plain withAuth doesn't resolve one. The
+    // ownership check below matches against the stored projectId.
+    const projectId = await resolveProjectId(ctx.params.id)
+    if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+
     const owned = await db.seoProperty.findFirst({
       where: { id: propertyId, projectId },
       select: { id: true },

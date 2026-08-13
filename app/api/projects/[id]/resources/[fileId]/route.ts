@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { canManageProject, withProjectAccess } from "@/features/projects/server/project-access"
+import {
+  canManageProject,
+  resolveProjectId,
+  withProjectAccess,
+} from "@/features/projects/server/project-access"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
@@ -37,7 +41,12 @@ export const GET = withProjectAccess(
 export const DELETE = withSession(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
-      const { id: projectId, fileId } = ctx.params
+      const { fileId } = ctx.params
+      // The URL carries a slug now; this route is behind plain withSession, so
+      // resolve it before comparing against the resource's stored projectId.
+      const projectId = await resolveProjectId(ctx.params.id)
+      if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+
       const resource = await db.projectResource.findUnique({
         where: { id: fileId },
         include: { team: { select: { id: true, managerId: true } } },
