@@ -26,6 +26,10 @@ function categorize(key: string): StorageCategory {
   if (key.startsWith("profile-photos/")) return "profile-photos"
   if (key.startsWith("employee-documents/")) return "employee-documents"
   if (key.startsWith("documents/")) return "company-documents"
+  // Before "projects/", since neither prefix is a prefix of the other but the
+  // pair is easy to confuse: project FILES live under projects/, project LOGOS
+  // under project-logos/.
+  if (key.startsWith("project-logos/")) return "project-logos"
   if (key.startsWith("projects/")) return "project-files"
   return "other"
 }
@@ -53,7 +57,7 @@ export async function getStorageOverview(): Promise<StorageOverview> {
   const bucket = (await getConfig("B2_EMPLOYEE_DOCS_BUCKET")) || "hrms-documents"
 
   // Bucket contents + every DB row that owns an object, in parallel.
-  const [objects, photos, docs, empDocs, brandAssets, resources] = await Promise.all([
+  const [objects, photos, docs, empDocs, brandAssets, resources, projectLogos] = await Promise.all([
     listAllObjects(),
     db.employee.findMany({
       where: { profilePhotoKey: { not: null } },
@@ -78,6 +82,13 @@ export async function getStorageOverview(): Promise<StorageOverview> {
     }),
     db.projectResource.findMany({
       select: { objectKey: true, fileName: true, project: { select: { name: true } } },
+    }),
+    // Project logos live on the project row itself (projects.logoKey), not in a
+    // join table - without this they look unreferenced and the "clean up
+    // orphans" action would happily delete every live logo.
+    db.project.findMany({
+      where: { logoKey: { not: null } },
+      select: { logoKey: true, name: true },
     }),
   ])
 
@@ -115,6 +126,13 @@ export async function getStorageOverview(): Promise<StorageOverview> {
       refType: "project-resource",
       name: r.fileName,
     })
+  for (const p of projectLogos)
+    if (p.logoKey)
+      refs.set(p.logoKey, {
+        owner: p.name,
+        refType: "project-logo",
+        name: "Project logo",
+      })
 
   const files: StorageFile[] = await Promise.all(
     objects.map(async (o: StorageObject) => {
@@ -171,7 +189,7 @@ export async function getStorageOverview(): Promise<StorageOverview> {
  */
 export async function deleteStorageObject(key: string): Promise<{ name: string }> {
   // Remove the owning DB row / pointer first (best-effort per type), then the object.
-  const [emp, doc, empDoc, brand, resource] = await Promise.all([
+  const [emp, doc, empDoc, brand, resource, project] = await Promise.all([
     db.employee.findFirst({ where: { profilePhotoKey: key }, select: { id: true } }),
     db.document.findFirst({ where: { objectKey: key }, select: { id: true, title: true } }),
     db.employeeDocument.findFirst({ where: { objectKey: key }, select: { id: true, title: true } }),
@@ -180,6 +198,7 @@ export async function deleteStorageObject(key: string): Promise<{ name: string }
       where: { objectKey: key },
       select: { id: true, fileName: true },
     }),
+    db.project.findFirst({ where: { logoKey: key }, select: { id: true, name: true } }),
   ])
 
   if (emp)
@@ -191,10 +210,19 @@ export async function deleteStorageObject(key: string): Promise<{ name: string }
   if (empDoc) await db.employeeDocument.delete({ where: { id: empDoc.id } })
   if (brand) await db.brandAsset.delete({ where: { id: brand.id } })
   if (resource) await db.projectResource.delete({ where: { id: resource.id } })
+  // Clear the pointer, don't delete the project. Same shape as the profile-photo
+  // case above: the object goes, its owner stays.
+  if (project)
+    await db.project.update({ where: { id: project.id }, data: { logo: null, logoKey: null } })
 
   await deleteFile(key).catch((e) => console.error("[storage] B2 delete failed:", key, e))
 
   const name =
-    doc?.title ?? empDoc?.title ?? brand?.fileName ?? resource?.fileName ?? displayName(key)
+    doc?.title ??
+    empDoc?.title ??
+    brand?.fileName ??
+    resource?.fileName ??
+    (project ? `${project.name} logo` : null) ??
+    displayName(key)
   return { name }
 }

@@ -4,6 +4,7 @@ export type StorageCategory =
   | "employee-documents"
   | "company-documents"
   | "project-files"
+  | "project-logos"
   | "other"
 
 export interface StorageFile {
@@ -19,7 +20,14 @@ export interface StorageFile {
   /** True when a DB row still points at this object; false = orphaned/leaked. */
   referenced: boolean
   /** What kind of DB row owns it (drives the delete cleanup). */
-  refType: "photo" | "document" | "employee-document" | "brand-asset" | "project-resource" | null
+  refType:
+    | "photo"
+    | "document"
+    | "employee-document"
+    | "brand-asset"
+    | "project-resource"
+    | "project-logo"
+    | null
   /** Signed URL that opens inline (View). */
   url: string
   /** Signed URL that force-downloads under the real name. */
@@ -51,5 +59,6 @@ export const CATEGORY_LABELS: Record<StorageCategory, string> = {
   "employee-documents": "Employee Documents",
   "company-documents": "Company Documents",
   "project-files": "Project Files",
+  "project-logos": "Project Logos",
   other: "Other",
 }

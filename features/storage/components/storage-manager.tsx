@@ -57,6 +57,10 @@ const CATEGORY_META: Record<StorageCategory, { icon: React.ElementType; tint: st
     icon: FolderKanban,
     tint: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
   },
+  "project-logos": {
+    icon: ImageIcon,
+    tint: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+  },
   other: { icon: Folder, tint: "bg-muted text-muted-foreground" },
 }
 
