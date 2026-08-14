@@ -164,6 +164,11 @@ export function DateRangeField({
               mode="range"
               numberOfMonths={2}
               captionLayout="dropdown"
+              // Same trap as DateField: without these, react-day-picker ends the
+              // year dropdown at the current year, so no range could ever be set
+              // into next year.
+              startMonth={new Date(1950, 0)}
+              endMonth={new Date(new Date().getFullYear() + 15, 11, 31)}
               defaultMonth={parseDateString(draft.from ?? undefined)}
               selected={draftRange}
               onSelect={(r) =>

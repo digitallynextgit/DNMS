@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Calendar as CalendarIcon } from "lucide-react"
 
 import { Calendar } from "@/components/ui/calendar"
@@ -23,6 +23,26 @@ export function toDateString(date: Date): string {
   const d = String(date.getDate()).padStart(2, "0")
   return `${y}-${m}-${d}`
 }
+
+// =============================================================================
+// Year-dropdown range
+// =============================================================================
+// react-day-picker's own default for a dropdown caption is:
+//
+//     endMonth = endOfYear(today)        // getNavMonth.js
+//
+// i.e. the year list STOPS AT THE CURRENT YEAR unless a caller passes endMonth.
+// That silently made every future date unreachable in any field that did not
+// think to pass one - a renewal expiring in 2028, leave booked for January,
+// next year's holiday calendar. The field looked fine; the year simply was not
+// in the list.
+//
+// So the range is OURS, not the library's. Callers that genuinely want a
+// narrower window (attendance cannot be marked in the future, a date of birth
+// cannot be next week) still pass their own and win.
+const DEFAULT_START_YEAR = 1950
+/** Domains and SSL certs are commonly bought 10 years out; 15 leaves headroom. */
+const FUTURE_YEARS = 15
 
 /**
  * Reusable shadcn date picker (calendar in a popover). Shared by the employee
@@ -51,6 +71,16 @@ export function DateField({
   className?: string
 }) {
   const [open, setOpen] = useState(false)
+  // Computed once per mount rather than per render, so the dropdown options are
+  // referentially stable while the popover is open.
+  const bounds = useMemo(() => {
+    const year = new Date().getFullYear()
+    return {
+      start: startMonth ?? new Date(DEFAULT_START_YEAR, 0),
+      end: endMonth ?? new Date(year + FUTURE_YEARS, 11, 31),
+    }
+  }, [startMonth, endMonth])
+
   return (
     <Popover open={open} onOpenChange={setOpen} modal={modal}>
       <PopoverTrigger asChild>
@@ -73,8 +103,8 @@ export function DateField({
         <Calendar
           mode="single"
           captionLayout="dropdown"
-          startMonth={startMonth}
-          endMonth={endMonth}
+          startMonth={bounds.start}
+          endMonth={bounds.end}
           defaultMonth={parseDateString(value)}
           selected={parseDateString(value)}
           onSelect={(date) => {
