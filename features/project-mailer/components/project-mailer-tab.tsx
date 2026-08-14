@@ -63,6 +63,7 @@ import {
 } from "@/components/ui/select"
 import { BodyComposer, type BodyMode } from "./body-composer"
 import { RecipientImportDialog } from "./recipient-import-dialog"
+import { CampaignHistoryDialog } from "./campaign-history-dialog"
 import { buildVars, extractVars } from "../lib/merge"
 import { estimateCampaign, formatDuration, TICK_SECONDS } from "../lib/eta"
 
@@ -1486,6 +1487,7 @@ function CampaignsSection({
   const [composeOpen, setComposeOpen] = React.useState(false)
   const [cancelling, setCancelling] = React.useState<Campaign | null>(null)
   const [deleting, setDeleting] = React.useState<Campaign | null>(null)
+  const [viewing, setViewing] = React.useState<Campaign | null>(null)
 
   const campaigns = data?.campaigns ?? []
   const anyLive = campaigns.some((c) => c.status === "QUEUED" || c.status === "SENDING")
@@ -1564,9 +1566,17 @@ function CampaignsSection({
           return (
             <div key={c.id} className="bg-card rounded-md border p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
+                {/* The whole block opens the per-recipient history: the card
+                    already shows the summary, so "who exactly got it" is the
+                    obvious next question to answer on click. */}
+                <button
+                  type="button"
+                  className="min-w-0 cursor-pointer text-left"
+                  onClick={() => setViewing(c)}
+                  aria-label={`Who received ${c.name}`}
+                >
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-medium">{c.name}</p>
+                    <p className="text-sm font-medium hover:underline">{c.name}</p>
                     <Badge className={cn("text-[10px]", STATUS_TONE[c.status])}>{c.status}</Badge>
                   </div>
                   <p className="text-muted-foreground truncate text-xs">{c.subject}</p>
@@ -1576,7 +1586,8 @@ function CampaignsSection({
                     {c.mailer && ` · via ${c.mailer.name}`}
                     {c.createdBy && ` · ${c.createdBy.firstName} ${c.createdBy.lastName}`}
                   </p>
-                </div>
+                  <p className="text-primary mt-1 text-[11px]">See who received it →</p>
+                </button>
                 {live ? (
                   <Button
                     variant="outline"
@@ -1650,6 +1661,12 @@ function CampaignsSection({
         variant="destructive"
         isLoading={remove.isPending}
         onConfirm={() => deleting && remove.mutate(deleting)}
+      />
+
+      <CampaignHistoryDialog
+        base={base}
+        campaign={viewing}
+        onOpenChange={(o) => !o && setViewing(null)}
       />
     </div>
   )

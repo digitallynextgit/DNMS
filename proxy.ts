@@ -235,7 +235,20 @@ export default auth((req: NextRequest & { auth: unknown }) => {
   // -------------------------------------------------------------------------
   const isClient = session.user.kind === "client"
 
-  if (isClient && !isPortalPath && !isPortalApi) {
+  // The ONE shared surface: the project mailer.
+  //
+  // A client granted the "mailer" module drives the same endpoints staff do,
+  // because the alternative was a duplicate /api/portal/*/mailer tree of a dozen
+  // routes whose client copy would silently rot out of step with the original.
+  //
+  // Narrow on purpose - only this exact prefix, nothing else under /api/projects
+  // - and it does NOT grant anything. Every route behind it is wrapped in
+  // withMailerAccess, which re-proves the client's grant AND the module and
+  // resolves the project id from the grant rather than the URL. This fence is
+  // defence in depth; that guard is the authority.
+  const isSharedMailerApi = /^\/api\/projects\/[^/]+\/mailer(\/|$)/.test(pathname)
+
+  if (isClient && !isPortalPath && !isPortalApi && !isSharedMailerApi) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }

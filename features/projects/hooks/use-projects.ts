@@ -815,10 +815,15 @@ export function useDeleteChecklistItem(taskId: string) {
 }
 
 // Project Activity
-export function useProjectActivity(projectId: string | undefined) {
+export function useProjectActivity(projectId: string | undefined, keyOnly = false) {
   return useQuery({
-    queryKey: ["project-activity", projectId],
-    queryFn: () => apiFetch<{ data: ProjectActivity[] }>(`/api/projects/${projectId}/activity`),
+    // keyOnly is part of the key: the two views are different result sets, not
+    // the same one filtered, so they must not share a cache entry.
+    queryKey: ["project-activity", projectId, keyOnly],
+    queryFn: () =>
+      apiFetch<{ data: ProjectActivity[] }>(
+        `/api/projects/${projectId}/activity${keyOnly ? "?key=1" : ""}`,
+      ),
     enabled: !!projectId,
     staleTime: 15_000,
   })

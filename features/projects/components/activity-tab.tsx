@@ -1,10 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import { useProjectActivity, type ProjectActivity } from "@/features/projects/hooks/use-projects"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
-import { formatDate } from "@/lib/utils"
+import { formatDate, cn } from "@/lib/utils"
 import {
   CheckCircle2,
   GitCommit,
@@ -88,26 +89,69 @@ function humanStatus(s: string): string {
 }
 
 export function ActivityTab({ projectId }: Props) {
-  const { data, isLoading } = useProjectActivity(projectId)
+  // Key events by DEFAULT. The full feed is mostly routine task churn, so opening
+  // this tab should answer "what happened here" rather than "what happened in the
+  // last fifty clicks". Everything is one toggle away, never hidden.
+  const [keyOnly, setKeyOnly] = useState(true)
+  const { data, isLoading } = useProjectActivity(projectId, keyOnly)
   const activities = data?.data ?? []
 
+  const toggle = (
+    <div className="bg-muted mb-3 inline-flex rounded-[2px] p-0.5">
+      {(
+        [
+          { value: true, label: "Key events" },
+          { value: false, label: "Everything" },
+        ] as const
+      ).map((o) => (
+        <button
+          key={String(o.value)}
+          type="button"
+          onClick={() => setKeyOnly(o.value)}
+          aria-pressed={keyOnly === o.value}
+          className={cn(
+            "rounded-[2px] px-2.5 py-1 text-xs transition-colors",
+            keyOnly === o.value
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+
   if (isLoading) {
-    return <ListSkeleton rows={5} height="h-12" className="space-y-3" />
+    return (
+      <>
+        {toggle}
+        <ListSkeleton rows={5} height="h-12" className="space-y-3" />
+      </>
+    )
   }
 
   if (activities.length === 0) {
     return (
-      <EmptyState
-        compact
-        icon={Activity}
-        title="No activity yet"
-        description="Actions like creating tasks, posting comments, and changing statuses will appear here."
-      />
+      <>
+        {toggle}
+        <EmptyState
+          compact
+          icon={Activity}
+          title={keyOnly ? "No key events yet" : "No activity yet"}
+          description={
+            keyOnly
+              ? "Approvals, completions, team changes and requirements show up here. Switch to Everything for the full feed."
+              : "Actions like creating tasks, posting comments, and changing statuses will appear here."
+          }
+        />
+      </>
     )
   }
 
   return (
     <div className="relative">
+      {toggle}
       {/* Timeline line */}
       <div className="bg-border absolute top-4 bottom-4 left-[18px] w-px" />
 

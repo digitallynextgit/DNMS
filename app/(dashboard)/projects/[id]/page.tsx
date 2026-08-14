@@ -297,15 +297,14 @@ export default function ProjectDetailPage() {
             },
             { value: "activity", label: "Activity", icon: Activity },
             { value: "passwords", label: "Passwords", icon: KeyRound },
-            // Both are manage-only: one hands out logins, the other decides who
-            // gets paged at midnight.
-            ...(canManage
-              ? [
-                  { value: "clients", label: "Clients", icon: UserCog },
-                  { value: "monitoring", label: "Monitoring", icon: Activity },
-                  { value: "mailer", label: "Mailer", icon: Mail },
-                ]
-              : []),
+            // Open to the whole project team. The people who need to know a site
+            // is down, or who write the campaigns, are the ones working on it -
+            // not only whoever happens to own the project.
+            { value: "monitoring", label: "Monitoring", icon: Activity },
+            { value: "mailer", label: "Mailer", icon: Mail },
+            // Clients STAYS manage-only: it mints portal logins and resets their
+            // passwords, which is account administration rather than project work.
+            ...(canManage ? [{ value: "clients", label: "Clients", icon: UserCog }] : []),
           ]}
         />
 
@@ -420,12 +419,18 @@ export default function ProjectDetailPage() {
           <ProjectClientsTab projectRef={projectRef} canManage={canManage} />
         </TabsContent>
 
+        {/* `canManage` is hardcoded true for these two because reaching this page
+            at all already means project access (every read behind it is wrapped
+            in withProjectAccess), and both APIs now authorise on exactly that.
+            Passing the manager flag instead would render the tab and then hit
+            each component's non-manager early return - a tab that opens onto
+            nothing. */}
         <TabsContent value="monitoring" className="mt-4">
-          <ProjectMonitoringTab projectRef={projectRef} canManage={canManage} />
+          <ProjectMonitoringTab projectRef={projectRef} canManage />
         </TabsContent>
 
         <TabsContent value="mailer" className="mt-4">
-          <ProjectMailerTab projectRef={projectRef} canManage={canManage} />
+          <ProjectMailerTab projectRef={projectRef} canManage />
         </TabsContent>
       </Tabs>
 

@@ -2,15 +2,22 @@ import "server-only"
 
 import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/server/api-handler"
-import { resolveProjectId, canManageProject } from "@/features/projects/server/project-access"
+import { resolveProjectId, canAccessProject } from "@/features/projects/server/project-access"
 import { requireClientModule } from "@/server/client-guard"
 import { ActionError } from "@/server/action-result"
 import type { Session } from "next-auth"
 
 // =============================================================================
 // Who may drive the project mailer?
-//   • staff who can manage the project (Account Manager or project:write), OR
+//   • any staff member with access to the project - its owner, anyone with
+//     project:read/write, or a member of any team on it, OR
 //   • a client-portal account holding the "mailer" module ON THIS PROJECT.
+//
+// Team members, not just managers: the people who write the campaigns are the
+// ones on the project, and a tab that renders for them but 403s on every call is
+// worse than one that is hidden. Note this means any project member can send
+// mail from the project's account and edit its SMTP settings - the same trust
+// boundary the Passwords tab already draws around a project's team.
 //
 // Deliberately ONE guard rather than a parallel /api/portal/*/mailer tree. The
 // mailer is a dozen endpoints; duplicating them would mean every future fix has
@@ -57,9 +64,9 @@ export function withMailerAccess(handler: MailerHandler) {
       const projectId = await resolveProjectId(params.id ?? "")
       if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
       params.id = projectId
-      if (!(await canManageProject(session, projectId))) {
+      if (!(await canAccessProject(session, projectId))) {
         return NextResponse.json(
-          { error: "Only the Account Manager or a project admin can do this" },
+          { error: "You don't have access to this project" },
           { status: 403 },
         )
       }
