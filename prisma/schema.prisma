@@ -1224,6 +1224,7 @@ model Project {
   uptimeMonitors UptimeMonitor[]
 
   clientAccess        ClientProjectAccess[]
+  clientActivity      ClientActivityLog[]
   marketplaceChannels MarketplaceChannel[]
   products            Product[]
   projectMailerAssets ProjectMailerAsset[]
@@ -2636,9 +2637,49 @@ model ClientUser {
 
   createdBy Employee?             @relation("ClientUserCreator", fields: [createdById], references: [id], onDelete: SetNull)
   access    ClientProjectAccess[]
+  activity  ClientActivityLog[]
 
   @@index([isActive])
   @@map("client_users")
+}
+
+/// What a CLIENT did in the portal.
+///
+/// Separate from `audit_logs` on purpose, not by accident: `AuditLog.actorId` is
+/// a foreign key to `employees`, so a client id written there is rejected by the
+/// database. Widening that column to "either kind of actor" would give up the FK
+/// entirely and let any string be an actor, so client activity gets its own table
+/// with its own real foreign key instead.
+///
+/// Shown to the client themselves (portal → Activity) AND to staff, which is why
+/// `summary` is written in plain language at the time of the action - a log
+/// nobody can read is a log nobody checks.
+model ClientActivityLog {
+  id           String  @id @default(uuid()) @map("id")
+  clientUserId String  @map("client_user_id")
+  /// Null for account-level actions (sign-in, password change) that belong to no
+  /// single project.
+  projectId    String? @map("project_id")
+
+  action     String  @map("action")
+  module     String  @map("module")
+  entityType String? @map("entity_type")
+  entityId   String? @map("entity_id")
+  /// Human-readable line, e.g. 'Sent campaign "Diwali Preview" to 311 recipients'.
+  summary    String? @map("summary")
+  changes    Json?   @map("changes")
+  ipAddress  String? @map("ip_address")
+  userAgent  String? @map("user_agent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  clientUser ClientUser @relation(fields: [clientUserId], references: [id], onDelete: Cascade)
+  project    Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([clientUserId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([createdAt])
+  @@map("client_activity_logs")
 }
 
 /// A reusable bundle of portal modules ("Shopify only", "Marketplace + SEO",

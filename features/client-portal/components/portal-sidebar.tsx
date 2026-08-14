@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { Package, Store, Boxes, ChevronDown } from "lucide-react"
+import { Package, Store, Boxes, ChevronDown, Mail, Activity } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useSidebarStore } from "@/stores/sidebar-store"
@@ -23,6 +23,8 @@ const ICONS: Record<ClientModuleKey, React.ComponentType<{ className?: string }>
   products: Package,
   channels: Store,
   inventory: Boxes,
+  mailer: Mail,
+  activity: Activity,
 }
 
 export interface PortalProject {

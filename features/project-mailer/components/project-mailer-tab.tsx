@@ -1485,6 +1485,7 @@ function CampaignsSection({
 }) {
   const [composeOpen, setComposeOpen] = React.useState(false)
   const [cancelling, setCancelling] = React.useState<Campaign | null>(null)
+  const [deleting, setDeleting] = React.useState<Campaign | null>(null)
 
   const campaigns = data?.campaigns ?? []
   const anyLive = campaigns.some((c) => c.status === "QUEUED" || c.status === "SENDING")
@@ -1497,6 +1498,19 @@ function CampaignsSection({
     onSuccess: () => {
       toast.success("Campaign cancelled")
       setCancelling(null)
+      onDone()
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  // `purge=1` is what separates "remove this record" from "stop this send" - see
+  // the route. Same verb, different intent, stated rather than inferred.
+  const remove = useMutation({
+    mutationFn: (c: Campaign) =>
+      apiFetch(`${base}/campaigns/${c.id}?purge=1`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast.success("Campaign deleted")
+      setDeleting(null)
       onDone()
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1563,7 +1577,7 @@ function CampaignsSection({
                     {c.createdBy && ` · ${c.createdBy.firstName} ${c.createdBy.lastName}`}
                   </p>
                 </div>
-                {live && (
+                {live ? (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1572,6 +1586,19 @@ function CampaignsSection({
                   >
                     <Ban className="h-3.5 w-3.5" />
                     Cancel
+                  </Button>
+                ) : (
+                  // Finished campaigns only. A test send is clutter; there was
+                  // previously no way to clear one without a database query.
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Delete ${c.name}`}
+                    title="Delete this campaign"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => setDeleting(c)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 )}
               </div>
@@ -1608,6 +1635,21 @@ function CampaignsSection({
         variant="destructive"
         isLoading={cancel.isPending}
         onConfirm={() => cancelling && cancel.mutate(cancelling)}
+      />
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title="Delete this campaign?"
+        description={
+          deleting
+            ? `"${deleting.name}" and its record of who received it are removed for good. The ${deleting.sentCount} email(s) already delivered are unaffected - this only clears the history here.`
+            : ""
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={remove.isPending}
+        onConfirm={() => deleting && remove.mutate(deleting)}
       />
     </div>
   )

@@ -13,7 +13,7 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { encrypt, tryDecrypt } from "@/lib/crypto"
-import { createAuditLog } from "@/lib/audit"
+import { recordActivity } from "@/lib/activity"
 import { sendEmailWithSmtp, verifySmtp } from "@/lib/mailer"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import {
@@ -192,8 +192,10 @@ export async function createMailer(
       select: MAILER_SELECT,
     })
 
-    await createAuditLog(session, {
+    await recordActivity(session, {
+      projectId,
       action: "project_mailer:create",
+      summary: `Added the sending account "${input.name}" (${input.fromEmail})`,
       module: "project",
       entityType: "ProjectMailer",
       entityId: mailer.id,
@@ -236,8 +238,10 @@ export async function updateMailer(
       select: MAILER_SELECT,
     })
 
-    await createAuditLog(session, {
+    await recordActivity(session, {
+      projectId,
       action: "project_mailer:update",
+      summary: `Updated the sending account "${input.name}"`,
       module: "project",
       entityType: "ProjectMailer",
       entityId: mailerId,
@@ -271,8 +275,10 @@ export async function deleteMailer(
     // Campaign history keeps its mailerId FK as SET NULL, so past sends still
     // exist - they just no longer name a live account.
     await db.projectMailer.delete({ where: { id: mailerId } })
-    await createAuditLog(session, {
+    await recordActivity(session, {
+      projectId,
       action: "project_mailer:delete",
+      summary: "Removed a sending account",
       module: "project",
       entityType: "ProjectMailer",
       entityId: mailerId,
@@ -350,8 +356,10 @@ export async function createTemplate(
       data: { projectId, ...input, createdById: session.user.id },
       select: TEMPLATE_SELECT,
     })
-    await createAuditLog(session, {
+    await recordActivity(session, {
+      projectId,
       action: "project_template:create",
+      summary: `Created the template "${input.name}"`,
       module: "project",
       entityType: "ProjectEmailTemplate",
       entityId: template.id,
@@ -379,8 +387,10 @@ export async function updateTemplate(
       data: input,
       select: TEMPLATE_SELECT,
     })
-    await createAuditLog(session, {
+    await recordActivity(session, {
+      projectId,
       action: "project_template:update",
+      summary: `Edited the template "${input.name}"`,
       module: "project",
       entityType: "ProjectEmailTemplate",
       entityId: templateId,
@@ -402,8 +412,10 @@ export async function deleteTemplate(
     if (!existing) return fail("Template not found", undefined, 404)
 
     await db.projectEmailTemplate.delete({ where: { id: templateId } })
-    await createAuditLog(session, {
+    await recordActivity(session, {
+      projectId,
       action: "project_template:delete",
+      summary: "Deleted a template",
       module: "project",
       entityType: "ProjectEmailTemplate",
       entityId: templateId,
@@ -691,8 +703,10 @@ export async function queueCampaign(
       select: CAMPAIGN_SELECT,
     })
 
-    await createAuditLog(session, {
+    await recordActivity(session, {
+      projectId,
       action: "campaign:queue",
+      summary: `Sent the campaign "${input.name}" to ${audience.length} recipient${audience.length === 1 ? "" : "s"}`,
       module: "project",
       entityType: "ProjectCampaign",
       entityId: campaign.id,
@@ -728,13 +742,60 @@ export async function cancelCampaign(
       data: { status: "CANCELLED", completedAt: new Date() },
     })
 
-    await createAuditLog(session, {
+    await recordActivity(session, {
+      projectId,
       action: "campaign:cancel",
+      summary: "Cancelled a campaign that was still sending",
       module: "project",
       entityType: "ProjectCampaign",
       entityId: campaignId,
     })
     return ok(serialize({ data: { id: campaignId } }))
+  })
+}
+
+/**
+ * Delete a finished campaign and its per-recipient log.
+ *
+ * Separate from cancelCampaign on purpose. Cancelling STOPS something and keeps
+ * the record of what already went out; this destroys the record itself, which is
+ * only ever right for clutter - a test send, a mistake - never for tidying up
+ * real history. So the two are different verbs rather than one that quietly does
+ * whichever the status implies.
+ *
+ * Refuses while in flight: deleting the rows the runner is mid-way through
+ * claiming would strand a half-sent campaign with no log of who received it.
+ * Cancel first, then delete.
+ */
+export async function deleteCampaign(
+  projectId: string,
+  campaignId: string,
+  session: Session,
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const campaign = await db.projectCampaign.findFirst({
+      where: { id: campaignId, projectId },
+      select: { id: true, name: true, status: true, sentCount: true },
+    })
+    if (!campaign) return fail("Campaign not found", undefined, 404)
+    if (campaign.status === "QUEUED" || campaign.status === "SENDING") {
+      return fail("Cancel this campaign before deleting it - it is still sending", undefined, 409)
+    }
+
+    // The send rows go with it (FK is ON DELETE CASCADE), which is the point:
+    // a campaign row without its per-recipient log is a worse record than none.
+    await db.projectCampaign.delete({ where: { id: campaignId } })
+
+    await recordActivity(session, {
+      projectId,
+      action: "campaign:delete",
+      summary: `Deleted the campaign "${campaign.name}" and its record of ${campaign.sentCount} send(s)`,
+      module: "project",
+      entityType: "ProjectCampaign",
+      entityId: campaignId,
+      changes: { name: campaign.name, status: campaign.status, sentCount: campaign.sentCount },
+    })
+    return ok(serialize({ data: { id: campaignId, deleted: true } }))
   })
 }
 
@@ -807,8 +868,10 @@ export async function deleteMailerImage(
     )
     await db.projectMailerAsset.delete({ where: { id: assetId } })
 
-    await createAuditLog(session, {
+    await recordActivity(session, {
+      projectId,
       action: "mailer_image:delete",
+      summary: `Removed the image "${asset.fileName}"`,
       module: "project",
       entityType: "ProjectMailerAsset",
       entityId: assetId,

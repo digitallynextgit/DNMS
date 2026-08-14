@@ -312,6 +312,17 @@ export const authOptions: NextAuthConfig = {
             where: { id: user.id },
             data: { lastLoginAt: new Date() },
           })
+          // Their OWN log, which the portal's Activity view reads. Sign-ins are
+          // the entries that make an activity log worth opening: they are how
+          // somebody notices a session they did not start.
+          await db.clientActivityLog.create({
+            data: {
+              clientUserId: user.id,
+              action: "auth:signin",
+              module: "auth",
+              summary: "Signed in to the portal",
+            },
+          })
         } catch {
           // Non-critical - never block a login on a bookkeeping write.
         }

@@ -201,3 +201,42 @@ export async function getClientInventory(projectRef: string): Promise<ActionResu
     )
   })
 }
+
+/**
+ * The client's own activity on this project.
+ *
+ * Reads client_activity_logs ONLY - never audit_logs, which is staff activity
+ * and is not theirs to see. Scoped twice over: to their own clientUserId, and to
+ * the project the grant resolved. Account-level rows (projectId null: sign-in,
+ * password change) are included because "was that me?" is the main reason anyone
+ * opens an activity log at all.
+ */
+export async function listClientActivity(
+  projectRef: string,
+  limit = 100,
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const { session, grant } = await requireClientModule(projectRef, "activity")
+
+    const rows = await db.clientActivityLog.findMany({
+      where: {
+        clientUserId: session.user.id,
+        OR: [{ projectId: grant.projectId }, { projectId: null }],
+      },
+      select: {
+        id: true,
+        action: true,
+        module: true,
+        summary: true,
+        entityType: true,
+        projectId: true,
+        ipAddress: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: Math.min(limit, 200),
+    })
+
+    return ok(serialize({ data: { events: rows, projectName: grant.projectName } }))
+  })
+}

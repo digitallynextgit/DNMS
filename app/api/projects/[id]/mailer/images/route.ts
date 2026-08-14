@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import sharp from "sharp"
 import { db } from "@/server/db"
-import { withProjectManager } from "@/features/projects/server/project-access"
+import { withMailerAccess } from "@/features/project-mailer/server/mailer-access"
 import { isB2Configured, uploadFile, getObjectKey } from "@/lib/storage"
 import { getConfig } from "@/server/app-config"
 import { mailerImageUrl } from "@/features/project-mailer/lib/image-url"
@@ -18,7 +18,7 @@ const QUALITY = 82
  * POST /api/projects/:id/mailer/images - upload an image for use in a template
  * or campaign body. Returns the PUBLIC url to drop into an <img src>.
  */
-export const POST = withProjectManager(async (req: NextRequest, { params }, session) => {
+export const POST = withMailerAccess(async (req: NextRequest, { params }, session) => {
   if (!(await isB2Configured())) {
     return NextResponse.json({ error: "Backblaze B2 storage is not configured." }, { status: 500 })
   }

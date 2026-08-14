@@ -10,13 +10,18 @@
 //      `canAccessModule` - there is no "and also show…" path.
 //
 // Deliberately NOT here, and not addable without a code change: project
-// passwords, timesheets/hours, budget, internal activity and staff messages.
-// Those are staff-only by construction, not by configuration.
+// passwords, timesheets/hours, budget, INTERNAL activity (audit_logs) and staff
+// messages. Those are staff-only by construction, not by configuration.
+//
+// Note the "activity" module below is NOT that. It reads client_activity_logs -
+// the client's own actions, scoped to their own account - and never touches
+// audit_logs, which is where staff activity lives. The two are separate tables
+// for exactly this reason.
 //
 // Client-safe (no server imports): the admin package editor renders from it too.
 // =============================================================================
 
-export type ClientModuleKey = "products" | "channels" | "inventory"
+export type ClientModuleKey = "products" | "channels" | "inventory" | "mailer" | "activity"
 
 export interface ClientModule {
   key: ClientModuleKey
@@ -45,6 +50,21 @@ export const CLIENT_MODULES: readonly ClientModule[] = [
     label: "Inventory",
     description: "Stock on hand per product, with out-of-stock and low-stock counts.",
     path: "inventory",
+  },
+  {
+    key: "mailer",
+    label: "Email campaigns",
+    // Says plainly that this one SENDS, unlike every other module, which only
+    // shows data. Whoever ticks this box should know that before they tick it.
+    description:
+      "Compose and send campaigns from the project's own address, with templates and the subscriber list. This module can send email to real people.",
+    path: "mailer",
+  },
+  {
+    key: "activity",
+    label: "Activity",
+    description: "A record of what this client has done in the portal. Their own actions only.",
+    path: "activity",
   },
 ] as const
 
