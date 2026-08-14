@@ -20,6 +20,7 @@ import { tryDecrypt } from "@/lib/crypto"
 import { sendEmailWithSmtp, type ExplicitSmtp } from "@/lib/mailer"
 import { buildVars, renderMerge } from "../lib/merge"
 import { absolutizeMailerImages } from "../lib/image-url"
+import { makeImagesResponsive } from "../lib/email-html"
 import { getConfig } from "@/server/app-config"
 
 /** Emails per tick. Keeps well under typical SMTP per-minute limits. */
@@ -181,7 +182,9 @@ export async function runCampaignQueue(): Promise<RunnerSummary> {
       })
       const rendered = {
         subject: renderMerge(campaign.subject, vars),
-        html: absolutizeMailerImages(renderMerge(campaign.bodyHtml, vars), appUrl),
+        html: makeImagesResponsive(
+          absolutizeMailerImages(renderMerge(campaign.bodyHtml, vars), appUrl),
+        ),
       }
 
       try {

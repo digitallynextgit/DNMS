@@ -18,6 +18,7 @@ import { Eye } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { renderMerge, extractVars, previewVars } from "../lib/merge"
+import { makeImagesResponsive } from "../lib/email-html"
 
 export function EmailPreview({
   subject,
@@ -43,13 +44,17 @@ export function EmailPreview({
     // may not carry - worth flagging before 2,000 people get a blank.
     const unresolved = used.filter((k) => vars[k] === `[${k}]`)
 
-    const body = renderMerge(bodyHtml, vars)
+    // The SAME normalisation the sender applies, rather than a stylesheet rule.
+    // This used to carry `img { max-width:100% }` below, which quietly made every
+    // preview look correct while the delivered mail overflowed: no mail client
+    // applies our stylesheet, so the preview was showing a layout that only ever
+    // existed here. Anything that shapes the email must happen to the HTML itself.
+    const body = makeImagesResponsive(renderMerge(bodyHtml, vars))
     const doc = `<!doctype html><html><head><meta charset="utf-8">
 <style>
   body { margin:0; padding:16px; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
          font-size:14px; line-height:1.6; color:#111827; background:#ffffff; }
   a { color:#2563eb; }
-  img { max-width:100%; }
   h1,h2,h3 { margin:0 0 8px; }
   p { margin:0 0 12px; }
 </style></head><body>${body}</body></html>`

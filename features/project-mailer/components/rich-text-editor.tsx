@@ -67,11 +67,13 @@ export function RichTextEditor({
   // The toolbar button opens a file dialog, which blurs the editable - so the
   // caret is stashed on mousedown, before that happens.
   const savedRange = React.useRef<Range | null>(null)
-  // The image the user clicked, plus where to float its Remove button.
+  // The image the user clicked, plus where to float its action buttons.
   const [picked, setPicked] = React.useState<{
     el: HTMLImageElement
     top: number
     left: number
+    /** Already wrapped in an <a>, so the button offers Edit rather than Add. */
+    href: string | null
   } | null>(null)
 
   // Only write into the DOM when the incoming value genuinely differs from what
@@ -135,7 +137,7 @@ export function RichTextEditor({
         // Sizing is INLINE, not a class: mail clients strip <style> blocks, so
         // without it a wide image blows out the layout on a phone.
         insertAtRange(
-          `<img src="${url}" alt="" style="max-width:100%;height:auto;display:block;" />`,
+          `<img src="${url}" alt="" style="max-width:100%;height:auto;display:block;border:0;" />`,
           saved,
         )
         saved = currentRange() // continue after the image just inserted
@@ -160,7 +162,7 @@ export function RichTextEditor({
       document.execCommand(
         "insertHTML",
         false,
-        `<img src="${url}" alt="" style="max-width:100%;height:auto;display:block;" />`,
+        `<img src="${url}" alt="" style="max-width:100%;height:auto;display:block;border:0;" />`,
       )
       onChange(ref.current?.innerHTML ?? "")
     } finally {
@@ -185,7 +187,59 @@ export function RichTextEditor({
     const sel = window.getSelection()
     sel?.removeAllRanges()
     sel?.addRange(range)
-    setPicked({ el: img, top: img.offsetTop - el.scrollTop, left: img.offsetLeft })
+    setPicked({
+      el: img,
+      top: img.offsetTop - el.scrollTop,
+      left: img.offsetLeft,
+      href: anchorOf(img)?.getAttribute("href") ?? null,
+    })
+  }
+
+  /** The <a> wrapping this image, if it has one. */
+  function anchorOf(img: HTMLImageElement): HTMLAnchorElement | null {
+    const parent = img.parentElement
+    return parent && parent.tagName === "A" ? (parent as HTMLAnchorElement) : null
+  }
+
+  /**
+   * Make the picked image clickable, or change/remove where it points.
+   *
+   * A bare domain is given https:// - people type "hard2soft.in", and an href
+   * without a scheme is treated as a RELATIVE path, which in an email resolves
+   * against the mail client's own domain and 404s.
+   */
+  function linkPicked() {
+    const el = ref.current
+    const img = picked?.el
+    if (!el || !img) return
+
+    const existing = anchorOf(img)
+    const answer = window.prompt(
+      "Where should this image link to? Leave it empty to remove the link.",
+      existing?.getAttribute("href") ?? "https://",
+    )
+    if (answer === null) return // cancelled - leave everything as it was
+
+    const url = answer.trim()
+    if (!url || url === "https://") {
+      // Unwrap rather than leaving an <a href=""> that swallows the click.
+      if (existing) existing.replaceWith(img)
+      setPicked((p) => (p ? { ...p, href: null } : p))
+    } else {
+      const href = /^(https?:|mailto:|tel:)/i.test(url) ? url : `https://${url}`
+      const anchor = existing ?? document.createElement("a")
+      if (!existing) {
+        img.replaceWith(anchor)
+        anchor.appendChild(img)
+      }
+      anchor.setAttribute("href", href)
+      // Mail clients open links in a browser anyway, but webmail needs this to
+      // avoid replacing the inbox tab itself.
+      anchor.setAttribute("target", "_blank")
+      anchor.setAttribute("rel", "noopener noreferrer")
+      setPicked((p) => (p ? { ...p, href } : p))
+    }
+    onChange(el.innerHTML)
   }
 
   function removePicked() {
@@ -193,7 +247,11 @@ export function RichTextEditor({
     const img = picked?.el
     if (!el || !img) return
     const src = img.getAttribute("src") ?? ""
-    img.remove()
+    // Take the wrapping <a> with it. An anchor left holding nothing is invisible
+    // in the editor but still a clickable dead zone in the delivered email.
+    const anchor = anchorOf(img)
+    if (anchor && anchor.childNodes.length === 1) anchor.remove()
+    else img.remove()
     setPicked(null)
     onChange(el.innerHTML)
     // Reclaim the file only after it is out of the document, so a failed delete
@@ -313,20 +371,37 @@ export function RichTextEditor({
 
       <div className="relative">
         {picked && (
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            className="absolute z-10 h-7 gap-1.5 text-xs shadow-md"
+          <div
+            className="absolute z-10 flex gap-1"
             style={{ top: picked.top + 8, left: picked.left + 8 }}
-            onMouseDown={(e) => {
-              e.preventDefault()
-              removePicked()
-            }}
           >
-            <Trash2 className="h-3.5 w-3.5" />
-            Remove image
-          </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-7 gap-1.5 text-xs shadow-md"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                linkPicked()
+              }}
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              {picked.href ? "Edit link" : "Add link"}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="h-7 gap-1.5 text-xs shadow-md"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                removePicked()
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove image
+            </Button>
+          </div>
         )}
 
         <div

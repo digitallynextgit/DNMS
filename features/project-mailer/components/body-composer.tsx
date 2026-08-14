@@ -72,7 +72,7 @@ export function BodyComposer({
     setUploading(true)
     try {
       const url = await onUploadImage(file)
-      const tag = `<img src="${url}" alt="" style="max-width:100%;height:auto;display:block;" />`
+      const tag = `<img src="${url}" alt="" style="max-width:100%;height:auto;display:block;border:0;" />`
       const el = htmlRef.current
       const at = el?.selectionStart ?? bodyHtml.length
       onBodyChange(bodyHtml.slice(0, at) + tag + bodyHtml.slice(at))

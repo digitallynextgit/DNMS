@@ -1216,7 +1216,13 @@ function RecipientsSection({
         </div>
       )}
 
-      <ImportDialog base={base} open={importOpen} onOpenChange={setImportOpen} onDone={onDone} />
+      <ImportDialog
+        base={base}
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        allTags={allTags}
+        onDone={onDone}
+      />
 
       <RecipientImportDialog
         base={base}
@@ -1250,11 +1256,14 @@ function ImportDialog({
   base,
   open,
   onOpenChange,
+  allTags,
   onDone,
 }: {
   base: string
   open: boolean
   onOpenChange: (o: boolean) => void
+  /** Tags already in use on this project, offered as one-click choices. */
+  allTags: string[]
   onDone: () => void
 }) {
   const [raw, setRaw] = React.useState("")
@@ -1267,6 +1276,25 @@ function ImportDialog({
     }
   }, [open])
 
+  // Parsed once here rather than again at submit, so the chips below and the
+  // request can never disagree about what was typed.
+  const selectedTags = React.useMemo(
+    () =>
+      tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean),
+    [tags],
+  )
+
+  /** Append an existing tag, keeping the field's comma-separated shape. */
+  function addTag(t: string) {
+    if (selectedTags.includes(t)) return
+    setTags((prev) => (prev.trim() ? `${prev.replace(/[,\s]*$/, "")}, ${t}` : t))
+  }
+
+  const unusedTags = allTags.filter((t) => !selectedTags.includes(t))
+
   const add = useMutation({
     mutationFn: () =>
       apiFetch<{ data: { data: { parsed: number; added: number; skipped: number } } }>(
@@ -1274,13 +1302,7 @@ function ImportDialog({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            raw,
-            tags: tags
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean),
-          }),
+          body: JSON.stringify({ raw, tags: selectedTags }),
         },
       ),
     onSuccess: (res) => {
@@ -1320,12 +1342,35 @@ function ImportDialog({
             />
           </FormRow>
           <FormRow label="Tags" hint="Comma-separated. Lets a campaign target a segment.">
-            <Input
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="newsletter, vip"
-              className="h-9 text-sm"
-            />
+            <div className="space-y-2">
+              <Input
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder="newsletter, vip"
+                className="h-9 text-sm"
+              />
+              {/* The tags this project already uses. Typing one by hand risks a
+                  near-miss ("Customer" vs "Customers") that silently creates a
+                  second segment nobody notices until a campaign misses half its
+                  audience. */}
+              {unusedTags.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-muted-foreground text-[11px]">Existing:</span>
+                  {unusedTags.slice(0, 10).map((t) => (
+                    <Button
+                      key={t}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[11px]"
+                      onClick={() => addTag(t)}
+                    >
+                      + {t}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
           </FormRow>
         </div>
 
