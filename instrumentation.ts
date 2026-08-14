@@ -18,8 +18,19 @@ export async function register() {
     // it takes to turn them on - no crontab entry to remember. Skipped during the
     // production build, which also loads this file but is not a running server.
     if (process.env.NEXT_PHASE !== "phase-production-build") {
-      const { startTaskReminderScheduler } = await import("@/server/scheduler")
+      const {
+        startTaskReminderScheduler,
+        startUptimeScheduler,
+        startRenewalScheduler,
+        startCampaignScheduler,
+      } = await import("@/server/scheduler")
       startTaskReminderScheduler()
+      startCampaignScheduler()
+      // Same reasoning, and for monitoring it is the whole point: the cron
+      // routes have never been called on this deployment (seo_monitor_runs was
+      // empty), so anything relying on them would never have run either.
+      startUptimeScheduler()
+      startRenewalScheduler()
     }
   }
 }

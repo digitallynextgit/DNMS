@@ -38,6 +38,7 @@ import {
   Pencil,
   Activity,
   MessageSquare,
+  Mail,
   KeyRound,
   UserCog,
   Sparkles,
@@ -100,6 +101,14 @@ const ProjectClientsTab = dynamic(
   () => import("@/features/client-portal").then((m) => m.ProjectClientsTab),
   { loading: tabFallback },
 )
+const ProjectMailerTab = dynamic(
+  () => import("@/features/project-mailer").then((m) => m.ProjectMailerTab),
+  { loading: tabFallback },
+)
+const ProjectMonitoringTab = dynamic(
+  () => import("@/features/monitoring").then((m) => m.ProjectMonitoringTab),
+  { loading: tabFallback },
+)
 
 const PROJECT_TABS = [
   "overview",
@@ -115,6 +124,8 @@ const PROJECT_TABS = [
   "activity",
   "passwords",
   "clients",
+  "monitoring",
+  "mailer",
 ] as const
 
 export default function ProjectDetailPage() {
@@ -286,8 +297,15 @@ export default function ProjectDetailPage() {
             },
             { value: "activity", label: "Activity", icon: Activity },
             { value: "passwords", label: "Passwords", icon: KeyRound },
-            // Client access is a manage-only surface: it hands out logins.
-            ...(canManage ? [{ value: "clients", label: "Clients", icon: UserCog }] : []),
+            // Both are manage-only: one hands out logins, the other decides who
+            // gets paged at midnight.
+            ...(canManage
+              ? [
+                  { value: "clients", label: "Clients", icon: UserCog },
+                  { value: "monitoring", label: "Monitoring", icon: Activity },
+                  { value: "mailer", label: "Mailer", icon: Mail },
+                ]
+              : []),
           ]}
         />
 
@@ -400,6 +418,14 @@ export default function ProjectDetailPage() {
 
         <TabsContent value="clients" className="mt-4">
           <ProjectClientsTab projectRef={projectRef} canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="monitoring" className="mt-4">
+          <ProjectMonitoringTab projectRef={projectRef} canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="mailer" className="mt-4">
+          <ProjectMailerTab projectRef={projectRef} canManage={canManage} />
         </TabsContent>
       </Tabs>
 

@@ -505,12 +505,12 @@ model Employee {
   // right for a commitment other people plan around, and wrong when somebody
   // needs to write up a day they forgot to fill in, or fix last week's sheet.
   // HR/admin can lift the window for one person from their profile.
-  canEditPastTasks       Boolean   @default(false) @map("can_edit_past_tasks")
+  canEditPastTasks          Boolean    @default(false) @map("can_edit_past_tasks")
   /// Who granted it and when - a standing bypass of a control has to be
   /// attributable, or nobody can answer "why can this person rewrite history".
-  pastTaskAccessGrantedAt   DateTime? @map("past_task_access_granted_at")
-  pastTaskAccessGrantedById String?   @map("past_task_access_granted_by_id")
-  pastTaskAccessGrantedBy   Employee? @relation("PastTaskAccessGranter", fields: [pastTaskAccessGrantedById], references: [id], onDelete: SetNull)
+  pastTaskAccessGrantedAt   DateTime?  @map("past_task_access_granted_at")
+  pastTaskAccessGrantedById String?    @map("past_task_access_granted_by_id")
+  pastTaskAccessGrantedBy   Employee?  @relation("PastTaskAccessGranter", fields: [pastTaskAccessGrantedById], references: [id], onDelete: SetNull)
   pastTaskAccessGrants      Employee[] @relation("PastTaskAccessGranter")
 
   // Notifications
@@ -546,6 +546,16 @@ model Employee {
   // Client portal administration
   createdClientUsers  ClientUser[]          @relation("ClientUserCreator")
   grantedClientAccess ClientProjectAccess[] @relation("ClientAccessGranter")
+
+  // Project mailer
+  projectTemplates ProjectEmailTemplate[] @relation("ProjectTemplateAuthor")
+  mailerAssets     ProjectMailerAsset[]   @relation("MailerAssetAuthor")
+  campaigns        ProjectCampaign[]      @relation("CampaignAuthor")
+
+  // Monitoring
+  ownedAssets           ProjectAsset[]   @relation("AssetOwner")
+  ownedMonitors         UptimeMonitor[]  @relation("MonitorOwner")
+  acknowledgedIncidents UptimeIncident[] @relation("IncidentAcknowledger")
 
   // Employee had NO indexes at all. These serve the manager/team queues and the
   // status filters used by the directory, dashboard and accrual jobs.
@@ -1203,9 +1213,20 @@ model Project {
   requirements    ProjectRequirement[]
 
   // Client portal + marketplace
+  // Mailer
+  mailers        ProjectMailer[]
+  emailTemplates ProjectEmailTemplate[]
+  recipients     ProjectRecipient[]
+  campaigns      ProjectCampaign[]
+
+  // Monitoring
+  assets         ProjectAsset[]
+  uptimeMonitors UptimeMonitor[]
+
   clientAccess        ClientProjectAccess[]
   marketplaceChannels MarketplaceChannel[]
   products            Product[]
+  projectMailerAssets ProjectMailerAsset[]
 
   @@index([status])
   @@index([ownerId])
@@ -2736,4 +2757,342 @@ model Product {
   @@index([projectId, status])
   @@index([projectId, title])
   @@map("products")
+}
+
+// =============================================================================
+// MONITORING - uptime + renewals
+// =============================================================================
+// Built after a domain auto-renewal silently failed: the registrar retried and
+// failed for six days with nobody acting on it, then the site was down for
+// eleven hours before anyone noticed, because order flow was the only thing
+// anyone was watching. Orders stopping is a LAGGING indicator - by the time it
+// tells you the site is down, you have already lost the revenue.
+//
+// Two independent controls, because that outage was two separate failures:
+//   ProjectAsset   - what expires, when, and WHOSE job it is (catches it early)
+//   UptimeMonitor  - is it actually serving right now (caps the damage)
+// =============================================================================
+
+enum MonitoredAssetKind {
+  DOMAIN
+  SSL
+  HOSTING
+  LICENSE
+  OTHER
+}
+
+/// A thing that expires and will take the site down if it lapses.
+model ProjectAsset {
+  id        String             @id @default(uuid()) @map("id")
+  projectId String             @map("project_id")
+  kind      MonitoredAssetKind @default(DOMAIN) @map("kind")
+  /// "digitallynext.com", "Shopify Plan", "*.example.com SSL".
+  name      String             @map("name")
+  /// Registrar / host / vendor: "GoDaddy", "Cloudflare".
+  provider  String?            @map("provider")
+  /// Where to go and fix it at 11pm.
+  url       String?            @map("url")
+
+  expiresAt DateTime @map("expires_at") @db.Date
+  /// Auto-renew being ON is NOT safety - this incident had it on. It only
+  /// changes what the reminder says, never whether one is sent.
+  autoRenew Boolean  @default(true) @map("auto_renew")
+
+  /// The card/account that pays for it, and when THAT expires - the actual root
+  /// cause of a "failed auto-renewal" is nearly always a dead payment method.
+  paymentMethod    String?   @map("payment_method")
+  paymentExpiresAt DateTime? @map("payment_expires_at") @db.Date
+
+  /// The named human accountable for this renewal. Null means nobody owns it,
+  /// which the register surfaces as a problem in itself.
+  ownerId String? @map("owner_id")
+  notes   String? @map("notes") @db.Text
+
+  /// Which reminder threshold was last sent (60/30/14/7/3/1/0), so the daily job
+  /// nudges once per stage instead of every morning.
+  lastAlertStage  Int?      @map("last_alert_stage")
+  lastAlertAt     DateTime? @map("last_alert_at")
+  /// Separate from lastAlertAt so a card warning and a renewal warning don't
+  /// suppress each other. Both exist so the sweep can run hourly and still
+  /// emit at most one of each per day.
+  lastCardAlertAt DateTime? @map("last_card_alert_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner   Employee? @relation("AssetOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([expiresAt])
+  @@map("project_assets")
+}
+
+enum UptimeState {
+  UNKNOWN
+  UP
+  DOWN
+}
+
+model UptimeMonitor {
+  id        String  @id @default(uuid()) @map("id")
+  projectId String  @map("project_id")
+  url       String  @map("url")
+  label     String? @map("label")
+  isActive  Boolean @default(true) @map("is_active")
+
+  state                UptimeState @default(UNKNOWN) @map("state")
+  lastCheckedAt        DateTime?   @map("last_checked_at")
+  lastStatusCode       Int?        @map("last_status_code")
+  lastError            String?     @map("last_error")
+  /// A single timeout is noise; N in a row is an outage. Both counters exist so
+  /// the state only flips after confirmation in either direction.
+  consecutiveFailures  Int         @default(0) @map("consecutive_failures")
+  consecutiveSuccesses Int         @default(0) @map("consecutive_successes")
+
+  /// Who gets told first. Falls back to the project's Account Manager.
+  ownerId String? @map("owner_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner     Employee?        @relation("MonitorOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  incidents UptimeIncident[]
+
+  @@unique([projectId, url])
+  @@index([isActive])
+  @@map("uptime_monitors")
+}
+
+/// One outage, start to finish. Kept as history so "how long were we down" has
+/// an answer that isn't someone's memory.
+model UptimeIncident {
+  id         String    @id @default(uuid()) @map("id")
+  monitorId  String    @map("monitor_id")
+  startedAt  DateTime  @default(now()) @map("started_at")
+  endedAt    DateTime? @map("ended_at")
+  statusCode Int?      @map("status_code")
+  detail     String?   @map("detail") @db.Text
+
+  /// Acknowledgement stops the escalation ladder. An alert nobody must ack is
+  /// how six days of registrar emails got ignored.
+  acknowledgedAt   DateTime? @map("acknowledged_at")
+  acknowledgedById String?   @map("acknowledged_by_id")
+
+  /// 0 = owner told, 1 = their manager, 2 = admins.
+  escalationLevel Int       @default(0) @map("escalation_level")
+  lastEscalatedAt DateTime? @map("last_escalated_at")
+
+  monitor        UptimeMonitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  acknowledgedBy Employee?     @relation("IncidentAcknowledger", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+
+  @@index([monitorId, startedAt])
+  @@index([endedAt])
+  @@map("uptime_incidents")
+}
+
+// =============================================================================
+// PROJECT MAILER
+// =============================================================================
+// Per-project outbound email: its own SMTP account, its own templates, its own
+// recipient list, and bulk campaigns sent from the client's OWN domain rather
+// than ours. A client's newsletter going out from noreply@digitallynext.com
+// looks like spam to their subscribers and burns OUR sending reputation when it
+// bounces.
+//
+// Sending is QUEUED, never done in the request: one row per recipient in
+// ProjectCampaignSend, drained by the in-process scheduler in small batches.
+// A 2,000-recipient blast cannot be an HTTP request - it would time out halfway
+// and nobody would know which half went.
+// =============================================================================
+
+model ProjectMailer {
+  id        String @id @default(uuid()) @map("id")
+  projectId String @map("project_id")
+  /// A project can hold SEVERAL sending accounts - transactional vs newsletter,
+  /// or one per brand - and the campaign picks which to send from. This is the
+  /// label that picker shows.
+  name      String @map("name")
+
+  /// What recipients see in the From line.
+  fromName  String  @map("from_name")
+  fromEmail String  @map("from_email")
+  /// Where replies go, when it isn't the From address.
+  replyTo   String? @map("reply_to")
+
+  host     String  @map("host")
+  port     Int     @default(587) @map("port")
+  secure   Boolean @default(false) @map("secure")
+  username String  @map("username")
+  /// ENCRYPTED with lib/crypto. Never selected into an API response.
+  password String  @map("password") @db.Text
+
+  isActive Boolean @default(true) @map("is_active")
+
+  /// Result of the last "send test email", so the screen can show whether these
+  /// credentials have ever actually worked rather than just that they're filled in.
+  lastVerifiedAt DateTime? @map("last_verified_at")
+  lastError      String?   @map("last_error") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  campaigns ProjectCampaign[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("project_mailers")
+}
+
+model ProjectMailerAsset {
+  id          String @id @default(uuid()) @map("id")
+  projectId   String @map("project_id")
+  /// The B2 object. Served through a PUBLIC route: an email client fetches
+  /// images with no cookies, so the private signed-redirect used elsewhere in
+  /// the app cannot work here. The uuid id is the only thing guarding it.
+  objectKey   String @map("object_key")
+  fileName    String @map("file_name")
+  contentType String @map("content_type")
+  size        Int    @map("size")
+
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy Employee? @relation("MailerAssetAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@map("project_mailer_assets")
+}
+
+model ProjectEmailTemplate {
+  id        String        @id @default(uuid()) @map("id")
+  projectId String        @map("project_id")
+  name      String        @map("name")
+  subject   String        @map("subject")
+  /// Always HTML on the wire -  only records which editor authored it,
+  /// so reopening a rich-text template does not drop you into raw markup.
+  bodyHtml  String        @map("body_html") @db.Text
+  bodyMode  EmailBodyMode @default(RICH) @map("body_mode")
+  isActive  Boolean       @default(true) @map("is_active")
+
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy Employee?         @relation("ProjectTemplateAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  campaigns ProjectCampaign[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("project_email_templates")
+}
+
+model ProjectRecipient {
+  id        String   @id @default(uuid()) @map("id")
+  projectId String   @map("project_id")
+  email     String   @map("email")
+  name      String?  @map("name")
+  company   String?  @map("company")
+  /// Free-form segments ("newsletter", "vip") so a campaign can target a slice.
+  tags      String[] @map("tags")
+  /// Arbitrary merge data: { "plan": "Pro", "renewal": "12 Sep" }. Templates can
+  /// reference ANY key - unknown ones render empty rather than leaking {{raw}},
+  /// so a template never has to be kept in sync with the list.
+  fields    Json?    @map("fields")
+
+  /// Unsubscribes are permanent and checked at SEND time, not just at list time -
+  /// somebody who opts out mid-campaign must not receive the rest of it.
+  isSubscribed   Boolean   @default(true) @map("is_subscribed")
+  unsubscribedAt DateTime? @map("unsubscribed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sends   ProjectCampaignSend[]
+
+  @@unique([projectId, email])
+  @@index([projectId, isSubscribed])
+  @@map("project_recipients")
+}
+
+enum EmailBodyMode {
+  /// Composed in the WYSIWYG editor.
+  RICH
+  /// Hand-written HTML.
+  HTML
+}
+
+enum CampaignStatus {
+  DRAFT
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+model ProjectCampaign {
+  id         String         @id @default(uuid()) @map("id")
+  projectId  String         @map("project_id")
+  templateId String?        @map("template_id")
+  /// Which SMTP account this campaign sends from. Snapshotted at queue time so
+  /// the runner does not have to guess if the project gains another account.
+  mailerId   String?        @map("mailer_id")
+  name       String         @map("name")
+  subject    String         @map("subject")
+  bodyHtml   String         @map("body_html") @db.Text
+  bodyMode   EmailBodyMode  @default(RICH) @map("body_mode")
+  status     CampaignStatus @default(DRAFT) @map("status")
+
+  /// Snapshotted at queue time so progress is stable even if recipients change.
+  totalCount  Int @default(0) @map("total_count")
+  sentCount   Int @default(0) @map("sent_count")
+  failedCount Int @default(0) @map("failed_count")
+
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project   Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  template  ProjectEmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  mailer    ProjectMailer?        @relation(fields: [mailerId], references: [id], onDelete: SetNull)
+  createdBy Employee?             @relation("CampaignAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  sends     ProjectCampaignSend[]
+
+  @@index([projectId, createdAt])
+  @@index([status])
+  @@map("project_campaigns")
+}
+
+/// One row per recipient per campaign: the send log AND the work queue.
+/// Being a real row is what makes a half-finished blast recoverable - the
+/// scheduler just picks up whatever is still PENDING.
+model ProjectCampaignSend {
+  id          String  @id @default(uuid()) @map("id")
+  campaignId  String  @map("campaign_id")
+  recipientId String? @map("recipient_id")
+  /// Denormalised: the address actually used, even if the recipient is later deleted.
+  email       String  @map("email")
+  name        String? @map("name")
+
+  status String    @default("PENDING") @map("status") // PENDING | SENT | FAILED
+  error  String?   @map("error") @db.Text
+  sentAt DateTime? @map("sent_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  campaign  ProjectCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recipient ProjectRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, status])
+  @@index([status])
+  @@map("project_campaign_sends")
 }

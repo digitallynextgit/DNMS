@@ -245,6 +245,65 @@ export async function sendEmailAs(
   return info.messageId ?? null
 }
 
+/** Explicit SMTP credentials, for callers that don't use a named profile. */
+export interface ExplicitSmtp {
+  host: string
+  port: number
+  secure: boolean
+  user: string
+  pass: string
+  from: string
+  replyTo?: string
+}
+
+/**
+ * Send through an ARBITRARY SMTP account rather than one of our profiles.
+ *
+ * The project mailer needs this: each project sends from the client's own
+ * domain, so the credentials come from a database row, not from SMTP_* config.
+ * It still goes through the shared pool (keyed by the exact config), so a
+ * campaign of 500 emails reuses one authenticated connection instead of
+ * performing 500 TLS handshakes.
+ *
+ * Throws on failure - the campaign runner records the error per recipient.
+ */
+export async function sendEmailWithSmtp(
+  smtp: ExplicitSmtp,
+  options: Omit<SendEmailOptions, "profile" | "from">,
+): Promise<string | null> {
+  const transporter = getTransporter({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: { user: smtp.user, pass: smtp.pass },
+  })
+  const info = await transporter.sendMail({
+    from: smtp.from,
+    to: addressList(options.to),
+    cc: addressList(options.cc),
+    subject: options.subject,
+    html: options.html,
+    text: options.text,
+    attachments: options.attachments,
+    replyTo: options.replyTo ?? smtp.replyTo,
+    inReplyTo: options.inReplyTo,
+    references: options.references,
+    messageId: options.messageId,
+  })
+  return info.messageId ?? null
+}
+
+/** Verify credentials without sending: opens the connection and authenticates. */
+export async function verifySmtp(smtp: Omit<ExplicitSmtp, "from" | "replyTo">): Promise<void> {
+  const transporter = getTransporter({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: { user: smtp.user, pass: smtp.pass },
+  })
+  await transporter.verify()
+}
+
 export function renderTemplate(
   template: Pick<EmailTemplate, "subject" | "bodyHtml">,
   data: Record<string, string>,
