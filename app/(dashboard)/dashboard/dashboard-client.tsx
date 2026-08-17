@@ -8,6 +8,7 @@ import { usePermissions } from "@/features/admin"
 import { PERMISSIONS } from "@/lib/constants"
 import { AdminDashboard } from "@/features/dashboard"
 import { EmployeeDashboard } from "@/features/dashboard"
+import { AnnouncementsCard, PhotoGalleryCard, BirthdaysCard } from "@/features/noticeboard"
 
 export function DashboardClient() {
   const { data: session, status } = useSession()
@@ -40,6 +41,20 @@ export function DashboardClient() {
         <AdminDashboard />
       ) : (
         <EmployeeDashboard />
+      )}
+
+      {/* The company noticeboard, below whichever role dashboard rendered above.
+          Deliberately shared rather than duplicated into both: announcements,
+          photos and birthdays are company-wide, and an HR manager has no less
+          reason to see a colleague's birthday than anyone else. */}
+      {!isLoading && (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
+            <AnnouncementsCard />
+            <PhotoGalleryCard />
+          </div>
+          <BirthdaysCard />
+        </div>
       )}
     </div>
   )

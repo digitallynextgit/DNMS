@@ -437,6 +437,11 @@ model Employee {
   subordinates       Employee[]   @relation("EmployeeManager")
   dottedManager      Employee?    @relation("EmployeeDottedManager", fields: [dottedManagerId], references: [id], onDelete: SetNull)
   dottedSubordinates Employee[]   @relation("EmployeeDottedManager")
+
+  // Company noticeboard
+  announcements Announcement[] @relation("AnnouncementAuthor")
+  photoAlbums   PhotoAlbum[]   @relation("AlbumAuthor")
+  photos        Photo[]        @relation("PhotoUploader")
   departmentsHeaded  Department[] @relation("DepartmentHead")
 
   // Next-Auth
@@ -3136,4 +3141,90 @@ model ProjectCampaignSend {
   @@index([campaignId, status])
   @@index([status])
   @@map("project_campaign_sends")
+}
+
+// =============================================================================
+// COMPANY NOTICEBOARD: announcements + photo gallery
+// =============================================================================
+
+enum AnnouncementPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+/// A company-wide notice. Visible to every signed-in employee; only
+/// `announcement:write` holders create them.
+model Announcement {
+  id       String               @id @default(uuid()) @map("id")
+  title    String               @map("title")
+  body     String               @map("body")
+  /// Free text ("Information", "Holiday Notification"). Deliberately NOT an enum
+  /// or a table: HR invents a category the moment they need one, and a migration
+  /// is the wrong ceremony for naming a notice.
+  category String               @map("category")
+  priority AnnouncementPriority @default(NORMAL) @map("priority")
+
+  /// Drafts are invisible to everyone but their author until published.
+  isPublished Boolean   @default(true) @map("is_published")
+  publishedAt DateTime  @default(now()) @map("published_at")
+  /// Past this, it drops off the board on its own. Null = stays until deleted.
+  expiresAt   DateTime? @map("expires_at")
+
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy Employee? @relation("AnnouncementAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([isPublished, publishedAt])
+  @@index([category])
+  @@map("announcements")
+}
+
+/// One event's worth of photos ("Diwali 2026").
+model PhotoAlbum {
+  id String @id @default(uuid()) @map("id")
+  /// URL key: "Diwali 2026" -> "diwali-2026". Generated ONCE at creation -
+  /// renaming an album deliberately leaves it alone, because a URL that moves
+  /// silently breaks every link already shared. Same rule as Project.slug.
+  slug        String    @unique @map("slug")
+  title       String    @map("title")
+  description String?   @map("description")
+  /// When the event happened, which is what people sort by - not upload date.
+  eventDate   DateTime? @map("event_date") @db.Date
+
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy Employee? @relation("AlbumAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  photos    Photo[]
+
+  @@index([eventDate])
+  @@map("photo_albums")
+}
+
+/// A single image in an album. The bytes live in B2; only the key is stored, and
+/// it is served through a signed-URL redirect so the bucket stays private.
+model Photo {
+  id          String  @id @default(uuid()) @map("id")
+  albumId     String  @map("album_id")
+  objectKey   String  @map("object_key")
+  fileName    String  @map("file_name")
+  contentType String  @map("content_type")
+  size        Int     @map("size")
+  caption     String? @map("caption")
+  /// Lets the grid reserve the right space before the image loads.
+  width       Int?    @map("width")
+  height      Int?    @map("height")
+
+  uploadedById String?  @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  album      PhotoAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  uploadedBy Employee?  @relation("PhotoUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([albumId, createdAt])
+  @@map("photos")
 }

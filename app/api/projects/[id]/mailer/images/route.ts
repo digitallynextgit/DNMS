@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import sharp from "sharp"
 import { db } from "@/server/db"
 import { withMailerAccess } from "@/features/project-mailer/server/mailer-access"
 import { isB2Configured, uploadFile, getObjectKey } from "@/lib/storage"
+import { resizeImage } from "@/lib/image-resize"
 import { getConfig } from "@/server/app-config"
 import { mailerImageUrl } from "@/features/project-mailer/lib/image-url"
 
@@ -36,26 +36,10 @@ export const POST = withMailerAccess(async (req: NextRequest, { params }, sessio
   }
 
   const original = Buffer.from(await file.arrayBuffer())
-
-  // GIFs are left alone: sharp would flatten an animation to its first frame.
-  // Everything else is downscaled to a JPEG - WebP still isn't safe in Outlook.
-  let bytes = original
-  let contentType = file.type
-  let ext = file.type.split("/")[1] ?? "jpg"
-
-  if (file.type !== "image/gif") {
-    try {
-      bytes = await sharp(original)
-        .rotate()
-        .resize(MAX_DIM, MAX_DIM, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: QUALITY, mozjpeg: true })
-        .toBuffer()
-      contentType = "image/jpeg"
-      ext = "jpg"
-    } catch (e) {
-      console.error("[mailer-image] resize failed, storing original:", e)
-    }
-  }
+  const { bytes, contentType, ext } = await resizeImage(original, file.type, {
+    maxDim: MAX_DIM,
+    quality: QUALITY,
+  })
 
   const objectKey = getObjectKey(`mailer-images/${params.id}`, `image.${ext}`, crypto.randomUUID())
   await uploadFile(objectKey, bytes, contentType)

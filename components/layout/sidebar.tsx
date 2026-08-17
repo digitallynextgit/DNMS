@@ -32,6 +32,8 @@ import {
   HardDrive,
   PartyPopper,
   UserPlus,
+  Megaphone,
+  Images,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -162,6 +164,8 @@ const EMPLOYEE_ITEMS: NavItem[] = [
 
 // ── Company: shared, company-wide. Visible to everyone. ─────────────────────
 const COMPANY_ITEMS: NavItem[] = [
+  { label: "Announcements", href: "/announcements", icon: Megaphone },
+  { label: "Photo Gallery", href: "/gallery", icon: Images },
   { label: "Documents", href: "/documents", icon: FileText },
   { label: "Organisation Chart", href: "/employees/org-chart", icon: Network },
 ]

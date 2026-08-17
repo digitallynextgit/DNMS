@@ -6,6 +6,8 @@
 // returned error so React Query's existing onError/toast handling keeps working.
 // =============================================================================
 
+import { ZodError } from "zod"
+
 export type ActionOk<T> = { ok: true; data: T }
 export type ActionFail = { ok: false; error: string; details?: unknown; status?: number }
 export type ActionResult<T> = ActionOk<T> | ActionFail
@@ -44,6 +46,25 @@ export async function runAction<T>(fn: () => Promise<ActionResult<T>>): Promise<
     return await fn()
   } catch (e) {
     if (e instanceof ActionError) return fail(e.message, undefined, e.status)
+
+    // Validation failures are the user's to fix, so say WHAT is wrong.
+    //
+    // Services call `schema.parse()` inside this wrapper, so a ZodError was
+    // being flattened into "Internal server error" - a message that blames the
+    // server for a field the person could have corrected in two seconds, and
+    // sends whoever debugs it looking for an outage that isn't there.
+    // withErrorHandler already does this for routes that throw; the action path
+    // never got the same treatment.
+    if (e instanceof ZodError) {
+      const first = e.issues[0]
+      const field = first?.path?.join(".")
+      return fail(
+        first ? `${field ? `${field}: ` : ""}${first.message}` : "Invalid input",
+        e.flatten(),
+        422,
+      )
+    }
+
     console.error("[action] unexpected error:", e)
     return fail("Internal server error", undefined, 500)
   }

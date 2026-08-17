@@ -55,6 +55,12 @@ export const PERMISSIONS = {
   RECRUITMENT_WRITE: "recruitment:write",
   // Analytics
   ANALYTICS_READ: "analytics:read",
+
+  // Company noticeboard. READ is deliberately absent: announcements and the
+  // photo gallery are visible to every signed-in employee, so gating reads would
+  // only create a way to accidentally hide the noticeboard from the company.
+  ANNOUNCEMENT_WRITE: "announcement:write",
+  GALLERY_WRITE: "gallery:write",
 } as const
 
 export type PermissionScope = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
