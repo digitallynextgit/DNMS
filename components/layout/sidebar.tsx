@@ -34,6 +34,7 @@ import {
   UserPlus,
   Megaphone,
   Images,
+  MessageSquare,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -164,6 +165,7 @@ const EMPLOYEE_ITEMS: NavItem[] = [
 
 // ── Company: shared, company-wide. Visible to everyone. ─────────────────────
 const COMPANY_ITEMS: NavItem[] = [
+  { label: "Chat", href: "/chat", icon: MessageSquare },
   { label: "Announcements", href: "/announcements", icon: Megaphone },
   { label: "Photo Gallery", href: "/gallery", icon: Images },
   { label: "Documents", href: "/documents", icon: FileText },

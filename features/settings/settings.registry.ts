@@ -179,30 +179,11 @@ export const SETTING_FIELDS: SettingField[] = [
   { key: "SMTP_HR_USER", label: "Username", type: "text", group: "HR mailer" },
   { key: "SMTP_HR_PASS", label: "Password", type: "password", group: "HR mailer", secret: true },
 
-  // ── Storage (Backblaze B2, S3-compatible) ────────────────────────────────────
-  {
-    key: "B2_EMPLOYEE_DOCS_ENDPOINT",
-    label: "Endpoint",
-    type: "url",
-    group: "Storage (B2)",
-    placeholder: "https://s3.us-east-005.backblazeb2.com",
-  },
-  {
-    key: "B2_EMPLOYEE_DOCS_REGION",
-    label: "Region",
-    type: "text",
-    group: "Storage (B2)",
-    placeholder: "us-east-005",
-  },
-  { key: "B2_EMPLOYEE_DOCS_BUCKET", label: "Bucket", type: "text", group: "Storage (B2)" },
-  { key: "B2_EMPLOYEE_DOCS_KEY_ID", label: "Key ID", type: "text", group: "Storage (B2)" },
-  {
-    key: "B2_EMPLOYEE_DOCS_APP_KEY",
-    label: "Application key",
-    type: "password",
-    group: "Storage (B2)",
-    secret: true,
-  },
+  // Storage credentials USED to live here as a single B2_EMPLOYEE_DOCS_* block.
+  // They moved to Admin -> Storage, which manages several buckets as rows in
+  // storage_accounts. One set of fields in Integrations could only ever describe
+  // one bucket, and leaving it here would give two places to edit the same thing
+  // with no way to tell which one the app was actually using.
 
   // ── Google Drive (service account -> company Shared Drive) ───────────────────
   // Stored here so the DEPLOYED server can read them (the local key FILE is

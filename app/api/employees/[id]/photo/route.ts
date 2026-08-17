@@ -47,7 +47,14 @@ async function toThumbnail(
 // pure functions of the object key, so cache the signed URL and reuse it until it
 // nears expiry. Keyed by objectKey, which changes on every upload - so a new photo
 // can never be served from a stale entry.
-const SIGNED_TTL_SECONDS = 3600
+// THE SIGNATURE MUST OUTLIVE THE CACHE WINDOW.
+// This shipped as a 1-hour signature behind a 7-day immutable cache: the browser
+// replayed the cached redirect long after B2 stopped honouring it, so avatars
+// died an hour after first load and a reload could not fix them -
+// means "do not revalidate", even on refresh. Sign for the SigV4 maximum and let
+// the cache lapse a day earlier, so a cached redirect is always still valid.
+const SIGNED_TTL_SECONDS = 7 * 24 * 60 * 60
+const CACHE_SECONDS = 6 * 24 * 60 * 60
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
 
 async function cachedSignedUrl(objectKey: string): Promise<string> {
@@ -105,12 +112,12 @@ export const GET = withSession(
       }
 
       const url = await cachedSignedUrl(photoKey)
-      // The stored route URL carries a ?v=<timestamp> that changes on every upload,
-      // so this response is immutable for its version - the browser can cache it
-      // hard instead of re-fetching every avatar every 5 minutes.
+      // The stored route URL carries a ?v=<timestamp> that changes on every
+      // upload, so caching hard is safe for CONTENT. The window still has to stay
+      // under the signature lifetime above, which is what went wrong before.
       return NextResponse.redirect(url, {
         status: 302,
-        headers: { "Cache-Control": "private, max-age=604800, immutable" },
+        headers: { "Cache-Control": `private, max-age=${CACHE_SECONDS}` },
       })
     } catch (error) {
       console.error("[EMPLOYEE_PHOTO_GET]", error)

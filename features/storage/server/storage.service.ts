@@ -31,6 +31,8 @@ function categorize(key: string): StorageCategory {
   // under project-logos/.
   if (key.startsWith("project-logos/")) return "project-logos"
   if (key.startsWith("projects/")) return "project-files"
+  if (key.startsWith("gallery/")) return "gallery"
+  if (key.startsWith("mailer-images/")) return "mailer-images"
   return "other"
 }
 
@@ -39,7 +41,23 @@ function categorize(key: string): StorageCategory {
  * breakdown, and every file resolved to a human owner and flagged referenced vs
  * orphaned (in the bucket but pointed at by no DB row = leaked storage).
  */
-export async function getStorageOverview(): Promise<StorageOverview> {
+/** The bucket NAME to show in the header - the account's, or the legacy setting. */
+async function bucketNameFor(accountId?: string): Promise<string> {
+  try {
+    const account = accountId
+      ? await db.storageAccount.findUnique({ where: { id: accountId }, select: { bucket: true } })
+      : await db.storageAccount.findFirst({
+          where: { isDefault: true, isActive: true },
+          select: { bucket: true },
+        })
+    if (account?.bucket) return account.bucket
+  } catch {
+    /* fall through to the legacy setting */
+  }
+  return (await getConfig("B2_EMPLOYEE_DOCS_BUCKET")) || "hrms-documents"
+}
+
+export async function getStorageOverview(accountId?: string): Promise<StorageOverview> {
   if (!(await isB2Configured())) {
     return {
       configured: false,
@@ -54,11 +72,21 @@ export async function getStorageOverview(): Promise<StorageOverview> {
     }
   }
 
-  const bucket = (await getConfig("B2_EMPLOYEE_DOCS_BUCKET")) || "hrms-documents"
+  const bucket = await bucketNameFor(accountId)
 
   // Bucket contents + every DB row that owns an object, in parallel.
-  const [objects, photos, docs, empDocs, brandAssets, resources, projectLogos] = await Promise.all([
-    listAllObjects(),
+  const [
+    objects,
+    photos,
+    docs,
+    empDocs,
+    brandAssets,
+    resources,
+    projectLogos,
+    galleryPhotos,
+    mailerImages,
+  ] = await Promise.all([
+    listAllObjects(accountId),
     db.employee.findMany({
       where: { profilePhotoKey: { not: null } },
       select: { profilePhotoKey: true, firstName: true, lastName: true },
@@ -89,6 +117,15 @@ export async function getStorageOverview(): Promise<StorageOverview> {
     db.project.findMany({
       where: { logoKey: { not: null } },
       select: { logoKey: true, name: true },
+    }),
+    // Gallery photos and campaign images are owned rows too. Without these they
+    // read as orphaned, and 'Clean up orphans' would cheerfully delete every
+    // team photo and every image already embedded in a sent campaign.
+    db.photo.findMany({
+      select: { objectKey: true, fileName: true, album: { select: { title: true } } },
+    }),
+    db.projectMailerAsset.findMany({
+      select: { objectKey: true, fileName: true, project: { select: { name: true } } },
     }),
   ])
 
@@ -133,28 +170,41 @@ export async function getStorageOverview(): Promise<StorageOverview> {
         refType: "project-logo",
         name: "Project logo",
       })
+  // Owner is the ALBUM, not the uploader: "Diwali 2026" is what tells you
+  // whether a photo still belongs somewhere; who happened to upload it does not.
+  for (const g of galleryPhotos)
+    refs.set(g.objectKey, {
+      owner: g.album?.title ?? "Photo Gallery",
+      refType: "gallery-photo",
+      name: g.fileName,
+    })
+  for (const m of mailerImages)
+    refs.set(m.objectKey, {
+      owner: m.project?.name ?? "Campaign",
+      refType: "mailer-image",
+      name: m.fileName,
+    })
 
-  const files: StorageFile[] = await Promise.all(
-    objects.map(async (o: StorageObject) => {
-      const ref = refs.get(o.key)
-      const [url, downloadUrl] = await Promise.all([
-        getSignedUrl(o.key, 3600).catch(() => ""),
-        getSignedUrl(o.key, 3600, { downloadFileName: displayName(o.key) }).catch(() => ""),
-      ])
-      return {
-        key: o.key,
-        name: ref?.name || displayName(o.key),
-        category: categorize(o.key),
-        owner: ref?.owner ?? null,
-        size: o.size,
-        lastModified: o.lastModified,
-        referenced: !!ref,
-        refType: ref?.refType ?? null,
-        url,
-        downloadUrl,
-      }
-    }),
-  )
+  // NO presigning here.
+  //
+  // This used to mint TWO signed URLs for EVERY object on every page load - 106
+  // signatures for 53 files, and ~1.4s of pure CPU at a thousand - to fill in
+  // two links per row that are only followed when somebody actually clicks View
+  // or Download. They are now minted on demand by
+  // GET /api/admin/storage/object?key=... instead.
+  const files: StorageFile[] = objects.map((o: StorageObject) => {
+    const ref = refs.get(o.key)
+    return {
+      key: o.key,
+      name: ref?.name || displayName(o.key),
+      category: categorize(o.key),
+      owner: ref?.owner ?? null,
+      size: o.size,
+      lastModified: o.lastModified,
+      referenced: !!ref,
+      refType: ref?.refType ?? null,
+    }
+  })
 
   // Per-category totals.
   const catMap = new Map<StorageCategory, { count: number; size: number }>()

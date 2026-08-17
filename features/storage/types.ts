@@ -5,6 +5,8 @@ export type StorageCategory =
   | "company-documents"
   | "project-files"
   | "project-logos"
+  | "gallery"
+  | "mailer-images"
   | "other"
 
 export interface StorageFile {
@@ -27,11 +29,9 @@ export interface StorageFile {
     | "brand-asset"
     | "project-resource"
     | "project-logo"
+    | "gallery-photo"
+    | "mailer-image"
     | null
-  /** Signed URL that opens inline (View). */
-  url: string
-  /** Signed URL that force-downloads under the real name. */
-  downloadUrl: string
 }
 
 export interface StorageCategoryStat {
@@ -60,5 +60,7 @@ export const CATEGORY_LABELS: Record<StorageCategory, string> = {
   "company-documents": "Company Documents",
   "project-files": "Project Files",
   "project-logos": "Project Logos",
+  gallery: "Photo Gallery",
+  "mailer-images": "Campaign Images",
   other: "Other",
 }

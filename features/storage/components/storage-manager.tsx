@@ -14,6 +14,8 @@ import {
   Building2,
   FolderKanban,
   Folder,
+  Images,
+  Mail,
 } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
@@ -21,6 +23,7 @@ import { StatCard } from "@/components/shared/stat-card"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { SearchInput } from "@/components/shared/search-input"
+import { Pagination } from "@/components/shared/pagination"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Button } from "@/components/ui/button"
@@ -61,6 +64,14 @@ const CATEGORY_META: Record<StorageCategory, { icon: React.ElementType; tint: st
     icon: ImageIcon,
     tint: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
   },
+  gallery: {
+    icon: Images,
+    tint: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
+  },
+  "mailer-images": {
+    icon: Mail,
+    tint: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+  },
   other: { icon: Folder, tint: "bg-muted text-muted-foreground" },
 }
 
@@ -68,8 +79,17 @@ const CATEGORY_META: Record<StorageCategory, { icon: React.ElementType; tint: st
 const STATUS_COLORS: Record<string, string> = { LIVE: TONE.green, ORPHAN: TONE.amber }
 const STATUS_LABELS: Record<string, string> = { LIVE: "In use", ORPHAN: "Orphaned" }
 
-export function StorageManager() {
-  const { data, isLoading } = useStorageOverview()
+export function StorageManager({
+  accountId,
+  accountLabel,
+  onBack,
+}: {
+  /** Which bucket to show. Omitted = the default account. */
+  accountId?: string
+  accountLabel?: string
+  onBack?: () => void
+} = {}) {
+  const { data, isLoading } = useStorageOverview(accountId)
   const del = useDeleteStorageObject()
   const delOrphans = useDeleteOrphans()
 
@@ -78,6 +98,11 @@ export function StorageManager() {
   const [status, setStatus] = useState<"all" | "live" | "orphan">("all")
   const [deleteTarget, setDeleteTarget] = useState<StorageFile | null>(null)
   const [cleanupOpen, setCleanupOpen] = useState(false)
+  const [page, setPage] = useState(1)
+
+  // A bucket can hold thousands of objects; rendering every row is what makes a
+  // large bucket feel slow AFTER the data has already arrived.
+  const PAGE_SIZE = 25
 
   const files = data?.files ?? []
   const q = search.trim().toLowerCase()
@@ -91,6 +116,14 @@ export function StorageManager() {
         return true
       }),
     [files, category, status, q],
+  )
+
+  // Changing a filter can leave you past the end of the new result set.
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const safePage = Math.min(page, pageCount)
+  const pagedRows = useMemo(
+    () => rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [rows, safePage],
   )
 
   const usedPct = data && data.freeTierBytes ? (data.totalBytes / data.freeTierBytes) * 100 : 0
@@ -138,7 +171,7 @@ export function StorageManager() {
       cell: (f) => (
         <div className="flex items-center justify-end gap-0.5">
           <a
-            href={f.url}
+            href={`/api/admin/storage/object?key=${encodeURIComponent(f.key)}`}
             target="_blank"
             rel="noreferrer"
             title="View"
@@ -147,7 +180,7 @@ export function StorageManager() {
             <Eye className="h-4 w-4" />
           </a>
           <a
-            href={f.downloadUrl}
+            href={`/api/admin/storage/object?key=${encodeURIComponent(f.key)}&download=1`}
             download={f.name}
             title="Download"
             className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded"
@@ -175,8 +208,7 @@ export function StorageManager() {
           variant="card"
           icon={HardDrive}
           title="Storage is not configured."
-          description="Add your Backblaze B2 keys on the Integrations page to see files here."
-          action={{ label: "Go to Integrations", href: "/admin/integrations" }}
+          description="Connect a bucket to see files here."
         />
       </div>
     )
@@ -185,7 +217,9 @@ export function StorageManager() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Storage"
+        title={accountLabel ?? "Storage"}
+        backLabel="All storage"
+        onBack={onBack}
         description={
           data?.bucket ? `Backblaze B2 · ${data.bucket}` : "Files stored in Backblaze B2."
         }
@@ -299,14 +333,23 @@ export function StorageManager() {
 
       {/* Files */}
       {isLoading || rows.length > 0 ? (
-        <DataTable
-          columns={columns}
-          rows={rows}
-          rowKey={(f) => f.key}
-          showSerial
-          loading={isLoading}
-          minWidth="min-w-[820px]"
-        />
+        <>
+          <DataTable
+            columns={columns}
+            rows={pagedRows}
+            rowKey={(f) => f.key}
+            showSerial
+            loading={isLoading}
+            minWidth="min-w-[820px]"
+          />
+          <Pagination
+            page={safePage}
+            totalPages={pageCount}
+            total={rows.length}
+            itemLabel="file"
+            onPageChange={setPage}
+          />
+        </>
       ) : (
         <EmptyState variant="card" icon={Files} title="No files match this view." />
       )}

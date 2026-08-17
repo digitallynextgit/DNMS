@@ -438,6 +438,12 @@ model Employee {
   dottedManager      Employee?    @relation("EmployeeDottedManager", fields: [dottedManagerId], references: [id], onDelete: SetNull)
   dottedSubordinates Employee[]   @relation("EmployeeDottedManager")
 
+  storageAccounts StorageAccount[] @relation("StorageAccountAuthor")
+
+  // Personal chat
+  chatParticipations ConversationParticipant[] @relation("ChatParticipant")
+  chatMessages       ChatMessage[]             @relation("ChatSender")
+
   // Company noticeboard
   announcements Announcement[] @relation("AnnouncementAuthor")
   photoAlbums   PhotoAlbum[]   @relation("AlbumAuthor")
@@ -3227,4 +3233,114 @@ model Photo {
 
   @@index([albumId, createdAt])
   @@map("photos")
+}
+
+// =============================================================================
+// PERSONAL CHAT: 1:1 direct messages between employees
+// =============================================================================
+// Separate from ProjectMessage, which is a project's shared thread. This is
+// private correspondence between two people and must never be readable from a
+// project surface.
+
+/// A 1:1 conversation.
+///
+/// `pairKey` is the two employee ids sorted and joined, so "A messages B" and
+/// "B messages A" resolve to the SAME row. Without it, two people opening each
+/// other at the same moment create two conversations and each sees half the
+/// history. Group chat is deliberately out of scope: it changes read state,
+/// notification rules and permissions, and is a different feature wearing the
+/// same name.
+model Conversation {
+  id      String @id @default(uuid()) @map("id")
+  pairKey String @unique @map("pair_key")
+
+  /// Denormalised so the conversation list can sort without touching messages.
+  lastMessageAt DateTime? @map("last_message_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  participants ConversationParticipant[]
+  messages     ChatMessage[]
+
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  conversationId String @map("conversation_id")
+  employeeId     String @map("employee_id")
+
+  /// Everything after this timestamp is unread. A timestamp rather than a count
+  /// so it stays correct when messages arrive while the tab is closed.
+  lastReadAt DateTime? @map("last_read_at")
+  /// Hidden from the list until the next message arrives. Not a delete: the
+  /// history stays, and the other person is unaffected.
+  isArchived Boolean   @default(false) @map("is_archived")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation("ChatParticipant", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, employeeId])
+  @@index([employeeId])
+  @@map("conversation_participants")
+}
+
+model ChatMessage {
+  id             String @id @default(uuid()) @map("id")
+  conversationId String @map("conversation_id")
+  senderId       String @map("sender_id")
+  body           String @map("body")
+
+  /// Soft delete: "deleted for everyone" keeps the row so the thread does not
+  /// silently reshuffle around a gap.
+  deletedAt DateTime? @map("deleted_at")
+  editedAt  DateTime? @map("edited_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       Employee     @relation("ChatSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("chat_messages")
+}
+
+/// A configured object-storage bucket (Backblaze B2, or anything S3-compatible).
+///
+/// Replaces the single B2_EMPLOYEE_DOCS_* block in app_settings so the company
+/// can run more than one bucket - separate clients, separate retention, or simply
+/// a second account when the first fills its free tier.
+///
+/// Exactly one row is `isDefault`, and that is where new uploads go. Existing
+/// objects are NOT moved when the default changes: an object key means nothing
+/// without the bucket it lives in, so switching default only affects new writes.
+model StorageAccount {
+  id    String @id @default(uuid()) @map("id")
+  label String @map("label")
+
+  endpoint String @map("endpoint")
+  region   String @map("region")
+  bucket   String @map("bucket")
+  keyId    String @map("key_id")
+  /// Encrypted at rest and NEVER selected into a response - same rule as SMTP
+  /// passwords. Screens show whether it verifies, not what it is.
+  appKey   String @map("app_key")
+
+  /// New uploads land here. Enforced to exactly one row by the service.
+  isDefault Boolean @default(false) @map("is_default")
+  isActive  Boolean @default(true) @map("is_active")
+
+  /// Result of the last "Test connection", so a broken key is visible before
+  /// somebody uploads into it rather than after.
+  lastVerifiedAt DateTime? @map("last_verified_at")
+  lastError      String?   @map("last_error")
+
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy Employee? @relation("StorageAccountAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([isDefault])
+  @@map("storage_accounts")
 }

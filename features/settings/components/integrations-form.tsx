@@ -26,8 +26,6 @@ const GROUP_IMPACT: Record<string, string> = {
     "Required. The guaranteed fallback mailer - whenever the Default or HR mailer isn't configured, mail is sent through this one. It must always stay fully configured.",
   "HR mailer":
     "This is the SMTP server used for HR emails. An incorrect value will stop HR emails from being delivered.",
-  "Storage (B2)":
-    "Backblaze B2 bucket for uploaded files (documents, profile photos, resumes). Incorrect values will break uploads and downloads.",
 }
 
 export function IntegrationsForm({ settings }: { settings: SettingValue[] }) {

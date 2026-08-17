@@ -5,10 +5,15 @@ import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import type { StorageOverview } from "../types"
 
-export function useStorageOverview() {
+export function useStorageOverview(accountId?: string) {
   return useQuery({
-    queryKey: ["admin-storage"],
-    queryFn: () => apiFetch<{ data: StorageOverview }>("/api/admin/storage").then((r) => r.data),
+    // accountId in the key: two buckets are different result sets, not one
+    // filtered, so they must not share a cache entry.
+    queryKey: ["admin-storage", accountId ?? "default"],
+    queryFn: () =>
+      apiFetch<{ data: StorageOverview }>(
+        `/api/admin/storage${accountId ? `?accountId=${accountId}` : ""}`,
+      ).then((r) => r.data),
     staleTime: 30_000,
   })
 }
