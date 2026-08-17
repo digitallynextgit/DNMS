@@ -12,7 +12,7 @@
 import * as React from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { MessageSquare, Send, Search, Plus, Trash2, ArrowLeft } from "lucide-react"
+import { MessageSquare, Send, Search, Plus, ArrowLeft, MoreVertical, X, Check } from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
@@ -23,6 +23,13 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState } from "@/components/shared/empty-state"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { EmojiPicker } from "./emoji-picker"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface Person {
@@ -213,6 +220,8 @@ function Thread({
 }) {
   const qc = useQueryClient()
   const [draft, setDraft] = React.useState("")
+  const [editing, setEditing] = React.useState<Message | null>(null)
+  const [editDraft, setEditDraft] = React.useState("")
   const endRef = React.useRef<HTMLDivElement>(null)
 
   const { data, isPending } = useQuery({
@@ -257,8 +266,29 @@ function Thread({
   })
 
   const remove = useMutation({
-    mutationFn: (m: Message) => apiFetch(`/api/chat/messages/${m.id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "messages", conversationId] }),
+    mutationFn: ({ message, scope }: { message: Message; scope: "me" | "everyone" }) =>
+      apiFetch(`/api/chat/messages/${message.id}?scope=${scope}`, { method: "DELETE" }),
+    onSuccess: (_d, v) => {
+      // The two outcomes are genuinely different, so say which one happened.
+      toast.success(v.scope === "me" ? "Hidden from your chat" : "Deleted for everyone")
+      qc.invalidateQueries({ queryKey: ["chat", "messages", conversationId] })
+      qc.invalidateQueries({ queryKey: ["chat", "conversations"] })
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const edit = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: string }) =>
+      apiFetch(`/api/chat/messages/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      }),
+    onSuccess: () => {
+      setEditing(null)
+      qc.invalidateQueries({ queryKey: ["chat", "messages", conversationId] })
+      qc.invalidateQueries({ queryKey: ["chat", "conversations"] })
+    },
     onError: (e: Error) => toast.error(e.message),
   })
 
@@ -305,16 +335,44 @@ function Thread({
               m.fromMe ? "justify-end" : "justify-start",
             )}
           >
-            {m.fromMe && !m.deletedAt && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Delete message"
-                className="text-muted-foreground hover:text-destructive opacity-0 transition-opacity group-hover:opacity-100"
-                onClick={() => remove.mutate(m)}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
+            {/* Menu on the outer edge, revealed on hover. Everyone gets "Delete
+                for me"; only the author gets Edit and "Delete for everyone". */}
+            {!m.deletedAt && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Message options"
+                    className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+                  >
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align={m.fromMe ? "end" : "start"}>
+                  {m.fromMe && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setEditing(m)
+                        setEditDraft(m.body ?? "")
+                      }}
+                    >
+                      Edit
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => remove.mutate({ message: m, scope: "me" })}>
+                    Delete for me
+                  </DropdownMenuItem>
+                  {m.fromMe && (
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() => remove.mutate({ message: m, scope: "everyone" })}
+                    >
+                      Delete for everyone
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             <div
               className={cn(
@@ -323,9 +381,48 @@ function Thread({
                 m.deletedAt && "opacity-60",
               )}
             >
-              <p className={cn("text-sm whitespace-pre-wrap", m.deletedAt && "italic")}>
-                {m.deletedAt ? "Message deleted" : m.body}
-              </p>
+              {/* Editing happens IN PLACE, in the bubble. A dialog would hide
+                  the conversation the wording depends on. */}
+              {editing?.id === m.id ? (
+                <div className="space-y-1.5">
+                  <Textarea
+                    value={editDraft}
+                    onChange={(e) => setEditDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault()
+                        if (editDraft.trim()) edit.mutate({ id: m.id, body: editDraft.trim() })
+                      }
+                      if (e.key === "Escape") setEditing(null)
+                    }}
+                    rows={2}
+                    autoFocus
+                    className="bg-background text-foreground min-h-16 resize-none text-sm"
+                  />
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label="Cancel edit"
+                      onClick={() => setEditing(null)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon-sm"
+                      aria-label="Save edit"
+                      disabled={!editDraft.trim() || edit.isPending}
+                      onClick={() => edit.mutate({ id: m.id, body: editDraft.trim() })}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className={cn("text-sm whitespace-pre-wrap", m.deletedAt && "italic")}>
+                  {m.deletedAt ? "Message deleted" : m.body}
+                </p>
+              )}
               <p
                 className={cn(
                   "mt-0.5 flex items-center justify-end gap-1 text-[10px]",
@@ -342,7 +439,14 @@ function Thread({
         <div ref={endRef} />
       </div>
 
-      <div className="flex items-end gap-2 border-t p-2.5">
+      <div className="flex items-end gap-1 border-t p-2.5">
+        <EmojiPicker
+          onPick={(emoji) => {
+            // Appended, not inserted at the caret: a textarea's selection is lost
+            // the moment the picker takes focus, so "at the caret" would be a lie.
+            setDraft((d) => d + emoji)
+          }}
+        />
         <Textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

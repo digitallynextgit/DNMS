@@ -12,7 +12,11 @@ import "server-only"
 import { db } from "@/server/db"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { publishChat } from "@/server/chat-stream"
-import { sendMessageSchema, startConversationSchema } from "../schemas/chat.schema"
+import {
+  sendMessageSchema,
+  startConversationSchema,
+  editMessageSchema,
+} from "../schemas/chat.schema"
 import type { Session } from "next-auth"
 
 const PERSON = {
@@ -176,6 +180,8 @@ export async function listMessages(
     const rows = await db.chatMessage.findMany({
       where: {
         conversationId,
+        // "Delete for me" hides the row from this reader and nobody else.
+        NOT: { hiddenFor: { has: session.user.id } },
         ...(opts.before ? { createdAt: { lt: new Date(opts.before) } } : {}),
       },
       select: {
@@ -293,24 +299,103 @@ export async function markRead(
  */
 export async function deleteMessage(
   messageId: string,
+  scope: "me" | "everyone",
   session: Session,
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
+    const me = session.user.id
     const message = await db.chatMessage.findUnique({
       where: { id: messageId },
-      select: { id: true, senderId: true, conversationId: true, deletedAt: true },
+      select: { id: true, senderId: true, conversationId: true, deletedAt: true, hiddenFor: true },
     })
     if (!message) return fail("Message not found", undefined, 404)
-    if (message.senderId !== session.user.id) {
-      return fail("You can only delete your own messages", undefined, 403)
+
+    // Membership, not just authorship: hiding a message requires being in the
+    // conversation, which is a different question from having written it.
+    const membership = await requireMembership(message.conversationId, me)
+    if (!membership) return fail("Message not found", undefined, 404)
+
+    if (scope === "me") {
+      // Anyone in the thread may hide anything from their OWN view - including
+      // the other person's messages. It changes nothing for them.
+      if (!message.hiddenFor.includes(me)) {
+        await db.chatMessage.update({
+          where: { id: messageId },
+          data: { hiddenFor: { push: me } },
+        })
+      }
+      return ok(serialize({ data: { id: messageId, scope } }))
     }
-    if (message.deletedAt) return ok(serialize({ data: { id: messageId } }))
+
+    // "Delete for everyone" is only yours to do, and only to your own message.
+    if (message.senderId !== me) {
+      return fail("You can only delete your own messages for everyone", undefined, 403)
+    }
+    if (message.deletedAt) return ok(serialize({ data: { id: messageId, scope } }))
 
     await db.chatMessage.update({
       where: { id: messageId },
       data: { deletedAt: new Date(), body: "" },
     })
-    return ok(serialize({ data: { id: messageId } }))
+
+    // Tell the other side so the placeholder replaces the text on their screen
+    // too, rather than only after they next reload.
+    if (membership.other) {
+      await publishChat({
+        type: "message",
+        conversationId: message.conversationId,
+        recipientId: membership.other.id,
+      })
+    }
+    return ok(serialize({ data: { id: messageId, scope } }))
+  })
+}
+
+/**
+ * Edit your own message.
+ *
+ * No time limit, unlike task details: a chat message is a conversation, not a
+ * commitment somebody plans around. The `edited` marker is what keeps it honest -
+ * the other person can always see that the wording changed.
+ */
+export async function editMessage(
+  messageId: string,
+  body: unknown,
+  session: Session,
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const input = editMessageSchema.parse(body)
+    const me = session.user.id
+
+    const message = await db.chatMessage.findUnique({
+      where: { id: messageId },
+      select: { id: true, senderId: true, conversationId: true, deletedAt: true },
+    })
+    if (!message) return fail("Message not found", undefined, 404)
+    if (message.senderId !== me) {
+      return fail("You can only edit your own messages", undefined, 403)
+    }
+    if (message.deletedAt) {
+      return fail("That message was deleted", undefined, 409)
+    }
+
+    const membership = await requireMembership(message.conversationId, me)
+    if (!membership) return fail("Message not found", undefined, 404)
+
+    const updated = await db.chatMessage.update({
+      where: { id: messageId },
+      data: { body: input.body, editedAt: new Date() },
+      select: { id: true, body: true, editedAt: true },
+    })
+
+    if (membership.other) {
+      await publishChat({
+        type: "message",
+        conversationId: message.conversationId,
+        recipientId: membership.other.id,
+      })
+    }
+    return ok(serialize({ data: updated }))
   })
 }
 

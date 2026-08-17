@@ -3295,6 +3295,10 @@ model ChatMessage {
   /// Soft delete: "deleted for everyone" keeps the row so the thread does not
   /// silently reshuffle around a gap.
   deletedAt DateTime? @map("deleted_at")
+  /// "Delete for me": employee ids that have hidden this message from their own
+  /// view. Deliberately NOT a second table - it is read on every message fetch,
+  /// and a join for a list that is almost always empty is pure cost.
+  hiddenFor String[]  @map("hidden_for")
   editedAt  DateTime? @map("edited_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
