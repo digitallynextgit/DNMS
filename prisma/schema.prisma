@@ -1764,11 +1764,40 @@ model ProjectMessageReply {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  message ProjectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  author  Employee       @relation("MessageReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  message     ProjectMessage             @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  author      Employee                   @relation("MessageReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  attachments ProjectMessageAttachment[]
 
   @@index([messageId])
   @@map("project_message_replies")
+}
+
+/// Pictures, voice notes and files on a project reply.
+///
+/// Deliberately the same shape as ChatAttachment, down to the enum: they are the
+/// same thing on two surfaces, and one shared renderer draws both. Kept as its
+/// own table rather than columns on the reply because most replies have none.
+model ProjectMessageAttachment {
+  id      String             @id @default(uuid()) @map("id")
+  replyId String             @map("reply_id")
+  kind    ChatAttachmentKind @map("kind")
+
+  objectKey   String @map("object_key")
+  fileName    String @map("file_name")
+  contentType String @map("content_type")
+  size        Int    @map("size")
+
+  width       Int?  @map("width")
+  height      Int?  @map("height")
+  durationSec Int?  @map("duration_sec")
+  waveform    Int[] @map("waveform")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  reply ProjectMessageReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
+
+  @@index([replyId])
+  @@map("project_message_attachments")
 }
 
 // Per-user "last time I opened this project's Messages tab" - powers the unread badge.
@@ -3300,10 +3329,26 @@ model ChatMessage {
   /// and a join for a list that is almost always empty is pure cost.
   hiddenFor String[]  @map("hidden_for")
   editedAt  DateTime? @map("edited_at")
-  createdAt DateTime  @default(now()) @map("created_at")
+  /// Stamped the moment the message reached the recipient's device - their chat
+  /// stream was open, or they opened the app. This is what separates the second
+  /// tick from the first: without it "delivered" would just be a guess.
+  deliveredAt DateTime? @map("delivered_at")
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       Employee     @relation("ChatSender", fields: [senderId], references: [id], onDelete: Cascade)
+  /// The message this one answers. Self-relation rather than a thread table:
+  /// a personal chat quotes one line, it does not branch into sub-threads.
+  replyToId String?      @map("reply_to_id")
+  replyTo   ChatMessage? @relation("ChatReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   ChatMessage[] @relation("ChatReply")
+
+  /// Pinned by either participant - a shared shelf, not a private bookmark, so
+  /// both sides see the same pinned lines.
+  pinnedAt DateTime? @map("pinned_at")
+  pinnedBy String?   @map("pinned_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       Employee         @relation("ChatSender", fields: [senderId], references: [id], onDelete: Cascade)
+  attachments  ChatAttachment[]
 
   @@index([conversationId, createdAt])
   @@map("chat_messages")
@@ -3347,4 +3392,44 @@ model StorageAccount {
 
   @@index([isDefault])
   @@map("storage_accounts")
+}
+
+/// Whether an attachment renders as a picture, a voice note, or a file card.
+enum ChatAttachmentKind {
+  IMAGE
+  AUDIO
+  FILE
+}
+
+/// A file hanging off a chat message.
+///
+/// Its own table rather than columns on ChatMessage: a message can carry several
+/// pictures, and widening ChatMessage for the maximum would leave every text
+/// message carrying a dozen null columns.
+model ChatAttachment {
+  id        String             @id @default(uuid()) @map("id")
+  messageId String             @map("message_id")
+  kind      ChatAttachmentKind @map("kind")
+
+  objectKey   String @map("object_key")
+  fileName    String @map("file_name")
+  contentType String @map("content_type")
+  size        Int    @map("size")
+
+  /// Images: lets the bubble reserve space before the picture loads.
+  width  Int? @map("width")
+  height Int? @map("height")
+  /// Voice notes: shown on the player before the audio is fetched.
+  durationSec Int? @map("duration_sec")
+  /// Voice notes: amplitude peaks (0-100) sampled while recording, so the
+  /// player can draw the real waveform without downloading and decoding the
+  /// audio first. Empty for audio that arrived as a plain file upload.
+  waveform    Int[]  @map("waveform")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("chat_attachments")
 }

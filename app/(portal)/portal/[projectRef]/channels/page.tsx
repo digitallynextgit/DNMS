@@ -55,13 +55,13 @@ export default async function PortalChannelsPage({
       </div>
 
       {channels.length === 0 ? (
-        <div className="text-muted-foreground rounded-md border border-dashed py-14 text-center text-sm">
+        <div className="text-muted-foreground rounded-sm border border-dashed py-14 text-center text-sm">
           No sales channel is connected yet.
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {channels.map((c) => (
-            <div key={c.id} className="bg-card rounded-md border p-4">
+            <div key={c.id} className="bg-card rounded-sm border p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{c.name}</p>

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { auth } from "@/server/auth"
 import { subscribeChat } from "@/server/chat-stream"
+import { markDelivered } from "@/features/chat/server/chat.service"
 
 // Long-lived SSE - Node runtime, never cached.
 export const runtime = "nodejs"
@@ -35,6 +36,15 @@ export async function GET(req: NextRequest) {
 
       const unsubscribe = await subscribeChat(employeeId, (event) => {
         send(`event: chat\ndata: ${JSON.stringify(event)}\n\n`)
+
+        // Pushing it down an open connection IS the delivery, so stamp it here
+        // rather than waiting for the tab to poll. Fire-and-forget: a message that
+        // arrived must not be un-sent because the bookkeeping failed.
+        if (event.type === "message") {
+          markDelivered(employeeId, event.conversationId).catch((e) =>
+            console.error("[chat-stream] delivery stamp failed:", e),
+          )
+        }
       })
 
       // Below the usual proxy read-timeout so nginx does not close an idle chat.

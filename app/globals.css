@@ -40,8 +40,8 @@
 
   /* Tailwind's BARE `rounded` utility is hardcoded to 0.25rem (4px) unless the
      border-radius namespace default is set here. Without this line, `rounded` (4px)
-     and `rounded-lg` (5px) are different - and an editor "canonical class" auto-fix
-     that rewrites rounded-lg -> rounded-sm silently reverts the whole app's radius.
+     and `rounded-sm` (5px) are different - and an editor "canonical class" auto-fix
+     that rewrites rounded-sm -> rounded-sm silently reverts the whole app's radius.
      Defining the default makes BOTH spellings resolve to --radius, so the radius
      cannot drift no matter which one is written. */
   --radius: 5px;

@@ -139,7 +139,7 @@ export function CampaignHistoryDialog({
         </DialogHeader>
 
         {/* The distinction the whole screen turns on. */}
-        <div className="text-muted-foreground bg-muted/40 flex items-start gap-2 rounded-md border p-2.5 text-[11px]">
+        <div className="text-muted-foreground bg-muted/40 flex items-start gap-2 rounded-sm border p-2.5 text-[11px]">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <p>
             <strong className="text-foreground">Accepted</strong> means the receiving mail server
@@ -167,7 +167,7 @@ export function CampaignHistoryDialog({
               onClick={() => setFilter(f.key)}
               aria-pressed={filter === f.key}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-[11px] transition-colors",
                 filter === f.key
                   ? "border-primary bg-primary text-primary-foreground"
                   : "hover:bg-muted text-muted-foreground",
@@ -199,7 +199,7 @@ export function CampaignHistoryDialog({
           </Button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-sm border">
           {isPending ? (
             <div className="space-y-1 p-2">
               {[0, 1, 2, 3, 4].map((i) => (

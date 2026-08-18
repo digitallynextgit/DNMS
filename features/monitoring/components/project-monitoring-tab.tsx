@@ -240,7 +240,7 @@ function StatCard({
   icon: React.ElementType
 }) {
   return (
-    <div className="bg-card rounded-md border p-4">
+    <div className="bg-card rounded-sm border p-4">
       <div className="flex items-start justify-between">
         <p className="text-muted-foreground text-xs">{label}</p>
         <Icon className="text-muted-foreground h-4 w-4" />
@@ -302,7 +302,7 @@ function UptimeSection({
         </Button>
       </div>
 
-      {isPending && <Skeleton className="h-20 rounded-md" />}
+      {isPending && <Skeleton className="h-20 rounded-sm" />}
 
       {!isPending && monitors.length === 0 && (
         <EmptyState
@@ -317,7 +317,7 @@ function UptimeSection({
         {monitors.map((m) => {
           const incident = m.incidents[0]
           return (
-            <div key={m.id} className="bg-card rounded-md border p-4">
+            <div key={m.id} className="bg-card rounded-sm border p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -360,7 +360,7 @@ function UptimeSection({
               </div>
 
               {incident && (
-                <div className="border-destructive/40 bg-destructive/5 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                <div className="border-destructive/40 bg-destructive/5 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-sm border p-3">
                   <div className="min-w-0">
                     <p className="text-destructive text-xs font-medium">
                       Down for {since(incident.startedAt)}
@@ -433,7 +433,7 @@ function StateDot({ state }: { state: Monitor["state"] }) {
   const s = map[state]
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={cn("h-2 w-2 rounded-full", s.cls)} />
+      <span className={cn("h-2 w-2 rounded-sm", s.cls)} />
       <span className="text-muted-foreground text-[11px]">{s.label}</span>
     </span>
   )
@@ -482,7 +482,7 @@ function RenewalsSection({
         </Button>
       </div>
 
-      {isPending && <Skeleton className="h-20 rounded-md" />}
+      {isPending && <Skeleton className="h-20 rounded-sm" />}
 
       {!isPending && assets.length === 0 && (
         <EmptyState
@@ -494,7 +494,7 @@ function RenewalsSection({
       )}
 
       {assets.length > 0 && (
-        <div className="overflow-x-auto rounded-md border">
+        <div className="overflow-x-auto rounded-sm border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-muted-foreground">
               <tr>
@@ -1015,7 +1015,7 @@ function AssetDialog({
               control={form.control}
               name="autoRenew"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-start gap-2.5 space-y-0 rounded-md border p-3">
+                <FormItem className="flex flex-row items-start gap-2.5 space-y-0 rounded-sm border p-3">
                   <FormControl>
                     <Checkbox
                       checked={field.value}

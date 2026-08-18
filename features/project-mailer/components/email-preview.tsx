@@ -63,7 +63,7 @@ export function EmailPreview({
   }, [subject, bodyHtml, overrides])
 
   return (
-    <div className={cn("flex min-h-0 flex-col overflow-hidden rounded-md border", className)}>
+    <div className={cn("flex min-h-0 flex-col overflow-hidden rounded-sm border", className)}>
       <div className="bg-muted/40 space-y-1 border-b px-3 py-2">
         <p className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
           <Eye className="h-3 w-3" />

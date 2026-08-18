@@ -67,7 +67,7 @@ export function PortalActivityLog({ projectRef }: { projectRef: string }) {
     return (
       <div className="space-y-2">
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-14 rounded-md" />
+          <Skeleton key={i} className="h-14 rounded-sm" />
         ))}
       </div>
     )
@@ -85,13 +85,13 @@ export function PortalActivityLog({ projectRef }: { projectRef: string }) {
   }
 
   return (
-    <div className="divide-y rounded-md border">
+    <div className="divide-y rounded-sm border">
       {events.map((e) => {
         const Icon = iconFor(e.action)
         const when = new Date(e.createdAt)
         return (
           <div key={e.id} className="flex items-start gap-3 px-3 py-2.5">
-            <div className="bg-muted mt-0.5 rounded-full p-1.5">
+            <div className="bg-muted mt-0.5 rounded-sm p-1.5">
               <Icon className="text-muted-foreground h-3.5 w-3.5" />
             </div>
             <div className="min-w-0 flex-1">

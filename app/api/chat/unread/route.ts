@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { withSession } from "@/server/api-handler"
 import { db } from "@/server/db"
+import { markDelivered } from "@/features/chat/server/chat.service"
 
 // GET /api/chat/unread
 //
@@ -9,6 +10,10 @@ import { db } from "@/server/db"
 // unread count, which is a lot of work to render a digit that polls on a timer.
 export const GET = withSession(async (_req, _ctx, session) => {
   const me = session.user.id
+
+  // This poll runs app-wide, so it is the moment anything sent while the tab was
+  // closed reaches this person. Awaited, so the count below already reflects it.
+  await markDelivered(me).catch((e) => console.error("[chat] delivery stamp failed:", e))
 
   // Messages from other people, in threads I am in, newer than my read mark.
   const parts = await db.conversationParticipant.findMany({

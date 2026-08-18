@@ -2,6 +2,8 @@ import { z } from "zod"
 
 export const sendMessageSchema = z.object({
   body: z.string().trim().min(1, "Type a message").max(4000, "Message is too long"),
+  /** The message being answered, if this is a quote-reply. */
+  replyToId: z.string().uuid().optional(),
 })
 export type SendMessageInput = z.infer<typeof sendMessageSchema>
 

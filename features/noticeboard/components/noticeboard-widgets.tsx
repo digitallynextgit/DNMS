@@ -89,7 +89,7 @@ export function AnnouncementsCard({ limit = 4 }: { limit?: number }) {
         {isPending ? (
           <div className="space-y-2">
             {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-14 rounded-md" />
+              <Skeleton key={i} className="h-14 rounded-sm" />
             ))}
           </div>
         ) : items.length === 0 ? (
@@ -170,7 +170,7 @@ export function PhotoGalleryCard({ limit = 8 }: { limit?: number }) {
         {isPending ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="aspect-square rounded-md" />
+              <Skeleton key={i} className="aspect-square rounded-sm" />
             ))}
           </div>
         ) : tiles.length === 0 ? (
@@ -183,7 +183,7 @@ export function PhotoGalleryCard({ limit = 8 }: { limit?: number }) {
               <Link
                 key={a.id}
                 href={`/gallery/${a.slug}`}
-                className="group relative aspect-square overflow-hidden rounded-md border"
+                className="group relative aspect-square overflow-hidden rounded-sm border"
                 title={`${a.title} · ${a.photoCount} photo${a.photoCount === 1 ? "" : "s"}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -245,7 +245,7 @@ export function BirthdaysCard({ days = 30 }: { days?: number }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {isPending ? (
-          <Skeleton className="h-32 rounded-md" />
+          <Skeleton className="h-32 rounded-sm" />
         ) : people.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-xs">
             No birthdays in the next {days} days.
@@ -256,7 +256,7 @@ export function BirthdaysCard({ days = 30 }: { days?: number }) {
             {today.map((p) => (
               <div
                 key={p.id}
-                className="rounded-md bg-gradient-to-br from-teal-600 to-emerald-500 p-4 text-white"
+                className="rounded-sm bg-gradient-to-br from-teal-600 to-emerald-500 p-4 text-white"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-medium">Happy Birthday!</p>

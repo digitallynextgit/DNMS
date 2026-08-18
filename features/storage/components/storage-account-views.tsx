@@ -80,7 +80,7 @@ function UsageBar({ accountId }: { accountId: string }) {
     return (
       <div className="space-y-1.5">
         <Skeleton className="h-3 w-32" />
-        <Skeleton className="h-1.5 w-full rounded-full" />
+        <Skeleton className="h-1.5 w-full rounded-sm" />
       </div>
     )
   }
@@ -267,7 +267,7 @@ export function AccountTable({
   onMakeDefault,
 }: { accounts: StorageAccount[]; testingId: string | null } & RowActions) {
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="overflow-x-auto rounded-sm border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-muted-foreground">
           <tr>

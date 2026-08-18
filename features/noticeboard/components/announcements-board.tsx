@@ -149,7 +149,7 @@ export function AnnouncementsBoard() {
       </FilterToolbar>
 
       <div className="space-y-3">
-        {isPending && <Skeleton className="h-40 rounded-md" />}
+        {isPending && <Skeleton className="h-40 rounded-sm" />}
 
         {!isPending && items.length === 0 && (
           <EmptyState
@@ -165,7 +165,7 @@ export function AnnouncementsBoard() {
         )}
 
         {items.map((a) => (
-          <article key={a.id} className="bg-card rounded-md border p-4">
+          <article key={a.id} className="bg-card rounded-sm border p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">

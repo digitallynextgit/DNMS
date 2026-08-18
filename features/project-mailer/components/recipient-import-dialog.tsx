@@ -308,7 +308,7 @@ export function RecipientImportDialog({
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={reading}
-            className="hover:border-primary/50 hover:bg-muted/40 flex w-full flex-col items-center gap-2 rounded-md border border-dashed px-4 py-10 transition-colors"
+            className="hover:border-primary/50 hover:bg-muted/40 flex w-full flex-col items-center gap-2 rounded-sm border border-dashed px-4 py-10 transition-colors"
           >
             {reading ? (
               <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
@@ -325,7 +325,7 @@ export function RecipientImportDialog({
           </button>
         ) : (
           <div className="space-y-4">
-            <div className="bg-muted/40 flex flex-wrap items-center gap-2 rounded-md border px-3 py-2">
+            <div className="bg-muted/40 flex flex-wrap items-center gap-2 rounded-sm border px-3 py-2">
               <FileSpreadsheet className="text-muted-foreground h-4 w-4 shrink-0" />
               <span className="truncate text-xs font-medium">{sheet.fileName}</span>
               <span className="text-muted-foreground text-[11px]">
@@ -471,7 +471,7 @@ export function RecipientImportDialog({
                     </>
                   )}
                 </p>
-                <div className="overflow-x-auto rounded-md border">
+                <div className="overflow-x-auto rounded-sm border">
                   <table className="w-full text-xs">
                     <thead className="bg-muted/50 text-muted-foreground">
                       <tr>

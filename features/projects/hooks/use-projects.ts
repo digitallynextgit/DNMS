@@ -1,6 +1,7 @@
 "use client"
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import type { Attachment } from "@/components/shared/message-attachments"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
@@ -125,6 +126,9 @@ export interface ProjectActivity {
   actor: EmployeeSnippet
 }
 
+/** Re-exported so callers get the attachment shape from one place. */
+export type MessageAttachment = Attachment
+
 export interface ProjectMessage {
   id: string
   projectId: string
@@ -159,6 +163,8 @@ export interface ProjectMessageReply {
   createdAt: string
   updatedAt: string
   author: EmployeeSnippet
+  /** Pictures, voice notes and files. Same shape personal chat uses. */
+  attachments?: MessageAttachment[]
 }
 
 export interface ProjectMember {

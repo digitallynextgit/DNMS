@@ -116,13 +116,13 @@ export function PortalProductGrid({ projectRef }: { projectRef: string }) {
       {isPending && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-64 rounded-md" />
+            <Skeleton key={i} className="h-64 rounded-sm" />
           ))}
         </div>
       )}
 
       {!isPending && !isError && products.length === 0 && (
-        <div className="text-muted-foreground flex flex-col items-center gap-2 rounded-md border border-dashed py-16 text-center">
+        <div className="text-muted-foreground flex flex-col items-center gap-2 rounded-sm border border-dashed py-16 text-center">
           <PackageOpen className="h-7 w-7" />
           <p className="text-sm font-medium">No products yet</p>
           <p className="max-w-sm text-xs">
@@ -142,7 +142,7 @@ export function PortalProductGrid({ projectRef }: { projectRef: string }) {
             return (
               <article
                 key={p.id}
-                className="bg-card flex flex-col overflow-hidden rounded-md border"
+                className="bg-card flex flex-col overflow-hidden rounded-sm border"
               >
                 <div className="bg-muted relative aspect-square">
                   {p.imageUrl ? (

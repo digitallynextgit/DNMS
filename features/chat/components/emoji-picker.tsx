@@ -66,7 +66,7 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
                       // emojis in a row, and leaving it open hides the thread.
                       setOpen(false)
                     }}
-                    className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-[2px] text-lg transition-colors"
+                    className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-sm text-lg transition-colors"
                   >
                     {e}
                   </button>

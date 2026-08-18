@@ -8,7 +8,7 @@ import { createNotification } from "@/lib/notifications"
 // The task-edit override.
 //
 // Normally whoever raised a task may correct it for 15 minutes and no longer;
-// after that only the team manager can (features/projects/lib/edit-window.ts).
+// after that only the team manager can (lib/edit-window.ts).
 // That is right for a commitment other people plan around, and wrong when
 // somebody has to write up a day they forgot to fill in, or fix last week's
 // sheet before it is reported on.

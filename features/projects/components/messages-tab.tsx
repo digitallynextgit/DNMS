@@ -1,5 +1,6 @@
 "use client"
 
+import { useQueryClient } from "@tanstack/react-query"
 import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import {
   useProjectMessages,
@@ -39,12 +40,17 @@ import {
   Megaphone,
   Smile,
   Pencil,
+  Paperclip,
+  Loader2,
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Textarea } from "@/components/ui/textarea"
 import { MentionTextarea, renderWithMentions } from "./mention-textarea"
-import { editWindowRemaining, formatWindowLeft, isWithinEditWindow } from "../lib/edit-window"
-import { dayKey, formatChatTime, formatClockTime, formatDaySeparator } from "../lib/chat-time"
+import { HighlightedText, snippet, MIN_SEARCH_QUERY } from "@/components/shared/highlighted-text"
+import { MessageAttachments, type Attachment } from "@/components/shared/message-attachments"
+import { VoiceRecorder } from "@/components/shared/voice-recorder"
+import { editWindowRemaining, formatWindowLeft, isWithinEditWindow } from "@/lib/edit-window"
+import { dayKey, formatChatTime, formatClockTime, formatDaySeparator } from "@/lib/chat-time"
 
 interface Props {
   projectId: string
@@ -68,43 +74,12 @@ function toMentionPairs(ids: string[], members: ProjectMember[]) {
 
 const shortName = (full: string) => full.split(" ")[0] || full
 
-/** Below this a query matches almost everything, so the search doesn't run. */
-const MIN_QUERY = 2
-
 /**
- * A window of text around the first match, so a hit buried in a long message is
- * shown in context instead of from the top of the paragraph.
+ * Project attachments are served from their own membership-checked route, not
+ * the chat one - the shared renderer takes the resolver rather than hard-coding
+ * either.
  */
-function snippet(text: string, query: string, pad = 40): string {
-  const at = text.toLowerCase().indexOf(query.toLowerCase())
-  if (at < 0) return text.length > 120 ? `${text.slice(0, 120)}…` : text
-  const start = Math.max(0, at - pad)
-  const end = Math.min(text.length, at + query.length + pad)
-  return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`
-}
-
-/** Wrap every occurrence of the query in a <mark> so the hit is visible at a glance. */
-function highlight(text: string, query: string) {
-  if (!query) return text
-  const lower = text.toLowerCase()
-  const needle = query.toLowerCase()
-  const out: React.ReactNode[] = []
-  let i = 0
-  let n = 0
-  for (;;) {
-    const at = lower.indexOf(needle, i)
-    if (at < 0) break
-    if (at > i) out.push(text.slice(i, at))
-    out.push(
-      <mark key={n++} className="rounded-sm bg-amber-300/80 px-0.5 text-black">
-        {text.slice(at, at + needle.length)}
-      </mark>,
-    )
-    i = at + needle.length
-  }
-  out.push(text.slice(i))
-  return out
-}
+const projectAttachmentUrl = (id: string) => `/api/projects/message-attachments/${id}/file`
 
 // ════════════════════════════════════════════════════════════════════════════
 // Chat shell: a WhatsApp-style two-pane layout - the list of "chats" (each
@@ -130,7 +105,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
   const [jumpTo, setJumpTo] = useState<string | null>(null)
 
   const query = search.trim()
-  const searching = query.length >= MIN_QUERY
+  const searching = query.length >= MIN_SEARCH_QUERY
   const { data: searchData, isFetching: searchLoading } = useProjectMessageSearch(projectId, query)
   const hits = useMemo(() => searchData?.data ?? [], [searchData])
   const [newChatOpen, setNewChatOpen] = useState(false)
@@ -495,7 +470,9 @@ function SearchResults({
           </div>
           <p className="text-muted-foreground text-[10px]">{row.where}</p>
           {/* The matched line itself, with the query marked. */}
-          <p className="line-clamp-3 text-xs break-words">{highlight(row.text, query)}</p>
+          <p className="line-clamp-3 text-xs break-words">
+            <HighlightedText text={row.text} query={query} />
+          </p>
         </button>
       ))}
     </div>
@@ -542,6 +519,59 @@ function ChatView({
   const [editChatOpen, setEditChatOpen] = useState(false)
   /** Reply queued for deletion, held until the confirm dialog is answered. */
   const [confirmDeleteReply, setConfirmDeleteReply] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const qc = useQueryClient()
+
+  /** Files and voice notes both post here; the server turns them into a reply. */
+  async function upload(files: File[], durationSec?: number, waveform?: number[]) {
+    if (files.length === 0) return
+    setUploading(true)
+    try {
+      const form = new FormData()
+      for (const f of files) form.append("files", f)
+      if (content.trim()) form.append("body", content.trim())
+      if (durationSec) form.append("durationSec", String(durationSec))
+      if (waveform?.length) form.append("waveform", waveform.join(","))
+
+      const res = await fetch(`/api/projects/${projectId}/messages/${thread.id}/attachments`, {
+        method: "POST",
+        body: form,
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(json?.error ?? "Upload failed")
+
+      setContent("")
+      setMentionIds([])
+      qc.invalidateQueries({ queryKey: ["project-message-replies", projectId, thread.id] })
+      qc.invalidateQueries({ queryKey: ["project-messages", projectId] })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed")
+      throw e
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  // Replies used to arrive only on the 15s poll. One stream per person already
+  // exists for personal chat, so project replies ride the same connection
+  // rather than opening a second one.
+  useEffect(() => {
+    const es = new EventSource("/api/chat/stream")
+    es.addEventListener("chat", (e) => {
+      const event = JSON.parse((e as MessageEvent).data) as {
+        type: string
+        conversationId: string
+      }
+      if (event.type !== "project-message") return
+      qc.invalidateQueries({ queryKey: ["project-messages", projectId] })
+      if (event.conversationId === thread.id) {
+        qc.invalidateQueries({ queryKey: ["project-message-replies", projectId, thread.id] })
+      }
+    })
+    return () => es.close()
+  }, [qc, projectId, thread.id])
 
   // A message stops being editable 15 minutes after it was posted, and that has
   // to happen while the user is looking at it - not at the next re-render. One
@@ -721,6 +751,7 @@ function ChatView({
                 firstName={r.author.firstName}
                 lastName={r.author.lastName}
                 content={r.content}
+                attachments={r.attachments}
                 createdAt={r.createdAt}
                 memberNames={memberNames}
                 edited={r.updatedAt !== r.createdAt}
@@ -755,8 +786,39 @@ function ChatView({
           style everywhere else, not WhatsApp's pill. */}
       <div className="border-t p-3">
         <div className="border-input bg-background focus-within:ring-ring/50 flex items-end gap-1 rounded-sm border px-1.5 py-1 transition-shadow focus-within:ring-2">
-          <EmojiPicker onPick={(e) => setContent((c) => c + e)} />
-          <div className="min-w-0 flex-1">
+          {!recording && (
+            <>
+              <EmojiPicker onPick={(e) => setContent((c) => c + e)} />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                title="Attach a file"
+                className="text-muted-foreground hover:text-foreground h-9 w-9 shrink-0"
+                disabled={uploading}
+                onClick={() => fileRef.current?.click()}
+              >
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Paperclip className="h-4 w-4" />
+                )}
+              </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                className="hidden"
+                aria-hidden
+                onChange={(e) => {
+                  const picked = Array.from(e.target.files ?? [])
+                  e.target.value = ""
+                  if (picked.length) void upload(picked)
+                }}
+              />
+            </>
+          )}
+          <div className={cn("min-w-0 flex-1", recording && "hidden")}>
             <MentionTextarea
               value={content}
               onChange={(v, ids) => {
@@ -775,15 +837,31 @@ function ChatView({
               className="max-h-32 min-h-9 resize-none overflow-y-auto border-0 bg-transparent px-1 py-1.5 shadow-none focus-visible:ring-0"
             />
           </div>
-          <Button
-            size="icon"
-            className="h-9 w-9 shrink-0 rounded-sm"
-            disabled={!content.trim() || create.isPending}
-            onClick={send}
-            title="Send"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+          {/* Arrow when there is something typed, mic when there is not. The
+              recorder stays mounted while running - remounting it would drop the
+              MediaRecorder and the clip with it. */}
+          {!recording && content.trim() ? (
+            <Button
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-sm"
+              disabled={create.isPending}
+              onClick={send}
+              title="Send"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          ) : (
+            <VoiceRecorder
+              disabled={uploading}
+              onActiveChange={setRecording}
+              onSend={async (blob, durationSec, waveform) => {
+                const file = new File([blob], `voice-${durationSec}s.webm`, {
+                  type: blob.type || "audio/webm",
+                })
+                await upload([file], durationSec, waveform)
+              }}
+            />
+          )}
         </div>
       </div>
 
@@ -847,6 +925,7 @@ function Bubble({
   firstName,
   lastName,
   content,
+  attachments,
   createdAt,
   memberNames,
   onDelete,
@@ -863,6 +942,7 @@ function Bubble({
   firstName: string
   lastName: string
   content: string
+  attachments?: Attachment[]
   createdAt: string
   memberNames: Set<string>
   onDelete?: () => void
@@ -972,9 +1052,26 @@ function Bubble({
             </div>
           </div>
         ) : (
-          <div className="leading-relaxed whitespace-pre-wrap">
-            {renderWithMentions(content, memberNames)}
-          </div>
+          <>
+            {attachments && attachments.length > 0 && (
+              <div className="mb-1.5">
+                <MessageAttachments
+                  attachments={attachments}
+                  fromMe={own}
+                  urlFor={projectAttachmentUrl}
+                  avatar={own ? null : { src: photo ?? null, firstName, lastName }}
+                />
+              </div>
+            )}
+            {/* A file sent with no caption gets "Photo" / "Voice message" as its
+                text so the thread list reads properly - but repeating that under
+                the player itself is noise. */}
+            {!(attachments?.length && AUTO_CAPTIONS.has(content)) && (
+              <div className="leading-relaxed whitespace-pre-wrap">
+                {renderWithMentions(content, memberNames)}
+              </div>
+            )}
+          </>
         )}
         <div
           className={cn(
@@ -1018,6 +1115,9 @@ function Bubble({
     </div>
   )
 }
+
+/** Captions the server writes when a file is sent with nothing typed. */
+const AUTO_CAPTIONS = new Set(["Photo", "Voice message", "File"])
 
 // ─── Day separator ──────────────────────────────────────────────────────────
 /**

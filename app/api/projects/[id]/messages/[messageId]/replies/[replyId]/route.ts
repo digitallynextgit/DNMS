@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withProjectAccess } from "@/features/projects/server/project-access"
-import { isWithinEditWindow } from "@/features/projects/lib/edit-window"
+import { isWithinEditWindow } from "@/lib/edit-window"
 import { resolveProjectMemberIds } from "../../../route"
 import type { Session } from "next-auth"
 

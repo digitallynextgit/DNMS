@@ -54,7 +54,7 @@ import {
   taskEditLockReason,
   taskEditWindowLeft,
 } from "@/features/projects/lib/task-permissions"
-import { isWithinEditWindow, TASK_EDIT_WINDOW_MS } from "@/features/projects/lib/edit-window"
+import { isWithinEditWindow, TASK_EDIT_WINDOW_MS } from "@/lib/edit-window"
 import { useCommitOnOutsidePointer } from "@/hooks/use-commit-on-outside-pointer"
 import { TaskResources } from "@/features/projects/components/task-resources"
 import { dedupeLinks, isSafeHttpUrl, linkLabel } from "@/features/projects/lib/task-links"

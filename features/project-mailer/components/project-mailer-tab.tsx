@@ -368,7 +368,7 @@ function AccountsSection({
         </Button>
       </div>
 
-      {isPending && <Skeleton className="h-24 rounded-md" />}
+      {isPending && <Skeleton className="h-24 rounded-sm" />}
 
       {!isPending && mailers.length === 0 && (
         <EmptyState
@@ -381,7 +381,7 @@ function AccountsSection({
 
       <div className="space-y-2">
         {mailers.map((m) => (
-          <div key={m.id} className="bg-card rounded-md border p-4">
+          <div key={m.id} className="bg-card rounded-sm border p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -772,7 +772,7 @@ function TemplatesSection({
         </Button>
       </div>
 
-      {isPending && <Skeleton className="h-20 rounded-md" />}
+      {isPending && <Skeleton className="h-20 rounded-sm" />}
 
       {!isPending && templates.length === 0 && (
         <EmptyState
@@ -785,7 +785,7 @@ function TemplatesSection({
 
       <div className="grid gap-3 sm:grid-cols-2">
         {templates.map((t) => (
-          <div key={t.id} className="bg-card rounded-md border p-4">
+          <div key={t.id} className="bg-card rounded-sm border p-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-sm font-medium">{t.name}</p>
@@ -992,7 +992,7 @@ function TagChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+        "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-[11px] transition-colors",
         active
           ? "border-primary bg-primary text-primary-foreground"
           : "hover:bg-muted text-muted-foreground",
@@ -1145,14 +1145,14 @@ function RecipientsSection({
       {/* A filter that matches nothing must say so - an empty table under an
           active chip otherwise reads as "the import failed". */}
       {!isPending && recipients.length > 0 && filtered.length === 0 && (
-        <p className="text-muted-foreground rounded-md border border-dashed p-3 text-xs">
+        <p className="text-muted-foreground rounded-sm border border-dashed p-3 text-xs">
           Nobody matches {tag !== TAG_ALL && <>this segment</>}
           {tag !== TAG_ALL && search.trim() && " and "}
           {search.trim() && <>“{search.trim()}”</>}.
         </p>
       )}
 
-      {isPending && <Skeleton className="h-20 rounded-md" />}
+      {isPending && <Skeleton className="h-20 rounded-sm" />}
 
       {!isPending && recipients.length === 0 && (
         <EmptyState
@@ -1164,7 +1164,7 @@ function RecipientsSection({
       )}
 
       {filtered.length > 0 && (
-        <div className="overflow-x-auto rounded-md border">
+        <div className="overflow-x-auto rounded-sm border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-muted-foreground">
               <tr>
@@ -1538,7 +1538,7 @@ function CampaignsSection({
 
       {/* Say exactly what is missing rather than leaving the button dead. */}
       {!ready && !isPending && (
-        <div className="text-muted-foreground rounded-md border border-dashed p-3 text-xs">
+        <div className="text-muted-foreground rounded-sm border border-dashed p-3 text-xs">
           {(data?.mailers.length ?? 0) === 0
             ? "Add a sending account first - see the Accounts tab."
             : activeMailers.length === 0
@@ -1547,7 +1547,7 @@ function CampaignsSection({
         </div>
       )}
 
-      {isPending && <Skeleton className="h-20 rounded-md" />}
+      {isPending && <Skeleton className="h-20 rounded-sm" />}
 
       {!isPending && campaigns.length === 0 && (
         <EmptyState
@@ -1564,7 +1564,7 @@ function CampaignsSection({
           const pct = c.totalCount ? Math.round((done / c.totalCount) * 100) : 0
           const live = c.status === "QUEUED" || c.status === "SENDING"
           return (
-            <div key={c.id} className="bg-card rounded-md border p-4">
+            <div key={c.id} className="bg-card rounded-sm border p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 {/* The whole block opens the per-recipient history: the card
                     already shows the summary, so "who exactly got it" is the
@@ -1843,7 +1843,7 @@ function ComposeDialog({
                   <label
                     key={tag}
                     className={cn(
-                      "flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+                      "flex cursor-pointer items-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-xs transition-colors",
                       form.tags.includes(tag) ? "border-foreground/30 bg-muted/40" : "",
                     )}
                   >
@@ -1865,7 +1865,7 @@ function ComposeDialog({
             </FormRow>
           )}
 
-          <div className="bg-muted/40 rounded-md border p-3 text-xs">
+          <div className="bg-muted/40 rounded-sm border p-3 text-xs">
             This will send to <strong>{audience.length}</strong> subscribed recipient
             {audience.length === 1 ? "" : "s"}.
             {audience.length === 0 && " Nothing matches - adjust the tags."}

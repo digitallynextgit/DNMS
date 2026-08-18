@@ -4,7 +4,23 @@ import { withProjectAccess } from "@/features/projects/server/project-access"
 import { logActivity } from "@/features/projects/server/activity"
 import { createNotifications } from "@/lib/notifications"
 import type { Session } from "next-auth"
+import { publishChat } from "@/server/chat-stream"
 import { resolveProjectMemberIds } from "../../route"
+
+/** Everything the shared attachment renderer needs, and nothing more. */
+export const ATTACHMENT_SELECT = {
+  select: {
+    id: true,
+    kind: true,
+    fileName: true,
+    contentType: true,
+    size: true,
+    width: true,
+    height: true,
+    durationSec: true,
+    waveform: true,
+  },
+} as const
 
 const AUTHOR_SELECT = {
   id: true,
@@ -22,7 +38,7 @@ export const GET = withProjectAccess(
       const replies = await db.projectMessageReply.findMany({
         where: { messageId },
         orderBy: { createdAt: "asc" },
-        include: { author: { select: AUTHOR_SELECT } },
+        include: { author: { select: AUTHOR_SELECT }, attachments: ATTACHMENT_SELECT },
       })
       return NextResponse.json({ data: replies })
     } catch (error) {
@@ -59,7 +75,7 @@ export const POST = withProjectAccess(
 
       const reply = await db.projectMessageReply.create({
         data: { messageId, authorId: session.user.id, content, mentionedIds },
-        include: { author: { select: AUTHOR_SELECT } },
+        include: { author: { select: AUTHOR_SELECT }, attachments: ATTACHMENT_SELECT },
       })
 
       await logActivity({
@@ -91,6 +107,22 @@ export const POST = withProjectAccess(
           { force: true },
         )
       }
+
+      // Everyone in the conversation, including people this reply does not
+      // notify: the thread on their screen is stale either way.
+      const watchers = new Set<string>([parent.authorId])
+      for (const r of parent.replies) watchers.add(r.authorId)
+      watchers.delete(session.user.id)
+      await Promise.all(
+        [...watchers].map((employeeId) =>
+          publishChat({
+            type: "project-message",
+            conversationId: messageId,
+            projectId,
+            recipientId: employeeId,
+          }),
+        ),
+      )
 
       return NextResponse.json({ data: reply }, { status: 201 })
     } catch (error) {

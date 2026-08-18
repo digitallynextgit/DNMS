@@ -126,7 +126,7 @@ export function GalleryView() {
       {isPending && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-52 rounded-md" />
+            <Skeleton key={i} className="h-52 rounded-sm" />
           ))}
         </div>
       )}
@@ -144,7 +144,7 @@ export function GalleryView() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {albums.map((a) => (
-          <div key={a.id} className="bg-card group overflow-hidden rounded-md border">
+          <div key={a.id} className="bg-card group overflow-hidden rounded-sm border">
             <Link href={`/gallery/${a.slug}`} className="block">
               <div className="bg-muted relative aspect-[4/3] overflow-hidden">
                 {a.coverPhotoId ? (
@@ -403,7 +403,7 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
       {isPending && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
           {[0, 1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="aspect-square rounded-md" />
+            <Skeleton key={i} className="aspect-square rounded-sm" />
           ))}
         </div>
       )}
@@ -421,7 +421,7 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
         {photos.map((p) => (
           <div
             key={p.id}
-            className="group relative aspect-square overflow-hidden rounded-md border"
+            className="group relative aspect-square overflow-hidden rounded-sm border"
           >
             <button type="button" onClick={() => setLightbox(p)} className="h-full w-full">
               {/* eslint-disable-next-line @next/next/no-img-element */}

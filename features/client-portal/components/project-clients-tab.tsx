@@ -159,7 +159,7 @@ export function ProjectClientsTab({
       {isPending && (
         <div className="space-y-3">
           {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-md" />
+            <Skeleton key={i} className="h-24 rounded-sm" />
           ))}
         </div>
       )}
@@ -178,7 +178,7 @@ export function ProjectClientsTab({
           const c = row.clientUser
           const paused = row.status !== "ACTIVE" || !c.isActive
           return (
-            <div key={row.id} className="bg-card rounded-md border p-4">
+            <div key={row.id} className="bg-card rounded-sm border p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -312,7 +312,7 @@ export function ProjectClientsTab({
             </DialogDescription>
           </DialogHeader>
 
-          <label className="flex cursor-pointer items-start gap-2.5 rounded-md border p-3">
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-sm border p-3">
             <Checkbox
               checked={resetForceChange}
               onCheckedChange={(v) => setResetForceChange(v === true)}
@@ -562,7 +562,7 @@ function ClientDialog({
                   <label
                     key={m.key}
                     className={cn(
-                      "flex cursor-pointer items-start gap-2.5 rounded-md border p-3 transition-colors",
+                      "flex cursor-pointer items-start gap-2.5 rounded-sm border p-3 transition-colors",
                       modules.includes(m.key) ? "border-foreground/30 bg-muted/40" : "",
                     )}
                   >
@@ -587,7 +587,7 @@ function ClientDialog({
 
               {!isEdit && (
                 <div className="space-y-2 border-t pt-4">
-                  <label className="flex cursor-pointer items-start gap-2.5 rounded-md border p-3">
+                  <label className="flex cursor-pointer items-start gap-2.5 rounded-sm border p-3">
                     <Checkbox
                       checked={forceChange}
                       onCheckedChange={(v) => setForceChange(v === true)}

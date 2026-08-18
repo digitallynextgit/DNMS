@@ -277,7 +277,7 @@ export function RichTextEditor({
   ]
 
   return (
-    <div className={cn("overflow-hidden rounded-md border", className)}>
+    <div className={cn("overflow-hidden rounded-sm border", className)}>
       <div className="bg-muted/40 flex flex-wrap items-center gap-0.5 border-b p-1">
         {tools.map((t) => (
           <Button

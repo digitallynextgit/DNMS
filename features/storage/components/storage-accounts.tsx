@@ -129,7 +129,7 @@ export function StorageAccountGrid({
       {isPending && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[0, 1].map((i) => (
-            <Skeleton key={i} className="h-52 rounded-md" />
+            <Skeleton key={i} className="h-52 rounded-sm" />
           ))}
         </div>
       )}

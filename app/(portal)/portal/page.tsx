@@ -54,7 +54,7 @@ export default async function PortalHomePage() {
       </div>
 
       {grants.length === 0 ? (
-        <div className="text-muted-foreground rounded-md border border-dashed py-14 text-center text-sm">
+        <div className="text-muted-foreground rounded-sm border border-dashed py-14 text-center text-sm">
           Your account manager will enable this shortly.
         </div>
       ) : (
@@ -63,7 +63,7 @@ export default async function PortalHomePage() {
             <Link
               key={g.projectId}
               href={`/portal/${g.projectRef}`}
-              className="bg-card hover:border-foreground/30 rounded-md border p-4 transition-colors"
+              className="bg-card hover:border-foreground/30 rounded-sm border p-4 transition-colors"
             >
               <p className="text-sm font-medium">{g.projectName}</p>
               <p className="text-muted-foreground mt-2 text-[11px]">

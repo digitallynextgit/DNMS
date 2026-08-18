@@ -1,4 +1,4 @@
-import { TASK_EDIT_WINDOW_MS, editWindowRemaining, formatWindowLeft } from "./edit-window"
+import { TASK_EDIT_WINDOW_MS, editWindowRemaining, formatWindowLeft } from "@/lib/edit-window"
 
 // =============================================================================
 // Who may change a task, and for how long.

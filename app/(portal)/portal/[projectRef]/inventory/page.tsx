@@ -61,7 +61,7 @@ export default async function PortalInventoryPage({
 
       <div className="grid gap-3 sm:grid-cols-3">
         {stats.map((s) => (
-          <div key={s.label} className="bg-card rounded-md border p-4">
+          <div key={s.label} className="bg-card rounded-sm border p-4">
             <p className="text-muted-foreground text-xs">{s.label}</p>
             <p className={cn("mt-1 text-2xl font-semibold tabular-nums", s.tone)}>{s.value}</p>
           </div>
@@ -71,11 +71,11 @@ export default async function PortalInventoryPage({
       <div>
         <h2 className="mb-3 text-sm font-semibold">Needs attention</h2>
         {!inv?.attention.length ? (
-          <div className="text-muted-foreground rounded-md border border-dashed py-12 text-center text-sm">
+          <div className="text-muted-foreground rounded-sm border border-dashed py-12 text-center text-sm">
             Nothing is running low right now.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-md border">
+          <div className="overflow-hidden rounded-sm border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-muted-foreground">
                 <tr>

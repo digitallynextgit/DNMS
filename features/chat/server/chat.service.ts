@@ -9,6 +9,8 @@
 
 import "server-only"
 
+import { isWithinEditWindow } from "@/lib/edit-window"
+
 import { db } from "@/server/db"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { publishChat } from "@/server/chat-stream"
@@ -37,9 +39,9 @@ async function requireMembership(conversationId: string, employeeId: string) {
   if (!row) return null
   const other = await db.conversationParticipant.findFirst({
     where: { conversationId, employeeId: { not: employeeId } },
-    select: { employee: PERSON },
+    select: { employee: PERSON, lastReadAt: true },
   })
-  return { other: other?.employee ?? null }
+  return { other: other?.employee ?? null, otherLastReadAt: other?.lastReadAt ?? null }
 }
 
 /** Where a chat notification points, and the key used to collapse duplicates. */
@@ -116,7 +118,13 @@ export async function listConversations(session: Session): Promise<ActionResult<
             messages: {
               orderBy: { createdAt: "desc" },
               take: 1,
-              select: { body: true, createdAt: true, senderId: true, deletedAt: true },
+              select: {
+                body: true,
+                createdAt: true,
+                senderId: true,
+                deletedAt: true,
+                attachments: { select: { kind: true }, take: 1 },
+              },
             },
           },
         },
@@ -143,7 +151,18 @@ export async function listConversations(session: Session): Promise<ActionResult<
           other: r.conversation.participants[0]?.employee ?? null,
           lastMessage: last
             ? {
-                body: last.deletedAt ? "Message deleted" : last.body,
+                // A photo or voice note has no text to preview, so name the kind
+                // rather than showing an empty row.
+                body: last.deletedAt
+                  ? "Message deleted"
+                  : last.body ||
+                    (last.attachments[0]?.kind === "AUDIO"
+                      ? "Voice message"
+                      : last.attachments[0]?.kind === "IMAGE"
+                        ? "Photo"
+                        : last.attachments[0]
+                          ? "File"
+                          : ""),
                 createdAt: last.createdAt,
                 fromMe: last.senderId === me,
               }
@@ -246,6 +265,30 @@ export async function listMessages(
         createdAt: true,
         editedAt: true,
         deletedAt: true,
+        deliveredAt: true,
+        pinnedAt: true,
+        replyTo: {
+          select: {
+            id: true,
+            body: true,
+            deletedAt: true,
+            senderId: true,
+            attachments: { select: { kind: true }, take: 1 },
+          },
+        },
+        attachments: {
+          select: {
+            id: true,
+            kind: true,
+            fileName: true,
+            contentType: true,
+            size: true,
+            width: true,
+            height: true,
+            durationSec: true,
+            waveform: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -255,10 +298,33 @@ export async function listMessages(
       serialize({
         data: {
           other: membership.other,
+          // When the other person last opened this thread. Anything sent before
+          // it has genuinely been seen - the tick is evidence, not decoration.
+          otherLastReadAt: membership.otherLastReadAt,
           // Reversed so the client renders oldest-first without re-sorting.
           messages: rows.reverse().map((m) => ({
             ...m,
+            replyTo: m.replyTo
+              ? {
+                  id: m.replyTo.id,
+                  // A quote of something since deleted says so, rather than
+                  // showing text the author has already taken back.
+                  body: m.replyTo.deletedAt
+                    ? null
+                    : (m.replyTo.body ?? null) ||
+                      (m.replyTo.attachments[0]?.kind === "AUDIO"
+                        ? "Voice message"
+                        : m.replyTo.attachments[0]?.kind === "IMAGE"
+                          ? "Photo"
+                          : m.replyTo.attachments[0]
+                            ? "File"
+                            : null),
+                  fromMe: m.replyTo.senderId === session.user.id,
+                }
+              : null,
             body: m.deletedAt ? null : m.body,
+            // Deleting for everyone must take the files with it, not just the text.
+            attachments: m.deletedAt ? [] : m.attachments,
             fromMe: m.senderId === session.user.id,
           })),
           hasMore: rows.length === limit,
@@ -281,7 +347,12 @@ export async function sendMessage(
 
     const [message] = await db.$transaction([
       db.chatMessage.create({
-        data: { conversationId, senderId: me, body: input.body },
+        data: {
+          conversationId,
+          senderId: me,
+          body: input.body,
+          replyToId: input.replyToId ?? null,
+        },
         select: { id: true, body: true, createdAt: true, senderId: true },
       }),
       db.conversation.update({
@@ -379,7 +450,14 @@ export async function deleteMessage(
     const me = session.user.id
     const message = await db.chatMessage.findUnique({
       where: { id: messageId },
-      select: { id: true, senderId: true, conversationId: true, deletedAt: true, hiddenFor: true },
+      select: {
+        id: true,
+        senderId: true,
+        conversationId: true,
+        deletedAt: true,
+        hiddenFor: true,
+        createdAt: true,
+      },
     })
     if (!message) return fail("Message not found", undefined, 404)
 
@@ -405,6 +483,12 @@ export async function deleteMessage(
       return fail("You can only delete your own messages for everyone", undefined, 403)
     }
     if (message.deletedAt) return ok(serialize({ data: { id: messageId, scope } }))
+    // Same window project messages use. Unpicking a line the other person read
+    // days ago rewrites a shared record; "delete for me" stays open forever
+    // because it only changes your own view.
+    if (!isWithinEditWindow(message.createdAt)) {
+      return fail("That message is too old to delete for everyone", undefined, 403)
+    }
 
     await db.chatMessage.update({
       where: { id: messageId },
@@ -442,7 +526,13 @@ export async function editMessage(
 
     const message = await db.chatMessage.findUnique({
       where: { id: messageId },
-      select: { id: true, senderId: true, conversationId: true, deletedAt: true },
+      select: {
+        id: true,
+        senderId: true,
+        conversationId: true,
+        deletedAt: true,
+        createdAt: true,
+      },
     })
     if (!message) return fail("Message not found", undefined, 404)
     if (message.senderId !== me) {
@@ -450,6 +540,11 @@ export async function editMessage(
     }
     if (message.deletedAt) {
       return fail("That message was deleted", undefined, 409)
+    }
+    // Enforced here, not only hidden in the UI - the button being gone is a
+    // courtesy, this is the rule.
+    if (!isWithinEditWindow(message.createdAt)) {
+      return fail("That message is too old to edit", undefined, 403)
     }
 
     const membership = await requireMembership(message.conversationId, me)
@@ -501,5 +596,267 @@ export async function listChatContacts(
         data: rows.map((r) => ({ ...r, designation: r.designation?.title ?? null })),
       }),
     )
+  })
+}
+
+/**
+ * Stamp every message that has now reached this person's device, and tell the
+ * senders so their second tick can appear without a refresh.
+ *
+ * Called from two places, because there are exactly two moments a message can
+ * be said to have arrived: their chat stream pushed it to an open tab, or they
+ * opened the app and the badge poll ran. Anything else - the message merely
+ * existing in the database - is the FIRST tick, not the second.
+ */
+export async function markDelivered(employeeId: string, conversationId?: string): Promise<void> {
+  const parts = await db.conversationParticipant.findMany({
+    where: { employeeId, ...(conversationId ? { conversationId } : {}) },
+    select: { conversationId: true },
+  })
+  if (parts.length === 0) return
+
+  const pending = await db.chatMessage.findMany({
+    where: {
+      conversationId: { in: parts.map((p) => p.conversationId) },
+      senderId: { not: employeeId },
+      deliveredAt: null,
+      deletedAt: null,
+    },
+    select: { id: true, conversationId: true, senderId: true },
+    // A first login after a long absence should not turn into an unbounded
+    // update; the rest are picked up by the next poll.
+    take: 200,
+  })
+  if (pending.length === 0) return
+
+  await db.chatMessage.updateMany({
+    where: { id: { in: pending.map((m) => m.id) } },
+    data: { deliveredAt: new Date() },
+  })
+
+  // One event per sender, not per message: ten messages delivered at once is
+  // still just "your ticks changed" to the person who sent them.
+  const bySender = new Map<string, string>()
+  for (const m of pending) bySender.set(m.senderId, m.conversationId)
+  await Promise.all(
+    [...bySender].map(([senderId, cid]) =>
+      publishChat({ type: "delivered", conversationId: cid, recipientId: senderId }),
+    ),
+  )
+}
+
+/**
+ * Pin or unpin a line in a conversation.
+ *
+ * Either participant may pin, and both see the same shelf. A private bookmark
+ * would be a different feature: pinning here says "this is the bit that matters"
+ * to the person you are talking to, which is the whole point.
+ */
+export async function togglePin(
+  messageId: string,
+  session: Session,
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const message = await db.chatMessage.findUnique({
+      where: { id: messageId },
+      select: { id: true, conversationId: true, pinnedAt: true, deletedAt: true },
+    })
+    if (!message) return fail("Message not found", undefined, 404)
+    if (message.deletedAt) return fail("That message was deleted", undefined, 400)
+
+    const membership = await requireMembership(message.conversationId, session.user.id)
+    if (!membership) return fail("Message not found", undefined, 404)
+
+    const pinning = message.pinnedAt === null
+    await db.chatMessage.update({
+      where: { id: messageId },
+      data: {
+        pinnedAt: pinning ? new Date() : null,
+        pinnedBy: pinning ? session.user.id : null,
+      },
+    })
+
+    // The shelf is shared, so the other side's view is now stale.
+    if (membership.other) {
+      await publishChat({
+        type: "read",
+        conversationId: message.conversationId,
+        recipientId: membership.other.id,
+      })
+    }
+    return ok(serialize({ data: { pinned: pinning } }))
+  })
+}
+
+/** The pinned shelf for one conversation, newest pin first. */
+export async function listPinned(
+  conversationId: string,
+  session: Session,
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const membership = await requireMembership(conversationId, session.user.id)
+    if (!membership) return fail("Conversation not found", undefined, 404)
+
+    const rows = await db.chatMessage.findMany({
+      where: {
+        conversationId,
+        pinnedAt: { not: null },
+        deletedAt: null,
+        NOT: { hiddenFor: { has: session.user.id } },
+      },
+      select: {
+        id: true,
+        body: true,
+        senderId: true,
+        createdAt: true,
+        pinnedAt: true,
+        attachments: { select: { kind: true }, take: 1 },
+      },
+      orderBy: { pinnedAt: "desc" },
+      take: 20,
+    })
+
+    return ok(
+      serialize({
+        data: rows.map((m) => ({
+          id: m.id,
+          body:
+            m.body ||
+            (m.attachments[0]?.kind === "AUDIO"
+              ? "Voice message"
+              : m.attachments[0]?.kind === "IMAGE"
+                ? "Photo"
+                : m.attachments[0]
+                  ? "File"
+                  : ""),
+          fromMe: m.senderId === session.user.id,
+          createdAt: m.createdAt,
+        })),
+      }),
+    )
+  })
+}
+
+/**
+ * Find text inside one conversation.
+ *
+ * The conversation list already filters by NAME; this is the other half, and the
+ * half you actually need to find a decision somebody typed three weeks ago.
+ */
+export async function searchMessages(
+  conversationId: string,
+  query: string,
+  session: Session,
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const membership = await requireMembership(conversationId, session.user.id)
+    if (!membership) return fail("Conversation not found", undefined, 404)
+
+    const q = query.trim()
+    if (q.length < 2) return ok(serialize({ data: [] }))
+
+    const rows = await db.chatMessage.findMany({
+      where: {
+        conversationId,
+        deletedAt: null,
+        NOT: { hiddenFor: { has: session.user.id } },
+        body: { contains: q, mode: "insensitive" },
+      },
+      select: { id: true, body: true, senderId: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    })
+
+    return ok(
+      serialize({
+        data: rows.map((m) => ({ ...m, fromMe: m.senderId === session.user.id })),
+      }),
+    )
+  })
+}
+
+/**
+ * Search every conversation at once - names AND what was said inside them.
+ *
+ * The list pane used to filter on the other person's name only, which finds a
+ * chat you already know you had. Project messages had always searched the
+ * discussion itself, and that is the half that answers "where did somebody say
+ * that?" when you cannot remember who said it.
+ */
+export async function searchAllMessages(
+  query: string,
+  session: Session,
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const me = session.user.id
+    const q = query.trim()
+    if (q.length < 2) return ok(serialize({ data: [] }))
+
+    const parts = await db.conversationParticipant.findMany({
+      where: { employeeId: me },
+      select: { conversationId: true },
+    })
+    if (parts.length === 0) return ok(serialize({ data: [] }))
+    const conversationIds = parts.map((p) => p.conversationId)
+
+    // Who each conversation is WITH, so a hit can be labelled without a second
+    // round trip per result.
+    const others = await db.conversationParticipant.findMany({
+      where: { conversationId: { in: conversationIds }, employeeId: { not: me } },
+      select: { conversationId: true, employee: PERSON },
+    })
+    const otherBy = new Map(others.map((o) => [o.conversationId, o.employee]))
+
+    const rows = await db.chatMessage.findMany({
+      where: {
+        conversationId: { in: conversationIds },
+        deletedAt: null,
+        NOT: { hiddenFor: { has: me } },
+        body: { contains: q, mode: "insensitive" },
+      },
+      select: { id: true, body: true, senderId: true, createdAt: true, conversationId: true },
+      orderBy: { createdAt: "desc" },
+      // Across every conversation at once, so the cap is global: the newest 200
+      // hits, then at most a handful shown per chat below.
+      take: 200,
+    })
+
+    const byConversation = new Map<string, typeof rows>()
+    for (const r of rows) {
+      const list = byConversation.get(r.conversationId)
+      if (list) list.push(r)
+      else byConversation.set(r.conversationId, [r])
+    }
+
+    const needle = q.toLowerCase()
+    const results = conversationIds
+      .map((conversationId) => {
+        const other = otherBy.get(conversationId) ?? null
+        const name = other ? `${other.firstName} ${other.lastName}`.toLowerCase() : ""
+        const nameMatch = name.includes(needle)
+        const matches = (byConversation.get(conversationId) ?? []).slice(0, 5)
+        return {
+          conversationId,
+          other,
+          nameMatch,
+          matchCount: byConversation.get(conversationId)?.length ?? 0,
+          matches: matches.map((m) => ({
+            id: m.id,
+            body: m.body,
+            createdAt: m.createdAt,
+            fromMe: m.senderId === me,
+          })),
+        }
+      })
+      // A conversation earns a place by its name or by something said in it.
+      .filter((r) => r.nameMatch || r.matches.length > 0)
+      .sort((a, b) => {
+        // Whoever you were talking to most recently about this comes first.
+        const at = a.matches[0]?.createdAt?.getTime() ?? 0
+        const bt = b.matches[0]?.createdAt?.getTime() ?? 0
+        return bt - at
+      })
+
+    return ok(serialize({ data: results }))
   })
 }

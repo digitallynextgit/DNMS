@@ -8,6 +8,10 @@ import "server-only"
 // keystroke-worth of conversation, and mixing that volume into the notification
 // channel would make one feature's traffic the other's problem.
 //
+// It carries project-message events too: this is one realtime channel PER
+// EMPLOYEE, not per feature, and a second LISTEN connection to say "a project
+// reply landed" would cost a Postgres connection to duplicate what this does.
+//
 // NOTIFY is published explicitly by the service rather than by a table trigger,
 // because the payload needs the sender's name - a trigger would only see the
 // row, and every client would have to fetch the sender separately.
@@ -16,7 +20,7 @@ import "server-only"
 import { Client } from "pg"
 
 export interface ChatEvent {
-  type: "message" | "read"
+  type: "message" | "read" | "delivered" | "project-message"
   conversationId: string
   /** Who should receive this event. */
   recipientId: string
@@ -25,6 +29,8 @@ export interface ChatEvent {
   senderName?: string
   body?: string
   createdAt?: string
+  /** Set on "project-message": which project conversation moved. */
+  projectId?: string
 }
 
 type Subscriber = (event: ChatEvent) => void
