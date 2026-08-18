@@ -19,7 +19,8 @@ const CACHE_SECONDS = 12 * 60 * 60
  * to ONE project read attachments from every other by swapping the id. Access is
  * resolved from the attachment's own row instead.
  */
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ attachmentId: string }> }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ attachmentId: string }> }) {
+  const wantsDownload = req.nextUrl.searchParams.get("download") === "1"
   const session = await getSession()
   if (!session?.user?.id) return new NextResponse("Unauthorized", { status: 401 })
   if (session.user.kind === "client") return new NextResponse("Forbidden", { status: 403 })
@@ -29,6 +30,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ attachment
     where: { id: attachmentId },
     select: {
       objectKey: true,
+      fileName: true,
       reply: { select: { message: { select: { projectId: true } } } },
     },
   })
@@ -40,7 +42,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ attachment
   }
 
   try {
-    const url = await getSignedUrl(attachment.objectKey, SIGNED_TTL_SECONDS)
+    // Only a deliberate download is named and forced. Leaving it off for
+    // pictures and video is what lets them render inline instead of landing in
+    // the downloads folder the moment the thread scrolls past them.
+    const url = await getSignedUrl(
+      attachment.objectKey,
+      SIGNED_TTL_SECONDS,
+      wantsDownload ? { downloadFileName: attachment.fileName } : undefined,
+    )
     return NextResponse.redirect(url, {
       status: 302,
       headers: { "Cache-Control": `private, max-age=${CACHE_SECONDS}` },

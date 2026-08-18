@@ -767,3 +767,96 @@ export async function getOrgChart(): Promise<ActionResult<{ data: OrgNode[] }>> 
     return ok({ data: buildOrgTree(employees, null) })
   })
 }
+
+// =============================================================================
+// The colleague card
+// =============================================================================
+// getEmployee() above is the HR record: it is gated behind canAccessEmployee,
+// so a normal colleague cannot read it, and rightly - it carries addresses,
+// personal contact details, probation and exit dates.
+//
+// This is the OTHER thing people actually want when they click a name in chat:
+// how do I reach this person and where do they sit in the company. It is an
+// allow-list, never an omit-list. A field is absent unless it was deliberately
+// judged safe for every employee to see, so a column added to Employee next
+// month cannot leak by simply existing.
+//
+// Deliberately NOT here: personal email and phone, home and permanent address,
+// emergency contact, blood group, nationality, salary, documents, leave, and
+// anything about employment status - probation, resignation or last working day.
+// Whether somebody is on their way out is not directory information.
+// =============================================================================
+
+/** Everything a colleague may see, listed once so the shape is reviewable. */
+const COLLEAGUE_SELECT = {
+  id: true,
+  employeeNo: true,
+  firstName: true,
+  lastName: true,
+  profilePhoto: true,
+  // The WORK address and number. personalEmail / personalPhone are not here.
+  email: true,
+  phone: true,
+  workLocation: true,
+  dateOfJoining: true,
+  dateOfBirth: true,
+  isActive: true,
+  department: { select: { name: true } },
+  designation: { select: { title: true } },
+  jobRole: { select: { name: true } },
+  manager: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      profilePhoto: true,
+      designation: { select: { title: true } },
+    },
+  },
+} as const
+
+export async function getColleagueProfile(idOrSlug: string): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    // Any signed-in employee. This is a staff directory, not an HR file - but it
+    // is still not public, so a session is required.
+    await requireSession()
+
+    const id = await resolveEmployeeId(idOrSlug)
+    if (!id) return fail("Employee not found", undefined, 404)
+
+    const employee = await db.employee.findFirst({
+      where: {
+        id,
+        // Admin_ is a hidden watch account; it is not a colleague.
+        NOT: { employeeRoles: { some: { role: { name: { in: [...HIDDEN_ROLES] } } } } },
+      },
+      select: COLLEAGUE_SELECT,
+    })
+    if (!employee) return fail("Employee not found", undefined, 404)
+
+    const { dateOfBirth, ...rest } = employee
+
+    return ok(
+      serialize({
+        data: {
+          ...rest,
+          designation: employee.designation?.title ?? null,
+          department: employee.department?.name ?? null,
+          jobRole: employee.jobRole?.name ?? null,
+          manager: employee.manager
+            ? {
+                ...employee.manager,
+                designation: employee.manager.designation?.title ?? null,
+              }
+            : null,
+          // Day and month only - never the year. Same rule the birthday feed
+          // already follows: colleagues wish each other happy birthday, they do
+          // not need to work out how old someone is.
+          birthday: dateOfBirth
+            ? { day: dateOfBirth.getUTCDate(), month: dateOfBirth.getUTCMonth() + 1 }
+            : null,
+        },
+      }),
+    )
+  })
+}

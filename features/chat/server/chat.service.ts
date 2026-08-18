@@ -10,6 +10,7 @@
 import "server-only"
 
 import { isWithinEditWindow } from "@/lib/edit-window"
+import { CARD_SELECT, shapePoll } from "@/server/message-cards"
 
 import { db } from "@/server/db"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
@@ -267,6 +268,7 @@ export async function listMessages(
         deletedAt: true,
         deliveredAt: true,
         pinnedAt: true,
+        ...CARD_SELECT,
         replyTo: {
           select: {
             id: true,
@@ -304,6 +306,10 @@ export async function listMessages(
           // Reversed so the client renders oldest-first without re-sorting.
           messages: rows.reverse().map((m) => ({
             ...m,
+            // Deleting for everyone takes the card with it, same as the files.
+            poll: m.deletedAt ? null : shapePoll(m.poll, session.user.id),
+            event: m.deletedAt ? null : m.event,
+            contact: m.deletedAt ? null : m.contact,
             replyTo: m.replyTo
               ? {
                   id: m.replyTo.id,

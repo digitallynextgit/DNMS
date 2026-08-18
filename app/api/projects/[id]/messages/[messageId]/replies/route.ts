@@ -5,6 +5,7 @@ import { logActivity } from "@/features/projects/server/activity"
 import { createNotifications } from "@/lib/notifications"
 import type { Session } from "next-auth"
 import { publishChat } from "@/server/chat-stream"
+import { CARD_SELECT, shapePoll } from "@/server/message-cards"
 import { resolveProjectMemberIds } from "../../route"
 
 /** Everything the shared attachment renderer needs, and nothing more. */
@@ -38,9 +39,17 @@ export const GET = withProjectAccess(
       const replies = await db.projectMessageReply.findMany({
         where: { messageId },
         orderBy: { createdAt: "asc" },
-        include: { author: { select: AUTHOR_SELECT }, attachments: ATTACHMENT_SELECT },
+        include: {
+          author: { select: AUTHOR_SELECT },
+          attachments: ATTACHMENT_SELECT,
+          ...CARD_SELECT,
+        },
       })
-      return NextResponse.json({ data: replies })
+      // The poll is reshaped per viewer - "did I vote?" is not a property of the
+      // row, it is a property of who is asking.
+      return NextResponse.json({
+        data: replies.map((r) => ({ ...r, poll: shapePoll(r.poll, _session.user.id) })),
+      })
     } catch (error) {
       console.error("[PROJECT_MESSAGE_REPLIES_GET]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -75,7 +84,11 @@ export const POST = withProjectAccess(
 
       const reply = await db.projectMessageReply.create({
         data: { messageId, authorId: session.user.id, content, mentionedIds },
-        include: { author: { select: AUTHOR_SELECT }, attachments: ATTACHMENT_SELECT },
+        include: {
+          author: { select: AUTHOR_SELECT },
+          attachments: ATTACHMENT_SELECT,
+          ...CARD_SELECT,
+        },
       })
 
       await logActivity({

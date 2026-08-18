@@ -40,8 +40,6 @@ import {
   Megaphone,
   Smile,
   Pencil,
-  Paperclip,
-  Loader2,
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Textarea } from "@/components/ui/textarea"
@@ -49,6 +47,17 @@ import { MentionTextarea, renderWithMentions } from "./mention-textarea"
 import { HighlightedText, snippet, MIN_SEARCH_QUERY } from "@/components/shared/highlighted-text"
 import { MessageAttachments, type Attachment } from "@/components/shared/message-attachments"
 import { VoiceRecorder } from "@/components/shared/voice-recorder"
+import { AttachmentMenu } from "@/components/shared/attachment-menu"
+import {
+  MessageCards,
+  PollComposer,
+  EventComposer,
+  ContactComposer,
+  type PollCardData,
+  type EventCardData,
+  type ContactCardData,
+  type CardEndpoint,
+} from "@/components/shared/message-cards"
 import { editWindowRemaining, formatWindowLeft, isWithinEditWindow } from "@/lib/edit-window"
 import { dayKey, formatChatTime, formatClockTime, formatDaySeparator } from "@/lib/chat-time"
 
@@ -521,11 +530,16 @@ function ChatView({
   const [confirmDeleteReply, setConfirmDeleteReply] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [recording, setRecording] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [card, setCard] = useState<"poll" | "event" | "contact" | null>(null)
   const qc = useQueryClient()
 
   /** Files and voice notes both post here; the server turns them into a reply. */
-  async function upload(files: File[], durationSec?: number, waveform?: number[]) {
+  async function upload(
+    files: File[],
+    durationSec?: number,
+    waveform?: number[],
+    asSticker?: boolean,
+  ) {
     if (files.length === 0) return
     setUploading(true)
     try {
@@ -534,6 +548,7 @@ function ChatView({
       if (content.trim()) form.append("body", content.trim())
       if (durationSec) form.append("durationSec", String(durationSec))
       if (waveform?.length) form.append("waveform", waveform.join(","))
+      if (asSticker) form.append("sticker", "1")
 
       const res = await fetch(`/api/projects/${projectId}/messages/${thread.id}/attachments`, {
         method: "POST",
@@ -583,6 +598,14 @@ function ChatView({
   }, [])
 
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  const cardEndpoint: CardEndpoint = {
+    createUrl: `/api/projects/${projectId}/messages/${thread.id}/cards`,
+    invalidate: [
+      ["project-message-replies", projectId, thread.id],
+      ["project-messages", projectId],
+    ],
+  }
 
   // Editing and deleting are the AUTHOR'S, inside the window - not a management
   // power. The server enforces exactly this (author + window, no admin override),
@@ -752,6 +775,14 @@ function ChatView({
                 lastName={r.author.lastName}
                 content={r.content}
                 attachments={r.attachments}
+                poll={r.poll}
+                event={r.event}
+                contact={r.contact}
+                onVoted={() =>
+                  qc.invalidateQueries({
+                    queryKey: ["project-message-replies", projectId, thread.id],
+                  })
+                }
                 createdAt={r.createdAt}
                 memberNames={memberNames}
                 edited={r.updatedAt !== r.createdAt}
@@ -789,32 +820,13 @@ function ChatView({
           {!recording && (
             <>
               <EmojiPicker onPick={(e) => setContent((c) => c + e)} />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                title="Attach a file"
-                className="text-muted-foreground hover:text-foreground h-9 w-9 shrink-0"
+              <AttachmentMenu
                 disabled={uploading}
-                onClick={() => fileRef.current?.click()}
-              >
-                {uploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Paperclip className="h-4 w-4" />
-                )}
-              </Button>
-              <input
-                ref={fileRef}
-                type="file"
-                multiple
-                className="hidden"
-                aria-hidden
-                onChange={(e) => {
-                  const picked = Array.from(e.target.files ?? [])
-                  e.target.value = ""
-                  if (picked.length) void upload(picked)
-                }}
+                busy={uploading}
+                onFiles={(files, opts) => upload(files, undefined, undefined, opts?.asSticker)}
+                onPoll={() => setCard("poll")}
+                onEvent={() => setCard("event")}
+                onContact={() => setCard("contact")}
               />
             </>
           )}
@@ -864,6 +876,22 @@ function ChatView({
           )}
         </div>
       </div>
+
+      <PollComposer
+        open={card === "poll"}
+        onOpenChange={(o) => setCard(o ? "poll" : null)}
+        endpoint={cardEndpoint}
+      />
+      <EventComposer
+        open={card === "event"}
+        onOpenChange={(o) => setCard(o ? "event" : null)}
+        endpoint={cardEndpoint}
+      />
+      <ContactComposer
+        open={card === "contact"}
+        onOpenChange={(o) => setCard(o ? "contact" : null)}
+        endpoint={cardEndpoint}
+      />
 
       <EditChatDialog
         open={editChatOpen}
@@ -926,6 +954,10 @@ function Bubble({
   lastName,
   content,
   attachments,
+  poll,
+  event,
+  contact,
+  onVoted,
   createdAt,
   memberNames,
   onDelete,
@@ -943,6 +975,10 @@ function Bubble({
   lastName: string
   content: string
   attachments?: Attachment[]
+  poll?: PollCardData | null
+  event?: EventCardData | null
+  contact?: ContactCardData | null
+  onVoted?: () => void
   createdAt: string
   memberNames: Set<string>
   onDelete?: () => void
@@ -1063,14 +1099,28 @@ function Bubble({
                 />
               </div>
             )}
-            {/* A file sent with no caption gets "Photo" / "Voice message" as its
-                text so the thread list reads properly - but repeating that under
-                the player itself is noise. */}
-            {!(attachments?.length && AUTO_CAPTIONS.has(content)) && (
-              <div className="leading-relaxed whitespace-pre-wrap">
-                {renderWithMentions(content, memberNames)}
+            {(poll || event || contact) && (
+              <div className="mb-1.5">
+                <MessageCards
+                  poll={poll}
+                  event={event}
+                  contact={contact}
+                  compact
+                  onVoted={onVoted}
+                />
               </div>
             )}
+            {/* A file or card sent with no words of its own gets an auto caption
+                so the thread list reads properly - but repeating it under the
+                thing it describes is noise. */}
+            {!(attachments?.length && AUTO_CAPTIONS.has(content)) &&
+              !poll &&
+              !event &&
+              !contact && (
+                <div className="leading-relaxed whitespace-pre-wrap">
+                  {renderWithMentions(content, memberNames)}
+                </div>
+              )}
           </>
         )}
         <div

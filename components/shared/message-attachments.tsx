@@ -16,7 +16,7 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 
 export interface Attachment {
   id: string
-  kind: "IMAGE" | "AUDIO" | "FILE"
+  kind: "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "STICKER"
   fileName: string
   contentType: string
   size: number
@@ -75,6 +75,38 @@ export function MessageAttachments({
     <>
       <div className={cn("flex flex-col gap-1.5", attachments.length > 1 && "gap-1")}>
         {attachments.map((a) => {
+          // A sticker IS the message: no frame, no bubble tint behind it, and
+          // bigger than a thumbnail. Framing it like a photo would make it read
+          // as a tiny picture somebody sent by mistake.
+          if (a.kind === "STICKER") {
+            return (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={a.id}
+                src={urlFor(a.id)}
+                alt={a.fileName}
+                loading="lazy"
+                className="h-32 w-32 object-contain"
+              />
+            )
+          }
+
+          if (a.kind === "VIDEO") {
+            return (
+              <video
+                key={a.id}
+                src={urlFor(a.id)}
+                controls
+                preload="metadata"
+                // Reserve the real shape so the thread does not jump when the
+                // first frame arrives.
+                width={a.width ?? undefined}
+                height={a.height ?? undefined}
+                className="max-h-72 w-full max-w-64 rounded-sm bg-black object-contain"
+              />
+            )
+          }
+
           if (a.kind === "IMAGE") {
             return (
               <button
@@ -114,7 +146,11 @@ export function MessageAttachments({
           return (
             <a
               key={a.id}
-              href={urlFor(a.id)}
+              // ?download=1 makes the signed URL carry the original name. The
+              // `download` attribute alone cannot: the route redirects to
+              // storage, and a cross-origin redirect drops it - which is why
+              // these were saving as the raw object key.
+              href={`${urlFor(a.id)}?download=1`}
               download={a.fileName}
               className={cn(
                 "flex items-center gap-2 rounded-sm border px-2.5 py-2 transition-colors",

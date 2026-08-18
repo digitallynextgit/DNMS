@@ -60,6 +60,28 @@ const TEMPLATE_SELECT = {
   updatedAt: true,
 } as const
 
+/**
+ * Which author column this actor belongs in.
+ *
+ * Staff and client-portal accounts live in different tables, and the mailer is
+ * the one surface both drive. Writing a client id into the employee column was a
+ * foreign key violation on every single client send.
+ */
+export function authorColumns(session: Session): {
+  createdById: string | null
+  createdByClientId: string | null
+} {
+  return session.user.kind === "client"
+    ? { createdById: null, createdByClientId: session.user.id }
+    : { createdById: session.user.id, createdByClientId: null }
+}
+
+/** Whoever made it, from whichever table they are in. */
+const AUTHOR_SELECT = {
+  createdBy: { select: { firstName: true, lastName: true } },
+  createdByClient: { select: { name: true, company: true } },
+} as const
+
 const CAMPAIGN_SELECT = {
   id: true,
   name: true,
@@ -71,7 +93,7 @@ const CAMPAIGN_SELECT = {
   startedAt: true,
   completedAt: true,
   createdAt: true,
-  createdBy: { select: { firstName: true, lastName: true } },
+  ...AUTHOR_SELECT,
   mailer: { select: { id: true, name: true, fromEmail: true } },
 } as const
 
@@ -353,7 +375,7 @@ export async function createTemplate(
     if (clash) return fail("A template with that name already exists", undefined, 409)
 
     const template = await db.projectEmailTemplate.create({
-      data: { projectId, ...input, createdById: session.user.id },
+      data: { projectId, ...input, ...authorColumns(session) },
       select: TEMPLATE_SELECT,
     })
     await recordActivity(session, {
@@ -693,7 +715,7 @@ export async function queueCampaign(
         // can't be left mid-send by the request that created it.
         status: "QUEUED",
         totalCount: audience.length,
-        createdById: session.user.id,
+        ...authorColumns(session),
         sends: {
           createMany: {
             data: audience.map((r) => ({ recipientId: r.id, email: r.email, name: r.name })),

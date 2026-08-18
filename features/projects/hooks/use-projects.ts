@@ -2,6 +2,11 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type { Attachment } from "@/components/shared/message-attachments"
+import type {
+  PollCardData,
+  EventCardData,
+  ContactCardData,
+} from "@/components/shared/message-cards"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
@@ -165,6 +170,10 @@ export interface ProjectMessageReply {
   author: EmployeeSnippet
   /** Pictures, voice notes and files. Same shape personal chat uses. */
   attachments?: MessageAttachment[]
+  /** Poll / event / contact, if this reply carries one. */
+  poll?: PollCardData | null
+  event?: EventCardData | null
+  contact?: ContactCardData | null
 }
 
 export interface ProjectMember {

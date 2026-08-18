@@ -25,8 +25,6 @@ import {
   Check,
   CheckCheck,
   Clock,
-  Paperclip,
-  Loader2,
   Reply,
   Pin,
   PinOff,
@@ -53,6 +51,18 @@ import { HighlightedText, snippet, MIN_SEARCH_QUERY } from "@/components/shared/
 import { EmojiPicker } from "./emoji-picker"
 import { VoiceRecorder } from "@/components/shared/voice-recorder"
 import { MessageAttachments, type Attachment } from "@/components/shared/message-attachments"
+import { AttachmentMenu } from "@/components/shared/attachment-menu"
+import { EmployeeProfileDialog } from "@/components/shared/employee-profile-dialog"
+import {
+  MessageCards,
+  PollComposer,
+  EventComposer,
+  ContactComposer,
+  type PollCardData,
+  type EventCardData,
+  type ContactCardData,
+  type CardEndpoint,
+} from "@/components/shared/message-cards"
 
 interface Person {
   id: string
@@ -89,6 +99,9 @@ interface Message {
   deletedAt: string | null
   deliveredAt: string | null
   pinnedAt: string | null
+  poll: PollCardData | null
+  event: EventCardData | null
+  contact: ContactCardData | null
   /** The line this one answers, flattened server-side so a bubble can render it. */
   replyTo: { id: string; body: string | null; fromMe: boolean } | null
   fromMe: boolean
@@ -447,6 +460,7 @@ function Thread({
   // Briefly ringed after jumping to it from search or the pinned shelf, so the
   // eye lands on the right line instead of hunting the whole screen.
   const [flashId, setFlashId] = React.useState<string | null>(null)
+  const [profileOpen, setProfileOpen] = React.useState(false)
   // The edit window closes on a clock, not on a click, so the control has to
   // disappear on its own rather than waiting for the next refetch.
   const [, forceTick] = React.useState(0)
@@ -459,8 +473,10 @@ function Thread({
   // While a voice note is being recorded the bar needs the whole composer row,
   // so the text field and its neighbours stand down rather than being squeezed.
   const [recording, setRecording] = React.useState(false)
+  // Which card composer is open. One value rather than three booleans: they are
+  // mutually exclusive dialogs, and three flags can disagree.
+  const [card, setCard] = React.useState<"poll" | "event" | "contact" | null>(null)
   const endRef = React.useRef<HTMLDivElement>(null)
-  const fileRef = React.useRef<HTMLInputElement>(null)
 
   const { data, isPending } = useQuery({
     queryKey: ["chat", "messages", conversationId],
@@ -601,7 +617,12 @@ function Thread({
   })
 
   /** Files and voice notes take the same road: multipart, one message per send. */
-  async function upload(files: File[], durationSec?: number, waveform?: number[]) {
+  async function upload(
+    files: File[],
+    durationSec?: number,
+    waveform?: number[],
+    asSticker?: boolean,
+  ) {
     if (files.length === 0) return
     setUploading(true)
     try {
@@ -610,6 +631,7 @@ function Thread({
       if (draft.trim()) form.append("body", draft.trim())
       if (durationSec) form.append("durationSec", String(durationSec))
       if (waveform?.length) form.append("waveform", waveform.join(","))
+      if (asSticker) form.append("sticker", "1")
 
       const res = await fetch(`/api/chat/conversations/${conversationId}/attachments`, {
         method: "POST",
@@ -639,6 +661,14 @@ function Thread({
     setReplyTo(null)
   }
 
+  const cardEndpoint: CardEndpoint = {
+    createUrl: `/api/chat/conversations/${conversationId}/cards`,
+    invalidate: [
+      ["chat", "messages", conversationId],
+      ["chat", "conversations"],
+    ],
+  }
+
   let lastDay = ""
   // Whose run of messages we are in, so only its first bubble gets a tail.
   let lastMine: boolean | null = null
@@ -650,20 +680,28 @@ function Thread({
         <Button variant="ghost" size="icon-sm" className="lg:hidden" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <AvatarDisplay
-          src={person?.profilePhoto ?? null}
-          firstName={person?.firstName ?? "?"}
-          lastName={person?.lastName ?? ""}
-          size="sm"
-        />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">
-            {person ? `${person.firstName} ${person.lastName}` : "Conversation"}
-          </p>
-          {person?.designation && (
-            <p className="text-muted-foreground truncate text-[11px]">{person.designation}</p>
-          )}
-        </div>
+        <button
+          type="button"
+          disabled={!person}
+          onClick={() => setProfileOpen(true)}
+          title={person ? `View ${person.firstName}'s profile` : undefined}
+          className="hover:bg-muted -mx-1 flex min-w-0 items-center gap-2.5 rounded-sm px-1 py-0.5 text-left transition-colors disabled:pointer-events-none"
+        >
+          <AvatarDisplay
+            src={person?.profilePhoto ?? null}
+            firstName={person?.firstName ?? "?"}
+            lastName={person?.lastName ?? ""}
+            size="sm"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
+              {person ? `${person.firstName} ${person.lastName}` : "Conversation"}
+            </p>
+            {person?.designation && (
+              <p className="text-muted-foreground truncate text-[11px]">{person.designation}</p>
+            )}
+          </div>
+        </button>
 
         <Button
           variant="ghost"
@@ -935,7 +973,24 @@ function Thread({
                           />
                         </div>
                       )}
-                      {(m.body || m.deletedAt) && (
+                      {/* Cards carry their own words, so the auto preview the
+                          server writes for the chat list is not repeated here. */}
+                      {(m.poll || m.event || m.contact) && (
+                        <div className="mb-1">
+                          <MessageCards
+                            poll={m.poll}
+                            event={m.event}
+                            contact={m.contact}
+                            compact
+                            onVoted={() => {
+                              qc.invalidateQueries({
+                                queryKey: ["chat", "messages", conversationId],
+                              })
+                            }}
+                          />
+                        </div>
+                      )}
+                      {(m.body || m.deletedAt) && !m.poll && !m.event && !m.contact && (
                         <p
                           className={cn(
                             "text-sm break-words whitespace-pre-wrap",
@@ -1021,32 +1076,13 @@ function Thread({
           <>
             <EmojiPicker onPick={(emoji) => setDraft((d) => d + emoji)} />
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Attach a file"
-              className="text-muted-foreground hover:text-foreground shrink-0"
+            <AttachmentMenu
               disabled={uploading}
-              onClick={() => fileRef.current?.click()}
-            >
-              {uploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Paperclip className="h-4 w-4" />
-              )}
-            </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              className="hidden"
-              aria-hidden
-              onChange={(e) => {
-                const files = Array.from(e.target.files ?? [])
-                e.target.value = ""
-                if (files.length) void upload(files)
-              }}
+              busy={uploading}
+              onFiles={(files, opts) => upload(files, undefined, undefined, opts?.asSticker)}
+              onPoll={() => setCard("poll")}
+              onEvent={() => setCard("event")}
+              onContact={() => setCard("contact")}
             />
 
             <Textarea
@@ -1088,6 +1124,28 @@ function Thread({
           />
         )}
       </div>
+
+      <EmployeeProfileDialog
+        employeeId={person?.id ?? null}
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+      />
+
+      <PollComposer
+        open={card === "poll"}
+        onOpenChange={(o) => setCard(o ? "poll" : null)}
+        endpoint={cardEndpoint}
+      />
+      <EventComposer
+        open={card === "event"}
+        onOpenChange={(o) => setCard(o ? "event" : null)}
+        endpoint={cardEndpoint}
+      />
+      <ContactComposer
+        open={card === "contact"}
+        onOpenChange={(o) => setCard(o ? "contact" : null)}
+        endpoint={cardEndpoint}
+      />
     </section>
   )
 }

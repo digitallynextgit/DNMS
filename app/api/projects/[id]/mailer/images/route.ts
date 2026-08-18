@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withMailerAccess } from "@/features/project-mailer/server/mailer-access"
+import { authorColumns } from "@/features/project-mailer/server/project-mailer.service"
 import { isB2Configured, uploadFile, getObjectKey } from "@/lib/storage"
 import { resizeImage } from "@/lib/image-resize"
 import { getConfig } from "@/server/app-config"
@@ -51,7 +52,7 @@ export const POST = withMailerAccess(async (req: NextRequest, { params }, sessio
       fileName: file.name.slice(0, 200),
       contentType,
       size: bytes.length,
-      createdById: session.user.id,
+      ...authorColumns(session),
     },
     select: { id: true, fileName: true, size: true },
   })

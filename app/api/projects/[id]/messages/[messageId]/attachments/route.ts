@@ -22,8 +22,16 @@ const AUTHOR_SELECT = {
   designation: { select: { title: true } },
 }
 
-function kindOf(contentType: string): "IMAGE" | "AUDIO" | "FILE" {
-  if (contentType.startsWith("image/")) return "IMAGE"
+type Kind = "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "STICKER"
+
+/**
+ * A sticker is an image by content type; only the sender's intent separates the
+ * two, so that intent travels as a form field rather than being guessed from the
+ * file. Everything else follows the MIME type.
+ */
+function kindOf(contentType: string, asSticker: boolean): Kind {
+  if (contentType.startsWith("image/")) return asSticker ? "STICKER" : "IMAGE"
+  if (contentType.startsWith("video/")) return "VIDEO"
   if (contentType.startsWith("audio/")) return "AUDIO"
   return "FILE"
 }
@@ -63,6 +71,7 @@ export const POST = withProjectAccess(
         .trim()
         .slice(0, 4000)
       const durationSec = Number(form.get("durationSec")) || null
+      const asSticker = String(form.get("sticker") ?? "") === "1"
       // Clamped and capped: it arrives from the browser, so a hostile client
       // should not get to store an unbounded array.
       const waveform = String(form.get("waveform") ?? "")
@@ -73,7 +82,7 @@ export const POST = withProjectAccess(
         .slice(0, 128)
 
       const prepared: {
-        kind: "IMAGE" | "AUDIO" | "FILE"
+        kind: Kind
         objectKey: string
         fileName: string
         contentType: string
@@ -88,7 +97,7 @@ export const POST = withProjectAccess(
         if (file.size > MAX_BYTES) {
           return NextResponse.json({ error: `${file.name} is larger than 25 MB` }, { status: 413 })
         }
-        const kind = kindOf(file.type)
+        const kind = kindOf(file.type, asSticker)
         const original = Buffer.from(await file.arrayBuffer())
 
         // Only pictures are re-encoded. Audio must stay byte-for-byte or the
@@ -125,9 +134,13 @@ export const POST = withProjectAccess(
       const label =
         prepared[0]?.kind === "AUDIO"
           ? "Voice message"
-          : prepared[0]?.kind === "IMAGE"
-            ? "Photo"
-            : "File"
+          : prepared[0]?.kind === "VIDEO"
+            ? "Video"
+            : prepared[0]?.kind === "STICKER"
+              ? "Sticker"
+              : prepared[0]?.kind === "IMAGE"
+                ? "Photo"
+                : "File"
 
       const reply = await db.projectMessageReply.create({
         data: {

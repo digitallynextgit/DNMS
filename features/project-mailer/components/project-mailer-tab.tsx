@@ -116,6 +116,8 @@ interface Campaign {
   completedAt: string | null
   createdAt: string
   createdBy: { firstName: string; lastName: string } | null
+  /** Set instead of createdBy when a client-portal account queued it. */
+  createdByClient: { name: string; company: string | null } | null
   mailer: { id: string; name: string; fromEmail: string } | null
 }
 
@@ -1584,7 +1586,13 @@ function CampaignsSection({
                     {c.sentCount} sent
                     {c.failedCount > 0 && ` · ${c.failedCount} failed`} of {c.totalCount}
                     {c.mailer && ` · via ${c.mailer.name}`}
-                    {c.createdBy && ` · ${c.createdBy.firstName} ${c.createdBy.lastName}`}
+                    {/* One of the two, never both - the send came from a
+                        colleague or from the client's own portal account. */}
+                    {c.createdBy
+                      ? ` · ${c.createdBy.firstName} ${c.createdBy.lastName}`
+                      : c.createdByClient
+                        ? ` · ${c.createdByClient.name}`
+                        : ""}
                   </p>
                   <p className="text-primary mt-1 text-[11px]">See who received it →</p>
                 </button>

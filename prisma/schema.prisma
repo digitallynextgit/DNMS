@@ -445,10 +445,10 @@ model Employee {
   chatMessages       ChatMessage[]             @relation("ChatSender")
 
   // Company noticeboard
-  announcements Announcement[] @relation("AnnouncementAuthor")
-  photoAlbums   PhotoAlbum[]   @relation("AlbumAuthor")
-  photos        Photo[]        @relation("PhotoUploader")
-  departmentsHeaded  Department[] @relation("DepartmentHead")
+  announcements     Announcement[] @relation("AnnouncementAuthor")
+  photoAlbums       PhotoAlbum[]   @relation("AlbumAuthor")
+  photos            Photo[]        @relation("PhotoUploader")
+  departmentsHeaded Department[]   @relation("DepartmentHead")
 
   // Next-Auth
   accounts Account[]
@@ -564,9 +564,11 @@ model Employee {
   campaigns        ProjectCampaign[]      @relation("CampaignAuthor")
 
   // Monitoring
-  ownedAssets           ProjectAsset[]   @relation("AssetOwner")
-  ownedMonitors         UptimeMonitor[]  @relation("MonitorOwner")
-  acknowledgedIncidents UptimeIncident[] @relation("IncidentAcknowledger")
+  ownedAssets           ProjectAsset[]    @relation("AssetOwner")
+  ownedMonitors         UptimeMonitor[]   @relation("MonitorOwner")
+  acknowledgedIncidents UptimeIncident[]  @relation("IncidentAcknowledger")
+  pollVotes             MessagePollVote[] @relation("PollVoter")
+  sharedContacts        MessageContact[]  @relation("SharedContact")
 
   // Employee had NO indexes at all. These serve the manager/team queues and the
   // status filters used by the directory, dashboard and accrual jobs.
@@ -1767,6 +1769,9 @@ model ProjectMessageReply {
   message     ProjectMessage             @relation(fields: [messageId], references: [id], onDelete: Cascade)
   author      Employee                   @relation("MessageReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   attachments ProjectMessageAttachment[]
+  poll        MessagePoll?
+  event       MessageEvent?
+  contact     MessageContact?
 
   @@index([messageId])
   @@map("project_message_replies")
@@ -2679,6 +2684,11 @@ model ClientUser {
   access    ClientProjectAccess[]
   activity  ClientActivityLog[]
 
+  /// Things a client made on the shared mailer surface.
+  campaigns    ProjectCampaign[]      @relation("CampaignClientAuthor")
+  templates    ProjectEmailTemplate[] @relation("TemplateClientAuthor")
+  mailerAssets ProjectMailerAsset[]   @relation("MailerAssetClientAuthor")
+
   @@index([isActive])
   @@map("client_users")
 }
@@ -3038,11 +3048,14 @@ model ProjectMailerAsset {
   contentType String @map("content_type")
   size        Int    @map("size")
 
-  createdById String?  @map("created_by_id")
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdById       String?  @map("created_by_id")
+  /// Set instead of createdById when a client-portal account made this.
+  createdByClientId String?  @map("created_by_client_id")
+  createdAt         DateTime @default(now()) @map("created_at")
 
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy Employee? @relation("MailerAssetAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  project         Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy       Employee?   @relation("MailerAssetAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByClient ClientUser? @relation("MailerAssetClientAuthor", fields: [createdByClientId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@map("project_mailer_assets")
@@ -3059,13 +3072,16 @@ model ProjectEmailTemplate {
   bodyMode  EmailBodyMode @default(RICH) @map("body_mode")
   isActive  Boolean       @default(true) @map("is_active")
 
-  createdById String?  @map("created_by_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById       String?  @map("created_by_id")
+  /// Set instead of createdById when a client-portal account made this.
+  createdByClientId String?  @map("created_by_client_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
-  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy Employee?         @relation("ProjectTemplateAuthor", fields: [createdById], references: [id], onDelete: SetNull)
-  campaigns ProjectCampaign[]
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy       Employee?         @relation("ProjectTemplateAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByClient ClientUser?       @relation("TemplateClientAuthor", fields: [createdByClientId], references: [id], onDelete: SetNull)
+  campaigns       ProjectCampaign[]
 
   @@unique([projectId, name])
   @@index([projectId])
@@ -3138,15 +3154,21 @@ model ProjectCampaign {
   startedAt   DateTime? @map("started_at")
   completedAt DateTime? @map("completed_at")
 
-  createdById String?  @map("created_by_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  /// Who queued it. EXACTLY ONE of these is set: the mailer is the one surface
+  /// staff and client-portal accounts share, and they live in different tables,
+  /// so a single employee-only column made every client send a foreign key
+  /// violation - a 500 with no attribution to show for it.
+  createdById       String?  @map("created_by_id")
+  createdByClientId String?  @map("created_by_client_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
-  project   Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  template  ProjectEmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  mailer    ProjectMailer?        @relation(fields: [mailerId], references: [id], onDelete: SetNull)
-  createdBy Employee?             @relation("CampaignAuthor", fields: [createdById], references: [id], onDelete: SetNull)
-  sends     ProjectCampaignSend[]
+  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  template        ProjectEmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  mailer          ProjectMailer?        @relation(fields: [mailerId], references: [id], onDelete: SetNull)
+  createdBy       Employee?             @relation("CampaignAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByClient ClientUser?           @relation("CampaignClientAuthor", fields: [createdByClientId], references: [id], onDelete: SetNull)
+  sends           ProjectCampaignSend[]
 
   @@index([projectId, createdAt])
   @@index([status])
@@ -3219,7 +3241,7 @@ model Announcement {
 
 /// One event's worth of photos ("Diwali 2026").
 model PhotoAlbum {
-  id String @id @default(uuid()) @map("id")
+  id          String    @id @default(uuid()) @map("id")
   /// URL key: "Diwali 2026" -> "diwali-2026". Generated ONCE at creation -
   /// renaming an album deliberately leaves it alone, because a URL that moves
   /// silently breaks every link already shared. Same rule as Project.slug.
@@ -3323,12 +3345,12 @@ model ChatMessage {
 
   /// Soft delete: "deleted for everyone" keeps the row so the thread does not
   /// silently reshuffle around a gap.
-  deletedAt DateTime? @map("deleted_at")
+  deletedAt   DateTime? @map("deleted_at")
   /// "Delete for me": employee ids that have hidden this message from their own
   /// view. Deliberately NOT a second table - it is read on every message fetch,
   /// and a join for a list that is almost always empty is pure cost.
-  hiddenFor String[]  @map("hidden_for")
-  editedAt  DateTime? @map("edited_at")
+  hiddenFor   String[]  @map("hidden_for")
+  editedAt    DateTime? @map("edited_at")
   /// Stamped the moment the message reached the recipient's device - their chat
   /// stream was open, or they opened the app. This is what separates the second
   /// tick from the first: without it "delivered" would just be a guess.
@@ -3336,19 +3358,22 @@ model ChatMessage {
 
   /// The message this one answers. Self-relation rather than a thread table:
   /// a personal chat quotes one line, it does not branch into sub-threads.
-  replyToId String?      @map("reply_to_id")
-  replyTo   ChatMessage? @relation("ChatReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replyToId String?       @map("reply_to_id")
+  replyTo   ChatMessage?  @relation("ChatReply", fields: [replyToId], references: [id], onDelete: SetNull)
   replies   ChatMessage[] @relation("ChatReply")
 
   /// Pinned by either participant - a shared shelf, not a private bookmark, so
   /// both sides see the same pinned lines.
-  pinnedAt DateTime? @map("pinned_at")
-  pinnedBy String?   @map("pinned_by")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  pinnedAt  DateTime? @map("pinned_at")
+  pinnedBy  String?   @map("pinned_by")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       Employee         @relation("ChatSender", fields: [senderId], references: [id], onDelete: Cascade)
   attachments  ChatAttachment[]
+  poll         MessagePoll?
+  event        MessageEvent?
+  contact      MessageContact?
 
   @@index([conversationId, createdAt])
   @@map("chat_messages")
@@ -3397,8 +3422,12 @@ model StorageAccount {
 /// Whether an attachment renders as a picture, a voice note, or a file card.
 enum ChatAttachmentKind {
   IMAGE
+  VIDEO
   AUDIO
   FILE
+  /// A picture that is the whole message: drawn borderless, with no bubble
+  /// behind it. Same bytes as an IMAGE, different frame.
+  STICKER
 }
 
 /// A file hanging off a chat message.
@@ -3417,14 +3446,14 @@ model ChatAttachment {
   size        Int    @map("size")
 
   /// Images: lets the bubble reserve space before the picture loads.
-  width  Int? @map("width")
-  height Int? @map("height")
+  width       Int?  @map("width")
+  height      Int?  @map("height")
   /// Voice notes: shown on the player before the audio is fetched.
-  durationSec Int? @map("duration_sec")
+  durationSec Int?  @map("duration_sec")
   /// Voice notes: amplitude peaks (0-100) sampled while recording, so the
   /// player can draw the real waveform without downloading and decoding the
   /// audio first. Empty for audio that arrived as a plain file upload.
-  waveform    Int[]  @map("waveform")
+  waveform    Int[] @map("waveform")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -3432,4 +3461,106 @@ model ChatAttachment {
 
   @@index([messageId])
   @@map("chat_attachments")
+}
+
+/// A poll attached to a chat message or a project reply. Exactly one parent is
+/// set - the pair of nullable links is what lets both surfaces share one table,
+/// one API and one renderer instead of growing a parallel copy each.
+model MessagePoll {
+  id String @id @default(uuid()) @map("id")
+
+  chatMessageId  String? @unique @map("chat_message_id")
+  projectReplyId String? @unique @map("project_reply_id")
+
+  question      String    @map("question")
+  /// Whether a voter may pick more than one option.
+  allowMultiple Boolean   @default(false) @map("allow_multiple")
+  closesAt      DateTime? @map("closes_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  chatMessage  ChatMessage?         @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
+  projectReply ProjectMessageReply? @relation(fields: [projectReplyId], references: [id], onDelete: Cascade)
+  options      MessagePollOption[]
+
+  @@map("message_polls")
+}
+
+model MessagePollOption {
+  id       String @id @default(uuid()) @map("id")
+  pollId   String @map("poll_id")
+  label    String @map("label")
+  /// Keeps the options in the order they were written, not insertion order.
+  position Int    @map("position")
+
+  poll  MessagePoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes MessagePollVote[]
+
+  @@index([pollId])
+  @@map("message_poll_options")
+}
+
+/// One row per person per option. A table rather than a counter, because a
+/// counter cannot answer "did I already vote?" and cannot be un-voted safely.
+model MessagePollVote {
+  id       String   @id @default(uuid()) @map("id")
+  optionId String   @map("option_id")
+  voterId  String   @map("voter_id")
+  votedAt  DateTime @default(now()) @map("voted_at")
+
+  option MessagePollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  voter  Employee          @relation("PollVoter", fields: [voterId], references: [id], onDelete: Cascade)
+
+  /// The database, not the handler, is what makes double voting impossible.
+  @@unique([optionId, voterId])
+  @@index([voterId])
+  @@map("message_poll_votes")
+}
+
+/// Something happening at a time, shared into a conversation.
+model MessageEvent {
+  id String @id @default(uuid()) @map("id")
+
+  chatMessageId  String? @unique @map("chat_message_id")
+  projectReplyId String? @unique @map("project_reply_id")
+
+  title    String    @map("title")
+  startsAt DateTime  @map("starts_at")
+  endsAt   DateTime? @map("ends_at")
+  location String?   @map("location")
+  notes    String?   @map("notes")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  chatMessage  ChatMessage?         @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
+  projectReply ProjectMessageReply? @relation(fields: [projectReplyId], references: [id], onDelete: Cascade)
+
+  @@map("message_events")
+}
+
+/// A colleague's card, shared into a conversation.
+///
+/// The details are SNAPSHOTTED rather than joined live: a shared contact is a
+/// message about who someone was at the time, and it should not silently rewrite
+/// itself - or blank out - when that person changes role or leaves.
+model MessageContact {
+  id String @id @default(uuid()) @map("id")
+
+  chatMessageId  String? @unique @map("chat_message_id")
+  projectReplyId String? @unique @map("project_reply_id")
+
+  /// Kept so the card can link through while the person is still around.
+  employeeId  String? @map("employee_id")
+  name        String  @map("name")
+  email       String? @map("email")
+  phone       String? @map("phone")
+  designation String? @map("designation")
+  photo       String? @map("photo")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  chatMessage  ChatMessage?         @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
+  projectReply ProjectMessageReply? @relation(fields: [projectReplyId], references: [id], onDelete: Cascade)
+  employee     Employee?            @relation("SharedContact", fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@map("message_contacts")
 }

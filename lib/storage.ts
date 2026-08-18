@@ -160,6 +160,23 @@ export async function downloadFile(objectKey: string, accountId?: string): Promi
   return Buffer.concat(chunks)
 }
 
+/**
+ * `attachment; filename="…"; filename*=UTF-8''…`
+ *
+ * `filename` is a latin-1 header, so anything outside it - an accent, a
+ * Devanagari character, an em dash - cannot travel in it and would arrive
+ * mangled or truncate the header. Both forms are sent: the ASCII one is the
+ * fallback, and every current browser prefers `filename*`.
+ *
+ * Quotes and CR/LF are stripped either way: a filename is user input, and a raw
+ * newline here splits the header.
+ */
+function contentDisposition(name: string): string {
+  const clean = name.replace(/["\r\n]/g, "").trim() || "download"
+  const ascii = clean.replace(/[^\x20-\x7E]/g, "_")
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(clean)}`
+}
+
 export async function getSignedUrl(
   objectKey: string,
   expirySeconds = 900,
@@ -168,12 +185,11 @@ export async function getSignedUrl(
   const { s3, bucket } = await getClient()
   // ResponseContentDisposition=attachment forces a download (and names the
   // file); omitting it lets images/PDFs open inline in the browser ("View").
-  // Strip quotes + CR/LF from the filename to keep the header well-formed.
   const command = new GetObjectCommand({
     Bucket: bucket,
     Key: objectKey,
     ResponseContentDisposition: opts?.downloadFileName
-      ? `attachment; filename="${opts.downloadFileName.replace(/["\r\n]/g, "")}"`
+      ? contentDisposition(opts.downloadFileName)
       : undefined,
   })
   // SigV4 presigned URLs cannot be valid for more than 7 days; clamp so callers

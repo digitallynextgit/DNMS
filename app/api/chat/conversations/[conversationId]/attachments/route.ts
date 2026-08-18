@@ -11,8 +11,16 @@ const MAX_BYTES = 25 * 1024 * 1024
 /** Chat pictures are viewed in a bubble, occasionally full screen. */
 const MAX_DIM = 1600
 
-function kindOf(contentType: string): "IMAGE" | "AUDIO" | "FILE" {
-  if (contentType.startsWith("image/")) return "IMAGE"
+type Kind = "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "STICKER"
+
+/**
+ * A sticker is an image by content type; only the sender's intent separates the
+ * two, so that intent travels as a form field rather than being guessed from the
+ * file. Everything else follows the MIME type.
+ */
+function kindOf(contentType: string, asSticker: boolean): Kind {
+  if (contentType.startsWith("image/")) return asSticker ? "STICKER" : "IMAGE"
+  if (contentType.startsWith("video/")) return "VIDEO"
   if (contentType.startsWith("audio/")) return "AUDIO"
   return "FILE"
 }
@@ -49,6 +57,7 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
     .trim()
     .slice(0, 4000)
   const durationSec = Number(form.get("durationSec")) || null
+  const asSticker = String(form.get("sticker") ?? "") === "1"
 
   /**
    * Amplitude peaks the recorder sampled as the clip was spoken, sent as a
@@ -63,7 +72,7 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
     .slice(0, 128)
 
   const prepared: {
-    kind: "IMAGE" | "AUDIO" | "FILE"
+    kind: Kind
     objectKey: string
     fileName: string
     contentType: string
@@ -78,7 +87,7 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
     if (file.size > MAX_BYTES) {
       return NextResponse.json({ error: `${file.name} is larger than 25 MB` }, { status: 413 })
     }
-    const kind = kindOf(file.type)
+    const kind = kindOf(file.type, asSticker)
     const original = Buffer.from(await file.arrayBuffer())
 
     // Only pictures are re-encoded. Audio must stay byte-for-byte or the voice
@@ -161,9 +170,13 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
     const label =
       prepared[0]?.kind === "AUDIO"
         ? "Voice message"
-        : prepared[0]?.kind === "IMAGE"
-          ? "Photo"
-          : "File"
+        : prepared[0]?.kind === "VIDEO"
+          ? "Video"
+          : prepared[0]?.kind === "STICKER"
+            ? "Sticker"
+            : prepared[0]?.kind === "IMAGE"
+              ? "Photo"
+              : "File"
     await publishChat({
       type: "message",
       conversationId,
