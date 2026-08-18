@@ -42,6 +42,7 @@ import { useSidebarStore } from "@/stores/sidebar-store"
 import { PERMISSIONS } from "@/lib/constants"
 import { usePendingResignationCount } from "@/features/resignations"
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
+import { useUnreadChatCount } from "@/hooks/use-unread-chat"
 
 interface NavChild {
   label: string
@@ -56,7 +57,7 @@ interface NavItem {
   permission?: string
   children?: NavChild[]
   /** Live count badge to render next to the item. */
-  badge?: "pending-resignations" | "unread-notifications"
+  badge?: "pending-resignations" | "unread-notifications" | "unread-chat"
 }
 
 // Live count badge shown on the Resignations nav item. Also watches for new
@@ -117,6 +118,12 @@ function NotificationCountBadge({ collapsed }: { collapsed: boolean }) {
   return <CountBadge collapsed={collapsed} count={count} />
 }
 
+// Unread chat messages on the Chat nav item.
+function ChatCountBadge({ collapsed }: { collapsed: boolean }) {
+  const { data: count = 0 } = useUnreadChatCount()
+  return <CountBadge collapsed={collapsed} count={count} />
+}
+
 // Shared presentational red count pill.
 function CountBadge({ collapsed, count }: { collapsed: boolean; count: number }) {
   if (count <= 0) return null
@@ -144,6 +151,7 @@ function NavBadge({
   collapsed: boolean
 }) {
   if (badge === "pending-resignations") return <ResignationCountBadge collapsed={collapsed} />
+  if (badge === "unread-chat") return <ChatCountBadge collapsed={collapsed} />
   return <NotificationCountBadge collapsed={collapsed} />
 }
 
@@ -165,7 +173,7 @@ const EMPLOYEE_ITEMS: NavItem[] = [
 
 // ── Company: shared, company-wide. Visible to everyone. ─────────────────────
 const COMPANY_ITEMS: NavItem[] = [
-  { label: "Chat", href: "/chat", icon: MessageSquare },
+  { label: "Chat", href: "/chat", icon: MessageSquare, badge: "unread-chat" },
   { label: "Announcements", href: "/announcements", icon: Megaphone },
   { label: "Photo Gallery", href: "/gallery", icon: Images },
   { label: "Documents", href: "/documents", icon: FileText },

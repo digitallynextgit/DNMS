@@ -42,6 +42,61 @@ async function requireMembership(conversationId: string, employeeId: string) {
   return { other: other?.employee ?? null }
 }
 
+/** Where a chat notification points, and the key used to collapse duplicates. */
+function chatLink(conversationId: string): string {
+  return "/chat?c=" + conversationId
+}
+
+/**
+ * Raise (or refresh) the recipient's chat notification.
+ *
+ * COLLAPSED per conversation on purpose: twenty messages in one exchange should
+ * be one line in the bell saying what was said last, not twenty. An unread
+ * notification for the same thread is updated in place; a new one is only
+ * created once the previous has been read.
+ *
+ * Never throws - a notification is a courtesy, and must not fail a message that
+ * is already committed.
+ */
+async function notifyRecipient(args: {
+  toEmployeeId: string
+  conversationId: string
+  fromName: string
+  body: string
+}): Promise<void> {
+  try {
+    const link = chatLink(args.conversationId)
+    const preview = args.body.length > 120 ? args.body.slice(0, 119) + "…" : args.body
+
+    const existing = await db.notification.findFirst({
+      where: { employeeId: args.toEmployeeId, isRead: false, link },
+      select: { id: true },
+    })
+
+    if (existing) {
+      // Refresh in place. This deliberately does NOT re-fire the notification
+      // stream: the chat stream already delivered this message live, and a
+      // second ping for the same conversation is noise.
+      await db.notification.update({
+        where: { id: existing.id },
+        data: { message: preview, createdAt: new Date() },
+      })
+      return
+    }
+
+    const { createNotification } = await import("@/lib/notifications")
+    await createNotification({
+      employeeId: args.toEmployeeId,
+      title: args.fromName,
+      message: preview,
+      type: "info",
+      link,
+    })
+  } catch (e) {
+    console.error("[chat] could not raise notification", e)
+  }
+}
+
 /** Every conversation this person is in, newest activity first. */
 export async function listConversations(session: Session): Promise<ActionResult<unknown>> {
   return runAction(async () => {
@@ -258,6 +313,14 @@ export async function sendMessage(
         body: input.body,
         createdAt: message.createdAt.toISOString(),
       })
+      // The bell, the inbox and push. The SSE event above only reaches somebody
+      // with the chat screen open; this is what reaches them anywhere else.
+      await notifyRecipient({
+        toEmployeeId: membership.other.id,
+        conversationId,
+        fromName: `${session.user.firstName} ${session.user.lastName}`,
+        body: input.body,
+      })
     }
 
     return ok(serialize({ data: { ...message, fromMe: true } }))
@@ -276,6 +339,16 @@ export async function markRead(
     await db.conversationParticipant.updateMany({
       where: { conversationId, employeeId: session.user.id },
       data: { lastReadAt: new Date() },
+    })
+
+    // Opening the thread IS reading it - the badge must not outlive the visit.
+    await db.notification.updateMany({
+      where: {
+        employeeId: session.user.id,
+        isRead: false,
+        link: chatLink(conversationId),
+      },
+      data: { isRead: true, readAt: new Date() },
     })
 
     // Let the other side move their "sent" tick to "read".

@@ -10,6 +10,7 @@
  */
 
 import * as React from "react"
+import { useSearchParams } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { MessageSquare, Send, Search, Plus, ArrowLeft, MoreVertical, X, Check } from "lucide-react"
@@ -64,7 +65,10 @@ const time = (iso: string) =>
 
 export function ChatView() {
   const qc = useQueryClient()
-  const [activeId, setActiveId] = React.useState<string | null>(null)
+  // A chat notification links to /chat?c=<id>, so arriving from the bell opens
+  // the thread it was about rather than dropping you on an empty picker.
+  const params = useSearchParams()
+  const [activeId, setActiveId] = React.useState<string | null>(params.get("c"))
   const [picking, setPicking] = React.useState(false)
 
   const { data, isPending } = useQuery({
@@ -90,6 +94,7 @@ export function ChatView() {
       }
       qc.invalidateQueries({ queryKey: ["chat", "conversations"] })
       qc.invalidateQueries({ queryKey: ["chat", "messages", event.conversationId] })
+      qc.invalidateQueries({ queryKey: ["chat", "unread-count"] })
 
       // Only toast for a thread you are NOT looking at - a toast for the message
       // already on screen is noise.
@@ -240,7 +245,12 @@ function Thread({
   // Opening a thread marks it read; the badge should not survive reading it.
   React.useEffect(() => {
     apiFetch(`/api/chat/conversations/${conversationId}/read`, { method: "POST" })
-      .then(() => qc.invalidateQueries({ queryKey: ["chat", "conversations"] }))
+      .then(() => {
+        qc.invalidateQueries({ queryKey: ["chat", "conversations"] })
+        // The sidebar badge and the bell both drop this thread's unread count.
+        qc.invalidateQueries({ queryKey: ["chat", "unread-count"] })
+        qc.invalidateQueries({ queryKey: ["notifications"] })
+      })
       .catch(() => {
         /* a failed read-mark is not worth interrupting the user for */
       })
