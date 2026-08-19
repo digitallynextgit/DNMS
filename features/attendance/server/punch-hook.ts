@@ -19,9 +19,8 @@ import { recordPunch } from "@/features/attendance/server/sync"
 // the way to backfill; this is the live path.
 // =============================================================================
 
-/** Access granted. Same pair the pull sync treats as a real punch. */
+/** Access control. The pull sync asks the device for this major type only. */
 const MAJOR_ACCESS_CONTROL = 5
-const MINOR_ACCESS_GRANTED = 75
 
 /** Constant-time compare, so the secret cannot be guessed a character at a time. */
 function secretMatches(provided: string, expected: string): boolean {
@@ -127,13 +126,20 @@ export async function handlePunchPush(
   const event = payload.AccessControllerEvent
   if (!event) return NextResponse.json({ ok: true, ignored: "not an access event" })
 
-  if (
-    event.majorEventType !== MAJOR_ACCESS_CONTROL ||
-    event.subEventType !== MINOR_ACCESS_GRANTED
-  ) {
-    return NextResponse.json({ ok: true, ignored: "not a granted punch" })
+  if (event.majorEventType !== MAJOR_ACCESS_CONTROL) {
+    return NextResponse.json({ ok: true, ignored: "not an access control event" })
   }
 
+  // Identity, NOT the sub-type, is what marks a real punch.
+  //
+  // This device emits a successful authentication under several minor codes -
+  // 75, 104 and 38 all appear, carrying real names and a valid verify mode -
+  // and which one you get depends on the reader path. Filtering on 75 alone
+  // dropped 231 of 500 punches over a week here.
+  //
+  // Every event that names a person is an authentication that succeeded; door
+  // sensors and unrecognised faces carry no employeeNoString at all. That is the
+  // rule fetchAttendanceEvents() already uses, so pull and push now agree.
   const deviceNo = event.employeeNoString?.trim()
   if (!deviceNo) return NextResponse.json({ ok: true, ignored: "no employee id" })
 
