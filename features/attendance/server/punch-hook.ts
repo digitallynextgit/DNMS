@@ -75,12 +75,42 @@ interface Notification {
 }
 
 /**
- * Pull the JSON payload out of whatever the firmware decided to send.
+ * Read one field out of a Hikvision XML notification.
  *
- * Depending on model and settings this arrives as bare JSON, as multipart with
- * the JSON in a part named `event_log`, or as XML. The first two are handled;
- * XML is reported rather than silently dropped, so a misconfigured device is
- * visible instead of looking like an empty attendance day.
+ * A regex rather than an XML parser, matching how the ISAPI responses are read
+ * elsewhere in this feature: the payload is a flat, known shape and pulling four
+ * fields out of it does not justify a dependency.
+ */
+function xmlField(body: string, tag: string): string | undefined {
+  return new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(body)?.[1]?.trim() || undefined
+}
+
+/** Turn a Hikvision XML notification into the same shape the JSON one has. */
+function fromXml(body: string): Notification | null {
+  if (!/<EventNotificationAlert|<AccessControllerEvent/.test(body)) return null
+  const major = Number(xmlField(body, "majorEventType"))
+  const minor = Number(xmlField(body, "subEventType"))
+  return {
+    dateTime: xmlField(body, "dateTime"),
+    eventType: xmlField(body, "eventType"),
+    macAddress: xmlField(body, "macAddress"),
+    AccessControllerEvent: {
+      employeeNoString: xmlField(body, "employeeNoString"),
+      majorEventType: Number.isFinite(major) ? major : undefined,
+      subEventType: Number.isFinite(minor) ? minor : undefined,
+      name: xmlField(body, "name"),
+    },
+  }
+}
+
+/**
+ * Pull the payload out of whatever the firmware decided to send.
+ *
+ * There is no single answer here: depending on model and settings it arrives as
+ * bare JSON, as XML, or as multipart carrying either one alongside a JPEG of the
+ * face. This device has `parameterFormatType` empty and `pictureURLType`
+ * binary, so multipart-with-XML is the likely shape - but all of them are read,
+ * because guessing wrong looks identical to the device being offline.
  */
 async function readNotification(req: NextRequest): Promise<Notification | null> {
   const type = req.headers.get("content-type") ?? ""
@@ -89,24 +119,32 @@ async function readNotification(req: NextRequest): Promise<Notification | null> 
     const form = await req.formData().catch(() => null)
     if (!form) return null
     for (const value of form.values()) {
-      const text = typeof value === "string" ? value : await value.text().catch(() => "")
-      if (!text.trim().startsWith("{")) continue
-      try {
-        return JSON.parse(text) as Notification
-      } catch {
-        /* try the next part */
-      }
+      // A File part here is the face JPEG, not the event; only text parts can
+      // carry the payload, and reading the image would just waste memory.
+      if (typeof value !== "string") continue
+      const parsed = readPayload(value)
+      if (parsed) return parsed
     }
     return null
   }
 
   const body = await req.text().catch(() => "")
-  if (!body.trim().startsWith("{")) return null
-  try {
-    return JSON.parse(body) as Notification
-  } catch {
-    return null
+  return readPayload(body)
+}
+
+/** JSON or XML, whichever this turns out to be. */
+function readPayload(text: string): Notification | null {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith("{")) {
+    try {
+      return JSON.parse(trimmed) as Notification
+    } catch {
+      return null
+    }
   }
+  if (trimmed.startsWith("<")) return fromXml(trimmed)
+  return null
 }
 
 export async function handlePunchPush(
@@ -116,6 +154,12 @@ export async function handlePunchPush(
   if (!authorised(req, pathSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
+
+  console.info(
+    "[ATTENDANCE_HOOK] inbound",
+    req.headers.get("content-type") ?? "(no content-type)",
+    req.headers.get("user-agent") ?? "",
+  )
 
   const payload = await readNotification(req)
   // The device also sends heartbeats and door/tamper events. They are not
