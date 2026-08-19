@@ -552,3 +552,54 @@ export async function syncDeviceSmart(
   // would mark employees as "covered" when their older windows never got fetched.
   return { totalSynced, results, completed: !bailed }
 }
+
+// ─── One punch, arriving on its own ───────────────────────────────────────────
+
+/**
+ * Record a single punch pushed by the device, rather than pulled by a sync.
+ *
+ * Deliberately routed through the SAME upsertDay() the sync uses. A push
+ * receiver that wrote its own rows would drift from the pull path the first time
+ * either changed - and the two have to agree, because both write the same day.
+ *
+ * upsertDay derives check-in from the earliest punch and check-out from the
+ * latest, so the day's existing pair is fed back in alongside the new punch: a
+ * punch later than both extends the day, one in between changes nothing, and an
+ * earlier one corrects the check-in. Manual HR corrections stay pinned exactly
+ * as they do on a sync.
+ */
+export async function recordPunch(
+  employeeId: string,
+  deviceId: string,
+  punchAt: Date,
+): Promise<{ day: string; result: "written" | "skipped" }> {
+  const day = istDayStr(punchAt)
+  const date = new Date(`${day}T00:00:00.000Z`)
+
+  const existing = await db.attendanceLog.findUnique({
+    where: { employeeId_date: { employeeId, date } },
+    select: {
+      date: true,
+      checkIn: true,
+      checkOut: true,
+      status: true,
+      checkInManual: true,
+      checkOutManual: true,
+      statusManual: true,
+    },
+  })
+
+  // Only the DEVICE-derived edges are replayed. A pinned field is passed as a
+  // lock instead, so feeding it back as a punch would double-count it.
+  const punches: Date[] = [punchAt]
+  if (existing?.checkIn && !existing.checkInManual) punches.push(existing.checkIn)
+  if (existing?.checkOut && !existing.checkOutManual) punches.push(existing.checkOut)
+
+  const manualByDay = new Map<string, ManualDayLocks>()
+  if (existing && (existing.checkInManual || existing.checkOutManual || existing.statusManual)) {
+    manualByDay.set(day, existing)
+  }
+
+  const result = await upsertDay(employeeId, deviceId, day, punches, manualByDay)
+  return { day, result }
+}

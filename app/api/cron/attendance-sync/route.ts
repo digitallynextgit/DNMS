@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { syncDeviceSmart } from "@/features/attendance/server/sync"
+import { resolveDevice } from "@/features/attendance/server/device-resolver"
 
 // Scheduled attendance sync. The DNMS server (running on the same LAN as the
 // devices) polls every active Hikvision device and upserts attendance logs.
@@ -36,16 +37,10 @@ export async function GET(req: NextRequest) {
 
   for (const device of devices) {
     try {
-      const r = await syncDeviceSmart(
-        device.id,
-        {
-          ipAddress: device.ipAddress,
-          port: device.port,
-          username: device.username,
-          password: device.password,
-        },
-        { onlyEmployeeNo, full },
-      )
+      const r = await syncDeviceSmart(device.id, (await resolveDevice(device)).config, {
+        onlyEmployeeNo,
+        full,
+      })
       await db.hikvisionDevice.update({
         where: { id: device.id },
         data: { lastSyncAt: new Date() },

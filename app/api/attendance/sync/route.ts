@@ -3,6 +3,7 @@ import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { syncDeviceSmart } from "@/features/attendance/server/sync"
 import type { Session } from "next-auth"
+import { resolveDevice } from "@/features/attendance/server/device-resolver"
 
 // Refresh attendance for ALL employees by pulling the latest punches from every
 // active device into the DB. Triggered by the "Refresh" button; any signed-in
@@ -30,12 +31,7 @@ export const POST = withSession(
 
       for (const device of devices) {
         try {
-          const r = await syncDeviceSmart(device.id, {
-            ipAddress: device.ipAddress,
-            port: device.port,
-            username: device.username,
-            password: device.password,
-          })
+          const r = await syncDeviceSmart(device.id, (await resolveDevice(device)).config)
           await db.hikvisionDevice.update({
             where: { id: device.id },
             data: { lastSyncAt: new Date() },

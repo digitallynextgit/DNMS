@@ -45,6 +45,11 @@ const PUBLIC_PREFIXES = [
   "/api/auth",
   "/api/cron",
   "/api/public",
+  // The punch terminal has no session and never will - it is a door reader on a
+  // private LAN posting outbound. It authenticates with ATTENDANCE_HOOK_SECRET
+  // inside the handler, which refuses everything when that is unset, so this
+  // bypasses the SESSION guard only, not authentication.
+  "/api/attendance/hook",
   "/_next",
   "/favicon.ico",
   "/public",

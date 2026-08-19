@@ -4,6 +4,7 @@ import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import { syncDeviceSmart, type SyncProgress } from "@/features/attendance/server/sync"
 import type { Session } from "next-auth"
+import { resolveDevice } from "@/features/attendance/server/device-resolver"
 
 /**
  * POST /api/attendance/devices/[id]/sync/stream
@@ -34,12 +35,8 @@ export const POST = withAuth(
     if (!device) return NextResponse.json({ error: "Device not found" }, { status: 404 })
     if (!device.isActive) return NextResponse.json({ error: "Device is inactive" }, { status: 400 })
 
-    const deviceConfig = {
-      ipAddress: device.ipAddress,
-      port: device.port,
-      username: device.username,
-      password: device.password,
-    }
+    const resolved = await resolveDevice(device)
+    const deviceConfig = resolved.config
 
     const encoder = new TextEncoder()
     const stream = new ReadableStream({

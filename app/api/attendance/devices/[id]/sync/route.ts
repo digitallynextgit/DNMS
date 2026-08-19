@@ -4,6 +4,7 @@ import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import { syncDeviceSmart } from "@/features/attendance/server/sync"
 import type { Session } from "next-auth"
+import { resolveDevice } from "@/features/attendance/server/device-resolver"
 
 // Manually trigger a sync for one device. The DNMS must be able to reach the
 // device (run it on the same network). NO simulation fallback - if the device is
@@ -26,12 +27,11 @@ export const POST = withAuth(
       if (!device.isActive)
         return NextResponse.json({ error: "Device is inactive" }, { status: 400 })
 
-      const deviceConfig = {
-        ipAddress: device.ipAddress,
-        port: device.port,
-        username: device.username,
-        password: device.password,
+      const resolved = await resolveDevice(device)
+      if (resolved.error) {
+        return NextResponse.json({ error: resolved.error }, { status: 502 })
       }
+      const deviceConfig = resolved.config
 
       let result: Awaited<ReturnType<typeof syncDeviceSmart>>
       try {
@@ -55,7 +55,9 @@ export const POST = withAuth(
       }
 
       return NextResponse.json({
-        message: `Sync complete. ${result.totalSynced} records processed.`,
+        message:
+          `Sync complete. ${result.totalSynced} records processed.` +
+          (resolved.relocated ? ` Device had moved to ${deviceConfig.ipAddress}.` : ""),
         synced: result.totalSynced,
         employees: result.results,
       })

@@ -796,6 +796,15 @@ model HikvisionDevice {
   location     String?   @map("location")
   isActive     Boolean   @default(true) @map("is_active")
   lastSyncAt   DateTime? @map("last_sync_at")
+
+  /// The device's OWN identity, read from it on first successful connect.
+  ///
+  /// `ipAddress` is only where it happened to be last time: these terminals are
+  /// usually on DHCP, so the address moves whenever the lease does and the app
+  /// ends up talking to whatever else now holds it. These two are what actually
+  /// identify the box, and what lets it be found again after it moves.
+  hardwareSerial String? @map("hardware_serial")
+  macAddress     String? @map("mac_address")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 

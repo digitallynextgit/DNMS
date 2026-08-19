@@ -4,6 +4,7 @@ import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import { fetchAttendanceEvents } from "@/features/attendance/server/hikvision"
 import type { Session } from "next-auth"
+import { resolveDevice } from "@/features/attendance/server/device-resolver"
 
 export const GET = withAuth(
   PERMISSIONS.ATTENDANCE_WRITE,
@@ -24,12 +25,7 @@ export const GET = withAuth(
       startDate.setDate(startDate.getDate() - days)
 
       const { events, error } = await fetchAttendanceEvents(
-        {
-          ipAddress: device.ipAddress,
-          port: device.port,
-          username: device.username,
-          password: device.password,
-        },
+        (await resolveDevice(device)).config,
         startDate,
         endDate,
         major,

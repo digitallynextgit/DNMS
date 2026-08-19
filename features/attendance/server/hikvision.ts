@@ -323,3 +323,152 @@ export async function fetchAttendanceEvents(
 
   return { events: allEvents }
 }
+
+// ─── Finding the device after DHCP moves it ───────────────────────────────────
+
+export interface DeviceIdentity {
+  serialNumber: string
+  macAddress: string
+  model: string
+  deviceName: string
+}
+
+/** Serial + MAC, which is what identifies the box regardless of its address. */
+export async function getDeviceIdentity(
+  device: HikvisionDeviceConfig,
+): Promise<DeviceIdentity | null> {
+  const res = await hikvisionRequest(device, "GET", "/ISAPI/System/deviceInfo")
+  if (!res.ok) return null
+
+  // Firmware answers this one in XML even when asked for JSON, so read both.
+  const pick = (tag: string) =>
+    new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(res.text)?.[1]?.trim() ?? ""
+  let json: Record<string, string> = {}
+  try {
+    const parsed = JSON.parse(res.text)
+    json = parsed.DeviceInfo ?? parsed ?? {}
+  } catch {
+    /* XML, handled by pick() */
+  }
+
+  const serialNumber = json.serialNumber || pick("serialNumber")
+  const macAddress = (json.macAddress || pick("macAddress")).toLowerCase()
+  if (!serialNumber && !macAddress) return null
+
+  return {
+    serialNumber,
+    macAddress,
+    model: json.model || pick("model"),
+    deviceName: json.deviceName || pick("deviceName"),
+  }
+}
+
+/**
+ * Does this address look like a Hikvision terminal?
+ *
+ * Deliberately UNAUTHENTICATED. A scan has to touch every address on the subnet,
+ * most of which are laptops, phones and printers, and sending the admin digest
+ * response to all of them would hand a hash to anything listening. ISAPI answers
+ * 401 with its Digest challenge before any credential is offered, so the cheap
+ * unauthenticated probe is enough to narrow the field to the real candidates -
+ * and only those get authenticated.
+ */
+async function looksLikeHikvision(ip: string, port: number, timeoutMs: number): Promise<boolean> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(`http://${ip}:${port}/ISAPI/System/deviceInfo`, {
+      signal: controller.signal,
+      redirect: "manual",
+    })
+    if (res.status !== 401) return false
+    return (res.headers.get("www-authenticate") ?? "").toLowerCase().includes("digest")
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** Run `task` over `items` at most `limit` at a time. */
+async function pooled<T, R>(
+  items: T[],
+  limit: number,
+  task: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = []
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      const i = cursor++
+      if (i >= items.length) return
+      out[i] = await task(items[i]!)
+    }
+  })
+  await Promise.all(workers)
+  return out
+}
+
+export interface DiscoveryTarget {
+  /** Match on this serial, the MAC, or both. Whichever is known. */
+  serialNumber?: string | null
+  macAddress?: string | null
+  username: string
+  password: string
+  port: number
+}
+
+/**
+ * Sweep a /24 for the device, matching on identity rather than address.
+ *
+ * Two passes on purpose: an unauthenticated probe of all 254 addresses (fast,
+ * credential-free), then an authenticated identity read of only the handful that
+ * answered like a Hikvision. On a normal office LAN that is one or two hosts.
+ */
+export async function discoverOnLan(
+  subnetPrefix: string,
+  target: DiscoveryTarget,
+  opts: { skip?: string[]; probeTimeoutMs?: number } = {},
+): Promise<{ ipAddress: string; identity: DeviceIdentity } | null> {
+  const skip = new Set(opts.skip ?? [])
+  const candidates: string[] = []
+  for (let host = 1; host <= 254; host++) {
+    const ip = `${subnetPrefix}.${host}`
+    if (!skip.has(ip)) candidates.push(ip)
+  }
+
+  const timeout = opts.probeTimeoutMs ?? 700
+  const flags = await pooled(candidates, 48, (ip) => looksLikeHikvision(ip, target.port, timeout))
+  const hikvisions = candidates.filter((_, i) => flags[i])
+
+  const wantSerial = target.serialNumber?.trim().toLowerCase()
+  const wantMac = target.macAddress?.trim().toLowerCase()
+
+  for (const ip of hikvisions) {
+    const identity = await getDeviceIdentity({
+      ipAddress: ip,
+      port: target.port,
+      username: target.username,
+      password: target.password,
+    })
+    if (!identity) continue
+    const serialHit = !!wantSerial && identity.serialNumber.toLowerCase() === wantSerial
+    const macHit = !!wantMac && identity.macAddress.toLowerCase() === wantMac
+    if (serialHit || macHit) return { ipAddress: ip, identity }
+  }
+
+  // Exactly one Hikvision on the network and nothing recorded to match against:
+  // it can only be this one. With two or more we refuse to guess.
+  if (!wantSerial && !wantMac && hikvisions.length === 1) {
+    const only = hikvisions[0]!
+    const identity = await getDeviceIdentity({
+      ipAddress: only,
+      port: target.port,
+      username: target.username,
+      password: target.password,
+    })
+    if (identity) return { ipAddress: only, identity }
+  }
+
+  return null
+}

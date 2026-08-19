@@ -4,6 +4,7 @@ import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import { testDeviceConnection } from "@/features/attendance/server/hikvision"
 import type { Session } from "next-auth"
+import { resolveDevice } from "@/features/attendance/server/device-resolver"
 
 export const POST = withAuth(
   PERMISSIONS.ATTENDANCE_WRITE,
@@ -16,14 +17,22 @@ export const POST = withAuth(
         return NextResponse.json({ error: "Device not found" }, { status: 404 })
       }
 
-      const result = await testDeviceConnection({
-        ipAddress: device.ipAddress,
-        port: device.port,
-        username: device.username,
-        password: device.password,
-      })
+      const resolved = await resolveDevice(device)
+      if (resolved.error) {
+        // A plain "404" told nobody anything. Say what was actually wrong.
+        return NextResponse.json({ success: false, message: resolved.error })
+      }
 
-      return NextResponse.json(result)
+      const result = await testDeviceConnection(resolved.config)
+
+      return NextResponse.json({
+        ...result,
+        message: resolved.relocated
+          ? `${result.message}. The device had moved to ${resolved.config.ipAddress} - address updated.`
+          : result.message,
+        ipAddress: resolved.config.ipAddress,
+        relocated: resolved.relocated,
+      })
     } catch (error) {
       console.error("[DEVICE_TEST_POST]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
