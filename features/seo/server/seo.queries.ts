@@ -11,6 +11,7 @@ import type {
   SeoRowStat,
   SeoSiteTask,
 } from "../types"
+import { resolveSiteUrl } from "./seo.service"
 
 // =============================================================================
 // Reads for the SEO tab. Everything here is computed from stored snapshots -
@@ -704,4 +705,29 @@ export function buildAlerts(
   }
 
   return alerts
+}
+
+/**
+ * Is this site already tracked on the project?
+ *
+ * Compares the SEARCH CONSOLE PROPERTY, not the typed domain. "knowyourgenes.in"
+ * and "www.knowyourgenes.in" are different strings but resolve to the same
+ * `sc-domain:knowyourgenes.in`, so a domain-only check let the same site be
+ * added twice - which then double-counts in the rollup and spends the GSC quota
+ * syncing one property twice.
+ *
+ * `excludeId` lets an edit save itself without colliding with its own row.
+ */
+export async function findConflictingProperty(
+  projectId: string,
+  input: { domain: string; siteUrl: string | null },
+  excludeId?: string,
+): Promise<{ id: string; label: string; domain: string } | null> {
+  const rows = await db.seoProperty.findMany({
+    where: { projectId, ...(excludeId ? { NOT: { id: excludeId } } : {}) },
+    select: { id: true, label: true, domain: true, siteUrl: true },
+  })
+
+  const wanted = resolveSiteUrl(input)
+  return rows.find((r) => r.domain === input.domain || resolveSiteUrl(r) === wanted) ?? null
 }

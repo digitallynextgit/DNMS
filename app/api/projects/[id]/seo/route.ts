@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withAuth } from "@/server/api-handler"
-import { withProjectManager } from "@/features/projects/server/project-access"
-import { getSeoProperties, serializeConfig } from "@/features/seo/server/seo.queries"
+import { withProjectAccess, withProjectManager } from "@/features/projects/server/project-access"
+import {
+  findConflictingProperty,
+  getSeoProperties,
+  serializeConfig,
+} from "@/features/seo/server/seo.queries"
 import { seoPropertySchema } from "@/features/seo/server/seo.schemas"
 import { gscServiceAccountEmail, isGscConfigured } from "@/lib/gsc"
-import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
 const CONFIG_SELECT = {
@@ -28,9 +30,14 @@ const CONFIG_SELECT = {
 
 // GET - every site tracked under this project, plus whether Search Console
 // credentials exist at all so the tab can explain what's missing.
-export const GET = withAuth(
-  PERMISSIONS.PROJECT_READ,
-  async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
+//
+// withProjectAccess, NOT withAuth: the project arrives in the URL as a slug, and
+// only the project guards resolve that to the real id before the handler runs.
+// With withAuth this queried seo_properties for a row whose projectId was the
+// literal slug, always found nothing, and reported "No sites tracked yet" while
+// POST - which does resolve - had written the row under the real id.
+export const GET = withProjectAccess(
+  async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     const [properties, gscConfigured, serviceAccount] = await Promise.all([
       getSeoProperties(ctx.params.id),
       isGscConfigured(),
@@ -53,13 +60,14 @@ export const POST = withProjectManager(
     }
     const b = parsed.data
 
-    const clash = await db.seoProperty.findFirst({
-      where: { projectId, domain: b.domain },
-      select: { id: true },
-    })
+    const clash = await findConflictingProperty(projectId, b)
     if (clash) {
       return NextResponse.json(
-        { error: `${b.domain} is already tracked on this project` },
+        {
+          error:
+            `That site is already tracked here as "${clash.label}" (${clash.domain}). ` +
+            `Both point at the same Search Console property.`,
+        },
         { status: 409 },
       )
     }

@@ -26,6 +26,15 @@ import "server-only"
 // the cron routes. Putting this on the same crontab would have reproduced that
 // exact failure, so deploying the code installs the job.
 //
+// SEO is here for the same reason, and the note above is literally about it:
+// `seo_monitor_runs` was empty because nothing called the cron routes. On
+// 20 Aug 2026 an audit found the newest Search Console snapshot was 15 days old
+// and four of the SEO tables had never been written to at all - the module was
+// complete and simply never ran. Both jobs are safe to repeat (the weekly sync
+// upserts one row per window, the daily monitor only notifies on a state
+// CHANGE), so the cost of an extra run is nothing and the cost of a missed one
+// is a client's rankings sliding unwatched.
+//
 // KNOWN LIMIT: an in-process monitor cannot detect that DNMS ITSELF is down, and
 // cannot alert while it is. It watches client sites, not its own host. Pair it
 // with one external ping on DNMS if you want that covered too.
@@ -57,6 +66,17 @@ const RENEWAL_EARLIEST_HOUR = 9
 const CAMPAIGN_INTERVAL_MS = 30_000
 const CAMPAIGN_FIRST_RUN_DELAY_MS = 20_000
 
+/**
+ * SEO. Ticked hourly; what actually runs is decided from the DATABASE, not from
+ * a timer - same reasoning as renewals. A process that restarts at 07:05 would
+ * miss a once-a-day timer entirely, whereas "has today's monitor run yet?" is
+ * still true after a restart and still false after a double deploy.
+ */
+const SEO_INTERVAL_MS = 60 * 60_000
+const SEO_FIRST_RUN_DELAY_MS = 90_000
+/** Don't crawl client sites in the small hours; 7am IST matches the old cron. */
+const SEO_EARLIEST_HOUR = 7
+
 /** Wait before the first pass so boot is not competing with a DB round trip. */
 const FIRST_RUN_DELAY_MS = 15_000
 
@@ -71,6 +91,8 @@ const globalForScheduler = globalThis as unknown as {
   renewalRunning?: boolean
   campaignTimer?: NodeJS.Timeout
   campaignRunning?: boolean
+  seoTimer?: NodeJS.Timeout
+  seoRunning?: boolean
 }
 
 export function startTaskReminderScheduler(): void {
@@ -248,5 +270,87 @@ async function tick(): Promise<void> {
     console.error("[scheduler] task reminders failed:", err)
   } finally {
     globalForScheduler.taskReminderRunning = false
+  }
+}
+
+// ─── SEO ─────────────────────────────────────────────────────────────────────
+
+/**
+ * The daily accident check and the weekly Search Console pull.
+ *
+ * Neither is driven by the clock alone. The tick asks the database what is
+ * already done: the monitor runs once per calendar day, and the weekly sync runs
+ * only when the newest stored snapshot is older than the newest window Search
+ * Console can actually serve. That makes a restart harmless in both directions -
+ * nothing is skipped, nothing is repeated.
+ */
+export function startSeoScheduler(): void {
+  if (globalForScheduler.seoTimer) return
+  if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
+    console.log("[scheduler] seo disabled (DISABLE_INLINE_SCHEDULER=1)")
+    return
+  }
+
+  const timer = setInterval(seoTick, SEO_INTERVAL_MS)
+  timer.unref?.()
+  globalForScheduler.seoTimer = timer
+
+  const first = setTimeout(seoTick, SEO_FIRST_RUN_DELAY_MS)
+  first.unref?.()
+
+  console.log("[scheduler] seo started (hourly check, daily monitor + weekly sync)")
+}
+
+async function seoTick(): Promise<void> {
+  if (globalForScheduler.seoRunning) return
+  globalForScheduler.seoRunning = true
+  try {
+    const { db } = await import("@/server/db")
+
+    // Nothing to do at all if no site is tracked - skip before importing the
+    // job module, which pulls in the crawler and the Google clients.
+    const tracked = await db.seoProperty.count({ where: { isActive: true } })
+    if (tracked === 0) return
+
+    // Local hour, because "don't crawl before 7am" is about the client's morning.
+    if (new Date().getHours() < SEO_EARLIEST_HOUR) return
+
+    const { runSeoDailyJob, runSeoWeeklyJob } = await import("@/features/seo/server/seo.jobs")
+
+    // ── daily monitor: once per calendar day ────────────────────────────────
+    const startOfDay = new Date()
+    startOfDay.setHours(0, 0, 0, 0)
+    const ranToday = await db.seoMonitorRun.count({ where: { createdAt: { gte: startOfDay } } })
+    if (ranToday === 0) {
+      const r = await runSeoDailyJob()
+      console.log(
+        `[scheduler] seo monitor: ${r.checked} checked, ${r.withIssues} with issues, ${r.notified} notified`,
+      )
+    }
+
+    // ── weekly sync: when the stored history is behind Search Console ───────
+    const { lastCompleteWindow } = await import("@/lib/gsc")
+    const window = lastCompleteWindow()
+    const have = await db.seoSnapshot.count({
+      where: { periodEnd: new Date(`${window.end}T00:00:00.000Z`) },
+    })
+    // Compared against the number of tracked sites, not against zero: one site
+    // synced by hand would otherwise mark the whole sweep as done and leave
+    // every other property stale. The job itself re-syncs everything, and an
+    // already-current property just upserts the same row.
+    if (have < tracked) {
+      const r = await runSeoWeeklyJob()
+      if (r.skipped === "gsc") {
+        console.log("[scheduler] seo weekly skipped - Search Console not configured")
+      } else {
+        console.log(
+          `[scheduler] seo weekly: ${r.synced} synced, ${r.failed} failed, ${r.notified} notified`,
+        )
+      }
+    }
+  } catch (err) {
+    console.error("[scheduler] seo sweep failed:", err)
+  } finally {
+    globalForScheduler.seoRunning = false
   }
 }

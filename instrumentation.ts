@@ -23,6 +23,7 @@ export async function register() {
         startUptimeScheduler,
         startRenewalScheduler,
         startCampaignScheduler,
+        startSeoScheduler,
       } = await import("@/server/scheduler")
       startTaskReminderScheduler()
       startCampaignScheduler()
@@ -31,6 +32,7 @@ export async function register() {
       // empty), so anything relying on them would never have run either.
       startUptimeScheduler()
       startRenewalScheduler()
+      startSeoScheduler()
     }
   }
 }

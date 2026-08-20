@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withProjectManager } from "@/features/projects/server/project-access"
 import { serializeConfig } from "@/features/seo/server/seo.queries"
+import { findConflictingProperty } from "@/features/seo/server/seo.queries"
 import { seoPropertySchema } from "@/features/seo/server/seo.schemas"
 import type { Session } from "next-auth"
 
@@ -50,13 +51,14 @@ export const PUT = withProjectManager(
     }
     const b = parsed.data
 
-    const clash = await db.seoProperty.findFirst({
-      where: { projectId, domain: b.domain, NOT: { id: propertyId } },
-      select: { id: true },
-    })
+    const clash = await findConflictingProperty(projectId, b, propertyId)
     if (clash) {
       return NextResponse.json(
-        { error: `${b.domain} is already tracked on this project` },
+        {
+          error:
+            `That site is already tracked here as "${clash.label}" (${clash.domain}). ` +
+            `Both point at the same Search Console property.`,
+        },
         { status: 409 },
       )
     }

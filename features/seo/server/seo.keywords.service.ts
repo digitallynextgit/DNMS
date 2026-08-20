@@ -70,13 +70,22 @@ export function scoreKeyword(k: {
    * True when we have no impression data for this phrase, which is the normal
    * case for a keyword mined from a competitor's pages. Without a floor those
    * rows score log10(1) = 0 and sink out of sight, so a competitor's entire
-   * keyword map would be invisible. The floor is deliberately low (worth about
-   * 10 impressions) so anything with proven demand still outranks it.
+   * keyword map would be invisible.
    */
   demandUnknown?: boolean
 }): number {
   // Log-scale demand so a 10,000-impression query doesn't drown everything else.
-  const demand = k.demandUnknown && k.impressions === 0 ? 1 : Math.log10(k.impressions + 1) // 0 .. ~5
+  //
+  // The floor for unknown demand sits just BELOW one impression
+  // (log10(2) = 0.30). It used to be 1.0, which is worth about ten impressions -
+  // so on any site getting fewer than that per query, every zero-evidence phrase
+  // mined from a competitor outranked every query the site genuinely appears
+  // for. That is exactly backwards, and it bites hardest on the small sites this
+  // backlog is most useful for: knowyourgenes.in had 22 impressions in total and
+  // all nine of its real queries sat below 75 competitor guesses.
+  const UNKNOWN_DEMAND = 0.25
+  const demand =
+    k.demandUnknown && k.impressions === 0 ? UNKNOWN_DEMAND : Math.log10(k.impressions + 1)
   const opp = positionOpportunity(k.position)
   const win = k.winnable === null ? 0.6 : k.winnable ? 1 : 0.15
   const value = Math.max(1, Math.min(5, k.businessValue)) / 3 // 0.33 .. 1.67
@@ -202,6 +211,29 @@ export async function generateKeywordBacklog(propertyId: string): Promise<Genera
 const NOT_A_KEYWORD =
   /^(home|about( us)?|contact( us)?|blog|news|careers|privacy|terms|login|sign in|sign up|menu|search|faqs?|cookie|newsletter|subscribe|follow us|share|read more|back to top|all rights reserved)$/i
 
+/**
+ * The brand words in a set of competitor domains: "mapmygenome.in" -> "mapmygenome".
+ *
+ * Their page titles are full of them ("Why choose Mapmygenome", "Freedom Sale:
+ * 40% off Mapmygenome kits"), and those are the one class of phrase no amount of
+ * work will ever win - you cannot outrank a company for its own name. Mining
+ * them wastes a slot in the backlog and makes the whole list look untrustworthy.
+ */
+function competitorBrandTokens(domains: string[]): string[] {
+  const tokens = new Set<string>()
+  for (const d of domains) {
+    const host = d
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .replace(/\/.*$/, "")
+    // "mapmygenome.in" -> "mapmygenome"; "strandls.com" -> "strandls".
+    const name = host.split(".")[0]
+    if (name && name.length >= 4) tokens.add(name)
+  }
+  return [...tokens]
+}
+
 /** Trim a crawled title or heading down to something keyword shaped. */
 function toKeywordPhrase(raw: string): string | null {
   const cleaned = raw
@@ -271,12 +303,25 @@ export async function mineCompetitorKeywords(propertyId: string): Promise<MineRe
 
   // Best phrase per competitor, deduped across competitors (first one wins, so
   // the earliest configured competitor is credited).
+  const brands = competitorBrandTokens(reports.map((r) => r.domain))
+  const isBranded = (phrase: string) => brands.some((b) => phrase.includes(b))
+
   const candidates = new Map<string, string>() // phrase -> competitor domain
+  let brandedSkipped = 0
   for (const report of reports) {
     for (const t of report.topics ?? []) {
       const phrase = toKeywordPhrase(t.topic ?? "")
-      if (phrase && !candidates.has(phrase)) candidates.set(phrase, report.domain)
+      if (!phrase || candidates.has(phrase)) continue
+      // A rival's brand is not a keyword we can target.
+      if (isBranded(phrase)) {
+        brandedSkipped++
+        continue
+      }
+      candidates.set(phrase, report.domain)
     }
+  }
+  if (brandedSkipped > 0) {
+    console.info(`[seo] skipped ${brandedSkipped} competitor-branded phrase(s) while mining`)
   }
   if (candidates.size === 0)
     return { ...empty, competitors: reports.length, error: "No usable phrases found in the crawl." }
