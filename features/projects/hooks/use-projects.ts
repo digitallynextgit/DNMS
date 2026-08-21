@@ -91,6 +91,8 @@ export interface ProjectTask {
   /** Non-null while the task sits In Progress and its clock is running. */
   inProgressSince: string | null
   tags: string[]
+  /** The sheet's Resources column: the brief, the doc, the published page. */
+  links: string[]
   createdAt: string
   assignee: EmployeeSnippet | null
   creator?: EmployeeSnippet

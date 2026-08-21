@@ -61,40 +61,108 @@ export async function getAwayDays(
   from: string,
   to: string,
 ): Promise<AwayDay[]> {
+  const byEmployee = await getAwayDaysForMany([employeeId], from, to)
+  return byEmployee[employeeId] ?? []
+}
+
+/**
+ * The same question asked about a whole team at once.
+ *
+ * The project sheet plans a WEEK PER PERSON - a row each, five columns - so it
+ * needs this for everyone on the board before it can dim the days nobody is in.
+ * One set of queries for the group rather than one round trip per person, and
+ * the single-employee call above goes through it too, so the rules below have
+ * exactly one implementation.
+ *
+ * Every requested id comes back, mapping to an empty list when there is nothing
+ * to report - a caller can look up any row without checking for a hole.
+ */
+export async function getAwayDaysForMany(
+  employeeIds: string[],
+  from: string,
+  to: string,
+): Promise<Record<string, AwayDay[]>> {
+  const ids = [...new Set(employeeIds.filter(Boolean))]
+  const out: Record<string, AwayDay[]> = Object.fromEntries(ids.map((id) => [id, []]))
+  if (ids.length === 0) return out
+
   const start = dayUtc(from)
   const end = dayUtc(to)
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return []
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return out
 
-  const [employee, leaves, holidays, floatingTaken] = await Promise.all([
-    db.employee.findUnique({ where: { id: employeeId }, select: { dateOfBirth: true } }),
+  const [employees, leaves, holidays, floatingTaken] = await Promise.all([
+    db.employee.findMany({ where: { id: { in: ids } }, select: { id: true, dateOfBirth: true } }),
     db.leaveRequest.findMany({
       where: {
-        employeeId,
+        employeeId: { in: ids },
         status: "APPROVED",
         // Any overlap with the window, not just requests that start inside it -
         // a week-long leave straddling Monday must still mark Monday.
         startDate: { lte: end },
         endDate: { gte: start },
       },
-      select: { startDate: true, endDate: true, totalDays: true },
+      select: { employeeId: true, startDate: true, endDate: true, totalDays: true },
     }),
+    // Not per employee: a public holiday is the company's, and reading it once
+    // is what makes the batched version cheaper than a call per person.
     db.holiday.findMany({
       where: { date: { gte: start, lte: end } },
       select: { id: true, name: true, date: true, isOptional: true },
     }),
     db.floatingHolidaySelection.findMany({
-      where: { employeeId, holiday: { date: { gte: start, lte: end } } },
-      select: { holidayId: true },
+      where: { employeeId: { in: ids }, holiday: { date: { gte: start, lte: end } } },
+      select: { employeeId: true, holidayId: true },
     }),
   ])
 
-  const takenFloating = new Set(floatingTaken.map((f) => f.holidayId))
+  const dobById = new Map(employees.map((e) => [e.id, e.dateOfBirth]))
+  const leavesById = new Map<string, typeof leaves>()
+  for (const l of leaves) {
+    const list = leavesById.get(l.employeeId)
+    if (list) list.push(l)
+    else leavesById.set(l.employeeId, [l])
+  }
+  const takenById = new Map<string, Set<string>>()
+  for (const f of floatingTaken) {
+    const set = takenById.get(f.employeeId)
+    if (set) set.add(f.holidayId)
+    else takenById.set(f.employeeId, new Set([f.holidayId]))
+  }
+
+  for (const id of ids) {
+    out[id] = assembleAwayDays({
+      start,
+      end,
+      dateOfBirth: dobById.get(id) ?? null,
+      leaves: leavesById.get(id) ?? [],
+      holidays,
+      takenFloating: takenById.get(id) ?? new Set(),
+    })
+  }
+  return out
+}
+
+/**
+ * One person's away days, from data already read. Split out so the single and
+ * the batched entry points cannot drift on what counts as an absence.
+ *
+ * A holiday wins over leave on the same date: nobody is in either way, and
+ * "Independence Day" tells the reader more than "On leave" does.
+ */
+function assembleAwayDays(input: {
+  start: Date
+  end: Date
+  dateOfBirth: Date | null
+  leaves: { startDate: Date; endDate: Date; totalDays: number }[]
+  holidays: { id: string; name: string; date: Date; isOptional: boolean }[]
+  takenFloating: Set<string>
+}): AwayDay[] {
+  const { start, end, dateOfBirth: dob, leaves, holidays, takenFloating } = input
   const out = new Map<string, AwayDay>()
 
   // Birthday FIRST, so a real leave request or a public holiday overwrites it
   // below. Those are the stronger statement about why somebody is not here; the
   // birthday is the softer "they may well have taken it".
-  const dob = employee?.dateOfBirth
   if (dob) {
     // Compared as month + day, not as a date: the year is their birth year.
     // A 29 Feb birthday simply finds no match in a non-leap year, which is the

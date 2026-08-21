@@ -32,6 +32,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -59,16 +60,15 @@ import { useCommitOnOutsidePointer } from "@/hooks/use-commit-on-outside-pointer
 import { TaskResources } from "@/features/projects/components/task-resources"
 import { dedupeLinks, isSafeHttpUrl, linkLabel } from "@/features/projects/lib/task-links"
 // From the module, not the leave barrel: the barrel re-exports every leave
-// COMPONENT, and this sheet needs one hook.
-import { useAwayDays } from "@/features/leave/hooks/use-away-days"
+// COMPONENT, and this sheet needs two hooks.
+import { useAwayDays, useTeamAwayDays, type AwayDay } from "@/features/leave/hooks/use-away-days"
 import { followUpConflictFrom } from "@/features/projects/lib/follow-up-conflict"
 import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
 import type { ProjectTeam } from "@/features/projects/hooks/use-projects"
 
 // =============================================================================
 // The allocation sheet: the weekly Excel the team already plans in, as a live
-// grid. Rows are clients (projects); each day is a group of three columns, the
-// same three the spreadsheet has:
+// grid. Each day is a group of four columns, the same ones the spreadsheet has:
 //
 //   PLAN    what you intend to do   -> task titles, one per line, with the
 //                                      allocation written inline as "@2h"
@@ -81,6 +81,11 @@ import type { ProjectTeam } from "@/features/projects/hooks/use-projects"
 // columns together: "3." in Hrs is the time for "3." in Plan, whether or not
 // the lines happen to wrap to the same height. Every line is coloured by its
 // status, so the sheet reads as a progress report as well as a plan.
+//
+// ROWS are one of two things - see SheetAxis. My Tasks reads down one person's
+// CLIENTS; a project's Tasks tab reads down that account's PEOPLE. It is the
+// same week, the same cells and the same rules either way, which is why there
+// is one component and not two that would have drifted apart immediately.
 // =============================================================================
 
 export interface SheetTask {
@@ -102,8 +107,17 @@ export interface SheetTask {
   /** Null for ADHOC work: it belongs to no client and lands in the Adhoc row. */
   project: { id: string; name: string; code: string; slug: string | null } | null
   team?: { id: string; name: string; managerId: string | null } | null
-  /** managerId is the authority on adhoc work, which has no team manager. */
-  assignee?: { id: string; managerId?: string | null } | null
+  /**
+   * managerId is the authority on adhoc work, which has no team manager. The
+   * name is read only on the person axis, and only to label a row for someone
+   * who has left the team but still has work sitting on the board.
+   */
+  assignee?: {
+    id: string
+    managerId?: string | null
+    firstName?: string
+    lastName?: string
+  } | null
 }
 
 export interface SheetProject {
@@ -113,14 +127,22 @@ export interface SheetProject {
 }
 
 /**
- * The row a task belongs to. Adhoc work has no project, so it collects under a
- * sentinel row instead of the client rows - one keying rule rather than two.
+ * The row a task belongs to.
+ *
+ * On the CLIENT axis that is its project - adhoc work has none, so it collects
+ * under a sentinel row instead. On the PERSON axis it is whoever the work is
+ * assigned to, with a sentinel again for work nobody owns: an unassigned task is
+ * exactly what a manager goes looking for, so it gets a row rather than being
+ * quietly dropped off the sheet.
  */
-function rowIdOf(task: SheetTask): string {
-  return task.project?.id ?? ADHOC_ROW_ID
+function rowIdOf(task: SheetTask, by: SheetAxis["by"]): string {
+  return by === "client"
+    ? (task.project?.id ?? ADHOC_ROW_ID)
+    : (task.assignee?.id ?? UNASSIGNED_ROW_ID)
 }
 
-const ADHOC_ROW: SheetProject = { id: ADHOC_ROW_ID, name: ADHOC_LABEL, code: "no client" }
+/** The person axis's counterpart to ADHOC_ROW_ID: work with no owner. */
+const UNASSIGNED_ROW_ID = "__unassigned__"
 
 /**
  * The frozen-pane edge on the pinned Client column: a double-weight border plus
@@ -341,6 +363,12 @@ interface TaskUpdate {
 interface CellPlan {
   projectId: string
   projectName: string
+  /** Who the new tasks are raised on - the row's person. */
+  assigneeId: string
+  /** The row's heading, for the message when nothing can be filed there. */
+  rowName: string
+  /** Which cell is busy while this runs, and which to unblock when it is done. */
+  cellKey: string
   /** The day the new tasks are due, or null for the undated column. */
   dueDate: string | null
   creates: PlanLine[]
@@ -435,31 +463,100 @@ function useAutoGrow(
 
 // ── Component ────────────────────────────────────────────────────────────────
 
+/** A person the sheet can put on a row. */
+export interface SheetPerson {
+  id: string
+  name: string
+  /** The muted second line - their team on this project, or their role. */
+  caption?: string
+  /**
+   * May the viewer write NEW work into this row?
+   *
+   * Editing what is already there is decided per task, from the task's own
+   * rules. This is the one thing those rules cannot answer, because there is no
+   * task yet - so it mirrors what the create endpoint allows: your own row, a
+   * row on a team you manage, or anyone's if you administer the project.
+   */
+  canPlan?: boolean
+}
+
+/**
+ * What a ROW is, and therefore what a cell means.
+ *
+ *   client   one person's week across their accounts   - My Tasks
+ *   person   one account's week across its people      - a project's Tasks tab
+ *
+ * Everything else about the grid is identical, which is exactly why this is one
+ * component: two sheets would have drifted apart on the first change to either.
+ */
+export type SheetAxis =
+  | {
+      by: "client"
+      /** Row order: every project this person is on, even the empty ones. */
+      projects: SheetProject[]
+      /** Who new tasks are raised on - the person whose sheet this is. */
+      assigneeId: string
+      /** Show the Adhoc row - hidden when the filter has narrowed to one client. */
+      showAdhoc?: boolean
+    }
+  | {
+      by: "person"
+      /** The account every row is planned against. */
+      project: SheetProject
+      /** Row order: the people on it, including the ones with a blank week. */
+      people: SheetPerson[]
+    }
+
 interface Props {
   /** Already filtered by project/status. Not filtered by date - the grid slices. */
   tasks: SheetTask[]
-  /** Row order: every project this person is on, even the empty ones. */
-  projects: SheetProject[]
-  /** Who new tasks are raised on - the person whose sheet this is. */
-  assigneeId: string
+  /** Whether rows are clients or people - see SheetAxis. */
+  axis: SheetAxis
   /** The signed-in user, used to prefer a team they manage when filing. */
   currentUserId: string
   /** Project admin (PROJECT_WRITE): edits and deletes without restriction. */
   isAdmin?: boolean
-  /** Show the Adhoc row - hidden when the filter has narrowed to one client. */
-  showAdhoc?: boolean
   /** Read-only when the sheet shows a whole team rather than one person. */
   readOnly?: boolean
+  /**
+   * Open a task's full record - comments, checklist, files. Offered from the
+   * line's status menu when given: there is no room for a button per line, and
+   * the number is already that line's one affordance.
+   */
+  onOpenTask?: (task: SheetTask) => void
+}
+
+/** One row of the grid, whichever axis built it. */
+interface SheetRow {
+  /** Row key: a project id on the client axis, an employee id on the person one. */
+  id: string
+  name: string
+  /** The muted second line: a project code, or the person's team. */
+  caption: string
+  /** Where work typed into this row is filed, and on whom. */
+  projectId: string
+  projectName: string
+  assigneeId: string
+  /**
+   * Whose leave explains a quiet cell on this row. Empty on client rows - the
+   * whole sheet is one person there, so their week is said once in the header
+   * rather than repeated in every cell under it.
+   */
+  awayOf: string
+  /** A bucket rather than a real row: adhoc work, or work with no owner. */
+  muted: boolean
+  /** Hover text for the row heading - what that bucket collects. */
+  hint?: string
+  canPlan: boolean
 }
 
 export function TasksSheetView({
   tasks,
-  projects,
-  assigneeId,
+  axis,
   currentUserId,
   isAdmin = false,
-  showAdhoc = true,
   readOnly = false,
+  onOpenTask,
 }: Props) {
   const qc = useQueryClient()
   const askFollowUpConflict = useFollowUpConflictStore((s) => s.ask)
@@ -530,42 +627,165 @@ export function TasksSheetView({
 
   const weekKeys = useMemo(() => new Set(columns.map((c) => c.key)), [columns])
 
-  // Why a column is empty: leave, a half day, or a holiday. Fetched for the
-  // person whose sheet this is, over exactly the days on screen.
-  const { data: awayDays } = useAwayDays(assigneeId, days[0]?.key, days[days.length - 1]?.key)
-  const awayByDay = useMemo(() => new Map((awayDays ?? []).map((d) => [d.date, d])), [awayDays])
-
-  // project id + day -> the tasks written in that cell.
+  // row id + day -> the tasks written in that cell.
   const cells = useMemo(() => {
     const map = new Map<string, SheetTask[]>()
     for (const t of tasks) {
       const key = dayKey(t.dueDate)
       if (!weekKeys.has(key)) continue
-      const cellKey = `${rowIdOf(t)}|${key}`
+      const cellKey = `${rowIdOf(t, axis.by)}|${key}`
       const list = map.get(cellKey)
       if (list) list.push(t)
       else map.set(cellKey, [t])
     }
     return map
-  }, [tasks, weekKeys])
+  }, [tasks, weekKeys, axis.by])
 
-  // Every project the person is on, plus any project that has work in this week
-  // but is missing from that list (e.g. a task filed on a project they left).
-  // Adhoc is pinned LAST rather than sorted in: it is not a client, and having
-  // it land between two real accounts alphabetically is what made the old ADHOC
-  // project read as one.
-  const rows = useMemo(() => {
-    const byId = new Map<string, SheetProject>()
-    for (const p of projects) byId.set(p.id, p)
+  /**
+   * The rows, in the order they are read.
+   *
+   * CLIENT axis: every project the person is on, plus any project that has work
+   * in this week but is missing from that list (e.g. a task filed on a project
+   * they have since left). Adhoc is pinned LAST rather than sorted in: it is not
+   * a client, and having it land between two real accounts alphabetically is
+   * what made the old ADHOC project read as one.
+   *
+   * PERSON axis: everyone on the project, plus - by the same rule, so nobody's
+   * week can vanish - anyone with work this week who is no longer on a team. An
+   * Unassigned bucket is pinned last, and only when the week has work in it.
+   */
+  const rows = useMemo<SheetRow[]>(() => {
+    if (axis.by === "client") {
+      const byId = new Map<string, SheetProject>()
+      for (const p of axis.projects) byId.set(p.id, p)
+      for (const t of tasks) {
+        if (t.project && !byId.has(t.project.id) && weekKeys.has(dayKey(t.dueDate))) {
+          byId.set(t.project.id, t.project)
+        }
+      }
+      const clients: SheetRow[] = [...byId.values()]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((project) => ({
+          id: project.id,
+          name: project.name,
+          caption: project.code,
+          projectId: project.id,
+          projectName: project.name,
+          assigneeId: axis.assigneeId,
+          awayOf: "",
+          muted: false,
+          canPlan: true,
+        }))
+      if (axis.showAdhoc === false) return clients
+      return [
+        ...clients,
+        {
+          id: ADHOC_ROW_ID,
+          name: ADHOC_LABEL,
+          caption: "no client",
+          projectId: ADHOC_ROW_ID,
+          projectName: ADHOC_LABEL,
+          assigneeId: axis.assigneeId,
+          awayOf: "",
+          muted: true,
+          hint: ADHOC_DESCRIPTION,
+          canPlan: true,
+        },
+      ]
+    }
+
+    const { project, people } = axis
+    const byId = new Map<string, SheetPerson>()
+    for (const person of people) byId.set(person.id, person)
     for (const t of tasks) {
-      const id = rowIdOf(t)
-      if (t.project && !byId.has(id) && weekKeys.has(dayKey(t.dueDate))) {
-        byId.set(id, t.project)
+      const person = t.assignee
+      if (!person || byId.has(person.id) || !weekKeys.has(dayKey(t.dueDate))) continue
+      byId.set(person.id, {
+        id: person.id,
+        name: `${person.firstName ?? ""} ${person.lastName ?? ""}`.trim() || "Former member",
+        // Their work is still here, but there is no team to file anything new
+        // under - which is also why the row cannot be planned into.
+        caption: "not on a team",
+      })
+    }
+    const staff: SheetRow[] = [...byId.values()]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((person) => ({
+        id: person.id,
+        name: person.name,
+        caption: person.caption ?? "",
+        projectId: project.id,
+        projectName: project.name,
+        assigneeId: person.id,
+        awayOf: person.id,
+        muted: false,
+        canPlan: person.canPlan ?? false,
+      }))
+
+    const hasOrphans = tasks.some((t) => !t.assignee && weekKeys.has(dayKey(t.dueDate)))
+    if (!hasOrphans) return staff
+    return [
+      ...staff,
+      {
+        id: UNASSIGNED_ROW_ID,
+        name: "Unassigned",
+        caption: "no owner yet",
+        projectId: project.id,
+        projectName: project.name,
+        assigneeId: "",
+        awayOf: "",
+        muted: true,
+        hint: "Work on this project that nobody is down to do",
+        // There is nobody to raise it ON. Giving this work an owner is what the
+        // row is asking for, and that happens on the task itself.
+        canPlan: false,
+      },
+    ]
+  }, [axis, tasks, weekKeys])
+
+  // Why a cell is quiet: leave, a half day, or a holiday.
+  //
+  // One person's sheet is read once and marked across the COLUMN headers - it is
+  // their week, end to end. A whole team's is read for every row in one request
+  // and marked per CELL instead, because one person being off is not the team's
+  // empty day.
+  const from = days[0]?.key
+  const to = days[days.length - 1]?.key
+  const { data: soloAway } = useAwayDays(
+    axis.by === "client" ? axis.assigneeId : undefined,
+    from,
+    to,
+  )
+  const teamAwayIds = useMemo(() => rows.filter((r) => r.awayOf).map((r) => r.awayOf), [rows])
+  const { data: teamAway } = useTeamAwayDays(teamAwayIds, from, to)
+
+  const awayByRow = useMemo(() => {
+    const map = new Map<string, Map<string, AwayDay>>()
+    for (const [id, list] of Object.entries(teamAway ?? {})) {
+      map.set(id, new Map(list.map((d) => [d.date, d])))
+    }
+    return map
+  }, [teamAway])
+
+  /**
+   * What the column header says. One person's sheet: their own week. A team's:
+   * only what is true of everybody, which is a public holiday - one person's
+   * leave belongs on their row, not painted over the whole column.
+   */
+  const awayByDay = useMemo(() => {
+    if (axis.by === "client") return new Map((soloAway ?? []).map((d) => [d.date, d]))
+    const map = new Map<string, AwayDay>()
+    const ids = [...awayByRow.keys()]
+    if (ids.length === 0) return map
+    for (const c of columns) {
+      const first = awayByRow.get(ids[0]!)?.get(c.key)
+      if (first?.status !== "holiday") continue
+      if (ids.every((id) => awayByRow.get(id)?.get(c.key)?.label === first.label)) {
+        map.set(c.key, first)
       }
     }
-    const clients = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
-    return showAdhoc ? [...clients, ADHOC_ROW] : clients
-  }, [projects, tasks, weekKeys, showAdhoc])
+    return map
+  }, [axis.by, soloAway, awayByRow, columns])
 
   const weekLabel = useMemo(() => {
     const start = fromKey(weekStart)
@@ -585,8 +805,11 @@ export function TasksSheetView({
    * Which team to file a new task under. The API needs one, and it must be a
    * team the ASSIGNEE belongs to - preferring one the caller manages, since that
    * is the only route that does not park the task in an approval queue.
+   *
+   * The assignee is the ROW's on the person axis and the sheet's owner on the
+   * client one, so it is passed in rather than read off the component.
    */
-  async function resolveTeamId(projectId: string): Promise<string | null> {
+  async function resolveTeamId(projectId: string, assigneeId: string): Promise<string | null> {
     const res = await qc.fetchQuery({
       queryKey: ["project-teams", projectId],
       queryFn: () => apiFetch<{ data: ProjectTeam[] }>(`/api/projects/${projectId}/teams`),
@@ -644,9 +867,13 @@ export function TasksSheetView({
         // Adhoc work belongs to no project and no team, so it goes to the plain
         // task endpoint; everything else has to be filed under a team.
         const adhoc = plan.projectId === ADHOC_ROW_ID
-        const teamId = adhoc ? null : await resolveTeamId(plan.projectId)
+        const teamId = adhoc ? null : await resolveTeamId(plan.projectId, plan.assigneeId)
         if (!adhoc && !teamId) {
-          failures.push(`No team in ${plan.projectName} you can file a task in`)
+          failures.push(
+            axis.by === "person"
+              ? `No team in ${plan.projectName} with ${plan.rowName} on it`
+              : `No team in ${plan.projectName} you can file a task in`,
+          )
         } else {
           const url = adhoc ? `/api/tasks` : `/api/projects/${plan.projectId}/teams/${teamId}/tasks`
           for (const line of plan.creates) {
@@ -656,7 +883,7 @@ export function TasksSheetView({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   title: line.title,
-                  assigneeId,
+                  assigneeId: plan.assigneeId,
                   dueDate: plan.dueDate ?? undefined,
                   estimatedHours: line.hours ?? undefined,
                 }),
@@ -692,9 +919,9 @@ export function TasksSheetView({
     if (parts.length > 0) toast.success(parts.join(" · "))
   }
 
-  function commitPlan(project: SheetProject, columnKey: string, lines: PlanLine[]) {
-    const cellKey = `${project.id}|${columnKey}|plan`
-    const existing = cells.get(`${project.id}|${columnKey}`) ?? []
+  function commitPlan(row: SheetRow, columnKey: string, lines: PlanLine[]) {
+    const cellKey = `${row.id}|${columnKey}|plan`
+    const existing = cells.get(`${row.id}|${columnKey}`) ?? []
     const diff = diffCell(lines, existing)
 
     // Drop what this person may not do BEFORE sending anything, and say which
@@ -729,8 +956,11 @@ export function TasksSheetView({
     }
 
     const plan: CellPlan = {
-      projectId: project.id,
-      projectName: project.name,
+      projectId: row.projectId,
+      projectName: row.projectName,
+      assigneeId: row.assigneeId,
+      rowName: row.name,
+      cellKey,
       dueDate: columnKey === NO_DATE ? null : columnKey,
       creates,
       updates,
@@ -865,7 +1095,9 @@ export function TasksSheetView({
 
       {rows.length === 0 ? (
         <div className="text-muted-foreground rounded-[2px] border border-dashed p-8 text-center text-sm">
-          No projects to plan against.
+          {axis.by === "person"
+            ? "Nobody is on this project yet - add a team first."
+            : "No projects to plan against."}
         </div>
       ) : (
         <div className="bg-card overflow-x-auto rounded-[2px] border">
@@ -887,7 +1119,7 @@ export function TasksSheetView({
                     STICKY_EDGE,
                   )}
                 >
-                  Client
+                  {axis.by === "person" ? "Employee" : "Client"}
                 </th>
                 {columns.map((c) => {
                   const away = awayByDay.get(c.key)
@@ -985,52 +1217,71 @@ export function TasksSheetView({
             </thead>
 
             <tbody>
-              {rows.map((project) => {
-                const rowTasks = columns.flatMap((c) => cells.get(`${project.id}|${c.key}`) ?? [])
+              {rows.map((row) => {
+                const rowTasks = columns.flatMap((c) => cells.get(`${row.id}|${c.key}`) ?? [])
                 const rowAllocated = rowTasks.reduce((s, t) => s + (t.estimatedHours ?? 0), 0)
                 const rowSpent = rowTasks.reduce((s, t) => s + spentHours(t), 0)
-                const isAdhocRow = project.id === ADHOC_ROW_ID
                 return (
-                  <tr key={project.id} className={cn("align-top", isAdhocRow && "bg-muted/20")}>
+                  <tr key={row.id} className={cn("align-top", row.muted && "bg-muted/20")}>
                     <th
                       scope="row"
-                      // Tinted and captioned, so the last row reads as "work with
-                      // no client" rather than as another account on the list.
+                      // Tinted and captioned, so a bucket row - adhoc work, work
+                      // with no owner - reads as one rather than as another
+                      // account or another colleague on the list.
                       className={cn(
                         "z-10 border-b px-3 py-2 text-left align-top",
                         STICKY_EDGE,
                         // Opaque, always: cells scroll under this column, and a
                         // translucent tint would show them doing it.
-                        isAdhocRow ? "bg-muted" : "bg-card",
+                        row.muted ? "bg-muted" : "bg-card",
                       )}
-                      title={isAdhocRow ? ADHOC_DESCRIPTION : undefined}
+                      title={row.hint}
                     >
-                      <span className="block text-xs font-semibold">{project.name}</span>
-                      <span className="text-muted-foreground block text-[10px]">
-                        {project.code}
-                      </span>
+                      <span className="block text-xs font-semibold">{row.name}</span>
+                      <span className="text-muted-foreground block text-[10px]">{row.caption}</span>
                     </th>
                     {columns.map((c) => {
-                      const cellTasks = cells.get(`${project.id}|${c.key}`) ?? []
-                      const planKey = `${project.id}|${c.key}|plan`
-                      const actualKey = `${project.id}|${c.key}|actual`
-                      const hoursKey = `${project.id}|${c.key}|hours`
-                      const resourcesKey = `${project.id}|${c.key}|resources`
+                      const cellTasks = cells.get(`${row.id}|${c.key}`) ?? []
+                      const planKey = `${row.id}|${c.key}|plan`
+                      const actualKey = `${row.id}|${c.key}|actual`
+                      const hoursKey = `${row.id}|${c.key}|hours`
+                      const resourcesKey = `${row.id}|${c.key}|resources`
                       const isToday = c.key === todayKey
+                      // THIS person's absence. A day the whole sheet is out is
+                      // already said once in the header, so it is not repeated
+                      // in every cell underneath it.
+                      const away = awayByDay.has(c.key)
+                        ? undefined
+                        : awayByRow.get(row.awayOf)?.get(c.key)
+                      // One background per cell, picked here rather than stacked
+                      // as competing classes - two bg utilities in one string win
+                      // by stylesheet order, not by the order they are written.
+                      const tint = away
+                        ? away.status === "half-day"
+                          ? "bg-amber-500/5"
+                          : "bg-muted/50"
+                        : isToday
+                          ? "bg-primary/5"
+                          : undefined
                       return (
                         <Fragment key={c.key}>
-                          <td className={cn("border-r border-b p-0", isToday && "bg-primary/5")}>
+                          <td className={cn("border-r border-b p-0", tint)} title={away?.label}>
                             <PlanCell
                               tasks={cellTasks}
                               busy={!!busyCells[planKey]}
-                              readOnly={readOnly}
-                              onCommit={(lines) => commitPlan(project, c.key, lines)}
+                              // A row you may not raise work in still SHOWS its
+                              // work - and each line is still governed by its own
+                              // rules. This only shuts the "type a new plan here"
+                              // door the task rules cannot answer for.
+                              readOnly={readOnly || !row.canPlan}
+                              onCommit={(lines) => commitPlan(row, c.key, lines)}
                               onPickStatus={pickStatus}
                               canEdit={mayEdit}
                               editHint={editHint}
+                              onOpenTask={onOpenTask}
                             />
                           </td>
-                          <td className={cn("border-r border-b p-0", isToday && "bg-primary/5")}>
+                          <td className={cn("border-r border-b p-0", tint)} title={away?.label}>
                             <ActualCell
                               tasks={cellTasks}
                               busy={!!busyCells[actualKey]}
@@ -1040,7 +1291,7 @@ export function TasksSheetView({
                               }
                             />
                           </td>
-                          <td className={cn("border-r border-b p-0", isToday && "bg-primary/5")}>
+                          <td className={cn("border-r border-b p-0", tint)} title={away?.label}>
                             <HoursCell
                               tasks={cellTasks}
                               busy={!!busyCells[hoursKey]}
@@ -1055,7 +1306,7 @@ export function TasksSheetView({
                               }
                             />
                           </td>
-                          <td className={cn("border-r border-b p-0", isToday && "bg-primary/5")}>
+                          <td className={cn("border-r border-b p-0", tint)} title={away?.label}>
                             <ResourcesCell
                               tasks={cellTasks}
                               busy={!!busyCells[resourcesKey]}
@@ -1160,6 +1411,7 @@ export function TasksSheetView({
           <li>
             <Term>Status</Term> click a task&apos;s number to move it between phases. On Hold and
             Discarded ask for a reason first.
+            {onOpenTask && " The same menu opens the task itself - comments, checklist and files."}
           </li>
           <li>
             <Term>Actual</Term> click a numbered row to note what really happened.
@@ -1195,9 +1447,7 @@ export function TasksSheetView({
         onConfirm={() => {
           const plan = pendingPlan
           setPendingPlan(null)
-          if (plan) {
-            void runPlan(plan, `${plan.projectId}|${plan.dueDate ?? NO_DATE}|plan`)
-          }
+          if (plan) void runPlan(plan, plan.cellKey)
         }}
       />
 
@@ -1260,11 +1510,14 @@ function StatusNumber({
   task,
   disabled,
   onPick,
+  onOpenTask,
 }: {
   n: number
   task: SheetTask
   disabled: boolean
   onPick: (task: SheetTask, next: string) => void
+  /** Given: the menu also opens the task's full record. */
+  onOpenTask?: (task: SheetTask) => void
 }) {
   // The workflow set, plus the current value up front if it is a legacy status
   // (IN_REVIEW / CANCELLED) so it still shows as the selected one.
@@ -1275,7 +1528,31 @@ function StatusNumber({
   }, [task.status])
 
   const label = TASK_STATUS_LABELS[task.status] ?? task.status
-  if (disabled) return <TaskNumber n={n} status={task.status} />
+  // Nothing to move it TO, but the record behind the line is still worth
+  // reading - so a locked line opens it directly instead of offering a menu of
+  // one. Without this, a colleague's row would have no way into its comments.
+  if (disabled) {
+    if (!onOpenTask) return <TaskNumber n={n} status={task.status} />
+    return (
+      <button
+        type="button"
+        title={`${label} · click to open`}
+        aria-label={`Open task ${n}: ${task.title}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          onOpenTask(task)
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+        className={cn(
+          "w-4 shrink-0 cursor-pointer rounded-[2px] text-right text-[11px] font-medium tabular-nums underline-offset-2 hover:underline",
+          "focus-visible:ring-primary/60 outline-none focus-visible:ring-2",
+          STATUS_TEXT[task.status] ?? "text-foreground",
+        )}
+      >
+        {n}.
+      </button>
+    )
+  }
 
   return (
     <DropdownMenu>
@@ -1298,6 +1575,14 @@ function StatusNumber({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-40">
+        {onOpenTask && (
+          <>
+            <DropdownMenuItem className="text-xs" onSelect={() => onOpenTask(task)}>
+              Open task…
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {options.map((s) => (
           <DropdownMenuItem
             key={s}
@@ -1336,6 +1621,7 @@ function PlanCell({
   onPickStatus,
   canEdit,
   editHint,
+  onOpenTask,
 }: {
   tasks: SheetTask[]
   busy: boolean
@@ -1344,6 +1630,7 @@ function PlanCell({
   onPickStatus: (task: SheetTask, next: string) => void
   canEdit: (task: SheetTask) => boolean
   editHint: (task: SheetTask) => string | undefined
+  onOpenTask?: (task: SheetTask) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState("")
@@ -1506,9 +1793,10 @@ function PlanCell({
             n={i + 1}
             task={task}
             // A rejected task must not be moved through the workflow - the same
-            // gate the board and list enforce.
+            // gate every other view enforces.
             disabled={readOnly || busy || task.approvalStatus === "REJECTED"}
             onPick={onPickStatus}
+            onOpenTask={onOpenTask}
           />
           <span
             className={cn(

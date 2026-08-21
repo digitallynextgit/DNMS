@@ -92,6 +92,12 @@ type TaskScope = string
 interface ScopeMeta {
   /** isReport = a direct subordinate. False = on a team you manage, nothing more. */
   people: { id: string; name: string; isReport: boolean }[]
+  /**
+   * The caller is a project admin, so `people` is the whole company rather than
+   * their reporting line - every name on it is theirs to open, not just the
+   * subordinates. Decided by the server, which is also what authorises it.
+   */
+  seesEveryone?: boolean
 }
 
 /** "Me" - kept distinct from a user id so the query key stays the plain one. */
@@ -237,9 +243,10 @@ export default function MyTasksPage() {
   const myProjects = useMemo(() => projectsData?.data ?? [], [projectsData])
 
   // ── Whose tasks ────────────────────────────────────────────────────────────
-  // One dropdown, one question: whose sheet am I looking at. You or one of your
-  // subordinates - never a team, never a merged "everyone" list, because the
-  // sheet reads as ONE person's week and a mixed list is not that.
+  // One dropdown, one question: whose sheet am I looking at. You, one of your
+  // subordinates, or - for a project admin - anyone in the company. Never a team
+  // and never a merged "everyone" list, because the sheet reads as ONE person's
+  // week and a mixed list is not that.
   const [person, setPerson] = usePersistedPerson()
   const isMine = person === MYSELF
 
@@ -255,7 +262,7 @@ export default function MyTasksPage() {
   // can never offer a team or a colleague they have no business seeing. Held
   // across refetches: switching scope briefly clears `data`, and rebuilding the
   // list from an empty response would collapse the menu mid-selection.
-  const [scopeMeta, setScopeMeta] = useState<ScopeMeta>({ people: [] })
+  const [scopeMeta, setScopeMeta] = useState<ScopeMeta>({ people: [], seesEveryone: false })
   // Distinct from "the list is empty": before the first response arrives nobody
   // is selectable, and the guard below must not read that as "your selection is
   // invalid" - that is what reset a restored person straight back to you.
@@ -265,18 +272,28 @@ export default function MyTasksPage() {
     setScopeMeta(data.meta)
     setMetaLoaded(true)
   }, [data])
+
   /**
-   * Your SUBORDINATES - direct reports only.
+   * Whose sheets this person may open.
    *
-   * Managing a team does not make everyone on it your report, and the old flat
-   * list mixed the two so you could not tell which was which. Only people who
-   * actually report to you are offered here.
+   * A manager gets their SUBORDINATES - direct reports only. Managing a team
+   * does not make everyone on it your report, and the old flat list mixed the
+   * two so you could not tell which was which.
+   *
+   * A project admin gets the whole company: they already read every project and
+   * so every task in it, and `seesEveryone` says the server sent the roster
+   * rather than a reporting line. Not decided from the client's own permission -
+   * the list IS the authorisation, and asking for a name that is not on it falls
+   * back to your own tasks.
    */
   const selectablePeople = useMemo(
-    () => scopeMeta.people.filter((p) => p.isReport).sort((a, b) => a.name.localeCompare(b.name)),
-    [scopeMeta.people],
+    () =>
+      (scopeMeta.seesEveryone ? scopeMeta.people : scopeMeta.people.filter((p) => p.isReport))
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [scopeMeta],
   )
-  const managesSomething = selectablePeople.length > 0
+  const canPickPerson = selectablePeople.length > 0
 
   // A report who moves away stops being selectable; falling back to yourself
   // beats a picker displaying a value that is no longer in its own list. Only
@@ -390,12 +407,19 @@ export default function MyTasksPage() {
   // projects that happen to have work this week - a blank row is where next
   // week's plan gets typed. The project filter narrows the rows the same way it
   // narrows every other view.
+  //
+  // Looking at someone else, the rows are THEIR accounts: the ones they are on a
+  // team of, which is exactly the set a new task can be filed under. An admin's
+  // project list is every account in the company, and forty blank rows is not a
+  // sheet. Rows are still added back for any project their week already has work
+  // on, so nothing they have been given can go missing from the grid.
   const sheetProjects = useMemo(
     () =>
       myProjects
+        .filter((p) => isMine || p.members.some((m) => m.employee.id === person))
         .filter((p) => projectFilter === "all" || p.id === projectFilter)
         .map((p) => ({ id: p.id, name: p.name, code: p.code })),
-    [myProjects, projectFilter],
+    [myProjects, projectFilter, isMine, person],
   )
 
   /** Hide the Adhoc row only when the filter has narrowed to a single client. */
@@ -420,10 +444,11 @@ export default function MyTasksPage() {
         }
         actions={
           <>
-            {/* Only rendered for someone who actually has reports. The options
-                come from the server, so the list is also the authorisation -
-                you cannot pick a person who isn't yours to see. */}
-            {managesSomething && (
+            {/* Only rendered for someone with anyone to look at - reports, or
+                the whole company if they administer projects. The options come
+                from the server, so the list is also the authorisation: you
+                cannot pick a person who isn't yours to see. */}
+            {canPickPerson && (
               <Select value={person} onValueChange={setPerson}>
                 <SelectTrigger className="h-8 w-48 text-sm" aria-label="Whose tasks">
                   <SelectValue />
@@ -432,8 +457,9 @@ export default function MyTasksPage() {
                   {/* Named, not "Me" - the list reads as people, so the person
                       you are reads the same way as everyone else on it. */}
                   <SelectItem value={MYSELF}>{myName}</SelectItem>
-                  {/* No group heading: everyone below is a report, and the list
-                      is short enough that a label just adds a line to read. */}
+                  {/* No group heading: one flat list of people, sorted by name.
+                      Type to jump to a name - the reason a long company roster
+                      is still workable here without a search box. */}
                   {selectablePeople.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
@@ -566,11 +592,16 @@ export default function MyTasksPage() {
         // grid, because the blank cells are what you type the plan into.
         <TasksSheetView
           tasks={tasks}
-          projects={sheetProjects}
-          assigneeId={sheetAssigneeId}
+          // Rows are the CLIENTS of one person's week - the project tab reads
+          // the same grid down the other axis, a row per person.
+          axis={{
+            by: "client",
+            projects: sheetProjects,
+            assigneeId: sheetAssigneeId,
+            showAdhoc: showAdhocRow,
+          }}
           currentUserId={session?.user?.id ?? ""}
           isAdmin={isAdmin}
-          showAdhoc={showAdhocRow}
         />
       ) : tasks.length === 0 ? (
         <EmptyState icon={Inbox} variant="card" title="No tasks match the filter." />

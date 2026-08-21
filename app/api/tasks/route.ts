@@ -17,9 +17,13 @@ import type { Session } from "next-auth"
  * Drives both the picker the client renders AND the authorisation for it: a
  * scope the caller does not manage simply is not in these lists, so it cannot
  * be selected and is rejected if asked for directly.
+ *
+ * `seesEveryone` widens that to the whole company. It is for project admins,
+ * who already read every project and therefore every task inside it - this only
+ * lets them ask the same question by PERSON instead of by project.
  */
-async function getManagedScope(userId: string) {
-  const [reports, managedTeams] = await Promise.all([
+async function getManagedScope(userId: string, seesEveryone: boolean) {
+  const [reports, managedTeams, everyone] = await Promise.all([
     db.employee.findMany({
       where: { managerId: userId, isActive: true },
       select: { id: true, firstName: true, lastName: true },
@@ -39,6 +43,12 @@ async function getManagedScope(userId: string) {
       },
       orderBy: { name: "asc" },
     }),
+    seesEveryone
+      ? db.employee.findMany({
+          where: { isActive: true },
+          select: { id: true, firstName: true, lastName: true },
+        })
+      : [],
   ])
 
   // isReport separates the two ways someone can be "under" you. A DIRECT REPORT
@@ -47,6 +57,11 @@ async function getManagedScope(userId: string) {
   // team is selected. Both are still authorised for scope=all, which is why
   // this is one list with a flag rather than two.
   const people = new Map<string, { id: string; name: string; isReport: boolean }>()
+  // Seeded FIRST, so the two passes below still mark an admin's own team members
+  // and reports correctly rather than being skipped as already-present entries.
+  for (const e of everyone) {
+    people.set(e.id, { id: e.id, name: `${e.firstName} ${e.lastName}`.trim(), isReport: false })
+  }
   for (const t of managedTeams) {
     for (const m of t.members) {
       people.set(m.employeeId, {
@@ -72,6 +87,9 @@ async function getManagedScope(userId: string) {
       memberIds: t.members.map((m) => m.employeeId),
     })),
     people: [...people.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    // Tells the client the list is the ROSTER, not a reporting line, so it can
+    // offer all of it instead of only the direct reports on it.
+    seesEveryone,
   }
 }
 
@@ -80,7 +98,7 @@ async function getManagedScope(userId: string) {
 //   scope=me            (default) just them
 //   scope=all           them plus everyone they manage
 //   scope=team:<teamId> one project team they manage
-//   scope=user:<empId>  one person they manage
+//   scope=user:<empId>  one person they manage (a project admin: anyone)
 //
 // An unrecognised or unauthorised scope falls back to "me" rather than erroring:
 // the picker is built from the same data, so the only way to ask for something
@@ -93,13 +111,18 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
     const status = searchParams.get("status") ?? undefined
     const userId = session.user.id
 
+    // Project admins answer for every account, so every person is theirs to
+    // look at - the same reach they already have through the project pages.
+    const seesEveryone = hasPermission(session, PERMISSIONS.PROJECT_WRITE)
+
     // Resolved on every "mine" call: the client builds its picker from this, so
     // it costs one pair of reads instead of a second endpoint and a round trip.
     const managed = mine
-      ? await getManagedScope(userId)
+      ? await getManagedScope(userId, seesEveryone)
       : {
           teams: [] as { id: string; name: string; projectName: string; memberIds: string[] }[],
           people: [] as { id: string; name: string }[],
+          seesEveryone: false,
         }
 
     let assigneeIds: string[] = [userId]
@@ -148,6 +171,8 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
         // needs them and they are only used to resolve the scope server-side).
         teams: managed.teams.map(({ id, name, projectName }) => ({ id, name, projectName })),
         people: managed.people,
+        // Whether that list is everyone or only the caller's own reports.
+        seesEveryone: managed.seesEveryone,
       },
     })
   } catch (error) {

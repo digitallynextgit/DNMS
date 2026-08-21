@@ -27,3 +27,26 @@ export function useAwayDays(employeeId: string | undefined, from?: string, to?: 
     staleTime: 5 * 60_000,
   })
 }
+
+/**
+ * The same question for a whole team, in one request.
+ *
+ * The project sheet is a row per person, so asking per row would open a request
+ * for every name on the board each time the week is stepped. The ids are sorted
+ * into the query key as well as the URL, so the same team in a different order
+ * is the same cache entry rather than a second fetch of identical data.
+ */
+export function useTeamAwayDays(employeeIds: string[], from?: string, to?: string) {
+  const ids = [...new Set(employeeIds.filter(Boolean))].sort().join(",")
+  return useQuery({
+    queryKey: ["away-days", "team", ids, from, to],
+    queryFn: async () =>
+      (
+        await apiFetch<{ data: Record<string, AwayDay[]> }>(
+          `/api/leave/day-status?employeeIds=${encodeURIComponent(ids)}&from=${from}&to=${to}`,
+        )
+      ).data,
+    enabled: !!ids && !!from && !!to,
+    staleTime: 5 * 60_000,
+  })
+}
