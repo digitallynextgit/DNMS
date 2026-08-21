@@ -353,7 +353,15 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
             <SelectItem value="completed">Completed</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}>
+        <Select
+          value={sortBy}
+          onValueChange={(v) => {
+            setSortBy(v as SortKey)
+            // A new order makes the page number meaningless - page 2 of one
+            // sort is not page 2 of another. Same as every filter above.
+            setPage(1)
+          }}
+        >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
