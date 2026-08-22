@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { cn, cleanLeaveTypeForLetter } from "@/lib/utils"
 import { apiFetch } from "@/lib/api-fetch"
-import { MailSignature, type MailSignatureData } from "@/features/leave/components/mail-signature"
+import { MailSignature, type MailSignatureData } from "@/components/shared/mail-signature"
 import {
   useApproveLeave,
   useRejectLeave,

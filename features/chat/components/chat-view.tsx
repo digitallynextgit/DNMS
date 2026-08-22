@@ -16,22 +16,30 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
   MessageSquare,
-  Send,
   Search,
   Plus,
   ArrowLeft,
   MoreVertical,
   X,
   Check,
-  CheckCheck,
-  Clock,
   Reply,
+  Copy,
+  Forward,
   Pin,
   PinOff,
+  Info,
 } from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
+import { SPLIT_PANE_HEADER, SPLIT_PANE_ROW } from "@/lib/constants"
+import { dayKey, formatClockTime, formatDaySeparator } from "@/lib/chat-time"
+import { BUBBLE_OUT, BUBBLE_IN, BubbleTail, DayChip } from "@/components/shared/chat-bubble"
+import {
+  MessageTicks,
+  MessageInfoDialog,
+  type Delivery,
+} from "@/components/shared/message-receipts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -48,11 +56,17 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { isWithinEditWindow, editWindowRemaining, formatWindowLeft } from "@/lib/edit-window"
 import { HighlightedText, snippet, MIN_SEARCH_QUERY } from "@/components/shared/highlighted-text"
-import { EmojiPicker } from "./emoji-picker"
-import { VoiceRecorder } from "@/components/shared/voice-recorder"
+import { MessageComposer } from "@/components/shared/message-composer"
 import { MessageAttachments, type Attachment } from "@/components/shared/message-attachments"
-import { AttachmentMenu } from "@/components/shared/attachment-menu"
+import {
+  MessageReactions,
+  ReactionButton,
+  type ReactionGroup,
+} from "@/components/shared/message-reactions"
 import { EmployeeProfileDialog } from "@/components/shared/employee-profile-dialog"
+import { ForwardDialog } from "@/components/shared/forward-dialog"
+import { AttachmentPreview } from "@/components/shared/attachment-preview"
+import { MediaViewer, type MediaItem } from "@/components/shared/media-viewer"
 import {
   MessageCards,
   PollComposer,
@@ -79,6 +93,8 @@ interface ConversationRow {
   other: Person | null
   lastMessage: { body: string; createdAt: string; fromMe: boolean } | null
   unread: number
+  /** Set = kept at the top of MY list. Private to me, not the other person. */
+  pinnedAt: string | null
 }
 
 /** One conversation that matched a global search, and what matched inside it. */
@@ -106,59 +122,7 @@ interface Message {
   replyTo: { id: string; body: string | null; fromMe: boolean } | null
   fromMe: boolean
   attachments: Attachment[]
-}
-
-const time = (iso: string) =>
-  new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-
-/** "Today" / "Yesterday" / "12 Aug 2026" - the divider between days. */
-function dayLabel(iso: string): string {
-  const d = new Date(iso)
-  const today = new Date()
-  const midnight = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
-  const days = Math.round((midnight(today) - midnight(d)) / 86_400_000)
-  if (days === 0) return "Today"
-  if (days === 1) return "Yesterday"
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-}
-
-/**
- * How far a message of mine has actually got. Every step is a real stamp -
- * nothing here is inferred from "it has probably arrived by now".
- */
-type Delivery = "pending" | "sent" | "delivered" | "read"
-
-function MessageTicks({ status }: { status: Delivery }) {
-  if (status === "pending") return <Clock className="h-3 w-3" aria-label="Sending" />
-  if (status === "sent") return <Check className="h-3 w-3" aria-label="Sent" />
-  return (
-    <CheckCheck
-      // Blue against a dark bubble in light mode, and against a light bubble in
-      // dark mode - the bubble inverts, so the accent has to invert with it.
-      className={cn("h-3 w-3", status === "read" && "text-sky-400 dark:text-sky-600")}
-      aria-label={status === "read" ? "Read" : "Delivered"}
-    />
-  )
-}
-
-/**
- * The pointed corner on the first bubble of a run. An SVG rather than a rotated
- * square: it takes the bubble's exact background token in both themes, so there
- * is never a seam where the two shapes meet.
- */
-function BubbleTail({ side }: { side: "left" | "right" }) {
-  return (
-    <svg
-      viewBox="0 0 8 10"
-      aria-hidden
-      className={cn(
-        "absolute top-0 h-2.5 w-2",
-        side === "right" ? "fill-primary -right-2" : "fill-card -left-2",
-      )}
-    >
-      <path d={side === "right" ? "M0 0 L8 0 Q8 8 0 10 Z" : "M8 0 L0 0 Q0 8 8 10 Z"} />
-    </svg>
-  )
+  reactions: ReactionGroup[]
 }
 
 export function ChatView() {
@@ -245,8 +209,8 @@ export function ChatView() {
         <aside
           className={cn("bg-card flex min-h-0 flex-col border-r", activeId && "hidden lg:flex")}
         >
-          <div className="shrink-0 border-b p-2.5">
-            <div className="relative">
+          <div className={cn(SPLIT_PANE_HEADER, "px-2.5")}>
+            <div className="relative w-full">
               <Search className="text-muted-foreground absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
               <Input
                 value={search}
@@ -325,7 +289,7 @@ export function ChatView() {
                     >
                       <span className="text-muted-foreground text-[10px]">
                         {m.fromMe ? "You" : (r.other?.firstName ?? "Them")} ·{" "}
-                        <span suppressHydrationWarning>{time(m.createdAt)}</span>
+                        <span suppressHydrationWarning>{formatClockTime(m.createdAt)}</span>
                       </span>
                       <span className="truncate text-xs">
                         <HighlightedText text={snippet(m.body, q)} query={q} />
@@ -354,7 +318,8 @@ export function ChatView() {
                   type="button"
                   onClick={() => setActiveId(c.id)}
                   className={cn(
-                    "hover:bg-muted/60 flex w-full items-center gap-3 border-b px-3 py-2.5 text-left transition-colors",
+                    SPLIT_PANE_ROW,
+                    "hover:bg-muted/60",
                     activeId === c.id && "bg-muted",
                   )}
                 >
@@ -362,12 +327,21 @@ export function ChatView() {
                     src={c.other?.profilePhoto ?? null}
                     firstName={c.other?.firstName ?? "?"}
                     lastName={c.other?.lastName ?? ""}
-                    size="md"
+                    size="sm"
+                    className="shrink-0"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="truncate text-sm font-medium">
-                        {c.other ? `${c.other.firstName} ${c.other.lastName}` : "Unknown"}
+                      <p className="flex min-w-0 items-center gap-1 truncate text-sm font-medium">
+                        {c.pinnedAt && (
+                          <Pin
+                            className="text-muted-foreground h-3 w-3 shrink-0"
+                            aria-label="Pinned"
+                          />
+                        )}
+                        <span className="truncate">
+                          {c.other ? `${c.other.firstName} ${c.other.lastName}` : "Unknown"}
+                        </span>
                       </p>
                       {c.lastMessageAt && (
                         <span
@@ -377,11 +351,11 @@ export function ChatView() {
                           )}
                           suppressHydrationWarning
                         >
-                          {time(c.lastMessageAt)}
+                          {formatClockTime(c.lastMessageAt)}
                         </span>
                       )}
                     </div>
-                    <div className="mt-0.5 flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2">
                       <p className="text-muted-foreground truncate text-xs">
                         {c.lastMessage
                           ? `${c.lastMessage.fromMe ? "You: " : ""}${c.lastMessage.body}`
@@ -405,6 +379,7 @@ export function ChatView() {
             key={activeId}
             conversationId={activeId}
             other={active?.other ?? null}
+            conversationPinned={!!active?.pinnedAt}
             jumpTarget={jumpTarget}
             onJumped={() => setJumpTarget(null)}
             onBack={() => setActiveId(null)}
@@ -436,18 +411,42 @@ export function ChatView() {
 function Thread({
   conversationId,
   other,
+  conversationPinned,
   jumpTarget,
   onJumped,
   onBack,
 }: {
   conversationId: string
   other: Person | null
+  /** Whether THIS person has pinned the conversation to the top of their list.
+   *  Named apart from `pinned`, which is the pinned-MESSAGES shelf below. */
+  conversationPinned: boolean
   /** A message id picked out of the global search, to scroll to on open. */
   jumpTarget?: string | null
   onJumped?: () => void
   onBack: () => void
 }) {
   const qc = useQueryClient()
+
+  // Pinning only reorders the LIST, so that is the only query to refresh - the
+  // open thread's own messages are untouched by it.
+  const pinConversation = useMutation({
+    mutationFn: () => apiFetch(`/api/chat/conversations/${conversationId}/pin`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "conversations"] }),
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const react = useMutation({
+    mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
+      apiFetch(`/api/chat/messages/${messageId}/react`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId, emoji }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "messages", conversationId] }),
+    onError: (e: Error) => toast.error(e.message),
+  })
+
   const [draft, setDraft] = React.useState("")
   const [editing, setEditing] = React.useState<Message | null>(null)
   const [editDraft, setEditDraft] = React.useState("")
@@ -455,6 +454,13 @@ function Thread({
   // The message being answered. Held here rather than in the draft so the quote
   // survives editing the text, and clears in one place when the send lands.
   const [replyTo, setReplyTo] = React.useState<Message | null>(null)
+  /** Files picked but not yet sent - the review screen is open while this is
+   *  non-empty. Nothing is uploaded until Send, so backing out is free. */
+  const [staged, setStaged] = React.useState<File[]>([])
+  /** Which attachment the viewer is on, by id. Null = closed. */
+  const [viewing, setViewing] = React.useState<string | null>(null)
+  const [infoFor, setInfoFor] = React.useState<Message | null>(null)
+  const [forwarding, setForwarding] = React.useState<Message | null>(null)
   const [searching, setSearching] = React.useState(false)
   const [searchQ, setSearchQ] = React.useState("")
   // Briefly ringed after jumping to it from search or the pinned shelf, so the
@@ -492,7 +498,31 @@ function Thread({
 
   const messages = React.useMemo(() => data?.messages ?? [], [data?.messages])
   const person = other ?? data?.other ?? null
-  const otherReadAt = data?.otherLastReadAt ? new Date(data.otherLastReadAt).getTime() : 0
+
+  // Assembled HERE rather than in a bubble: only the thread knows what else
+  // was sent, which is what makes next/previous and the filmstrip possible.
+  const gallery = React.useMemo<MediaItem[]>(
+    () =>
+      messages.flatMap((m) =>
+        m.attachments
+          .filter((a) => a.kind === "IMAGE" || a.kind === "VIDEO")
+          .map((a) => ({
+            id: a.id,
+            fileName: a.fileName,
+            kind: a.kind,
+            authorName: m.fromMe
+              ? "You"
+              : `${person?.firstName ?? ""} ${person?.lastName ?? ""}`.trim() || "Them",
+            authorPhoto: m.fromMe ? null : (person?.profilePhoto ?? null),
+            createdAt: m.createdAt,
+          })),
+      ),
+    [messages, person],
+  )
+  const viewingIndex = viewing ? gallery.findIndex((g) => g.id === viewing) : -1
+
+  const otherReadAtIso = data?.otherLastReadAt ?? null
+  const otherReadAt = otherReadAtIso ? new Date(otherReadAtIso).getTime() : 0
 
   React.useEffect(() => {
     apiFetch(`/api/chat/conversations/${conversationId}/read`, { method: "POST" })
@@ -622,13 +652,17 @@ function Thread({
     durationSec?: number,
     waveform?: number[],
     asSticker?: boolean,
+    /** Caption from the preview screen. Falls back to whatever is in the
+     *  composer, which is how a voice note or sticker carries typed text. */
+    caption?: string,
   ) {
     if (files.length === 0) return
     setUploading(true)
     try {
+      const body = (caption ?? draft).trim()
       const form = new FormData()
       for (const f of files) form.append("files", f)
-      if (draft.trim()) form.append("body", draft.trim())
+      if (body) form.append("body", body)
       if (durationSec) form.append("durationSec", String(durationSec))
       if (waveform?.length) form.append("waveform", waveform.join(","))
       if (asSticker) form.append("sticker", "1")
@@ -674,9 +708,10 @@ function Thread({
   let lastMine: boolean | null = null
 
   return (
-    <section className="bg-muted/20 flex min-h-0 flex-col">
+    // relative: the attachment review screen covers THIS pane, not the viewport.
+    <section className="bg-background relative flex min-h-0 flex-col">
       {/* Header */}
-      <div className="bg-card flex shrink-0 items-center gap-2.5 border-b px-3 py-2">
+      <div className={cn(SPLIT_PANE_HEADER, "bg-card gap-2.5 px-3")}>
         <Button variant="ghost" size="icon-sm" className="lg:hidden" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -706,8 +741,20 @@ function Thread({
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={searching ? "Close search" : "Search in conversation"}
+          aria-label={conversationPinned ? "Unpin conversation" : "Pin conversation"}
+          title={conversationPinned ? "Unpin conversation" : "Pin to top of your chat list"}
           className="text-muted-foreground hover:text-foreground ml-auto shrink-0"
+          disabled={pinConversation.isPending}
+          onClick={() => pinConversation.mutate()}
+        >
+          {conversationPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={searching ? "Close search" : "Search in conversation"}
+          className="text-muted-foreground hover:text-foreground shrink-0"
           onClick={() => {
             setSearching((v) => !v)
             setSearchQ("")
@@ -746,7 +793,8 @@ function Thread({
                 className="hover:bg-muted w-full rounded-sm px-2 py-1.5 text-left transition-colors"
               >
                 <span className="text-muted-foreground block text-[10px]">
-                  {h.fromMe ? "You" : (person?.firstName ?? "Them")} · {time(h.createdAt)}
+                  {h.fromMe ? "You" : (person?.firstName ?? "Them")} ·{" "}
+                  {formatClockTime(h.createdAt)}
                 </span>
                 <span className="block truncate text-xs">
                   <HighlightedText text={snippet(h.body, trimmedQ)} query={trimmedQ} />
@@ -786,9 +834,12 @@ function Thread({
         )}
 
         {messages.map((m) => {
-          const day = dayLabel(m.createdAt)
-          const showDay = day !== lastDay
-          lastDay = day
+          // Grouped on the calendar day, labelled by the shared formatter that
+          // the project thread uses too.
+          const key = dayKey(m.createdAt)
+          const showDay = key !== lastDay
+          lastDay = key
+          const day = formatDaySeparator(m.createdAt)
           // A run from one person reads as a single block: the first bubble
           // carries the tail and the gap, the rest sit tight beneath it.
           const startsGroup = showDay || m.fromMe !== lastMine
@@ -805,13 +856,7 @@ function Thread({
 
           return (
             <React.Fragment key={m.id}>
-              {showDay && (
-                <div className="flex justify-center py-2">
-                  <span className="bg-card text-muted-foreground rounded-sm border px-2.5 py-0.5 text-[10px]">
-                    {day}
-                  </span>
-                </div>
-              )}
+              {showDay && <DayChip label={day} />}
 
               <div
                 className={cn(
@@ -821,75 +866,107 @@ function Thread({
                 )}
               >
                 {!m.deletedAt && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Message options"
-                        className={cn(
-                          "text-muted-foreground shrink-0 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100",
-                          m.fromMe ? "order-first" : "order-last",
-                        )}
-                      >
-                        <MoreVertical className="h-3.5 w-3.5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align={m.fromMe ? "end" : "start"}>
-                      <DropdownMenuItem onClick={() => setReplyTo(m)}>
-                        <Reply className="mr-2 h-3.5 w-3.5" />
-                        Reply
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => pin.mutate(m.id)}>
-                        {m.pinnedAt ? (
-                          <>
-                            <PinOff className="mr-2 h-3.5 w-3.5" />
-                            Unpin
-                          </>
-                        ) : (
-                          <>
-                            <Pin className="mr-2 h-3.5 w-3.5" />
-                            Pin
-                          </>
-                        )}
-                      </DropdownMenuItem>
-                      {/* Editable only while the window is open, and the clock is
-                          on the label so it is not a surprise when it goes. */}
-                      {m.fromMe &&
-                        m.attachments.length === 0 &&
-                        isWithinEditWindow(m.createdAt) && (
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEditing(m)
-                              setEditDraft(m.body ?? "")
-                            }}
-                          >
-                            Edit
-                            <span className="text-muted-foreground ml-auto pl-3 text-[10px]">
-                              {formatWindowLeft(editWindowRemaining(m.createdAt))}
-                            </span>
+                  // React above, ⋮ below: the two things you do TO a message, in
+                  // one fixed column you can aim at - rather than a bar that
+                  // floated over the words you were reading.
+                  <div
+                    className={cn(
+                      "flex shrink-0 flex-col items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 has-[[data-state=open]]:opacity-100",
+                      m.fromMe ? "order-first" : "order-last",
+                    )}
+                  >
+                    <ReactionButton
+                      align={m.fromMe ? "end" : "start"}
+                      onPick={(emoji) => react.mutate({ messageId: m.id, emoji })}
+                    />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Message options"
+                          className="text-muted-foreground shrink-0"
+                        >
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align={m.fromMe ? "end" : "start"}>
+                        {/* Only for your own: there is nothing to report about
+                          whether YOU have read somebody else's message. */}
+                        {m.fromMe && (
+                          <DropdownMenuItem onClick={() => setInfoFor(m)}>
+                            <Info className="mr-2 h-3.5 w-3.5" />
+                            Message info
                           </DropdownMenuItem>
                         )}
-                      <DropdownMenuItem onClick={() => remove.mutate({ message: m, scope: "me" })}>
-                        Delete for me
-                      </DropdownMenuItem>
-                      {m.fromMe && isWithinEditWindow(m.createdAt) && (
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => remove.mutate({ message: m, scope: "everyone" })}
-                        >
-                          Delete for everyone
+                        <DropdownMenuItem onClick={() => setReplyTo(m)}>
+                          <Reply className="mr-2 h-3.5 w-3.5" />
+                          Reply
                         </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        <DropdownMenuItem
+                          onClick={() => navigator.clipboard?.writeText(m.body ?? "")}
+                          disabled={!m.body}
+                        >
+                          <Copy className="mr-2 h-3.5 w-3.5" />
+                          Copy
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setForwarding(m)} disabled={!m.body}>
+                          <Forward className="mr-2 h-3.5 w-3.5" />
+                          Forward
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => pin.mutate(m.id)}>
+                          {m.pinnedAt ? (
+                            <>
+                              <PinOff className="mr-2 h-3.5 w-3.5" />
+                              Unpin
+                            </>
+                          ) : (
+                            <>
+                              <Pin className="mr-2 h-3.5 w-3.5" />
+                              Pin
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                        {/* Editable only while the window is open, and the clock is
+                          on the label so it is not a surprise when it goes. */}
+                        {m.fromMe &&
+                          m.attachments.length === 0 &&
+                          isWithinEditWindow(m.createdAt) && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditing(m)
+                                setEditDraft(m.body ?? "")
+                              }}
+                            >
+                              Edit
+                              <span className="text-muted-foreground ml-auto pl-3 text-[10px]">
+                                {formatWindowLeft(editWindowRemaining(m.createdAt))}
+                              </span>
+                            </DropdownMenuItem>
+                          )}
+                        <DropdownMenuItem
+                          onClick={() => remove.mutate({ message: m, scope: "me" })}
+                        >
+                          Delete for me
+                        </DropdownMenuItem>
+                        {m.fromMe && isWithinEditWindow(m.createdAt) && (
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => remove.mutate({ message: m, scope: "everyone" })}
+                          >
+                            Delete for everyone
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 )}
 
                 <div
                   id={`chat-msg-${m.id}`}
                   className={cn(
                     "relative max-w-[78%] min-w-0 rounded-sm px-2.5 py-1.5 shadow-sm",
-                    m.fromMe ? "bg-primary text-primary-foreground" : "bg-card",
+                    m.fromMe ? BUBBLE_OUT : BUBBLE_IN,
                     flashId === m.id && "ring-2 ring-amber-400",
                     // Square off the corner the tail grows out of, so the two
                     // shapes read as one bubble rather than a blob beside a box.
@@ -908,8 +985,8 @@ function Thread({
                       className={cn(
                         "mb-1 block w-full truncate border-l-2 px-1.5 py-0.5 text-left text-[11px]",
                         m.fromMe
-                          ? "border-primary-foreground/50 bg-primary-foreground/10 text-primary-foreground/80"
-                          : "border-primary/50 bg-muted text-muted-foreground",
+                          ? "border-primary/60 bg-background/50 text-muted-foreground"
+                          : "border-primary/50 bg-background/50 text-muted-foreground",
                       )}
                     >
                       <span className="block font-medium">
@@ -961,6 +1038,7 @@ function Thread({
                           <MessageAttachments
                             attachments={m.attachments}
                             fromMe={m.fromMe}
+                            onOpenMedia={setViewing}
                             avatar={
                               m.fromMe || !person
                                 ? null
@@ -1006,17 +1084,34 @@ function Thread({
                   <p
                     className={cn(
                       "mt-0.5 flex items-center justify-end gap-1 text-[10px] leading-none",
-                      m.fromMe ? "text-primary-foreground/70" : "text-muted-foreground",
+                      "text-muted-foreground",
                     )}
                     suppressHydrationWarning
                   >
                     {m.pinnedAt && !m.deletedAt && <Pin className="h-2.5 w-2.5" />}
                     {m.editedAt && !m.deletedAt && <span>edited</span>}
-                    {time(m.createdAt)}
+                    {formatClockTime(m.createdAt)}
                     {/* One tick: the server has it. Two: it reached their
                         device. Two in blue: they opened the thread. */}
-                    {m.fromMe && !m.deletedAt && <MessageTicks status={status} />}
+                    {m.fromMe && !m.deletedAt && (
+                      <button
+                        type="button"
+                        onClick={() => setInfoFor(m)}
+                        title="Message info"
+                        className="hover:text-foreground -my-1 -mr-0.5 p-1 transition-colors"
+                      >
+                        <MessageTicks status={status} />
+                        <span className="sr-only">Message info</span>
+                      </button>
+                    )}
                   </p>
+
+                  {!m.deletedAt && (
+                    <MessageReactions
+                      reactions={m.reactions}
+                      onToggle={(emoji) => react.mutate({ messageId: m.id, emoji })}
+                    />
+                  )}
                 </div>
               </div>
             </React.Fragment>
@@ -1032,14 +1127,15 @@ function Thread({
             <div key={item.id} className={cn("flex justify-end", startsGroup ? "mt-2" : "mt-0.5")}>
               <div
                 className={cn(
-                  "bg-primary text-primary-foreground relative max-w-[78%] min-w-0 rounded-sm px-2.5 py-1.5 opacity-75 shadow-sm",
+                  BUBBLE_OUT,
+                  "relative max-w-[78%] min-w-0 rounded-sm px-2.5 py-1.5 opacity-75 shadow-sm",
                   startsGroup && "rounded-tr-none",
                 )}
               >
                 {startsGroup && <BubbleTail side="right" />}
                 <p className="text-sm break-words whitespace-pre-wrap">{item.body}</p>
-                <p className="text-primary-foreground/70 mt-0.5 flex items-center justify-end gap-1 text-[10px] leading-none">
-                  <span suppressHydrationWarning>{time(item.createdAt)}</span>
+                <p className="text-muted-foreground mt-0.5 flex items-center justify-end gap-1 text-[10px] leading-none">
+                  <span suppressHydrationWarning>{formatClockTime(item.createdAt)}</span>
                   <MessageTicks status="pending" />
                 </p>
               </div>
@@ -1071,59 +1167,75 @@ function Thread({
           </Button>
         </div>
       )}
-      <div className="bg-card flex shrink-0 items-end gap-1 border-t p-2">
-        {!recording && (
-          <>
-            <EmojiPicker onPick={(emoji) => setDraft((d) => d + emoji)} />
+      <MessageComposer
+        value={draft}
+        onChange={(v) => setDraft(v)}
+        onSubmit={submit}
+        uploading={uploading}
+        recording={recording}
+        onRecordingChange={setRecording}
+        onFiles={(files, opts) => {
+          // A sticker is a one-tap send; anything else gets the review screen.
+          if (opts?.asSticker) void upload(files, undefined, undefined, true)
+          else setStaged(files)
+        }}
+        onPoll={() => setCard("poll")}
+        onEvent={() => setCard("event")}
+        onContact={() => setCard("contact")}
+        onVoice={async (blob, durationSec, waveform) => {
+          const file = new File([blob], `voice-${durationSec}s.webm`, {
+            type: blob.type || "audio/webm",
+          })
+          await upload([file], durationSec, waveform)
+        }}
+      />
 
-            <AttachmentMenu
-              disabled={uploading}
-              busy={uploading}
-              onFiles={(files, opts) => upload(files, undefined, undefined, opts?.asSticker)}
-              onPoll={() => setCard("poll")}
-              onEvent={() => setCard("event")}
-              onContact={() => setCard("contact")}
-            />
+      {/* A 1:1 chat has exactly one recipient, so the panel gets a list of one
+          - the same component the project thread hands a whole team to. */}
+      <MessageInfoDialog
+        open={!!infoFor}
+        onOpenChange={(o) => !o && setInfoFor(null)}
+        sentAt={infoFor?.createdAt ?? new Date().toISOString()}
+        people={
+          person
+            ? [
+                {
+                  id: person.id,
+                  firstName: person.firstName,
+                  lastName: person.lastName,
+                  profilePhoto: person.profilePhoto,
+                  seenAt: otherReadAtIso,
+                },
+              ]
+            : []
+        }
+      />
 
-            <Textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                // Enter sends, Shift+Enter is a newline - the convention every
-                // chat app has trained people into.
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  submit()
-                }
-              }}
-              rows={1}
-              placeholder="Type a message"
-              className="max-h-32 min-h-9 flex-1 resize-none rounded-sm text-sm"
-            />
-          </>
-        )}
+      {viewingIndex >= 0 && (
+        <MediaViewer
+          items={gallery}
+          index={viewingIndex}
+          onIndexChange={(i) => setViewing(gallery[i]?.id ?? null)}
+          onClose={() => setViewing(null)}
+          urlFor={(id) => `/api/chat/attachments/${id}/file`}
+        />
+      )}
 
-        {/* Arrow when there is something typed, mic when there is not - the same
-            swap every messaging app makes, so the primary action is never
-            ambiguous. The recorder stays mounted while it is running: remounting
-            it would drop the MediaRecorder and the clip with it. */}
-        {!recording && draft.trim() ? (
-          <Button size="icon" className="shrink-0 rounded-sm" onClick={submit} aria-label="Send">
-            <Send className="h-4 w-4" />
-          </Button>
-        ) : (
-          <VoiceRecorder
-            disabled={uploading}
-            onActiveChange={setRecording}
-            onSend={async (blob, durationSec, waveform) => {
-              const file = new File([blob], `voice-${durationSec}s.webm`, {
-                type: blob.type || "audio/webm",
-              })
-              await upload([file], durationSec, waveform)
-            }}
-          />
-        )}
-      </div>
+      <AttachmentPreview
+        files={staged}
+        sending={uploading}
+        onClose={() => setStaged([])}
+        onSend={async (files, caption) => {
+          await upload(files, undefined, undefined, false, caption)
+          setStaged([])
+        }}
+      />
+
+      <ForwardDialog
+        open={!!forwarding}
+        onOpenChange={(o) => !o && setForwarding(null)}
+        body={forwarding?.body ?? ""}
+      />
 
       <EmployeeProfileDialog
         employeeId={person?.id ?? null}

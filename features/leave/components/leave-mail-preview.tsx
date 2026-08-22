@@ -6,7 +6,7 @@ import { ShieldCheck, Loader2, AlertTriangle, Pencil } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { apiFetch } from "@/lib/api-fetch"
 import { cleanLeaveTypeForLetter } from "@/lib/utils"
-import { MailSignature, type MailSignatureData } from "@/features/leave/components/mail-signature"
+import { MailSignature, type MailSignatureData } from "@/components/shared/mail-signature"
 
 type Signature = MailSignatureData
 interface PreviewData {

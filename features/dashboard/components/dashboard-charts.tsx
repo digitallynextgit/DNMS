@@ -17,6 +17,11 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { EMPLOYEE_STATUS_LABELS } from "@/lib/constants"
+import {
+  CHART_TOOLTIP_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_ITEM_STYLE,
+} from "@/lib/chart-theme"
 
 const DEPT_COLORS = [
   "hsl(var(--foreground))",
@@ -27,15 +32,6 @@ const DEPT_COLORS = [
   "#333",
   "#777",
 ]
-
-const TOOLTIP_STYLE = {
-  borderRadius: "var(--radius)",
-  fontSize: "12px",
-  border: "1px solid hsl(var(--border))",
-  background: "hsl(var(--card))",
-  color: "hsl(var(--foreground))",
-} as const
-const TEXT_STYLE = { color: "hsl(var(--foreground))" } as const
 
 export function DepartmentPieChart({ data }: { data: { department: string; count: number }[] }) {
   return (
@@ -60,9 +56,9 @@ export function DepartmentPieChart({ data }: { data: { department: string; count
             `${Number(value)} employee${Number(value) !== 1 ? "s" : ""}`,
             String(name ?? ""),
           ]}
-          contentStyle={TOOLTIP_STYLE}
-          itemStyle={TEXT_STYLE}
-          labelStyle={TEXT_STYLE}
+          contentStyle={CHART_TOOLTIP_STYLE}
+          itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+          labelStyle={CHART_TOOLTIP_LABEL_STYLE}
         />
         <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "11px" }} />
       </PieChart>
@@ -98,9 +94,9 @@ export function EmployeeStatusBarChart({ data }: { data: { status: string; count
             `${Number(value)} employee${Number(value) !== 1 ? "s" : ""}`,
             "Count",
           ]}
-          contentStyle={TOOLTIP_STYLE}
-          itemStyle={TEXT_STYLE}
-          labelStyle={TEXT_STYLE}
+          contentStyle={CHART_TOOLTIP_STYLE}
+          itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+          labelStyle={CHART_TOOLTIP_LABEL_STYLE}
         />
         <Bar dataKey="count" fill="hsl(var(--foreground))" radius={[3, 3, 0, 0]} maxBarSize={48} />
       </BarChart>

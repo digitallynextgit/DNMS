@@ -756,3 +756,142 @@ export function renderLeaveDecisionLetter(input: {
 
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
+
+/**
+ * The Work From Home application, written AS THE EMPLOYEE and addressed to their
+ * reporting manager (HR is CC'd) - the WFH twin of renderLeaveRequestEmail.
+ *
+ * WFH used to raise in-app notifications only, so an approver who wasn't in the
+ * app never learnt a request existed. This is the same letter shape as leave so
+ * the two requests read identically in a manager's inbox.
+ */
+export function renderWfhRequestEmail(input: {
+  /** First name of the manager the letter is addressed to. */
+  approverFirstName: string
+  applicantName: string
+  employeeNo?: string | null
+  designation?: string | null
+  department?: string | null
+  /** For the signature block. */
+  applicantEmail?: string | null
+  applicantPhone?: string | null
+  /** "yyyy-MM-dd" - WFH is always a single day. */
+  date: string
+  reason?: string | null
+  /** Emergency requests need BOTH the manager and HR to sign off. */
+  isEmergency?: boolean
+  /** When set, REPLACES the auto-composed letter body (the greeting through
+   *  "Best Regards,") - the text the employee edited in the preview. The
+   *  signature and review link are still appended automatically. */
+  bodyText?: string | null
+  /** When set, REPLACES the auto subject line (edited in the preview). */
+  subjectText?: string | null
+  reviewUrl?: string
+}): { subject: string; html: string; text: string } {
+  const {
+    approverFirstName,
+    applicantName,
+    employeeNo,
+    designation,
+    department,
+    applicantEmail,
+    applicantPhone,
+    date,
+    reason,
+    isEmergency,
+    bodyText,
+    subjectText,
+    reviewUrl,
+  } = input
+
+  const day = formatEmailDate(date) ?? date
+  const subject = subjectText?.trim() || `Work From Home request - ${applicantName} - ${day}`
+
+  const reasonTrimmed = reason?.trim() || ""
+  const reasonHtml = reasonTrimmed ? escapeHtml(reasonTrimmed).replace(/\n/g, "<br />") : ""
+  const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
+
+  // Signature block: "Designation · EMP-01 · Department" (only what exists).
+  const sigParts = [designation, employeeNo, department].filter(Boolean) as string[]
+
+  const availabilityLine =
+    "I will be available online through working hours, reachable on call and chat, and will keep the day's deliverables on track."
+  const emergencyLine =
+    "As this is an emergency request, it needs both your approval and HR's sign-off."
+
+  const edited = bodyText?.trim() || ""
+  const letterHtml = edited
+    ? edited
+        .split(/\n{2,}/)
+        .map((p) => `<p style="${para}">${escapeHtml(p).replace(/\n/g, "<br />")}</p>`)
+        .join("\n")
+    : `
+    <p style="margin:0 0 18px; font-size:15px; color:#111827;">Dear ${escapeHtml(approverFirstName)},</p>
+
+    <p style="${para}">
+      I would like to request permission to <strong style="color:#111827;">work from home</strong> on
+      <strong style="color:#111827;">${day}</strong>.
+    </p>
+
+    ${
+      reasonHtml
+        ? `<p style="${para}">${reasonHtml}</p>`
+        : `<p style="${para}">I have submitted this request in ${BRAND_NAME} for your consideration.</p>`
+    }
+
+    ${isEmergency ? `<p style="${para}">${emergencyLine}</p>` : ""}
+
+    <p style="${para}">${availabilityLine} Kindly approve the request at your convenience.</p>
+
+    <p style="${para}">Thank you for your consideration.</p>
+
+    <p style="margin:24px 0 0; font-size:15px; color:#111827;">Best Regards,</p>`
+
+  const body = `
+    ${letterHtml}
+    ${renderSignature({
+      name: applicantName,
+      designation,
+      email: applicantEmail,
+      phone: applicantPhone,
+    })}
+
+    ${
+      reviewUrl
+        ? `<p style="margin:24px 0 0; padding-top:16px; border-top:1px solid #f0f0f0; font-size:12px; color:#9ca3af;">
+             Approve or decline in <a href="${reviewUrl}" style="color:#2563eb;">${BRAND_NAME}</a>. HR is copied on this email.
+           </p>`
+        : ""
+    }`
+
+  const letterText = edited
+    ? edited.split("\n")
+    : [
+        `Dear ${approverFirstName},`,
+        ``,
+        `I would like to request permission to work from home on ${day}.`,
+        ``,
+        reasonTrimmed || `I have submitted this request in ${BRAND_NAME} for your consideration.`,
+        ...(isEmergency ? [``, emergencyLine] : []),
+        ``,
+        `${availabilityLine} Kindly approve the request at your convenience.`,
+        ``,
+        `Thank you for your consideration.`,
+        ``,
+        `Best Regards,`,
+      ]
+
+  const text = [
+    ...letterText,
+    applicantName,
+    sigParts.join(" · "),
+    reviewUrl
+      ? `
+Approve or decline in ${BRAND_NAME}: ${reviewUrl}`
+      : "",
+  ]
+    .filter((l) => l !== undefined)
+    .join("\n")
+
+  return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
+}

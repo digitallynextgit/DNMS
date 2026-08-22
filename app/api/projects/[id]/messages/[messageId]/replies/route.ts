@@ -6,6 +6,7 @@ import { createNotifications } from "@/lib/notifications"
 import type { Session } from "next-auth"
 import { publishChat } from "@/server/chat-stream"
 import { CARD_SELECT, shapePoll } from "@/server/message-cards"
+import { groupReactions } from "@/server/reactions"
 import { resolveProjectMemberIds } from "../../route"
 
 /** Everything the shared attachment renderer needs, and nothing more. */
@@ -23,6 +24,22 @@ export const ATTACHMENT_SELECT = {
   },
 } as const
 
+/** Who reacted with what - grouped per viewer by groupReactions(). */
+export const REACTION_SELECT = {
+  select: {
+    emoji: true,
+    employeeId: true,
+    employee: { select: { firstName: true, lastName: true } },
+  },
+} as const
+
+const NAME_SELECT = { select: { id: true, firstName: true, lastName: true } } as const
+
+/** Just enough of a quoted reply to draw one line above the answer. */
+const QUOTE_SELECT = {
+  select: { id: true, content: true, author: NAME_SELECT },
+} as const
+
 const AUTHOR_SELECT = {
   id: true,
   firstName: true,
@@ -35,20 +52,60 @@ const AUTHOR_SELECT = {
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
-      const { messageId } = await ctx.params
-      const replies = await db.projectMessageReply.findMany({
-        where: { messageId },
-        orderBy: { createdAt: "asc" },
-        include: {
-          author: { select: AUTHOR_SELECT },
-          attachments: ATTACHMENT_SELECT,
-          ...CARD_SELECT,
-        },
-      })
+      const { id: projectId, messageId } = await ctx.params
+      const [replies, reads] = await Promise.all([
+        db.projectMessageReply.findMany({
+          where: { messageId },
+          orderBy: { createdAt: "asc" },
+          include: {
+            author: { select: AUTHOR_SELECT },
+            attachments: ATTACHMENT_SELECT,
+            reactions: REACTION_SELECT,
+            replyTo: QUOTE_SELECT,
+            replyToRoot: { select: { id: true, content: true, author: NAME_SELECT } },
+            ...CARD_SELECT,
+          },
+        }),
+        // Who has opened this project's Messages tab, and when. A message is
+        // "seen by" everyone whose mark is later than it - the same timestamp
+        // evidence personal chat uses, so no per-message read table is needed
+        // and old messages are covered retroactively rather than only new ones.
+        db.projectMessageRead.findMany({
+          where: { projectId },
+          select: {
+            lastSeenAt: true,
+            employee: {
+              select: { id: true, firstName: true, lastName: true, profilePhoto: true },
+            },
+          },
+        }),
+      ])
       // The poll is reshaped per viewer - "did I vote?" is not a property of the
       // row, it is a property of who is asking.
       return NextResponse.json({
-        data: replies.map((r) => ({ ...r, poll: shapePoll(r.poll, _session.user.id) })),
+        data: replies.map(({ replyTo, replyToRoot, ...r }) => {
+          // Flattened to ONE shape whichever kind of bubble was quoted, so the
+          // renderer does not branch on which column happened to be set. A quote
+          // whose target has since been deleted comes through as null, and the
+          // bubble says "message deleted" rather than dropping the quote.
+          const quoted = replyTo ?? replyToRoot
+          return {
+            ...r,
+            poll: shapePoll(r.poll, _session.user.id),
+            reactions: groupReactions(r.reactions, _session.user.id),
+            replyTo: quoted
+              ? {
+                  // The opening post is addressed as "root" everywhere in this
+                  // thread's DOM ids, so a jump target resolves the same way.
+                  id: replyTo ? quoted.id : "root",
+                  content: quoted.content,
+                  authorName: `${quoted.author.firstName} ${quoted.author.lastName}`.trim(),
+                  fromMe: quoted.author.id === _session.user.id,
+                }
+              : null,
+          }
+        }),
+        readers: reads.map((r) => ({ ...r.employee, lastSeenAt: r.lastSeenAt })),
       })
     } catch (error) {
       console.error("[PROJECT_MESSAGE_REPLIES_GET]", error)
@@ -82,8 +139,34 @@ export const POST = withProjectAccess(
         Array.isArray(body.mentionedIds) ? body.mentionedIds : [],
       )
 
+      // "root" means the opening post; anything else must be a reply that really
+      // belongs to THIS thread - the id arrives from the client, so quoting a
+      // line out of another project's chat has to be impossible here, not just
+      // unlikely.
+      const rawQuote = typeof body.replyToId === "string" ? body.replyToId : null
+      let replyToId: string | null = null
+      let replyToRootId: string | null = null
+      if (rawQuote === "root") {
+        replyToRootId = messageId
+      } else if (rawQuote) {
+        const target = await db.projectMessageReply.findFirst({
+          where: { id: rawQuote, messageId },
+          select: { id: true },
+        })
+        if (!target)
+          return NextResponse.json({ error: "Cannot quote that message" }, { status: 400 })
+        replyToId = target.id
+      }
+
       const reply = await db.projectMessageReply.create({
-        data: { messageId, authorId: session.user.id, content, mentionedIds },
+        data: {
+          messageId,
+          authorId: session.user.id,
+          content,
+          mentionedIds,
+          replyToId,
+          replyToRootId,
+        },
         include: {
           author: { select: AUTHOR_SELECT },
           attachments: ATTACHMENT_SELECT,

@@ -317,7 +317,7 @@ function AccountDialog({
               className="h-9 font-mono text-xs"
             />
             <p className="text-muted-foreground text-[11px]">
-              Encrypted at rest and never shown again — the same handling as SMTP passwords.
+              Encrypted at rest and never shown again - the same handling as SMTP passwords.
             </p>
           </div>
 

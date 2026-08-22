@@ -3,6 +3,7 @@
 import { useState } from "react"
 import {
   Plus,
+  Pencil,
   Trash2,
   CalendarDays,
   CalendarCheck,
@@ -38,6 +39,7 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   useHolidays,
   useCreateHoliday,
+  useUpdateHoliday,
   useDeleteHoliday,
   FloatingRequestsInbox,
   HolidayMonthCalendar,
@@ -110,9 +112,14 @@ export default function HolidayCalendarPage() {
   }
 
   const createHoliday = useCreateHoliday()
+  const updateHoliday = useUpdateHoliday()
   const deleteHoliday = useDeleteHoliday()
 
-  const [addOpen, setAddOpen] = useState(false)
+  // One dialog for both add and edit - the fields are identical, so a second
+  // copy would only be two forms to keep in sync. `editing` is the row being
+  // changed, or null for a new holiday.
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<HolidayRow | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
   const [name, setName] = useState("")
@@ -127,10 +134,29 @@ export default function HolidayCalendarPage() {
     setIsOptional(false)
   }
 
-  async function handleAddSubmit(e: React.FormEvent) {
+  function openAdd() {
+    setEditing(null)
+    resetForm()
+    setFormOpen(true)
+  }
+
+  function openEdit(h: HolidayRow) {
+    setEditing(h)
+    setName(h.name)
+    // The API returns an ISO datetime at UTC midnight; DateField wants "yyyy-MM-dd".
+    setDate(h.date.slice(0, 10))
+    setDescription(h.description ?? "")
+    setIsOptional(h.isOptional)
+    setFormOpen(true)
+  }
+
+  async function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault()
-    await createHoliday.mutateAsync({ name, date, description: description || null, isOptional })
-    setAddOpen(false)
+    const body = { name, date, description: description || null, isOptional }
+    if (editing) await updateHoliday.mutateAsync({ id: editing.id, body })
+    else await createHoliday.mutateAsync(body)
+    setFormOpen(false)
+    setEditing(null)
     resetForm()
   }
 
@@ -176,15 +202,27 @@ export default function HolidayCalendarPage() {
             header: "Actions",
             align: "right" as const,
             cell: (h: HolidayRow) => (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-destructive hover:text-destructive"
-                onClick={() => setDeleteId(h.id)}
-                title="Delete holiday"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center justify-end gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => openEdit(h)}
+                  title="Edit holiday"
+                >
+                  <Pencil className="h-4 w-4" />
+                  <span className="sr-only">Edit</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setDeleteId(h.id)}
+                  title="Delete holiday"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="sr-only">Delete</span>
+                </Button>
+              </div>
             ),
           },
         ]
@@ -222,7 +260,7 @@ export default function HolidayCalendarPage() {
                 </SelectContent>
               </Select>
               {canWrite && (
-                <Button onClick={() => setAddOpen(true)} className="gap-2">
+                <Button onClick={openAdd} className="gap-2">
                   <Plus className="h-4 w-4" />
                   Add Holiday
                 </Button>
@@ -279,11 +317,7 @@ export default function HolidayCalendarPage() {
               variant="card"
               icon={CalendarDays}
               title={`No holidays configured for ${year}.`}
-              action={
-                canWrite
-                  ? { label: "Add First Holiday", onClick: () => setAddOpen(true) }
-                  : undefined
-              }
+              action={canWrite ? { label: "Add First Holiday", onClick: openAdd } : undefined}
             />
           ) : (
             <>
@@ -326,19 +360,22 @@ export default function HolidayCalendarPage() {
         )}
       </Tabs>
 
-      {/* Add Holiday Dialog */}
+      {/* Add / Edit Holiday Dialog */}
       <FormDialog
-        open={addOpen}
+        open={formOpen}
         onOpenChange={(open) => {
-          setAddOpen(open)
-          if (!open) resetForm()
+          setFormOpen(open)
+          if (!open) {
+            setEditing(null)
+            resetForm()
+          }
         }}
-        title="Add Holiday"
-        isPending={createHoliday.isPending}
+        title={editing ? "Edit Holiday" : "Add Holiday"}
+        isPending={createHoliday.isPending || updateHoliday.isPending}
         submitDisabled={!name || !date}
-        submitLabel="Add Holiday"
+        submitLabel={editing ? "Save Changes" : "Add Holiday"}
         size="sm"
-        onSubmit={handleAddSubmit}
+        onSubmit={handleFormSubmit}
       >
         <div className="space-y-2">
           <Label htmlFor="holiday-name">Holiday Name</Label>
@@ -353,12 +390,14 @@ export default function HolidayCalendarPage() {
 
         <div className="space-y-2">
           <Label>Date</Label>
+          {/* Bounded to the year in view when adding; when editing, the holiday's
+              own year, so a row opened from another year is still reachable. */}
           <DateField
             value={date}
             onChange={setDate}
             modal
-            startMonth={new Date(year, 0)}
-            endMonth={new Date(year, 11, 31)}
+            startMonth={new Date(editing ? Number(editing.date.slice(0, 4)) : year, 0)}
+            endMonth={new Date(editing ? Number(editing.date.slice(0, 4)) : year, 11, 31)}
           />
         </div>
 

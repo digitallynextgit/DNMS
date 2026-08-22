@@ -33,6 +33,9 @@ function categorize(key: string): StorageCategory {
   if (key.startsWith("projects/")) return "project-files"
   if (key.startsWith("gallery/")) return "gallery"
   if (key.startsWith("mailer-images/")) return "mailer-images"
+  // Personal-chat pictures, voice notes and files - `chat/<conversationId>/…`.
+  if (key.startsWith("chat/")) return "chat"
+  if (key.startsWith("resumes/")) return "resumes"
   return "other"
 }
 
@@ -85,6 +88,9 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
     projectLogos,
     galleryPhotos,
     mailerImages,
+    chatAttachments,
+    messageAttachments,
+    applicants,
   ] = await Promise.all([
     listAllObjects(accountId),
     db.employee.findMany({
@@ -126,6 +132,30 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
     }),
     db.projectMailerAsset.findMany({
       select: { objectKey: true, fileName: true, project: { select: { name: true } } },
+    }),
+    // Chat media - pictures, voice notes and files sent in a personal chat, and
+    // the same three on a project message reply. These were missing entirely, so
+    // every voice note and shared file in the app read as ORPHANED and "Clean up
+    // orphans" would have deleted the lot while the messages still referenced them.
+    db.chatAttachment.findMany({
+      select: {
+        objectKey: true,
+        fileName: true,
+        message: { select: { sender: { select: { firstName: true, lastName: true } } } },
+      },
+    }),
+    db.projectMessageAttachment.findMany({
+      select: {
+        objectKey: true,
+        fileName: true,
+        reply: { select: { message: { select: { project: { select: { name: true } } } } } },
+      },
+    }),
+    // Applicant CVs. The row stores a signed URL rather than the key, so these
+    // are matched by substring below - same leak, same consequence.
+    db.applicant.findMany({
+      where: { resumeUrl: { not: null } },
+      select: { resumeUrl: true, firstName: true, lastName: true },
     }),
   ])
 
@@ -184,6 +214,38 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
       refType: "mailer-image",
       name: m.fileName,
     })
+  for (const c of chatAttachments) {
+    const s = c.message?.sender
+    refs.set(c.objectKey, {
+      owner: s ? `${s.firstName} ${s.lastName}`.trim() : "Chat",
+      refType: "chat-attachment",
+      name: c.fileName,
+    })
+  }
+  for (const a of messageAttachments)
+    refs.set(a.objectKey, {
+      owner: a.reply?.message?.project?.name ?? "Project",
+      refType: "project-message-attachment",
+      name: a.fileName,
+    })
+
+  // Resumes are keyed by URL, not by object key, so they can't go in the loop
+  // above: match each CV against the resume objects actually in the bucket.
+  // Keys are sanitised to [a-z0-9-/.] by getObjectKey(), so they survive into
+  // the signed URL verbatim and a substring test is exact.
+  const resumeKeys = objects
+    .map((o: StorageObject) => o.key)
+    .filter((k: string) => k.startsWith("resumes/"))
+  for (const a of applicants) {
+    if (!a.resumeUrl) continue
+    const key = resumeKeys.find((k: string) => a.resumeUrl!.includes(k))
+    if (key)
+      refs.set(key, {
+        owner: `${a.firstName} ${a.lastName}`.trim(),
+        refType: "applicant-resume",
+        name: "Resume",
+      })
+  }
 
   // NO presigning here.
   //
@@ -239,17 +301,35 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
  */
 export async function deleteStorageObject(key: string): Promise<{ name: string }> {
   // Remove the owning DB row / pointer first (best-effort per type), then the object.
-  const [emp, doc, empDoc, brand, resource, project] = await Promise.all([
-    db.employee.findFirst({ where: { profilePhotoKey: key }, select: { id: true } }),
-    db.document.findFirst({ where: { objectKey: key }, select: { id: true, title: true } }),
-    db.employeeDocument.findFirst({ where: { objectKey: key }, select: { id: true, title: true } }),
-    db.brandAsset.findUnique({ where: { objectKey: key }, select: { id: true, fileName: true } }),
-    db.projectResource.findUnique({
-      where: { objectKey: key },
-      select: { id: true, fileName: true },
-    }),
-    db.project.findFirst({ where: { logoKey: key }, select: { id: true, name: true } }),
-  ])
+  const [emp, doc, empDoc, brand, resource, project, chatFile, msgFile, applicant] =
+    await Promise.all([
+      db.employee.findFirst({ where: { profilePhotoKey: key }, select: { id: true } }),
+      db.document.findFirst({ where: { objectKey: key }, select: { id: true, title: true } }),
+      db.employeeDocument.findFirst({
+        where: { objectKey: key },
+        select: { id: true, title: true },
+      }),
+      db.brandAsset.findUnique({ where: { objectKey: key }, select: { id: true, fileName: true } }),
+      db.projectResource.findUnique({
+        where: { objectKey: key },
+        select: { id: true, fileName: true },
+      }),
+      db.project.findFirst({ where: { logoKey: key }, select: { id: true, name: true } }),
+      db.chatAttachment.findFirst({
+        where: { objectKey: key },
+        select: { id: true, fileName: true },
+      }),
+      db.projectMessageAttachment.findFirst({
+        where: { objectKey: key },
+        select: { id: true, fileName: true },
+      }),
+      // resumeUrl holds a signed URL, so match the key inside it (see the
+      // overview: getObjectKey() output is URL-safe, so this is exact).
+      db.applicant.findFirst({
+        where: { resumeUrl: { contains: key } },
+        select: { id: true, firstName: true, lastName: true },
+      }),
+    ])
 
   if (emp)
     await db.employee.update({
@@ -264,6 +344,12 @@ export async function deleteStorageObject(key: string): Promise<{ name: string }
   // case above: the object goes, its owner stays.
   if (project)
     await db.project.update({ where: { id: project.id }, data: { logo: null, logoKey: null } })
+  // The attachment row goes with the file; the message it hangs off stays, the
+  // same way deleting a profile photo leaves the employee.
+  if (chatFile) await db.chatAttachment.delete({ where: { id: chatFile.id } })
+  if (msgFile) await db.projectMessageAttachment.delete({ where: { id: msgFile.id } })
+  if (applicant)
+    await db.applicant.update({ where: { id: applicant.id }, data: { resumeUrl: null } })
 
   await deleteFile(key).catch((e) => console.error("[storage] B2 delete failed:", key, e))
 
@@ -272,7 +358,10 @@ export async function deleteStorageObject(key: string): Promise<{ name: string }
     empDoc?.title ??
     brand?.fileName ??
     resource?.fileName ??
+    chatFile?.fileName ??
+    msgFile?.fileName ??
     (project ? `${project.name} logo` : null) ??
+    (applicant ? `${applicant.firstName} ${applicant.lastName}`.trim() + " resume" : null) ??
     displayName(key)
   return { name }
 }

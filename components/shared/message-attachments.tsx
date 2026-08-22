@@ -61,14 +61,22 @@ export function MessageAttachments({
   fromMe,
   avatar,
   urlFor = chatUrl,
+  onOpenMedia,
 }: {
   attachments: Attachment[]
   fromMe: boolean
   /** The sender's face, shown beside a voice note. */
   avatar?: AttachmentAvatar | null
   urlFor?: UrlFor
+  /**
+   * Hand the tap up to the thread, which owns the conversation-wide viewer.
+   * Without it this falls back to its own one-image lightbox - a bubble on its
+   * own cannot know what else was sent, so it cannot offer next/previous.
+   */
+  onOpenMedia?: (attachmentId: string) => void
 }) {
   const [lightbox, setLightbox] = React.useState<Attachment | null>(null)
+  const open = (a: Attachment) => (onOpenMedia ? onOpenMedia(a.id) : setLightbox(a))
   if (attachments.length === 0) return null
 
   return (
@@ -112,7 +120,7 @@ export function MessageAttachments({
               <button
                 key={a.id}
                 type="button"
-                onClick={() => setLightbox(a)}
+                onClick={() => open(a)}
                 className="block overflow-hidden rounded-sm"
                 aria-label={`Open ${a.fileName}`}
               >
@@ -154,9 +162,7 @@ export function MessageAttachments({
               download={a.fileName}
               className={cn(
                 "flex items-center gap-2 rounded-sm border px-2.5 py-2 transition-colors",
-                fromMe
-                  ? "border-primary-foreground/20 hover:bg-primary-foreground/10"
-                  : "hover:bg-background/60",
+                fromMe ? "border-current/20 hover:bg-current/10" : "hover:bg-background/60",
               )}
             >
               <FileText className="h-4 w-4 shrink-0" />
@@ -165,7 +171,7 @@ export function MessageAttachments({
                 <span
                   className={cn(
                     "block text-[10px]",
-                    fromMe ? "text-primary-foreground/70" : "text-muted-foreground",
+                    fromMe ? "opacity-70" : "text-muted-foreground",
                   )}
                 >
                   {humanSize(a.size)}
@@ -342,7 +348,7 @@ function VoiceNote({
           <span
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-sm",
-              fromMe ? "bg-primary-foreground/20" : "bg-muted",
+              fromMe ? "bg-current/20" : "bg-muted",
             )}
           >
             <User className="h-5 w-5 opacity-70" />
@@ -353,10 +359,10 @@ function VoiceNote({
             "absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5",
             started
               ? fromMe
-                ? "text-primary-foreground/60"
+                ? "opacity-60"
                 : "text-muted-foreground"
               : fromMe
-                ? "text-primary-foreground"
+                ? "opacity-100"
                 : "text-primary",
           )}
         />
@@ -416,10 +422,10 @@ function VoiceNote({
                   "flex-1 rounded-sm transition-colors",
                   played
                     ? fromMe
-                      ? "bg-primary-foreground"
+                      ? "bg-current"
                       : "bg-primary"
                     : fromMe
-                      ? "bg-primary-foreground/35"
+                      ? "bg-current/35"
                       : "bg-muted-foreground/35",
                 )}
                 style={{ height: `${Math.max(10, Math.min(100, p))}%` }}
@@ -432,7 +438,7 @@ function VoiceNote({
           <span
             className={cn(
               "pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm shadow",
-              fromMe ? "bg-primary-foreground" : "bg-primary",
+              fromMe ? "bg-current" : "bg-primary",
             )}
             style={{ left: `${ratio * 100}%` }}
           />
@@ -441,7 +447,7 @@ function VoiceNote({
         <span
           className={cn(
             "block text-[10px] tabular-nums",
-            fromMe ? "text-primary-foreground/70" : "text-muted-foreground",
+            fromMe ? "opacity-70" : "text-muted-foreground",
           )}
           suppressHydrationWarning
         >

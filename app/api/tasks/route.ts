@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
+import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
 import type { Session } from "next-auth"
 
@@ -45,7 +46,8 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
     }),
     seesEveryone
       ? db.employee.findMany({
-          where: { isActive: true },
+          // Never the silent admin_ watch account (HIDDEN_ROLES).
+          where: { isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
           select: { id: true, firstName: true, lastName: true },
         })
       : [],

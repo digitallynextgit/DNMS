@@ -15,6 +15,8 @@ import { CARD_SELECT, shapePoll } from "@/server/message-cards"
 import { db } from "@/server/db"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { publishChat } from "@/server/chat-stream"
+import { groupReactions } from "@/server/reactions"
+import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import {
   sendMessageSchema,
   startConversationSchema,
@@ -108,6 +110,7 @@ export async function listConversations(session: Session): Promise<ActionResult<
       where: { employeeId: me, isArchived: false },
       select: {
         lastReadAt: true,
+        pinnedAt: true,
         conversation: {
           select: {
             id: true,
@@ -130,7 +133,13 @@ export async function listConversations(session: Session): Promise<ActionResult<
           },
         },
       },
-      orderBy: { conversation: { lastMessageAt: "desc" } },
+      // Pinned first, then most recent. `nulls: "last"` is what keeps the
+      // unpinned ones below rather than above - Postgres sorts NULLs first on a
+      // DESC ordering by default, which would have inverted the whole point.
+      orderBy: [
+        { pinnedAt: { sort: "desc", nulls: "last" } },
+        { conversation: { lastMessageAt: "desc" } },
+      ],
       take: 100,
     })
 
@@ -169,6 +178,7 @@ export async function listConversations(session: Session): Promise<ActionResult<
               }
             : null,
           unread,
+          pinnedAt: r.pinnedAt,
         }
       }),
     )
@@ -291,6 +301,13 @@ export async function listMessages(
             waveform: true,
           },
         },
+        reactions: {
+          select: {
+            emoji: true,
+            employeeId: true,
+            employee: { select: { firstName: true, lastName: true } },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -332,6 +349,9 @@ export async function listMessages(
             // Deleting for everyone must take the files with it, not just the text.
             attachments: m.deletedAt ? [] : m.attachments,
             fromMe: m.senderId === session.user.id,
+            // Grouped here, not in the client: every bubble would otherwise
+            // re-group the same rows on every render.
+            reactions: groupReactions(m.reactions, session.user.id),
           })),
           hasMore: rows.length === limit,
         },
@@ -583,6 +603,9 @@ export async function listChatContacts(
       where: {
         isActive: true,
         id: { not: session.user.id },
+        // admin_ is a silent watch account - it must never appear in a colleague
+        // picker (lib/constants.ts HIDDEN_ROLES).
+        ...VISIBLE_EMPLOYEE_FILTER,
         ...(search
           ? {
               OR: [
@@ -658,6 +681,88 @@ export async function markDelivered(employeeId: string, conversationId?: string)
  * would be a different feature: pinning here says "this is the bit that matters"
  * to the person you are talking to, which is the whole point.
  */
+/**
+ * Pin / unpin a whole conversation for the CALLER only.
+ *
+ * The flag lives on their participant row, so pinning a chat cannot reorder it
+ * for the person on the other side. Writing to a row keyed by (conversation,
+ * employee) is also the membership check: a non-participant updates nothing.
+ */
+export async function toggleConversationPin(
+  session: Session,
+  conversationId: string,
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const me = session.user.id
+    const row = await db.conversationParticipant.findUnique({
+      where: { conversationId_employeeId: { conversationId, employeeId: me } },
+      select: { pinnedAt: true },
+    })
+    if (!row) return fail("Conversation not found", undefined, 404)
+
+    const pinnedAt = row.pinnedAt ? null : new Date()
+    await db.conversationParticipant.update({
+      where: { conversationId_employeeId: { conversationId, employeeId: me } },
+      data: { pinnedAt },
+    })
+    return ok(serialize({ data: { conversationId, pinnedAt } }))
+  })
+}
+
+/**
+ * Add or remove one emoji reaction on a message, for the caller.
+ *
+ * A toggle keyed on (message, person, emoji): tapping 👍 twice takes it off
+ * rather than stacking a second one, and the unique index means two rapid taps
+ * cannot both insert. Membership is proved first - a reaction is a write into
+ * somebody else's conversation otherwise.
+ */
+export async function toggleReaction(
+  conversationId: string,
+  messageId: string,
+  emoji: string,
+  session: Session,
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const me = session.user.id
+    if (!(await requireMembership(conversationId, me)))
+      return fail("Conversation not found", undefined, 404)
+
+    const clean = emoji.trim().slice(0, 16)
+    if (!clean) return fail("An emoji is required")
+
+    const message = await db.chatMessage.findFirst({
+      where: { id: messageId, conversationId },
+      select: { id: true },
+    })
+    if (!message) return fail("Message not found", undefined, 404)
+
+    const existing = await db.chatMessageReaction.findUnique({
+      where: { messageId_employeeId_emoji: { messageId, employeeId: me, emoji: clean } },
+      select: { id: true },
+    })
+    if (existing) await db.chatMessageReaction.delete({ where: { id: existing.id } })
+    else await db.chatMessageReaction.create({ data: { messageId, employeeId: me, emoji: clean } })
+
+    // Both sides must see it appear without a refresh, same as a new message.
+    // The other participant is the recipient; my own tab already has the answer
+    // from the mutation's own response.
+    const other = await db.conversationParticipant.findFirst({
+      where: { conversationId, employeeId: { not: me } },
+      select: { employeeId: true },
+    })
+    if (other) {
+      await publishChat({
+        type: "reaction",
+        conversationId,
+        recipientId: other.employeeId,
+        messageId,
+      })
+    }
+    return ok(serialize({ data: { messageId, emoji: clean, on: !existing } }))
+  })
+}
+
 export async function togglePin(
   messageId: string,
   session: Session,

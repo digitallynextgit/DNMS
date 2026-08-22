@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * /admin/storage — the two-level screen.
+ * /admin/storage - the two-level screen.
  *
  *   1. Every connected bucket as a card.
  *   2. Open one, and its full contents replace the grid.

@@ -16,6 +16,8 @@ import {
   Folder,
   Images,
   Mail,
+  MessageSquare,
+  FileUser,
 } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
@@ -71,6 +73,14 @@ const CATEGORY_META: Record<StorageCategory, { icon: React.ElementType; tint: st
   "mailer-images": {
     icon: Mail,
     tint: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+  },
+  chat: {
+    icon: MessageSquare,
+    tint: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  },
+  resumes: {
+    icon: FileUser,
+    tint: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400",
   },
   other: { icon: Folder, tint: "bg-muted text-muted-foreground" },
 }

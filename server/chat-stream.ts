@@ -20,7 +20,7 @@ import "server-only"
 import { Client } from "pg"
 
 export interface ChatEvent {
-  type: "message" | "read" | "delivered" | "project-message"
+  type: "message" | "read" | "delivered" | "project-message" | "reaction"
   conversationId: string
   /** Who should receive this event. */
   recipientId: string

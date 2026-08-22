@@ -7,6 +7,8 @@ export type StorageCategory =
   | "project-logos"
   | "gallery"
   | "mailer-images"
+  | "chat"
+  | "resumes"
   | "other"
 
 export interface StorageFile {
@@ -31,6 +33,9 @@ export interface StorageFile {
     | "project-logo"
     | "gallery-photo"
     | "mailer-image"
+    | "chat-attachment"
+    | "project-message-attachment"
+    | "applicant-resume"
     | null
 }
 
@@ -62,5 +67,7 @@ export const CATEGORY_LABELS: Record<StorageCategory, string> = {
   "project-logos": "Project Logos",
   gallery: "Photo Gallery",
   "mailer-images": "Campaign Images",
+  chat: "Chat Media",
+  resumes: "Resumes",
   other: "Other",
 }

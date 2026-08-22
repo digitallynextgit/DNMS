@@ -39,6 +39,7 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 import { TONE } from "@/lib/constants"
+import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme"
 import { FacebookIcon, inr, compact, CAMPAIGN_STATUS_COLORS } from "./meta-shared"
 import { DateRangePicker, type DayRange } from "./date-range-picker"
 import { useProjectIntegration, useSyncMeta } from "../hooks/use-integration"
@@ -301,9 +302,11 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
                   className="text-muted-foreground"
                   width={44}
                 />
+                {/* No itemStyle: the two areas are told apart by colour alone. */}
                 <Tooltip
                   formatter={(v, n) => [inr(Number(v)), n === "spend" ? "Spend" : "Purchase value"]}
-                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  contentStyle={CHART_TOOLTIP_STYLE}
+                  labelStyle={CHART_TOOLTIP_LABEL_STYLE}
                 />
                 <Area
                   type="monotone"

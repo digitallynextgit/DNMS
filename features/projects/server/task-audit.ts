@@ -73,7 +73,7 @@ export interface TaskEdit {
 }
 
 /** Nothing there - an empty title, no due date, no allocation. */
-const EMPTY = "—"
+const EMPTY = "-"
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", {

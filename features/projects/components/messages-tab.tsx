@@ -1,6 +1,7 @@
 "use client"
 
-import { useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { apiFetch } from "@/lib/api-fetch"
 import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import {
   useProjectMessages,
@@ -19,6 +20,12 @@ import {
   type MessageSearchHit,
 } from "@/features/projects/hooks/use-projects"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
@@ -27,27 +34,45 @@ import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { FormDialog } from "@/components/shared/form-dialog"
 import { cn } from "@/lib/utils"
+import { SPLIT_PANE_HEADER, SPLIT_PANE_ROW } from "@/lib/constants"
+import { MessageComposer } from "@/components/shared/message-composer"
+import { ForwardDialog } from "@/components/shared/forward-dialog"
+import { AttachmentPreview } from "@/components/shared/attachment-preview"
+import { MediaViewer, type MediaItem } from "@/components/shared/media-viewer"
+import { BUBBLE_OUT, BUBBLE_IN, BubbleTail, DayChip } from "@/components/shared/chat-bubble"
+import {
+  MessageReactions,
+  ReactionButton,
+  type ReactionGroup,
+} from "@/components/shared/message-reactions"
+import {
+  MessageTicks,
+  MessageInfoDialog,
+  type Delivery,
+  type ReceiptPerson,
+} from "@/components/shared/message-receipts"
 import { toast } from "sonner"
 import {
   Plus,
   Search,
-  Send,
   Trash2,
   Pin,
   PinOff,
   ArrowLeft,
   MessageSquare,
   Megaphone,
-  Smile,
   Pencil,
+  Copy,
+  Reply,
+  Forward,
+  Info,
+  MoreVertical,
+  X,
 } from "lucide-react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Textarea } from "@/components/ui/textarea"
-import { MentionTextarea, renderWithMentions } from "./mention-textarea"
+import { MentionTextarea, renderWithMentions } from "@/components/shared/mention-textarea"
 import { HighlightedText, snippet, MIN_SEARCH_QUERY } from "@/components/shared/highlighted-text"
 import { MessageAttachments, type Attachment } from "@/components/shared/message-attachments"
-import { VoiceRecorder } from "@/components/shared/voice-recorder"
-import { AttachmentMenu } from "@/components/shared/attachment-menu"
 import {
   MessageCards,
   PollComposer,
@@ -150,7 +175,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
             selected && "hidden md:flex",
           )}
         >
-          <div className="flex items-center gap-2 border-b p-3">
+          <div className={cn(SPLIT_PANE_HEADER, "gap-2 px-3")}>
             <div className="relative flex-1">
               <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
               <Input
@@ -278,10 +303,7 @@ function ChatList({
             key={t.id}
             type="button"
             onClick={() => onSelect(t.id)}
-            className={cn(
-              "flex w-full items-center gap-3 border-b px-3 py-2.5 text-left transition-colors",
-              t.id === selectedId ? "bg-muted" : "hover:bg-muted/50",
-            )}
+            className={cn(SPLIT_PANE_ROW, t.id === selectedId ? "bg-muted" : "hover:bg-muted/50")}
           >
             <AvatarDisplay
               src={t.author.profilePhoto}
@@ -307,81 +329,6 @@ function ChatList({
         )
       })}
     </div>
-  )
-}
-
-// ─── Emoji picker ───────────────────────────────────────────────────────────
-/**
- * A small curated set rather than a full emoji library: this is a work chat, the
- * long tail is never used, and a picker package would add a dependency (and its
- * sprite sheet) for a button. Grouped so the common reactions are reachable
- * without scrolling.
- */
-const EMOJI_GROUPS: { label: string; emoji: string[] }[] = [
-  {
-    label: "Reactions",
-    emoji: ["👍", "👌", "🙌", "👏", "🙏", "💪", "🤝", "✅", "❌", "⚠️", "❗", "❓"],
-  },
-  {
-    label: "Faces",
-    emoji: ["🙂", "😄", "😅", "😂", "😉", "😍", "🤔", "😐", "😴", "😭", "😤", "🤯"],
-  },
-  {
-    label: "Work",
-    emoji: ["🔥", "🚀", "🎯", "📌", "📅", "⏰", "📈", "📉", "💡", "🛠️", "🐞", "📝"],
-  },
-  {
-    label: "Other",
-    emoji: ["🎉", "🎊", "☕", "🍕", "❤️", "⭐", "👀", "🤖", "🧠", "💯", "✨", "🙈"],
-  },
-]
-
-function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          // h-9 matches the field's min-h-9, so with `items-end` the icon lines
-          // up dead centre against a single-row composer and stays anchored to
-          // the bottom as the field grows.
-          className="text-muted-foreground hover:text-foreground h-9 w-9 shrink-0 rounded-sm"
-          title="Insert emoji"
-          aria-label="Insert emoji"
-        >
-          <Smile className="h-5 w-5" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" side="top" className="w-72 rounded-sm p-2">
-        <div className="max-h-64 space-y-3 overflow-y-auto">
-          {EMOJI_GROUPS.map((g) => (
-            <div key={g.label}>
-              <p className="text-muted-foreground mb-1 text-[10px] font-medium tracking-wide uppercase">
-                {g.label}
-              </p>
-              <div className="grid grid-cols-6 gap-0.5">
-                {g.emoji.map((e) => (
-                  <button
-                    key={e}
-                    type="button"
-                    // Stays open: picking two or three in a row is normal, and
-                    // reopening between each one is the annoying part.
-                    onClick={() => onPick(e)}
-                    className="hover:bg-accent rounded-sm py-1 text-xl leading-none transition-colors"
-                    aria-label={`Insert ${e}`}
-                  >
-                    {e}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
   )
 }
 
@@ -515,6 +462,87 @@ function ChatView({
 }) {
   const { data, isLoading } = useMessageReplies(projectId, thread.id, true)
   const replies = useMemo(() => data?.data ?? [], [data])
+  const readers = useMemo(() => data?.readers ?? [], [data])
+
+  // Assembled HERE rather than in a bubble: only the thread knows what else was
+  // posted, which is what makes next/previous and the filmstrip possible.
+  const gallery = useMemo<MediaItem[]>(
+    () =>
+      replies.flatMap((r) =>
+        (r.attachments ?? [])
+          .filter((a) => a.kind === "IMAGE" || a.kind === "VIDEO")
+          .map((a) => ({
+            id: a.id,
+            fileName: a.fileName,
+            kind: a.kind,
+            authorName: `${r.author.firstName} ${r.author.lastName}`.trim(),
+            authorPhoto: r.author.profilePhoto,
+            createdAt: r.createdAt,
+          })),
+      ),
+    [replies],
+  )
+
+  /**
+   * Everyone this message went to, with when they last opened the chat. Excludes
+   * the author (you cannot un-read your own message) and anyone with no mark at
+   * all is carried through with `seenAt: null` so the info panel can list them
+   * under "not read by" rather than silently dropping them.
+   */
+  const audienceFor = (authorId: string): ReceiptPerson[] =>
+    members
+      .filter((m) => m.id !== authorId)
+      .map((m) => ({
+        id: m.id,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        profilePhoto: m.profilePhoto,
+        seenAt: readers.find((r) => r.id === m.id)?.lastSeenAt ?? null,
+      }))
+
+  /**
+   * Group-chat ticks, WhatsApp's rule: one tick until somebody has opened it,
+   * two once some have, two blue once everyone has. There is no separate
+   * "delivered" signal for a project chat, so "delivered" here means "seen by
+   * some" rather than pretending to a network receipt we never collected.
+   */
+  const deliveryFor = (authorId: string, createdAt: string): Delivery => {
+    const audience = audienceFor(authorId)
+    if (audience.length === 0) return "sent"
+    const sent = new Date(createdAt).getTime()
+    const seen = audience.filter((a) => a.seenAt && new Date(a.seenAt).getTime() >= sent).length
+    if (seen === 0) return "sent"
+    return seen === audience.length ? "read" : "delivered"
+  }
+
+  const [infoFor, setInfoFor] = useState<{ authorId: string; createdAt: string } | null>(null)
+  /** Files picked but not yet sent - the review screen is open while this is
+   *  non-empty. Nothing is uploaded until Send, so backing out is free. */
+  /** Which attachment the viewer is on, by id. Null = closed. */
+  const [viewing, setViewing] = useState<string | null>(null)
+  const [staged, setStaged] = useState<File[]>([])
+  const viewingIndex = viewing ? gallery.findIndex((g) => g.id === viewing) : -1
+  const [forwarding, setForwarding] = useState<string | null>(null)
+  /** The bubble the composer is answering: its id ("root" = the opening post),
+   *  who wrote it and a snippet, so the banner needs no second lookup. */
+  const [replyTo, setReplyTo] = useState<{
+    id: string
+    authorName: string
+    content: string
+  } | null>(null)
+
+  /** Toggle one emoji. `replyId` omitted = the opening post. */
+  const react = useMutation({
+    mutationFn: ({ emoji, replyId }: { emoji: string; replyId?: string }) =>
+      apiFetch(`/api/projects/${projectId}/messages/${thread.id}/react`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji, replyId }),
+      }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["project-message-replies", projectId, thread.id] }),
+    onError: (e: Error) => toast.error(e.message),
+  })
   const create = useCreateReply(projectId, thread.id)
   const delReply = useDeleteReply(projectId, thread.id)
   const delChat = useDeleteMessage(projectId)
@@ -539,13 +567,17 @@ function ChatView({
     durationSec?: number,
     waveform?: number[],
     asSticker?: boolean,
+    /** Caption from the preview screen. Falls back to whatever is in the
+     *  composer, which is how a voice note or sticker carries typed text. */
+    caption?: string,
   ) {
     if (files.length === 0) return
     setUploading(true)
     try {
+      const body = (caption ?? content).trim()
       const form = new FormData()
       for (const f of files) form.append("files", f)
-      if (content.trim()) form.append("body", content.trim())
+      if (body) form.append("body", body)
       if (durationSec) form.append("durationSec", String(durationSec))
       if (waveform?.length) form.append("waveform", waveform.join(","))
       if (asSticker) form.append("sticker", "1")
@@ -623,9 +655,44 @@ function ChatView({
   }, [replies.length, thread.id, isLoading, jumpTo])
 
   // Scroll the matched bubble into view once its replies have rendered. The
+  // Search WITHIN the open chat, the same affordance personal Chat has in its
+  // header. The left pane already searches across every chat in the project;
+  // this is the half that finds what somebody actually said in this one.
+  //
+  // No endpoint: the opening post and every reply are already loaded, so this
+  // filters what is in hand. A round trip to re-fetch text the page is holding
+  // would be slower AND capable of disagreeing with what is on screen.
+  const [searching, setSearching] = useState(false)
+  const [searchQ, setSearchQ] = useState("")
+  const trimmedQ = searchQ.trim()
+  const hits = useMemo(() => {
+    if (trimmedQ.length < MIN_SEARCH_QUERY) return []
+    const needle = trimmedQ.toLowerCase()
+    const all = [
+      { id: "root", author: thread.author, content: thread.content, createdAt: thread.createdAt },
+      ...replies.map((r) => ({
+        id: r.id,
+        author: r.author,
+        content: r.content,
+        createdAt: r.createdAt,
+      })),
+    ]
+    return all.filter((m) => m.content.toLowerCase().includes(needle))
+  }, [trimmedQ, thread.author, thread.content, thread.createdAt, replies])
+
   // flash lives in `flashId` rather than staying on forever, so the highlight
   // reads as "here it is" and then gets out of the way.
   const [flashId, setFlashId] = useState<string | null>(null)
+
+  /** Scroll to a message in THIS chat and flash it - what a search hit does. */
+  const jumpToLocal = (id: string) => {
+    document.getElementById(`msg-${thread.id}-${id}`)?.scrollIntoView({
+      block: "center",
+      behavior: "smooth",
+    })
+    setFlashId(id)
+    setTimeout(() => setFlashId(null), 2500)
+  }
   useEffect(() => {
     if (!jumpTo || isLoading) return
     const el = document.getElementById(`msg-${thread.id}-${jumpTo}`)
@@ -639,9 +706,10 @@ function ChatView({
 
   function send() {
     if (!content.trim()) return
-    const draft = { content: content.trim(), mentionIds }
+    const draft = { content: content.trim(), mentionIds, replyToId: replyTo?.id }
+    setReplyTo(null)
     create.mutate(
-      { content: draft.content, mentionedIds: draft.mentionIds },
+      { content: draft.content, mentionedIds: draft.mentionIds, replyToId: draft.replyToId },
       {
         onSuccess: (res) => {
           const created = res.data
@@ -664,9 +732,10 @@ function ChatView({
   }
 
   return (
-    <div className="flex h-full w-full flex-col">
+    // relative: the attachment review screen covers THIS pane, not the viewport.
+    <div className="relative flex h-full w-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b p-3">
+      <div className={cn(SPLIT_PANE_HEADER, "gap-2 px-3")}>
         <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={onBack} title="Back">
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -687,6 +756,20 @@ function ChatView({
             message{replies.length === 0 ? "" : "s"}
           </p>
         </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={searching ? "Close search" : "Search in chat"}
+          title={searching ? "Close search" : "Search in chat"}
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            setSearching((v) => !v)
+            setSearchQ("")
+          }}
+        >
+          {searching ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+        </Button>
+
         {/* Pinning is organising the chat list, not rewriting it, so it has no
             time limit and stays with the author / project managers. */}
         {(isAuthor || canManage) && (
@@ -726,8 +809,44 @@ function ChatView({
         )}
       </div>
 
+      {searching && (
+        <div className="bg-card shrink-0 border-b p-2">
+          <Input
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            placeholder="Search in this chat"
+            autoFocus
+            className="h-9 text-sm"
+          />
+          <div className="mt-2 max-h-56 overflow-y-auto">
+            {trimmedQ.length > 0 && trimmedQ.length < MIN_SEARCH_QUERY && (
+              <p className="text-muted-foreground px-1 py-2 text-xs">Keep typing…</p>
+            )}
+            {trimmedQ.length >= MIN_SEARCH_QUERY && hits.length === 0 && (
+              <p className="text-muted-foreground px-1 py-2 text-xs">No messages match.</p>
+            )}
+            {hits.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => jumpToLocal(h.id)}
+                className="hover:bg-muted w-full rounded-sm px-2 py-1.5 text-left transition-colors"
+              >
+                <span className="text-muted-foreground block text-[10px]">
+                  {h.author.id === currentUserId ? "You" : h.author.firstName} ·{" "}
+                  {formatClockTime(h.createdAt)}
+                </span>
+                <span className="block truncate text-xs">
+                  <HighlightedText text={snippet(h.content, trimmedQ)} query={trimmedQ} />
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="bg-background flex-1 overflow-y-auto px-3 py-3">
         {/* Every conversation opens under the day it started on. */}
         <DaySeparator date={thread.createdAt} />
 
@@ -743,6 +862,19 @@ function ChatView({
           content={thread.content}
           createdAt={thread.createdAt}
           memberNames={memberNames}
+          delivery={deliveryFor(thread.authorId, thread.createdAt)}
+          onInfo={() => setInfoFor({ authorId: thread.authorId, createdAt: thread.createdAt })}
+          reactions={thread.reactions ?? []}
+          onReact={(emoji) => react.mutate({ emoji })}
+          onOpenMedia={setViewing}
+          onForward={() => setForwarding(thread.content)}
+          onReply={() =>
+            setReplyTo({
+              id: "root",
+              authorName: `${thread.author.firstName} ${thread.author.lastName}`.trim(),
+              content: thread.content,
+            })
+          }
           edited={thread.updatedAt !== thread.createdAt}
           windowLeft={formatWindowLeft(chatWindowMs)}
           onEdit={
@@ -756,126 +888,159 @@ function ChatView({
         {isLoading ? (
           <p className="text-muted-foreground py-2 text-center text-xs">Loading messages…</p>
         ) : (
-          replies.map((r, i) => (
-            <Fragment key={r.id}>
-              {/* A separator whenever the calendar day changes. The opening post
-                  is the message before the first reply, so that comparison is
-                  against the thread itself. */}
-              {dayKey(r.createdAt) !==
-                dayKey(i === 0 ? thread.createdAt : replies[i - 1]!.createdAt) && (
-                <DaySeparator date={r.createdAt} />
-              )}
-              <Bubble
-                domId={`msg-${thread.id}-${r.id}`}
-                flash={flashId === r.id}
-                own={r.authorId === currentUserId}
-                authorName={`${r.author.firstName} ${r.author.lastName}`}
-                photo={r.author.profilePhoto}
-                firstName={r.author.firstName}
-                lastName={r.author.lastName}
-                content={r.content}
-                attachments={r.attachments}
-                poll={r.poll}
-                event={r.event}
-                contact={r.contact}
-                onVoted={() =>
-                  qc.invalidateQueries({
-                    queryKey: ["project-message-replies", projectId, thread.id],
-                  })
-                }
-                createdAt={r.createdAt}
-                memberNames={memberNames}
-                edited={r.updatedAt !== r.createdAt}
-                windowLeft={formatWindowLeft(editWindowRemaining(r.createdAt, now))}
-                // Own reply, still inside the window. Once it closes these go
-                // undefined and both controls vanish from the bubble.
-                onEdit={
-                  r.authorId === currentUserId && isWithinEditWindow(r.createdAt, now)
-                    ? (next) =>
-                        updateReply.mutate({
-                          replyId: r.id,
-                          content: next,
-                          mentionedIds: r.mentionedIds ?? [],
-                        })
-                    : undefined
-                }
-                onDelete={
-                  r.authorId === currentUserId && isWithinEditWindow(r.createdAt, now)
-                    ? () => setConfirmDeleteReply(r.id)
-                    : undefined
-                }
-              />
-            </Fragment>
-          ))
+          replies.map((r, i) => {
+            // The opening post is the message before the first reply, so both
+            // the day break and the run break compare against the thread itself.
+            const prev = i === 0 ? null : replies[i - 1]!
+            const prevAuthor = prev ? prev.authorId : thread.authorId
+            const prevDay = dayKey(prev ? prev.createdAt : thread.createdAt)
+            const newDay = dayKey(r.createdAt) !== prevDay
+            // A run is consecutive replies from ONE author on ONE day: the first
+            // carries the tail, avatar, name and gap; the rest sit tight beneath.
+            const startsRun = newDay || r.authorId !== prevAuthor
+            return (
+              <Fragment key={r.id}>
+                {newDay && <DaySeparator date={r.createdAt} />}
+                <Bubble
+                  startsRun={startsRun}
+                  domId={`msg-${thread.id}-${r.id}`}
+                  flash={flashId === r.id}
+                  own={r.authorId === currentUserId}
+                  authorName={`${r.author.firstName} ${r.author.lastName}`}
+                  photo={r.author.profilePhoto}
+                  firstName={r.author.firstName}
+                  lastName={r.author.lastName}
+                  content={r.content}
+                  attachments={r.attachments}
+                  poll={r.poll}
+                  event={r.event}
+                  contact={r.contact}
+                  onVoted={() =>
+                    qc.invalidateQueries({
+                      queryKey: ["project-message-replies", projectId, thread.id],
+                    })
+                  }
+                  createdAt={r.createdAt}
+                  memberNames={memberNames}
+                  delivery={deliveryFor(r.authorId, r.createdAt)}
+                  onInfo={() => setInfoFor({ authorId: r.authorId, createdAt: r.createdAt })}
+                  reactions={r.reactions ?? []}
+                  onReact={(emoji) => react.mutate({ emoji, replyId: r.id })}
+                  onOpenMedia={setViewing}
+                  onForward={() => setForwarding(r.content)}
+                  onReply={() =>
+                    setReplyTo({
+                      id: r.id,
+                      authorName: `${r.author.firstName} ${r.author.lastName}`.trim(),
+                      content: r.content,
+                    })
+                  }
+                  quote={r.replyTo ?? null}
+                  onJumpToQuote={jumpToLocal}
+                  edited={r.updatedAt !== r.createdAt}
+                  windowLeft={formatWindowLeft(editWindowRemaining(r.createdAt, now))}
+                  // Own reply, still inside the window. Once it closes these go
+                  // undefined and both controls vanish from the bubble.
+                  onEdit={
+                    r.authorId === currentUserId && isWithinEditWindow(r.createdAt, now)
+                      ? (next) =>
+                          updateReply.mutate({
+                            replyId: r.id,
+                            content: next,
+                            mentionedIds: r.mentionedIds ?? [],
+                          })
+                      : undefined
+                  }
+                  onDelete={
+                    r.authorId === currentUserId && isWithinEditWindow(r.createdAt, now)
+                      ? () => setConfirmDeleteReply(r.id)
+                      : undefined
+                  }
+                />
+              </Fragment>
+            )
+          })
         )}
       </div>
 
-      {/* Composer: one bar holding the emoji button, the field and Send, the way
-          a messenger reads - rather than three separate controls in a row. The
-          textarea is stripped of its own chrome so the BAR owns the border and
-          the focus ring. Square corners (rounded-sm) on purpose - the house
-          style everywhere else, not WhatsApp's pill. */}
-      <div className="border-t p-3">
-        <div className="border-input bg-background focus-within:ring-ring/50 flex items-end gap-1 rounded-sm border px-1.5 py-1 transition-shadow focus-within:ring-2">
-          {!recording && (
-            <>
-              <EmojiPicker onPick={(e) => setContent((c) => c + e)} />
-              <AttachmentMenu
-                disabled={uploading}
-                busy={uploading}
-                onFiles={(files, opts) => upload(files, undefined, undefined, opts?.asSticker)}
-                onPoll={() => setCard("poll")}
-                onEvent={() => setCard("event")}
-                onContact={() => setCard("contact")}
-              />
-            </>
-          )}
-          <div className={cn("min-w-0 flex-1", recording && "hidden")}>
-            <MentionTextarea
-              value={content}
-              onChange={(v, ids) => {
-                setContent(v)
-                setMentionIds(ids)
-              }}
-              members={members}
-              rows={1}
-              dropup
-              autoGrow
-              onSubmit={send}
-              placeholder="Type a message…  @ to mention, Enter to send"
-              // The bar draws the border and the ring, so the field itself must
-              // draw neither - otherwise there are two boxes inside one another.
-              // max-h-32 is where the growing stops and the scrollbar starts.
-              className="max-h-32 min-h-9 resize-none overflow-y-auto border-0 bg-transparent px-1 py-1.5 shadow-none focus-visible:ring-0"
-            />
+      {replyTo && !recording && (
+        <div className="bg-card flex shrink-0 items-center gap-2 border-t px-2 pt-2">
+          <div className="border-primary/60 bg-muted min-w-0 flex-1 border-l-2 px-2 py-1">
+            <p className="text-[10px] font-medium">Replying to {replyTo.authorName}</p>
+            <p className="text-muted-foreground truncate text-xs">{replyTo.content || "Message"}</p>
           </div>
-          {/* Arrow when there is something typed, mic when there is not. The
-              recorder stays mounted while running - remounting it would drop the
-              MediaRecorder and the clip with it. */}
-          {!recording && content.trim() ? (
-            <Button
-              size="icon"
-              className="h-9 w-9 shrink-0 rounded-sm"
-              disabled={create.isPending}
-              onClick={send}
-              title="Send"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          ) : (
-            <VoiceRecorder
-              disabled={uploading}
-              onActiveChange={setRecording}
-              onSend={async (blob, durationSec, waveform) => {
-                const file = new File([blob], `voice-${durationSec}s.webm`, {
-                  type: blob.type || "audio/webm",
-                })
-                await upload([file], durationSec, waveform)
-              }}
-            />
-          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Cancel reply"
+            className="text-muted-foreground shrink-0"
+            onClick={() => setReplyTo(null)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
         </div>
-      </div>
+      )}
+
+      <MessageComposer
+        value={content}
+        onChange={(v, ids) => {
+          setContent(v)
+          setMentionIds(ids)
+        }}
+        onSubmit={send}
+        members={members}
+        uploading={uploading}
+        sending={create.isPending}
+        recording={recording}
+        onRecordingChange={setRecording}
+        onFiles={(files, opts) => {
+          // A sticker is a one-tap send; anything else gets the review screen.
+          if (opts?.asSticker) void upload(files, undefined, undefined, true)
+          else setStaged(files)
+        }}
+        onPoll={() => setCard("poll")}
+        onEvent={() => setCard("event")}
+        onContact={() => setCard("contact")}
+        onVoice={async (blob, durationSec, waveform) => {
+          const file = new File([blob], `voice-${durationSec}s.webm`, {
+            type: blob.type || "audio/webm",
+          })
+          await upload([file], durationSec, waveform)
+        }}
+      />
+
+      {viewingIndex >= 0 && (
+        <MediaViewer
+          items={gallery}
+          index={viewingIndex}
+          onIndexChange={(i) => setViewing(gallery[i]?.id ?? null)}
+          onClose={() => setViewing(null)}
+          urlFor={projectAttachmentUrl}
+        />
+      )}
+
+      <AttachmentPreview
+        files={staged}
+        sending={uploading}
+        onClose={() => setStaged([])}
+        onSend={async (files, caption) => {
+          await upload(files, undefined, undefined, false, caption)
+          setStaged([])
+        }}
+      />
+
+      <ForwardDialog
+        open={!!forwarding}
+        onOpenChange={(o) => !o && setForwarding(null)}
+        body={forwarding ?? ""}
+      />
+
+      <MessageInfoDialog
+        open={!!infoFor}
+        onOpenChange={(o) => !o && setInfoFor(null)}
+        sentAt={infoFor?.createdAt ?? new Date().toISOString()}
+        people={infoFor ? audienceFor(infoFor.authorId) : []}
+      />
 
       <PollComposer
         open={card === "poll"}
@@ -967,6 +1132,16 @@ function Bubble({
   opener,
   domId,
   flash,
+  startsRun = true,
+  delivery,
+  onInfo,
+  reactions,
+  onReact,
+  onForward,
+  onReply,
+  quote,
+  onJumpToQuote,
+  onOpenMedia,
 }: {
   own: boolean
   authorName: string
@@ -991,6 +1166,23 @@ function Bubble({
   domId?: string
   /** Briefly ringed after being jumped to, so the eye lands on the right bubble. */
   flash?: boolean
+  /** First bubble of a run by one author: it carries the tail, the avatar,
+   *  the name and the gap above. The rest sit tight beneath it. */
+  startsRun?: boolean
+  /** Read state of YOUR message; omitted on other people's. */
+  delivery?: Delivery
+  onInfo?: () => void
+  reactions?: ReactionGroup[]
+  onReact?: (emoji: string) => void
+  /** Opens the forward picker with this message's text. */
+  onForward?: () => void
+  /** Point the composer at this bubble. */
+  onReply?: () => void
+  /** The line THIS bubble quotes, if any. */
+  quote?: { id: string; content: string; authorName: string; fromMe: boolean } | null
+  onJumpToQuote?: (id: string) => void
+  /** Hands a tapped picture to the thread's conversation-wide viewer. */
+  onOpenMedia?: (attachmentId: string) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(content)
@@ -1011,32 +1203,54 @@ function Bubble({
     <div
       id={domId}
       className={cn(
-        "group flex scroll-mt-4 items-end gap-2",
+        "group flex scroll-mt-4 items-end gap-1.5",
         own ? "flex-row-reverse" : "flex-row",
+        startsRun ? "mt-2" : "mt-0.5",
       )}
     >
-      {!own && (
-        <AvatarDisplay
-          src={photo}
-          firstName={firstName}
-          lastName={lastName}
-          size="xs"
-          className="mb-4 shrink-0"
-        />
-      )}
+      {/* One avatar per run, but the gutter is always reserved - without the
+          spacer every follow-up bubble would slide left under the avatar. */}
+      {!own &&
+        (startsRun ? (
+          <AvatarDisplay
+            src={photo}
+            firstName={firstName}
+            lastName={lastName}
+            size="xs"
+            className="mb-4 shrink-0"
+          />
+        ) : (
+          <span className="w-5 shrink-0" aria-hidden />
+        ))}
       <div
         className={cn(
-          "relative max-w-[78%] rounded-sm px-3 py-2 text-sm shadow-sm transition-shadow sm:max-w-[70%]",
-          own
-            ? "rounded-br-sm bg-emerald-600 text-white dark:bg-emerald-700"
-            : "bg-muted text-foreground rounded-bl-sm",
+          "relative max-w-[78%] min-w-0 rounded-sm px-2.5 py-1.5 text-sm shadow-sm",
+          own ? BUBBLE_OUT : BUBBLE_IN,
+          // Square off the corner the tail grows out of, so the two shapes
+          // read as one bubble rather than a blob beside a box.
+          startsRun && (own ? "rounded-tr-none" : "rounded-tl-none"),
           flash && "ring-2 ring-amber-400 ring-offset-1",
         )}
       >
-        {!own && (
-          <p className="mb-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-            {authorName}
-          </p>
+        {startsRun && <BubbleTail side={own ? "right" : "left"} />}
+
+        {/* What this answers. Clicking it walks back up the thread - a quote
+            you cannot follow is just decoration. */}
+        {quote && (
+          <button
+            type="button"
+            onClick={() => onJumpToQuote?.(quote.id)}
+            className="border-primary/50 bg-background/50 text-muted-foreground mb-1 block w-full truncate border-l-2 px-1.5 py-0.5 text-left text-[11px]"
+          >
+            <span className="block font-medium">{quote.fromMe ? "You" : quote.authorName}</span>
+            {quote.content || "Message deleted"}
+          </button>
+        )}
+
+        {/* Only on the first of a run: repeating the name under every line of
+            somebody talking to themselves is noise. */}
+        {!own && startsRun && (
+          <p className="text-primary mb-0.5 text-[11px] font-semibold">{authorName}</p>
         )}
         {opener && (
           <p
@@ -1094,6 +1308,7 @@ function Bubble({
                 <MessageAttachments
                   attachments={attachments}
                   fromMe={own}
+                  onOpenMedia={onOpenMedia}
                   urlFor={projectAttachmentUrl}
                   avatar={own ? null : { src: photo ?? null, firstName, lastName }}
                 />
@@ -1126,40 +1341,101 @@ function Bubble({
         <div
           className={cn(
             "mt-0.5 flex items-center justify-end gap-1.5 text-[10px]",
-            own ? "text-white/70" : "text-muted-foreground",
+            "text-muted-foreground",
           )}
         >
           {edited && <span className="italic">edited</span>}
           {/* Time only - the day is on the separator above this run of messages. */}
           <span>{formatClockTime(createdAt)}</span>
+          {/* Ticks on your own only: there is nothing to report about whether YOU
+              have read somebody else's message. Clicking opens the full list. */}
+          {own && delivery && (
+            <button
+              type="button"
+              onClick={onInfo}
+              title="Message info"
+              className="hover:text-foreground -my-1 -mr-0.5 p-1 transition-colors"
+            >
+              <MessageTicks status={delivery} />
+              <span className="sr-only">Message info</span>
+            </button>
+          )}
         </div>
+
+        {reactions && onReact && <MessageReactions reactions={reactions} onToggle={onReact} />}
       </div>
 
-      {/* Author controls. They exist only inside the 15 minute window - the
-          parent stops passing the handlers once it closes, and re-renders on a
-          timer so they disappear on their own rather than at the next click. */}
-      {!editing && (onEdit || onDelete) && (
-        <div className="mb-4 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-          {onEdit && (
-            <button
-              type="button"
-              onClick={startEdit}
-              title={windowLeft ? `Edit message · ${windowLeft}` : "Edit message"}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          )}
-          {onDelete && (
-            <button
-              type="button"
-              onClick={onDelete}
-              title={windowLeft ? `Delete message · ${windowLeft}` : "Delete message"}
-              className="text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
+      {/* The same control column personal Chat has: react above, ⋮ below. Edit
+          and Delete live INSIDE the menu because they expire - the parent stops
+          passing their handlers when the 15 minute window closes, and re-renders
+          on a timer so they vanish on their own rather than at the next click. */}
+      {!editing && (onReact || onInfo || onReply || onForward || onEdit || onDelete) && (
+        <div className="mb-4 flex shrink-0 flex-col items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 has-[[data-state=open]]:opacity-100">
+          {onReact && <ReactionButton align={own ? "end" : "start"} onPick={onReact} />}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Message options"
+                className="text-muted-foreground shrink-0"
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align={own ? "end" : "start"}>
+              {/* Own messages only: there is nothing to report about whether YOU
+                  have read somebody else's. */}
+              {own && onInfo && (
+                <DropdownMenuItem onClick={onInfo}>
+                  <Info className="mr-2 h-3.5 w-3.5" />
+                  Message info
+                </DropdownMenuItem>
+              )}
+              {onReply && (
+                <DropdownMenuItem onClick={onReply}>
+                  <Reply className="mr-2 h-3.5 w-3.5" />
+                  Reply
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={() => navigator.clipboard?.writeText(content)}
+                disabled={!content}
+              >
+                <Copy className="mr-2 h-3.5 w-3.5" />
+                Copy
+              </DropdownMenuItem>
+              {onForward && (
+                <DropdownMenuItem onClick={onForward} disabled={!content}>
+                  <Forward className="mr-2 h-3.5 w-3.5" />
+                  Forward
+                </DropdownMenuItem>
+              )}
+              {onEdit && (
+                <DropdownMenuItem onClick={startEdit}>
+                  <Pencil className="mr-2 h-3.5 w-3.5" />
+                  Edit
+                  {windowLeft && (
+                    <span className="text-muted-foreground ml-auto pl-3 text-[10px]">
+                      {windowLeft}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              )}
+              {onDelete && (
+                <DropdownMenuItem className="text-destructive" onClick={onDelete}>
+                  <Trash2 className="mr-2 h-3.5 w-3.5" />
+                  Delete
+                  {windowLeft && (
+                    <span className="text-muted-foreground ml-auto pl-3 text-[10px]">
+                      {windowLeft}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
     </div>
@@ -1176,13 +1452,7 @@ const AUTO_CAPTIONS = new Set(["Photo", "Voice message", "File"])
  * run of messages beneath it instead of being repeated on every bubble.
  */
 function DaySeparator({ date }: { date: string }) {
-  return (
-    <div className="flex justify-center py-2">
-      <span className="bg-muted text-muted-foreground rounded-sm px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase shadow-sm">
-        {formatDaySeparator(date)}
-      </span>
-    </div>
-  )
+  return <DayChip label={formatDaySeparator(date)} />
 }
 
 // ─── Edit chat dialog (subject + opening message) ───────────────────────────

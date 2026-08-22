@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withAuth } from "@/server/api-handler"
-import { PERMISSIONS } from "@/lib/constants"
+import { withSession } from "@/server/api-handler"
 import { isB2Configured, uploadFile, getObjectKey } from "@/lib/storage"
 import { resizeImage } from "@/lib/image-resize"
 import { resolveAlbumId } from "@/features/noticeboard/server/album-slug"
@@ -9,19 +8,51 @@ import { resolveAlbumId } from "@/features/noticeboard/server/album-slug"
 export const runtime = "nodejs"
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-const MAX_BYTES = 15 * 1024 * 1024
+/** Phone cameras record .mov (quicktime); mp4/webm cover everything else. */
+const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"]
+
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024
+/**
+ * Videos are stored exactly as uploaded (no server-side transcode), so this cap
+ * is the real ceiling on what lands in the bucket. Kept below
+ * `proxyClientMaxBodySize` (260 MB, next.config.mjs) with room for the multipart
+ * envelope - above that the body is truncated and formData() dies on the missing
+ * boundary rather than returning a clean "too large".
+ */
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024
+
 /** Gallery photos are viewed full-screen, so they keep more resolution than an
  *  email image - but a 6000px phone photo is still pure download weight. */
 const MAX_DIM = 2000
 const QUALITY = 82
 
+const VIDEO_EXT: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+}
+
+interface StoredFile {
+  bytes: Buffer
+  contentType: string
+  ext: string
+  width: number | null
+  height: number | null
+}
+
 /**
- * POST /api/gallery/albums/:albumId/photos - upload one or more photos.
+ * POST /api/gallery/albums/:albumId/photos - upload one or more photos/videos.
+ *
+ * Open to EVERY signed-in employee (withSession), not just gallery:write: the
+ * gallery is the company's shared album, and the people at the event are the
+ * ones holding the photos. Destructive actions stay privileged - deleting an
+ * album still needs gallery:write, and an employee may only delete their own
+ * uploads.
  *
  * Multiple files per request: a Diwali album is thirty photos, and thirty
  * round trips is thirty chances for one to fail halfway.
  */
-export const POST = withAuth(PERMISSIONS.GALLERY_WRITE, async (req: NextRequest, ctx, session) => {
+export const POST = withSession(async (req: NextRequest, ctx, session) => {
   if (!(await isB2Configured())) {
     return NextResponse.json({ error: "Backblaze B2 storage is not configured." }, { status: 500 })
   }
@@ -39,33 +70,51 @@ export const POST = withAuth(PERMISSIONS.GALLERY_WRITE, async (req: NextRequest,
   const skipped: { fileName: string; reason: string }[] = []
 
   for (const file of files) {
-    if (!IMAGE_TYPES.includes(file.type)) {
-      skipped.push({ fileName: file.name, reason: "Not a JPG, PNG, WEBP or GIF" })
+    const isVideo = VIDEO_TYPES.includes(file.type)
+    const isImage = IMAGE_TYPES.includes(file.type)
+    if (!isImage && !isVideo) {
+      skipped.push({
+        fileName: file.name,
+        reason: "Not an image (JPG, PNG, WEBP, GIF) or video (MP4, WEBM, MOV)",
+      })
       continue
     }
-    if (file.size > MAX_BYTES) {
-      skipped.push({ fileName: file.name, reason: "Larger than 15 MB" })
+
+    const cap = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES
+    if (file.size > cap) {
+      skipped.push({ fileName: file.name, reason: `Larger than ${cap / 1024 / 1024} MB` })
       continue
     }
 
     const original = Buffer.from(await file.arrayBuffer())
-    const { bytes, contentType, ext, width, height } = await resizeImage(original, file.type, {
-      maxDim: MAX_DIM,
-      quality: QUALITY,
-    })
+    // Videos go up byte-for-byte: sharp cannot touch them, and transcoding on
+    // the request thread would hold a 200 MB buffer for minutes.
+    const stored: StoredFile = isVideo
+      ? {
+          bytes: original,
+          contentType: file.type,
+          ext: VIDEO_EXT[file.type] ?? "mp4",
+          width: null,
+          height: null,
+        }
+      : await resizeImage(original, file.type, { maxDim: MAX_DIM, quality: QUALITY })
 
-    const objectKey = getObjectKey(`gallery/${albumId}`, `photo.${ext}`, crypto.randomUUID())
-    await uploadFile(objectKey, bytes, contentType)
+    const objectKey = getObjectKey(
+      `gallery/${albumId}`,
+      `${isVideo ? "video" : "photo"}.${stored.ext}`,
+      crypto.randomUUID(),
+    )
+    await uploadFile(objectKey, stored.bytes, stored.contentType)
 
     const photo = await db.photo.create({
       data: {
         albumId,
         objectKey,
         fileName: file.name.slice(0, 200),
-        contentType,
-        size: bytes.length,
-        width,
-        height,
+        contentType: stored.contentType,
+        size: stored.bytes.length,
+        width: stored.width,
+        height: stored.height,
         uploadedById: session.user.id,
       },
       select: { id: true, fileName: true },

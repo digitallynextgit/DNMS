@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withProjectAccess } from "@/features/projects/server/project-access"
 import { logActivity } from "@/features/projects/server/activity"
+import { groupReactions } from "@/server/reactions"
 import { createNotifications } from "@/lib/notifications"
 import type { Session } from "next-auth"
 
@@ -98,6 +99,14 @@ export const GET = withProjectAccess(
         include: {
           author: { select: AUTHOR_SELECT },
           _count: { select: { replies: true } },
+          // On the OPENING post. Replies carry their own, fetched with the thread.
+          reactions: {
+            select: {
+              emoji: true,
+              employeeId: true,
+              employee: { select: { firstName: true, lastName: true } },
+            },
+          },
           // Last reply powers the chat-list preview + "last activity" ordering.
           replies: {
             take: 1,
@@ -118,6 +127,7 @@ export const GET = withProjectAccess(
           const last = replies[0]
           return {
             ...m,
+            reactions: groupReactions(m.reactions, _session.user.id),
             lastReply: last
               ? {
                   content: last.content,

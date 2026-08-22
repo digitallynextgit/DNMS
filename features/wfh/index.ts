@@ -4,3 +4,4 @@
 // intentionally NOT re-exported here - API routes import those directly.
 export * from "./hooks/use-wfh"
 export * from "./components/wfh-requests-inbox"
+export * from "./components/wfh-mail-preview"

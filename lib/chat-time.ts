@@ -1,23 +1,35 @@
-import { differenceInCalendarDays, format, isSameDay, isSameYear, subDays } from "date-fns"
+import { format, isSameDay, isSameYear, subDays } from "date-fns"
 
-/** Clock time on a bubble - the day it belongs to comes from the separator above it. */
+/**
+ * Clock time on a bubble - the day it belongs to comes from the separator above.
+ *
+ * 12h ("6:31 pm"), which is what personal Chat has always shown. The rest of the
+ * app writes 24h via formatDateTime(), but a conversation is not a report: this
+ * is the one surface where the reading matches how people say the time out loud,
+ * and both message surfaces now agree on it.
+ */
 export function formatClockTime(value: string | Date): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ""
-  // 24h, matching formatDateTime() everywhere else in the app.
-  return format(date, "HH:mm")
+  return format(date, "h:mm a")
 }
 
 /**
  * The chip that sits between days in a conversation.
  *
- *   today            → "Today"
- *   yesterday        → "Yesterday"
- *   within the week  → "Saturday"
- *   older            → "5 Aug"  (or "5 Aug 2025" once the year differs)
+ *   today      → "Today"
+ *   yesterday  → "Yesterday"
+ *   older      → "5 Aug 2026"
  *
- * A weekday name is only useful while it is unambiguous - past six days back
- * "Saturday" could be any of several, so it becomes a date.
+ * Personal Chat's rule, now used by both message surfaces. Two deliberate
+ * choices:
+ *
+ *   - No "Saturday" step. A weekday reads as recent, so seeing one on a chip you
+ *     have scrolled a long way back to is more confusing than a plain date.
+ *   - The year is ALWAYS written, not only when it differs from this one. A
+ *     conversation is scrolled through, not dated at a glance: by the time you
+ *     are looking at a separator you have usually lost track of which year you
+ *     are in, and "5 Aug" alone makes you work it out.
  */
 export function formatDaySeparator(value: string | Date): string {
   const date = new Date(value)
@@ -26,8 +38,7 @@ export function formatDaySeparator(value: string | Date): string {
 
   if (isSameDay(date, now)) return "Today"
   if (isSameDay(date, subDays(now, 1))) return "Yesterday"
-  if (differenceInCalendarDays(now, date) < 7) return format(date, "EEEE")
-  return isSameYear(date, now) ? format(date, "d MMM") : format(date, "d MMM yyyy")
+  return format(date, "d MMM yyyy")
 }
 
 /** Calendar-day key, for grouping messages under one separator. */

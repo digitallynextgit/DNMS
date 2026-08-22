@@ -331,6 +331,33 @@ export const EMPLOYEE_STATUS_LABELS: Record<string, string> = {
  * in sync. Every *_COLORS map below is built from these tones. Add a tone here
  * rather than writing raw classes in a map.
  */
+/**
+ * The header row of a split-pane messaging surface (personal Chat, and a
+ * project's Messages tab): list on the left, open thread on the right.
+ *
+ * Both headers MUST be the same height or their bottom borders don't meet at the
+ * divider and the split reads as broken. Left to their own content they never
+ * are - the list side is sized by a 36px search input, the thread side by a 32px
+ * avatar beside two lines of text, which lands a few pixels short. A fixed height
+ * on both is the only thing that keeps them level, so it lives here rather than
+ * as two paddings in two files that have to be nudged in step by hand.
+ */
+export const SPLIT_PANE_HEADER = "flex h-14 shrink-0 items-center border-b"
+
+/**
+ * One row in that list: a conversation in personal Chat, a thread in a project's
+ * Messages tab.
+ *
+ * The height is FIXED rather than left to the content. Both rows draw the same
+ * two lines over an avatar, but personal Chat used a 40px avatar against
+ * Messages' 32px, so its rows came out 60px to Messages' 56px - close enough to
+ * look like a rendering bug rather than a choice, and liable to drift again the
+ * moment either side gains a badge or a second icon. Pinning it at h-14 makes
+ * every row in both lists exactly one header tall.
+ */
+export const SPLIT_PANE_ROW =
+  "flex h-14 w-full items-center gap-3 border-b px-3 text-left transition-colors"
+
 export const TONE = {
   green: "bg-green-500/10 text-green-600 dark:text-green-400",
   emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",

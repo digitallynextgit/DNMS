@@ -4,14 +4,15 @@ import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import { createNotification, notifyApprovers } from "@/lib/notifications"
-import { addEmailJob } from "@/lib/queue"
+import { addEmailJob, addEmailAsJob } from "@/lib/queue"
 import { requireSession } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC, toDateOnly } from "@/lib/dates"
-import { renderDecisionEmail } from "@/lib/email-layout"
+import { renderDecisionEmail, renderWfhRequestEmail, signatureLogoUrl } from "@/lib/email-layout"
 import { isOnProbation, getProbationEndDate } from "@/features/employees/probation"
+import { getConfig, getConfigSync, warmConfig } from "@/server/app-config"
 
 type Tier = 1 | 2 | 3
 
@@ -65,6 +66,201 @@ const WFH_INCLUDE = {
 // HR/admin roles whose decision is FINAL on a WFH request. A manager's call is
 // advisory (mirrors leave / floating-holiday requests).
 const HR_ROLE_NAMES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
+
+// ─── Application letter (to the manager, HR on Cc) ────────────────────────────
+
+export interface WfhMailEnvelope {
+  /** The manager the letter is addressed to (null when nobody is set up). */
+  to: { id: string; name: string; firstName: string; email: string } | null
+  /** The HR mailbox on Cc, or null. */
+  ccHr: string | null
+}
+
+/**
+ * Who a WFH request's letter actually goes to. ONE function, used by both the
+ * sender and the apply-screen preview, so the preview can never promise a
+ * different recipient than we send to (same contract as leave).
+ *
+ * Addressed to the applicant's REPORTING MANAGER whenever they have an active
+ * one; otherwise the first HR/admin approver, since those are exactly the people
+ * `updateWfhRequest` lets decide. Never the applicant themselves.
+ */
+export async function resolveWfhMailEnvelope(applicantId: string): Promise<WfhMailEnvelope> {
+  const applicant = await db.employee.findUnique({
+    where: { id: applicantId },
+    select: {
+      manager: {
+        select: { id: true, firstName: true, lastName: true, email: true, isActive: true },
+      },
+    },
+  })
+  const mgr = applicant?.manager?.isActive ? applicant.manager : null
+
+  // Fallback queue: the HR/admin roles whose decision is final on WFH.
+  const queue = mgr
+    ? []
+    : await db.employee.findMany({
+        where: {
+          isActive: true,
+          id: { not: applicantId },
+          employeeRoles: { some: { role: { name: { in: HR_ROLE_NAMES } } } },
+        },
+        select: { id: true, firstName: true, lastName: true, email: true },
+        orderBy: { createdAt: "asc" },
+      })
+
+  const pick = mgr ?? queue[0] ?? null
+  const to = pick
+    ? {
+        id: pick.id,
+        name: `${pick.firstName} ${pick.lastName}`.trim(),
+        firstName: pick.firstName,
+        email: pick.email,
+      }
+    : null
+
+  const hrInbox = (await getConfig("HR_EMAIL"))?.trim() || null
+  const ccHr = hrInbox && (!to || hrInbox.toLowerCase() !== to.email.toLowerCase()) ? hrInbox : null
+
+  return { to, ccHr }
+}
+
+/** `<key@host>` using the app's own host, so every id we mint looks local. */
+function buildWfhMessageId(key: string): string {
+  let host = "dnms.digitallynext.com"
+  try {
+    if (process.env.NEXTAUTH_URL) host = new URL(process.env.NEXTAUTH_URL).host
+  } catch {
+    // keep the fallback host
+  }
+  return `<${key}@${host}>`
+}
+
+/**
+ * The envelope + signature the apply screen previews. Read-only - nothing is
+ * created. It calls resolveWfhMailEnvelope(), the SAME function the send path
+ * uses, so a preview can't show a recipient we don't mail.
+ */
+export async function getWfhMailPreview(): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const session = await requireSession()
+    const me = session.user.id
+    const envelope = await resolveWfhMailEnvelope(me)
+
+    const applicant = await db.employee.findUnique({
+      where: { id: me },
+      select: {
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        jobRole: { select: { name: true } },
+        designation: { select: { title: true } },
+      },
+    })
+    // Populate the config cache so the sync getConfigSync() reads below see the
+    // DB-stored company/social values, not just process.env.
+    await warmConfig()
+
+    return ok({
+      to: envelope.to ? { name: envelope.to.name, email: envelope.to.email } : null,
+      ccHr: envelope.ccHr,
+      signature: applicant
+        ? {
+            name: `${applicant.firstName} ${applicant.lastName}`.trim(),
+            // Job role first; fall back to the L-grade designation.
+            designation: applicant.jobRole?.name ?? applicant.designation?.title ?? null,
+            email: applicant.email,
+            phone: applicant.phone,
+            website: getConfigSync("COMPANY_WEBSITE") ?? null,
+            address: getConfigSync("COMPANY_ADDRESS") ?? null,
+            logoUrl: signatureLogoUrl(),
+            socials: [
+              { label: "LinkedIn", url: getConfigSync("SOCIAL_LINKEDIN") ?? "" },
+              { label: "Instagram", url: getConfigSync("SOCIAL_INSTAGRAM") ?? "" },
+              { label: "YouTube", url: getConfigSync("SOCIAL_YOUTUBE") ?? "" },
+            ].filter((s) => s.url),
+          }
+        : null,
+    })
+  })
+}
+
+/**
+ * Send the application letter for a freshly-created request: TO the manager, Cc
+ * HR and the applicant. Sent AS the employee from their own Gmail (via their
+ * stored App Password) so it genuinely comes from them, falling back to the
+ * system mailer when they have none on file.
+ *
+ * Always non-blocking - a mail failure must never fail the request.
+ */
+async function sendWfhRequestLetter(
+  applicantId: string,
+  request: { id: string; date: Date; reason: string | null; isEmergency: boolean },
+  applicantName: string,
+  employeeNo: string | null,
+  /** The employee's edited letter/subject from the preview; null = auto-composed. */
+  customBody: string | null,
+  customSubject: string | null,
+): Promise<void> {
+  try {
+    const envelope = await resolveWfhMailEnvelope(applicantId)
+    if (!envelope.to) return
+
+    const appUrl = (await getConfig("APP_URL")) ?? process.env.NEXTAUTH_URL ?? ""
+    const applicant = await db.employee.findUnique({
+      where: { id: applicantId },
+      select: {
+        email: true,
+        phone: true,
+        jobRole: { select: { name: true } },
+        designation: { select: { title: true } },
+        department: { select: { name: true } },
+      },
+    })
+
+    const email = renderWfhRequestEmail({
+      approverFirstName: envelope.to.firstName,
+      applicantName,
+      employeeNo,
+      designation: applicant?.jobRole?.name ?? applicant?.designation?.title ?? null,
+      department: applicant?.department?.name ?? null,
+      applicantEmail: applicant?.email ?? null,
+      applicantPhone: applicant?.phone ?? null,
+      date: toDateOnly(request.date),
+      reason: request.reason,
+      isEmergency: request.isEmergency,
+      bodyText: customBody,
+      subjectText: customSubject,
+      // /wfh, not /wfh/requests: the letter goes to the MANAGER, and approvals
+      // live on the "WFH Requests" tab of that page for managers and HR alike
+      // (/wfh/requests is the HR-only view, gated on wfh:approve).
+      reviewUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/wfh` : undefined,
+    })
+
+    // Cc the applicant so the letter lands in their mailbox too.
+    const cc = [envelope.ccHr, applicant?.email].filter(
+      (v): v is string => Boolean(v) && v !== envelope.to!.email,
+    )
+
+    addEmailAsJob(applicantId, {
+      to: envelope.to.email,
+      cc: cc.length ? cc : undefined,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      // It reads as the employee's letter, so Reply should reach the employee.
+      replyTo: applicant?.email ?? undefined,
+      messageId: buildWfhMessageId(`wfh-${request.id}`),
+      // Shared phantom root, so a later reply threads onto this conversation even
+      // when Gmail rewrites the Message-ID above.
+      references: buildWfhMessageId(`wfh-thread-${request.id}`),
+      profile: "notifications",
+    })
+  } catch {
+    // Non-blocking - email must never fail the request.
+  }
+}
 
 export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
   return runAction(async () => {
@@ -185,10 +381,13 @@ export async function applyWfh(body: {
   date: string
   reason?: string
   isEmergency?: boolean
+  /** Subject + letter exactly as composed/edited in the apply-screen preview. */
+  emailSubject?: string
+  emailBody?: string
 }): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
-    const { date, reason, isEmergency } = body
+    const { date, reason, isEmergency, emailSubject, emailBody } = body
     if (!date) return fail("date is required")
 
     const wfhDate = startOfDayUTC(date)
@@ -279,6 +478,17 @@ export async function applyWfh(body: {
       message: `${request.employee.firstName} ${request.employee.lastName} requested Work From Home on ${wfhDate.toDateString()}.`,
       link: "/wfh",
     })
+
+    // …and the letter itself, so an approver who isn't in the app still hears
+    // about it. This is the mail the apply screen previews, sent verbatim.
+    await sendWfhRequestLetter(
+      session.user.id,
+      request,
+      `${request.employee.firstName} ${request.employee.lastName}`.trim(),
+      request.employee.employeeNo ?? null,
+      emailBody?.trim() || null,
+      emailSubject?.trim() || null,
+    )
 
     return ok(serialize({ data: request, tier }))
   })

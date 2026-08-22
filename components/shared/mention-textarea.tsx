@@ -1,12 +1,31 @@
 "use client"
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { cn } from "@/lib/utils"
-import type { ProjectMember } from "../hooks/use-projects"
+import { useAutoGrow } from "@/hooks/use-auto-grow"
 
-const memberLabel = (m: ProjectMember) => `${m.firstName} ${m.lastName}`.trim()
+/**
+ * Who can be @mentioned. Declared structurally rather than importing a feature's
+ * row type: this lives in components/shared now, and a shared component reaching
+ * back into @/features would invert the dependency (CLAUDE.md §1). Any list of
+ * people with these fields fits - ProjectMember does.
+ */
+export interface MentionMember {
+  id: string
+  firstName: string
+  lastName: string
+  profilePhoto?: string | null
+  designation?: { title: string } | null
+  isManager?: boolean
+}
+
+/** A permanently-empty ref, so autoGrow can be switched off without calling a
+ *  hook conditionally. */
+const NO_GROW = { current: null }
+
+const memberLabel = (m: MentionMember) => `${m.firstName} ${m.lastName}`.trim()
 
 /**
  * A <Textarea> with an @mention picker. Typing "@" opens a list of project
@@ -30,7 +49,7 @@ export function MentionTextarea({
 }: {
   value: string
   onChange: (value: string, mentionIds: string[]) => void
-  members: ProjectMember[]
+  members: MentionMember[]
   rows?: number
   placeholder?: string
   autoFocus?: boolean
@@ -54,16 +73,10 @@ export function MentionTextarea({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Measured, not calculated: `scrollHeight` accounts for wrapping, so a single
-  // long line that wraps three times grows the box exactly like three typed
-  // lines would. Reset to "auto" first or the box can only ever get taller.
-  useLayoutEffect(() => {
-    if (!autoGrow) return
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = "auto"
-    el.style.height = `${el.scrollHeight}px`
-  }, [autoGrow, value])
+  // Shared with the plain composer field, so both grow (and stop growing)
+  // identically - and neither shows the stray scrollbar the old two-line
+  // version left on an empty box.
+  useAutoGrow(autoGrow ? textareaRef : NO_GROW, value)
   // Everyone ever picked in this editor; the live mention set is derived by
   // checking which "@Label" tokens still survive in the text.
   const pickedRef = useRef<{ id: string; label: string }[]>(
@@ -115,7 +128,7 @@ export function MentionTextarea({
     onChange(text, liveMentionIds(text))
   }
 
-  function pick(member: ProjectMember) {
+  function pick(member: MentionMember) {
     const el = textareaRef.current
     if (!el || atIndex < 0) return
     const label = memberLabel(member)

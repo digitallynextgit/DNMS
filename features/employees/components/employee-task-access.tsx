@@ -95,9 +95,9 @@ export function EmployeeTaskAccess({
                 <ShieldAlert className="h-3.5 w-3.5" />
                 What this does not allow
               </p>
-              <p>· Editing tasks somebody else raised — still manager-only.</p>
-              <p>· Deleting tasks — still manager-only, always.</p>
-              <p>· Changing who a task is assigned to — that stays an allocation decision.</p>
+              <p>· Editing tasks somebody else raised - still manager-only.</p>
+              <p>· Deleting tasks - still manager-only, always.</p>
+              <p>· Changing who a task is assigned to - that stays an allocation decision.</p>
             </div>
 
             {data?.grantedAt && (

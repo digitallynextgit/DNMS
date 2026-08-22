@@ -443,6 +443,8 @@ model Employee {
   // Personal chat
   chatParticipations ConversationParticipant[] @relation("ChatParticipant")
   chatMessages       ChatMessage[]             @relation("ChatSender")
+  chatReactions      ChatMessageReaction[]     @relation("ChatReactor")
+  msgReactions       ProjectMessageReaction[]  @relation("ProjectMessageReactor")
 
   // Company noticeboard
   announcements     Announcement[] @relation("AnnouncementAuthor")
@@ -803,10 +805,10 @@ model HikvisionDevice {
   /// usually on DHCP, so the address moves whenever the lease does and the app
   /// ends up talking to whatever else now holds it. These two are what actually
   /// identify the box, and what lets it be found again after it moves.
-  hardwareSerial String? @map("hardware_serial")
-  macAddress     String? @map("mac_address")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  hardwareSerial String?  @map("hardware_serial")
+  macAddress     String?  @map("mac_address")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   attendanceLogs AttendanceLog[]
 
@@ -1757,9 +1759,11 @@ model ProjectMessage {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  project Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  author  Employee              @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  replies ProjectMessageReply[]
+  project   Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author    Employee                 @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  replies   ProjectMessageReply[]
+  quotedBy  ProjectMessageReply[]    @relation("ProjectRootQuote")
+  reactions ProjectMessageReaction[]
 
   @@index([projectId])
   @@map("project_messages")
@@ -1775,14 +1779,26 @@ model ProjectMessageReply {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  /// What this quotes. A thread has two kinds of bubble - the opening post and
+  /// the replies under it - so quoting needs two columns, exactly one of which
+  /// is ever set. SetNull, not Cascade: deleting a quoted line must not delete
+  /// the answer to it, it must leave the quote saying "message deleted".
+  replyToId     String? @map("reply_to_id")
+  replyToRootId String? @map("reply_to_root_id")
+
   message     ProjectMessage             @relation(fields: [messageId], references: [id], onDelete: Cascade)
   author      Employee                   @relation("MessageReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  replyTo     ProjectMessageReply?       @relation("ProjectReplyQuote", fields: [replyToId], references: [id], onDelete: SetNull)
+  quotedBy    ProjectMessageReply[]      @relation("ProjectReplyQuote")
+  replyToRoot ProjectMessage?            @relation("ProjectRootQuote", fields: [replyToRootId], references: [id], onDelete: SetNull)
   attachments ProjectMessageAttachment[]
+  reactions   ProjectMessageReaction[]
   poll        MessagePoll?
   event       MessageEvent?
   contact     MessageContact?
 
   @@index([messageId])
+  @@index([replyToId])
   @@map("project_message_replies")
 }
 
@@ -1815,6 +1831,31 @@ model ProjectMessageAttachment {
 }
 
 // Per-user "last time I opened this project's Messages tab" - powers the unread badge.
+/// An emoji on a project message - either the opening post or one of its
+/// replies, which is why exactly one of messageId / replyId is set.
+///
+/// One table rather than two near-identical ones: both bubbles render through
+/// the same component, so splitting the storage would mean two of every query,
+/// endpoint and toggle for a row that differs only in which column is null.
+model ProjectMessageReaction {
+  id         String   @id @default(uuid()) @map("id")
+  messageId  String?  @map("message_id")
+  replyId    String?  @map("reply_id")
+  employeeId String   @map("employee_id")
+  emoji      String   @map("emoji")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  message  ProjectMessage?      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reply    ProjectMessageReply? @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  employee Employee             @relation("ProjectMessageReactor", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, employeeId, emoji])
+  @@unique([replyId, employeeId, emoji])
+  @@index([messageId])
+  @@index([replyId])
+  @@map("project_message_reactions")
+}
+
 model ProjectMessageRead {
   id         String   @id @default(uuid()) @map("id")
   projectId  String   @map("project_id")
@@ -3337,6 +3378,10 @@ model ConversationParticipant {
   /// Hidden from the list until the next message arrives. Not a delete: the
   /// history stays, and the other person is unaffected.
   isArchived Boolean   @default(false) @map("is_archived")
+  /// Kept at the top of THIS person's chat list. On the participant row, not the
+  /// conversation: pinning is a private bit of housekeeping, so pinning a chat
+  /// must not move it for the person on the other side of it.
+  pinnedAt   DateTime? @map("pinned_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   employee     Employee     @relation("ChatParticipant", fields: [employeeId], references: [id], onDelete: Cascade)
@@ -3377,9 +3422,10 @@ model ChatMessage {
   pinnedBy  String?   @map("pinned_by")
   createdAt DateTime  @default(now()) @map("created_at")
 
-  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       Employee         @relation("ChatSender", fields: [senderId], references: [id], onDelete: Cascade)
+  conversation Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       Employee              @relation("ChatSender", fields: [senderId], references: [id], onDelete: Cascade)
   attachments  ChatAttachment[]
+  reactions    ChatMessageReaction[]
   poll         MessagePoll?
   event        MessageEvent?
   contact      MessageContact?
@@ -3444,6 +3490,26 @@ enum ChatAttachmentKind {
 /// Its own table rather than columns on ChatMessage: a message can carry several
 /// pictures, and widening ChatMessage for the maximum would leave every text
 /// message carrying a dozen null columns.
+/// An emoji somebody put on a chat message.
+///
+/// One row per (message, person, emoji): the unique key is what makes tapping
+/// the same emoji twice a toggle rather than a second identical reaction, and it
+/// is enforced by the database instead of by whichever handler happens to run.
+model ChatMessageReaction {
+  id         String   @id @default(uuid()) @map("id")
+  messageId  String   @map("message_id")
+  employeeId String   @map("employee_id")
+  emoji      String   @map("emoji")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  message  ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  employee Employee    @relation("ChatReactor", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, employeeId, emoji])
+  @@index([messageId])
+  @@map("chat_message_reactions")
+}
+
 model ChatAttachment {
   id        String             @id @default(uuid()) @map("id")
   messageId String             @map("message_id")

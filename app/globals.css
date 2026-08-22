@@ -549,3 +549,45 @@
     opacity: 0;
   }
 }
+
+/* ─── Route loader ────────────────────────────────────────────────────────────
+   A square that spins, with a single bright segment RUNNING AROUND its outline.
+
+   Two separate animations on purpose. The spin lives on the <svg> (whole box
+   rotates); the run lives on the highlight rect (`stroke-dashoffset` walks the
+   dash pattern along the perimeter). Because the run is ~2x the spin rate, the
+   white part visibly overtakes the square instead of being welded to one edge -
+   a border-top spinner can only ever do the latter.
+
+   `pathLength="100"` on the rect normalises its perimeter, so the dash pattern is
+   expressed in percent and -100 is exactly one lap regardless of size or radius.
+   Both properties are cheap: transform is composited, dashoffset repaints one
+   32px box. */
+@keyframes square-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes square-loader-run {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+.square-loader {
+  transform-origin: center;
+  animation: square-loader-spin 2.6s linear infinite;
+}
+.square-loader-run {
+  stroke-dashoffset: 0;
+  animation: square-loader-run 1.3s linear infinite;
+}
+
+/* Reduced motion: hold the shape, drop both motions. The muted track plus a
+   static quarter-segment still reads as a loading state. */
+@media (prefers-reduced-motion: reduce) {
+  .square-loader,
+  .square-loader-run {
+    animation: none;
+  }
+}

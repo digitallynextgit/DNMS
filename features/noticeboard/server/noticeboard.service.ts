@@ -13,6 +13,8 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { createAuditLog } from "@/lib/audit"
+import { hasPermission } from "@/lib/permissions"
+import { PERMISSIONS } from "@/lib/constants"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import {
   announcementSchema,
@@ -21,6 +23,7 @@ import {
   type AlbumInput,
 } from "../schemas/noticeboard.schema"
 import { generateAlbumSlug, resolveAlbumId } from "./album-slug"
+import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import type { Session } from "next-auth"
 
 const AUTHOR = { select: { id: true, firstName: true, lastName: true, profilePhoto: true } }
@@ -197,29 +200,54 @@ export async function listAlbums(search?: string): Promise<ActionResult<unknown>
         createdBy: AUTHOR,
         _count: { select: { photos: true } },
         // One photo for the cover tile. Cheaper than loading the album to
-        // discover it has 200 images.
-        photos: { select: { id: true }, orderBy: { createdAt: "asc" }, take: 1 },
+        // discover it has 200 images. contentType comes along so the grid knows
+        // whether to render an <img> or a <video> poster frame.
+        photos: {
+          select: { id: true, contentType: true },
+          orderBy: { createdAt: "asc" },
+          take: 1,
+        },
       },
       orderBy: [{ eventDate: "desc" }, { createdAt: "desc" }],
       take: 200,
     })
 
-    const [totalPhotos, recentUploads] = await Promise.all([
+    // Photos and videos share one table, so the split is a content-type filter.
+    // The per-album video tally is ONE groupBy rather than a filtered `_count`
+    // per row - images are then whatever is left over, no second scan.
+    const [videoGroups, totalFiles, totalVideos, recentUploads] = await Promise.all([
+      db.photo.groupBy({
+        by: ["albumId"],
+        where: { contentType: { startsWith: "video/" } },
+        _count: { _all: true },
+      }),
       db.photo.count(),
+      db.photo.count({ where: { contentType: { startsWith: "video/" } } }),
       db.photo.count({
         where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60_000) } },
       }),
     ])
+    const videosByAlbum = new Map(videoGroups.map((g) => [g.albumId, g._count._all]))
 
     return ok(
       serialize({
         data: {
-          albums: albums.map((a) => ({
-            ...a,
-            photoCount: a._count.photos,
-            coverPhotoId: a.photos[0]?.id ?? null,
-          })),
-          stats: { totalAlbums: albums.length, totalPhotos, recentUploads },
+          albums: albums.map((a) => {
+            const videoCount = videosByAlbum.get(a.id) ?? 0
+            return {
+              ...a,
+              photoCount: a._count.photos - videoCount,
+              videoCount,
+              coverPhotoId: a.photos[0]?.id ?? null,
+              coverIsVideo: a.photos[0]?.contentType.startsWith("video/") ?? false,
+            }
+          }),
+          stats: {
+            totalAlbums: albums.length,
+            totalPhotos: totalFiles - totalVideos,
+            totalVideos,
+            recentUploads,
+          },
         },
       }),
     )
@@ -244,6 +272,9 @@ export async function getAlbum(ref: string): Promise<ActionResult<unknown>> {
             id: true,
             caption: true,
             fileName: true,
+            // Images and videos share this table; the client switches on the
+            // content type to pick <img> vs <video>.
+            contentType: true,
             width: true,
             height: true,
             createdAt: true,
@@ -323,9 +354,17 @@ export async function deletePhoto(id: string, session: Session): Promise<ActionR
   return runAction(async () => {
     const photo = await db.photo.findUnique({
       where: { id },
-      select: { objectKey: true, fileName: true, albumId: true },
+      select: { objectKey: true, fileName: true, albumId: true, uploadedById: true },
     })
     if (!photo) return fail("Photo not found", undefined, 404)
+
+    // Uploading is open to everyone, so deleting is too - but only your own.
+    // Clearing out somebody else's photo is still a gallery:write act.
+    if (
+      !hasPermission(session, PERMISSIONS.GALLERY_WRITE) &&
+      photo.uploadedById !== session.user.id
+    )
+      return fail("You can only delete files you uploaded", undefined, 403)
 
     const { deleteFile } = await import("@/lib/storage")
     await deleteFile(photo.objectKey).catch((e) =>
@@ -371,7 +410,8 @@ export interface BirthdayPerson {
 export async function listUpcomingBirthdays(days = 30): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const people = await db.employee.findMany({
-      where: { isActive: true, dateOfBirth: { not: null } },
+      // No admin_: the silent watch account does not get a birthday on the board.
+      where: { isActive: true, dateOfBirth: { not: null }, ...VISIBLE_EMPLOYEE_FILTER },
       select: {
         id: true,
         firstName: true,

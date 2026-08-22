@@ -26,6 +26,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
 // POST /api/wfh/requests - apply for a WFH day.
 export const POST = withErrorHandler(async (req: NextRequest) => {
-  const body = (await req.json()) as { date: string; reason?: string; isEmergency?: boolean }
+  const body = (await req.json()) as {
+    date: string
+    reason?: string
+    isEmergency?: boolean
+    emailSubject?: string
+    emailBody?: string
+  }
   return respond(await applyWfh(body))
 })

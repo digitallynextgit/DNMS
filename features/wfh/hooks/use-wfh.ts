@@ -93,6 +93,9 @@ async function applyWfh(body: {
   date: string
   reason?: string
   isEmergency?: boolean
+  /** Subject + letter exactly as composed/edited in the apply-screen preview. */
+  emailSubject?: string
+  emailBody?: string
 }): Promise<{ data: WfhRequest; tier: number }> {
   return (
     await apiFetch<{ data: { data: WfhRequest; tier: number } }>("/api/wfh/requests", {

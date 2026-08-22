@@ -266,6 +266,20 @@ async function createHoliday(body: Record<string, unknown>): Promise<{ data: Hol
   })
 }
 
+async function updateHoliday({
+  id,
+  body,
+}: {
+  id: string
+  body: Record<string, unknown>
+}): Promise<{ data: Holiday }> {
+  return apiFetch<{ data: Holiday }>(`/api/attendance/holidays/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+}
+
 async function deleteHoliday(id: string): Promise<{ message: string }> {
   return apiFetch<{ message: string }>(`/api/attendance/holidays/${id}`, { method: "DELETE" })
 }
@@ -591,6 +605,18 @@ export function useCreateHoliday() {
       mutationFn: createHoliday,
       invalidate: [["attendance-holidays"]],
       success: "Holiday added successfully",
+    }),
+  )
+}
+
+export function useUpdateHoliday() {
+  const qc = useQueryClient()
+
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: updateHoliday,
+      invalidate: [["attendance-holidays"]],
+      success: "Holiday updated successfully",
     }),
   )
 }

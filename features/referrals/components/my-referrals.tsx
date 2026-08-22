@@ -68,7 +68,7 @@ export function MyReferrals() {
               {data.me.employeeNo}
             </code>
             <span className="text-muted-foreground text-xs">
-              your work email works too — either one credits the referral to you
+              your work email works too - either one credits the referral to you
             </span>
           </CardContent>
         </Card>

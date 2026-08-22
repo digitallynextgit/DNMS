@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Polls, events and shared contacts — the parts of a message that are neither
+ * Polls, events and shared contacts - the parts of a message that are neither
  * text nor a file.
  *
  * Composers and renderers live together because they are two halves of one

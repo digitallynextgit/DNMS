@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactionGroup } from "@/components/shared/message-reactions"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type { Attachment } from "@/components/shared/message-attachments"
 import type {
@@ -151,6 +152,8 @@ export interface ProjectMessage {
   // Chat-list decorations added by the messages list endpoint.
   lastReply?: { content: string; createdAt: string; authorName: string } | null
   lastActivityAt?: string
+  /** Emoji reactions on the OPENING post, grouped per viewer by the server. */
+  reactions?: ReactionGroup[]
 }
 
 /** A chat that matched a search, plus WHICH parts of it matched. */
@@ -176,7 +179,24 @@ export interface ProjectMessageReply {
   poll?: PollCardData | null
   event?: EventCardData | null
   contact?: ContactCardData | null
+  /** Emoji reactions, grouped per viewer by the server. */
+  reactions?: ReactionGroup[]
+  /** The line this one quotes, flattened server-side whether it was the opening
+   *  post ("root") or another reply. Null when nothing was quoted, or when the
+   *  quoted line has since been deleted. */
+  replyTo?: { id: string; content: string; authorName: string; fromMe: boolean } | null
 }
+
+/** A project member's "last opened Messages" mark - what read receipts read from. */
+export interface MessageReader {
+  id: string
+  firstName: string
+  lastName: string
+  profilePhoto: string | null
+  lastSeenAt: string
+}
+
+export type { ReactionGroup }
 
 export interface ProjectMember {
   id: string
@@ -1091,7 +1111,7 @@ export function useMessageReplies(projectId: string, messageId: string, enabled:
   return useQuery({
     queryKey: ["project-message-replies", projectId, messageId],
     queryFn: () =>
-      apiFetch<{ data: ProjectMessageReply[] }>(
+      apiFetch<{ data: ProjectMessageReply[]; readers: MessageReader[] }>(
         `/api/projects/${projectId}/messages/${messageId}/replies`,
       ),
     enabled: enabled && !!messageId,
@@ -1105,7 +1125,12 @@ export function useCreateReply(projectId: string, messageId: string) {
   const qc = useQueryClient()
   return useMutation(
     mutationWithToast(qc, {
-      mutationFn: (body: { content: string; mentionedIds?: string[] }) =>
+      mutationFn: (body: {
+        content: string
+        mentionedIds?: string[]
+        /** A reply id, or "root" for the opening post. */
+        replyToId?: string
+      }) =>
         apiFetch<{ data: ProjectMessageReply }>(
           `/api/projects/${projectId}/messages/${messageId}/replies`,
           {

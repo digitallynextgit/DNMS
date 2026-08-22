@@ -4,6 +4,7 @@ import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { ADHOC_LABEL } from "@/features/projects/lib/task-permissions"
+import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { addDays, toDayKey, utilisation, weekCapacity } from "@/features/projects/lib/work-week"
 import type { Session } from "next-auth"
 
@@ -68,7 +69,11 @@ export async function visiblePeople(
   const me = session.user.id
 
   if (hasPermission(session, PERMISSIONS.PROJECT_WRITE)) {
-    const all = await db.employee.findMany({ where: { isActive: true }, select: { id: true } })
+    // The hours report is a user-facing roster, so admin_ stays out of it.
+    const all = await db.employee.findMany({
+      where: { isActive: true, ...VISIBLE_EMPLOYEE_FILTER },
+      select: { id: true },
+    })
     return { memberIds: all.map((e) => e.id), scope: "all" }
   }
 

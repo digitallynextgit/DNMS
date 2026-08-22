@@ -18,6 +18,11 @@ import {
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { APPLICANT_STAGE_LABELS } from "@/lib/constants"
+import {
+  CHART_TOOLTIP_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_ITEM_STYLE,
+} from "@/lib/chart-theme"
 
 const DEPT_COLORS = [
   "#6366f1",
@@ -58,7 +63,11 @@ export function AnalyticsCharts({ d }: { d: AnalyticsChartsData }) {
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} className="text-muted-foreground" />
               <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+              <Tooltip
+                contentStyle={CHART_TOOLTIP_STYLE}
+                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+              />
               <Bar dataKey="count" name="Hires" fill="#6366f1" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -80,7 +89,11 @@ export function AnalyticsCharts({ d }: { d: AnalyticsChartsData }) {
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis type="number" tick={{ fontSize: 12 }} allowDecimals={false} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+              <Tooltip
+                contentStyle={CHART_TOOLTIP_STYLE}
+                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+              />
               <Bar dataKey="count" name="Employees" radius={[0, 4, 4, 0]}>
                 {d.departments.slice(0, 8).map((_, index) => (
                   <Cell key={index} fill={DEPT_COLORS[index % DEPT_COLORS.length]} />
@@ -121,7 +134,9 @@ export function AnalyticsCharts({ d }: { d: AnalyticsChartsData }) {
                   value,
                   String(name).charAt(0) + String(name).slice(1).toLowerCase().replace(/_/g, " "),
                 ]}
-                contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                contentStyle={CHART_TOOLTIP_STYLE}
+                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
               />
               <Legend
                 formatter={(value) =>
@@ -158,7 +173,11 @@ export function AnalyticsCharts({ d }: { d: AnalyticsChartsData }) {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Tooltip
+                  contentStyle={CHART_TOOLTIP_STYLE}
+                  labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                  itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+                />
                 <Bar dataKey="count" name="Applicants" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

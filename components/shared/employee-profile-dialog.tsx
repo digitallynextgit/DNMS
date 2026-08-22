@@ -3,7 +3,7 @@
 /**
  * The colleague card: who this person is at work, and how to reach them.
  *
- * Fed by /api/employees/:id/card, which is an allow-list — personal contact
+ * Fed by /api/employees/:id/card, which is an allow-list - personal contact
  * details, addresses, salary, documents and anything about employment status
  * never leave the server, so there is nothing sensitive here to hide in the UI.
  * The full HR record lives behind the employee directory and its permission.
@@ -40,7 +40,7 @@ interface ColleagueProfile {
     profilePhoto: string | null
     designation: string | null
   } | null
-  /** Day and month only — the server never sends the year. */
+  /** Day and month only - the server never sends the year. */
   birthday: { day: number; month: number } | null
 }
 

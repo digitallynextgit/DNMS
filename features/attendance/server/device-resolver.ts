@@ -4,7 +4,7 @@ import "server-only"
 // Where is the punch terminal right now?
 // =============================================================================
 // The stored `ipAddress` is only where the device was last seen. These terminals
-// ship on DHCP, so the address moves whenever the lease does — and the app then
+// ship on DHCP, so the address moves whenever the lease does - and the app then
 // calls whatever else now holds it. That is where the mystery 404s came from:
 // some other box on the LAN answers HTTP perfectly well, it just has no
 // /ISAPI/... path. A dead address gives a timeout instead, and another Hikvision
@@ -70,7 +70,7 @@ function matches(identity: DeviceIdentity, row: DeviceRow): boolean {
 /**
  * Get a config that actually points at the device.
  *
- * Tries the stored address first — the common case, one request. Only when that
+ * Tries the stored address first - the common case, one request. Only when that
  * fails, or answers as somebody else, does it sweep the subnet.
  */
 export async function resolveDevice(row: DeviceRow): Promise<ResolvedDevice> {

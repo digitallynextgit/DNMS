@@ -1,14 +1,14 @@
 import "server-only"
 
 // =============================================================================
-// Polls, events and shared contacts — the WhatsApp-style cards that are not files.
+// Polls, events and shared contacts - the WhatsApp-style cards that are not files.
 // =============================================================================
 // Personal chat and project messages need identical behaviour here, so this is
 // one module rather than a copy in each feature. Everything below works on
 // whichever parent it is handed: a chat message or a project reply.
 //
 // Access is NOT decided here. Each surface's route proves the caller may write
-// to that conversation first, then calls in — mixing the two would leave one
+// to that conversation first, then calls in - mixing the two would leave one
 // authorisation path per card type and no single place to review.
 // =============================================================================
 
@@ -91,7 +91,7 @@ type RawPoll = {
  * option, plus whether YOU picked it.
  *
  * Shares are computed against the number of PEOPLE who voted, not the number of
- * votes cast — in a multiple-choice poll those differ, and dividing by votes
+ * votes cast - in a multiple-choice poll those differ, and dividing by votes
  * would show percentages that add up to more than a whole.
  */
 export function shapePoll(poll: RawPoll | null, viewerId: string) {

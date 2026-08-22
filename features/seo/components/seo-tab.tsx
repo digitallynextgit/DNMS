@@ -63,6 +63,7 @@ import { StatCard } from "@/components/shared/stat-card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
+import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme"
 import type {
   SeoAlert,
   SeoOverview,
@@ -1084,8 +1085,12 @@ function GrowthReport({ o, canManage }: { o: SeoOverview; canManage: boolean }) 
                     tickLine={false}
                     axisLine={false}
                   />
+                  {/* No itemStyle: the row colours ARE the key here (teal =
+                      clicks, grey = impressions), and a flat foreground would
+                      erase the only thing telling the two lines apart. */}
                   <ReTooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 6 }}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                    labelStyle={CHART_TOOLTIP_LABEL_STYLE}
                     formatter={(v) => num(Number(v ?? 0))}
                   />
                   <Area
