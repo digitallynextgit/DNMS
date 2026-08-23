@@ -76,7 +76,9 @@ export interface HikvisionDevice {
   ipAddress: string
   port: number
   username: string
-  password: string
+  // The admin password is never sent to the browser (server-only, used by the
+  // sync path). The API returns only whether one is set.
+  hasPassword: boolean
   location: string | null
   isActive: boolean
   lastSyncAt: string | null
@@ -435,6 +437,7 @@ export function useCreateAttendanceLog() {
         ["attendance-day"],
         ["my-attendance"],
         ["my-attendance-calendar"],
+        ["employee-attendance-calendar"],
         ["attendance-summary"],
       ],
       success: "Attendance record created successfully",
@@ -454,6 +457,7 @@ export function useUpdateAttendanceLog() {
         ["attendance-day"],
         ["my-attendance"],
         ["my-attendance-calendar"],
+        ["employee-attendance-calendar"],
         ["attendance-summary"],
       ],
       success: "Attendance record updated successfully",
@@ -467,7 +471,12 @@ export function useDeleteAttendanceLog() {
   return useMutation(
     mutationWithToast(qc, {
       mutationFn: deleteAttendanceLog,
-      invalidate: [["attendance-logs"], ["attendance-summary"]],
+      invalidate: [
+        ["attendance-logs"],
+        ["employee-attendance-calendar"],
+        ["attendance-directory"],
+        ["attendance-summary"],
+      ],
       success: "Attendance record deleted successfully",
     }),
   )

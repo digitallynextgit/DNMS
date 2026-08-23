@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { StatCardsSkeleton, ChartSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 import type { CompetitorAuditView, CompetitorGapView } from "../types"
 import { useCompetitorAudit, useRunCompetitorGap, useSeoSites } from "../hooks/use-seo"
@@ -46,7 +46,16 @@ export function CompetitorPanel({
   const run = useRunCompetitorGap(projectId)
   const [aiOpen, setAiOpen] = useState(false)
 
-  if (isLoading) return <ListSkeleton />
+  if (isLoading)
+    return (
+      <div className="space-y-4">
+        <StatCardsSkeleton count={3} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ChartSkeleton />
+          <ChartSkeleton />
+        </div>
+      </div>
+    )
 
   const site = sitesData?.properties.find((p) => p.id === propertyId) ?? null
   const competitors = site?.competitors ?? []

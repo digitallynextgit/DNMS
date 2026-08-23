@@ -2,6 +2,12 @@ import { notFound, redirect } from "next/navigation"
 import { auth } from "@/server/auth"
 import { listClientGrants } from "@/server/client-guard"
 import { PortalSidebar, PortalTopbar } from "@/features/client-portal"
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Client portal",
+  description: "Your project's client portal.",
+}
 
 /**
  * The portal shell - deliberately the SAME structure as the staff dashboard

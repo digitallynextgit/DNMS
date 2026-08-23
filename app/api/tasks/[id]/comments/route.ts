@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
+import { canAccessTask } from "@/features/projects/server/project-access"
 import { logActivity } from "@/features/projects/server/activity"
 import type { Session } from "next-auth"
 
@@ -17,6 +18,11 @@ export const GET = withSession(
   async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }, _session: Session) => {
     try {
       const { id: taskId } = await ctx.params
+      // withSession only proves the caller is signed in; the taskId is theirs to
+      // choose, so confirm they may actually see this task's project first.
+      if (!(await canAccessTask(_session, taskId))) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 })
+      }
       const comments = await db.taskComment.findMany({
         where: { taskId },
         orderBy: { createdAt: "asc" },
@@ -40,6 +46,11 @@ export const POST = withSession(
         select: { id: true, projectId: true, title: true },
       })
       if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 })
+      // Posting a comment onto a task you cannot see is the same boundary as
+      // reading it - gate the write on project/task access, not just existence.
+      if (!(await canAccessTask(session, taskId))) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 })
+      }
 
       const body = await req.json()
       const content = body.content?.trim()

@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { StatCardsSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
 import type { BacklinkSummaryView } from "../types"
 import { useBacklinks, useImportBacklinks } from "../hooks/use-seo"
 import { exportBacklinks } from "../lib/seo-export"
@@ -49,7 +49,15 @@ export function BacklinksPanel({
   const [source, setSource] = useState<"AWT" | "GSC" | "MANUAL">("AWT")
   const [fullSnapshot, setFullSnapshot] = useState(true)
 
-  if (isLoading) return <ListSkeleton />
+  if (isLoading)
+    return (
+      <div className="space-y-4">
+        <StatCardsSkeleton count={4} />
+        <div className="border-border bg-card overflow-hidden rounded-[2px] border">
+          <TableSkeleton rows={6} cols={4} />
+        </div>
+      </div>
+    )
 
   const submit = () => {
     if (!text.trim() || !propertyId) return

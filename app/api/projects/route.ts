@@ -54,32 +54,46 @@ export const POST = withAuth(
       // fixed-width and zero-padded (this endpoint is the only generator), so the
       // lexicographically highest DN code IS the numerically highest one - let the
       // DB find it instead of loading every project code into JS.
-      const lastDn = await db.project.findFirst({
-        where: { code: { startsWith: "DN" } },
-        select: { code: true },
-        orderBy: { code: "desc" },
-      })
-      const lastMatch = lastDn?.code.match(/^DN(\d+)$/)
-      const maxNum = lastMatch ? parseInt(lastMatch[1] ?? "0", 10) : 0
-      const nextNum = maxNum + 1
-      const code = `DN${nextNum.toString().padStart(5, "0")}`
+      //
+      // Retry on the unique-violation race (API-05): two concurrent creates
+      // compute the same next code; the loser used to surface as a generic 500.
+      // Recompute and retry a few times instead.
+      let project
+      for (let attempt = 0; ; attempt++) {
+        const lastDn = await db.project.findFirst({
+          where: { code: { startsWith: "DN" } },
+          select: { code: true },
+          orderBy: { code: "desc" },
+        })
+        const lastMatch = lastDn?.code.match(/^DN(\d+)$/)
+        const maxNum = lastMatch ? parseInt(lastMatch[1] ?? "0", 10) : 0
+        const code = `DN${(maxNum + 1 + attempt).toString().padStart(5, "0")}`
 
-      const project = await db.project.create({
-        data: {
-          name,
-          description,
-          code,
-          slug: await generateProjectSlug(name, code),
-          status: status ?? "PLANNING",
-          priority: priority ?? "MEDIUM",
-          ownerId,
-          startDate: startDate ? new Date(startDate) : null,
-          budget: budget ? parseFloat(budget) : null,
-        },
-        include: {
-          owner: { select: { id: true, firstName: true, lastName: true } },
-        },
-      })
+        try {
+          project = await db.project.create({
+            data: {
+              name,
+              description,
+              code,
+              slug: await generateProjectSlug(name, code),
+              status: status ?? "PLANNING",
+              priority: priority ?? "MEDIUM",
+              ownerId,
+              startDate: startDate ? new Date(startDate) : null,
+              budget: budget ? parseFloat(budget) : null,
+            },
+            include: {
+              owner: { select: { id: true, firstName: true, lastName: true } },
+            },
+          })
+          break
+        } catch (e) {
+          // P2002 on `code` = another create took this number; recompute (the
+          // `+ attempt` nudge also skips a just-taken slot fast). Give up after 5.
+          if ((e as { code?: string }).code === "P2002" && attempt < 5) continue
+          throw e
+        }
+      }
 
       await createAuditLog(session, {
         action: "CREATE",

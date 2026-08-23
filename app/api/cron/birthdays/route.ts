@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { assertCron } from "@/server/cron-auth"
 import { db } from "@/server/db"
 import { sendEmail } from "@/lib/mailer"
 import { getConfig } from "@/server/app-config"
@@ -9,13 +10,8 @@ import { getConfig } from "@/server/app-config"
 // Call: GET /api/cron/birthdays with header Authorization: Bearer <CRON_SECRET>
 
 export const GET = async (req: NextRequest) => {
-  const secret = process.env.CRON_SECRET
-  if (secret) {
-    const auth = req.headers.get("authorization")
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-  }
+  const denied = assertCron(req)
+  if (denied) return denied
 
   try {
     const today = new Date()

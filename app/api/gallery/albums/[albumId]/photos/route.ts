@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { isB2Configured, uploadFile, getObjectKey } from "@/lib/storage"
-import { resizeImage } from "@/lib/image-resize"
+import { resizeImage, makeThumb } from "@/lib/image-resize"
 import { resolveAlbumId } from "@/features/noticeboard/server/album-slug"
 
 export const runtime = "nodejs"
@@ -106,10 +106,27 @@ export const POST = withSession(async (req: NextRequest, ctx, session) => {
     )
     await uploadFile(objectKey, stored.bytes, stored.contentType)
 
+    // Images also get a small WebP thumbnail so the grid/covers don't pull the
+    // 2000px master. Best-effort: a failed thumb just leaves the grid on the
+    // master for this one image, never a failed upload. Videos have no thumb.
+    let thumbKey: string | null = null
+    if (isImage) {
+      const thumb = await makeThumb(original)
+      if (thumb) {
+        thumbKey = getObjectKey(
+          `gallery/${albumId}/thumbs`,
+          `thumb.${thumb.ext}`,
+          crypto.randomUUID(),
+        )
+        await uploadFile(thumbKey, thumb.bytes, thumb.contentType)
+      }
+    }
+
     const photo = await db.photo.create({
       data: {
         albumId,
         objectKey,
+        thumbKey,
         fileName: file.name.slice(0, 200),
         contentType: stored.contentType,
         size: stored.bytes.length,

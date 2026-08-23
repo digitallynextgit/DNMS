@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { assertCron } from "@/server/cron-auth"
 import { db } from "@/server/db"
 import { syncDeviceSmart } from "@/features/attendance/server/sync"
 import { resolveDevice } from "@/features/attendance/server/device-resolver"
@@ -16,13 +17,8 @@ import { resolveDevice } from "@/features/attendance/server/device-resolver"
 export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  if (secret) {
-    const auth = req.headers.get("authorization")
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-  }
+  const denied = assertCron(req)
+  if (denied) return denied
 
   const onlyEmployeeNo = req.nextUrl.searchParams.get("employeeNo") ?? undefined
   const full = req.nextUrl.searchParams.get("full") === "1"

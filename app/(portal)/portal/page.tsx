@@ -6,7 +6,10 @@ import { listClientGrants } from "@/server/client-guard"
 import { CLIENT_MODULES } from "@/features/client-portal"
 import type { Metadata } from "next"
 
-export const metadata: Metadata = { title: "Portal" }
+export const metadata: Metadata = {
+  title: "Portal",
+  description: "Choose a project to open its client portal.",
+}
 
 /**
  * Project picker. One grant → straight into it, so most clients never see this

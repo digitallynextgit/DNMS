@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth, withSession } from "@/server/api-handler"
+import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { computeAttendanceStatus } from "@/features/attendance/attendance"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import type { Session } from "next-auth"
 
 export const GET = withSession(
-  async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
+  async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id } = ctx.params
 
@@ -25,6 +26,14 @@ export const GET = withSession(
 
       if (!log) {
         return NextResponse.json({ error: "Attendance log not found" }, { status: 404 })
+      }
+
+      // Object-level check (SEC-09): you can read your own log; reading anyone
+      // else's is an HR act. attendance:read is held by the base employee role,
+      // so it is NOT a meaningful gate here - attendance:write (HR) is.
+      const isSelf = log.employeeId === session.user.id
+      if (!isSelf && !hasPermission(session, PERMISSIONS.ATTENDANCE_WRITE)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }
 
       return NextResponse.json({ data: log })

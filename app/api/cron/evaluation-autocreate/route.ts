@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { assertCron } from "@/server/cron-auth"
 import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
 import { DEFAULT_SECTION_A_LABEL, DEFAULT_SECTION_B_LABEL } from "@/features/performance/evaluation"
@@ -11,9 +12,8 @@ import { HIDDEN_ROLES } from "@/lib/constants"
 // evaluation for the computed period, so re-running is safe.
 // Auth: Authorization: Bearer <CRON_SECRET>
 export async function GET(req: NextRequest) {
-  if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = assertCron(req)
+  if (denied) return denied
 
   try {
     const now = new Date()

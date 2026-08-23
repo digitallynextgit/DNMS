@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { assertCron } from "@/server/cron-auth"
 import { rolloverYear } from "@/features/leave/server/leave-accrual.service"
 
 // Annual leave rollover. Seeds the new year's balances from the policy matrix
@@ -9,9 +10,8 @@ import { rolloverYear } from "@/features/leave/server/leave-accrual.service"
 export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = assertCron(req)
+  if (denied) return denied
   try {
     const yearParam = new URL(req.url).searchParams.get("year")
     const toYear = yearParam ? Number(yearParam) : new Date().getFullYear()

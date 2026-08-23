@@ -61,7 +61,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { parseDateString, toDateString } from "@/components/shared/date-field"
 import { StatCard } from "@/components/shared/stat-card"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import {
+  StatCardsSkeleton,
+  TableSkeleton,
+  ChartSkeleton,
+} from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme"
 import type {
@@ -201,7 +205,15 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
   const current = sites.find((s) => s.id === selected) ?? null
   const activeId = current?.id ?? null
 
-  if (isLoading) return <ListSkeleton />
+  if (isLoading)
+    return (
+      <div className="mt-4 space-y-4">
+        <StatCardsSkeleton count={4} />
+        <div className="border-border bg-card overflow-hidden rounded-[2px] border">
+          <TableSkeleton rows={6} cols={5} />
+        </div>
+      </div>
+    )
 
   if (sites.length === 0) {
     return (
@@ -448,7 +460,15 @@ function RollupView({
   onOpenSite: (id: string) => void
 }) {
   const { data: r, isLoading } = useSeoRollup(projectId, true)
-  if (isLoading) return <ListSkeleton />
+  if (isLoading)
+    return (
+      <div className="space-y-4">
+        <StatCardsSkeleton count={4} />
+        <div className="border-border bg-card overflow-hidden rounded-[2px] border">
+          <TableSkeleton rows={5} cols={5} />
+        </div>
+      </div>
+    )
   if (!r) return null
 
   const hasData = r.properties.some((p) => p.period)
@@ -811,7 +831,16 @@ function SiteReport({
   // Land on "Start here" until the essentials are configured, then on Performance.
   const [tab, setTab] = useState<string | null>(null)
 
-  if (isLoading) return <ListSkeleton />
+  if (isLoading)
+    return (
+      <div className="space-y-4">
+        <StatCardsSkeleton count={4} />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ChartSkeleton />
+          <ChartSkeleton />
+        </div>
+      </div>
+    )
   if (!o) return null
 
   const needsSetup = !!setup && setup.nextStepId !== null

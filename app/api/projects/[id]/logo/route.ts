@@ -57,9 +57,21 @@ const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
 
 async function cachedSignedUrl(objectKey: string): Promise<string> {
   const hit = signedUrlCache.get(objectKey)
-  // Re-sign a minute early so we never hand out a URL that expires mid-flight.
-  if (hit && hit.expiresAt > Date.now() + 60_000) return hit.url
-  const url = await getSignedUrl(objectKey, SIGNED_TTL_SECONDS)
+  // Reuse a cached URL only while it still outlives a FULL fresh browser cache
+  // window (+ a minute): the redirect is cached in the browser for CACHE_SECONDS,
+  // so a URL with less life left than that would leave the viewer replaying a
+  // redirect to a dead URL - every hit 403ing until their cache lapses (days).
+  if (hit && hit.expiresAt > Date.now() + (CACHE_SECONDS + 60) * 1000) return hit.url
+  // SVG is served with Content-Disposition: attachment (SEC-11): an <img> still
+  // renders it, but opening the signed URL directly downloads instead of
+  // rendering, so an embedded <script> in a malicious logo never executes on the
+  // storage origin. Non-SVG (already rasterised to WebP) is served inline.
+  const isSvg = objectKey.toLowerCase().endsWith(".svg")
+  const url = await getSignedUrl(
+    objectKey,
+    SIGNED_TTL_SECONDS,
+    isSvg ? { downloadFileName: "logo.svg" } : undefined,
+  )
   signedUrlCache.set(objectKey, { url, expiresAt: Date.now() + SIGNED_TTL_SECONDS * 1000 })
   return url
 }

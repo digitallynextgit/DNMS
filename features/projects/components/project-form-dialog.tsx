@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
@@ -71,13 +71,21 @@ export function ProjectFormDialog({
   // it waits here and is POSTed the moment creation returns one.
   const [pendingLogo, setPendingLogo] = useState<File | null>(null)
 
-  // Reset / hydrate when dialog opens
+  // Reset / hydrate ONLY on the open transition (UI-01). Depending on `initial`
+  // reset the form on every parent re-render, because both callers pass `initial`
+  // as an inline object literal (new identity each render) and the project page
+  // re-renders on a 15s unread-count poll / window-focus refetch - which silently
+  // wiped an admin's in-progress edits mid-typing. `initial` is read here but
+  // deliberately not a dependency: it is only meant to seed the form on open.
+  const wasOpen = useRef(false)
   useEffect(() => {
-    if (open) {
+    if (open && !wasOpen.current) {
       setForm({ ...EMPTY_FORM, ...initial })
       setPendingLogo(null)
     }
-  }, [open, initial])
+    wasOpen.current = open
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   // Resolve the currently-selected manager's name so the combobox can show it
   // before the user opens/searches (edit mode, where we only get an id).

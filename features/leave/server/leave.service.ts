@@ -7,7 +7,14 @@ import { addEmailAsJob } from "@/lib/queue"
 import { createNotification } from "@/lib/notifications"
 import { createAuditLog } from "@/lib/audit"
 import { requireSession, requirePermission } from "@/server/action-guard"
-import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
+import {
+  ok,
+  fail,
+  runAction,
+  serialize,
+  ActionError,
+  type ActionResult,
+} from "@/server/action-result"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
 import { startOfDayUTC } from "@/lib/dates"
@@ -978,6 +985,14 @@ export async function applyLeave(body: {
         "You can't apply for leave during your notice period. Any exception is at management's discretion - please contact HR.",
       )
 
+    // A half-day only makes sense on a SINGLE day. Without this guard (API-02)
+    // a multi-day range with isHalfDay charged just 0.5 for the whole span, so
+    // someone could be off a week for half a day's deduction. The POST route
+    // calls this service directly, so the check must live here, not only in the UI.
+    if (isHalfDay && countCalendarDays(start, end) > 1) {
+      return fail("A half-day leave must start and end on the same day.")
+    }
+
     let totalDays = isHalfDay ? 0.5 : countCalendarDays(start, end)
     if (leaveType.code === "SHORT") totalDays = 0.5
     if (totalDays === 0) return fail("Selected date range results in zero leave days")
@@ -1292,35 +1307,49 @@ export async function updateLeaveRequest(
     }
 
     const updatedRequest = await db.$transaction(async (tx) => {
-      let updatedReq
+      // Atomic compare-and-set (API-01): claim the transition only while the row
+      // is still PENDING. Under READ COMMITTED a concurrent decider blocks on the
+      // row lock and then matches 0 rows, so the balance delta below runs exactly
+      // once - previously two near-simultaneous approvals both applied it,
+      // driving pending negative and double-incrementing used.
+      const claimData =
+        action === "CANCEL"
+          ? { status: "CANCELLED" as const }
+          : action === "APPROVE"
+            ? {
+                status: "APPROVED" as const,
+                approverId: session.user.id,
+                approvedAt: new Date(),
+                approvalStage: null,
+                currentApproverId: null,
+                ...(isAdvisor ? { managerDecision: "APPROVED" as const } : {}),
+              }
+            : {
+                status: "REJECTED" as const,
+                approverId: session.user.id,
+                rejectionReason: String(rejectionReason).trim(),
+                approvalStage: null,
+                currentApproverId: null,
+                ...(isAdvisor ? { managerDecision: "REJECTED" as const } : {}),
+              }
+      const claimed = await tx.leaveRequest.updateMany({
+        where: { id, status: "PENDING" },
+        data: claimData,
+      })
+      if (claimed.count === 0) {
+        throw new ActionError("This request has already been decided.", 409)
+      }
+      const updatedReq = await tx.leaveRequest.findUnique({
+        where: { id },
+        include: REQUEST_INCLUDE,
+      })
+
       if (action === "CANCEL") {
-        updatedReq = await tx.leaveRequest.update({
-          where: { id },
-          data: { status: "CANCELLED" },
-          include: REQUEST_INCLUDE,
-        })
         await tx.leaveBalance.updateMany({
           where: { employeeId: request.employeeId, leaveTypeId: request.leaveTypeId, year },
           data: { pending: { decrement: request.totalDays } },
         })
       } else if (action === "APPROVE") {
-        // FIRST DECISION WINS. The reporting manager's call used to be advisory,
-        // leaving the request PENDING until HR repeated it; now whoever acts
-        // first - manager, HR or admin - finalises it. `managerDecision` is still
-        // stamped when the actor is the applicant's manager, so the record shows
-        // who actually made the call.
-        updatedReq = await tx.leaveRequest.update({
-          where: { id },
-          data: {
-            status: "APPROVED",
-            approverId: session.user.id,
-            approvedAt: new Date(),
-            approvalStage: null,
-            currentApproverId: null,
-            ...(isAdvisor ? { managerDecision: "APPROVED" } : {}),
-          },
-          include: REQUEST_INCLUDE,
-        })
         await tx.leaveBalance.upsert({
           where: balanceKey,
           update: {
@@ -1338,23 +1367,14 @@ export async function updateLeaveRequest(
           },
         })
       } else {
-        updatedReq = await tx.leaveRequest.update({
-          where: { id },
-          data: {
-            status: "REJECTED",
-            approverId: session.user.id,
-            rejectionReason: String(rejectionReason).trim(),
-            approvalStage: null,
-            currentApproverId: null,
-            ...(isAdvisor ? { managerDecision: "REJECTED" } : {}),
-          },
-          include: REQUEST_INCLUDE,
-        })
+        // REJECT: the status transition was already claimed above; just release
+        // the pending hold.
         await tx.leaveBalance.updateMany({
           where: { employeeId: request.employeeId, leaveTypeId: request.leaveTypeId, year },
           data: { pending: { decrement: request.totalDays } },
         })
       }
+      if (!updatedReq) throw new ActionError("Leave request not found", 404)
       return updatedReq
     })
 

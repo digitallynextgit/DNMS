@@ -5,7 +5,10 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { ReferralsAdmin } from "@/features/referrals"
 
-export const metadata = { title: "Referrals" }
+export const metadata = {
+  title: "Referrals",
+  description: "Manage the employee referral program and its rewards.",
+}
 
 /**
  * HR's referral queue. Gated on the server as well as by the API: this page

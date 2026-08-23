@@ -108,6 +108,10 @@ interface PhotoRow {
 }
 
 const photoUrl = (id: string) => `/api/gallery/photos/${id}/file`
+/** Small WebP variant for grid cells and covers - a fraction of the master's
+ *  bytes. Falls back to the master server-side when a row has no thumb yet. The
+ *  lightbox keeps photoUrl() so it opens the full-resolution image. */
+const thumbUrl = (id: string) => `/api/gallery/photos/${id}/file?variant=thumb`
 /** Same object, signed with Content-Disposition: attachment - see the file route. */
 const downloadUrl = (id: string) => `/api/gallery/photos/${id}/file?download=1`
 const isVideo = (contentType: string) => contentType.startsWith("video/")
@@ -290,7 +294,7 @@ export function GalleryView() {
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={photoUrl(a.coverPhotoId)}
+                    src={thumbUrl(a.coverPhotoId)}
                     alt={a.title}
                     loading="lazy"
                     className="h-full w-full object-cover transition-transform group-hover:scale-105"
@@ -574,7 +578,7 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={photoUrl(p.id)}
+                  src={thumbUrl(p.id)}
                   alt={p.caption ?? p.fileName}
                   loading="lazy"
                   className="h-full w-full object-cover transition-transform group-hover:scale-105"

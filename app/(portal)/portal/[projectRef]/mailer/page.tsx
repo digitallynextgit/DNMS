@@ -4,7 +4,10 @@ import { listClientGrants } from "@/server/client-guard"
 import { ProjectMailerTab } from "@/features/project-mailer/components/project-mailer-tab"
 import type { Metadata } from "next"
 
-export const metadata: Metadata = { title: "Email campaigns" }
+export const metadata: Metadata = {
+  title: "Email campaigns",
+  description: "Send email campaigns to your subscribers.",
+}
 
 /**
  * The client's own mailer.

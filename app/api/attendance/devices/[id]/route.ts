@@ -3,6 +3,13 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
+import type { HikvisionDevice } from "@prisma/client"
+
+// The device admin password is server-only (used by the sync path, which reads
+// its own rows). Never ship it to the browser; expose a boolean instead.
+function redactDevice({ password, ...rest }: HikvisionDevice) {
+  return { ...rest, hasPassword: !!password }
+}
 
 export const GET = withAuth(
   PERMISSIONS.ATTENDANCE_WRITE,
@@ -15,7 +22,7 @@ export const GET = withAuth(
         return NextResponse.json({ error: "Device not found" }, { status: 404 })
       }
 
-      return NextResponse.json({ data: device })
+      return NextResponse.json({ data: redactDevice(device) })
     } catch (error) {
       console.error("[DEVICE_ID_GET]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -51,7 +58,7 @@ export const PATCH = withAuth(
         data: updateData,
       })
 
-      return NextResponse.json({ data: device })
+      return NextResponse.json({ data: redactDevice(device) })
     } catch (error: unknown) {
       console.error("[DEVICE_ID_PATCH]", error)
       if (

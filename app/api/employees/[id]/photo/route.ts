@@ -59,8 +59,12 @@ const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
 
 async function cachedSignedUrl(objectKey: string): Promise<string> {
   const hit = signedUrlCache.get(objectKey)
-  // Re-sign a minute early so we never hand out a URL that expires mid-flight.
-  if (hit && hit.expiresAt > Date.now() + 60_000) return hit.url
+  // Only reuse a cached URL while it still outlives a FULL fresh browser cache
+  // window (+ a minute), not just the next minute. The redirect is cached in the
+  // browser for CACHE_SECONDS, so handing out a URL with less life than that left
+  // means the viewer keeps replaying a redirect to a dead URL and every hit 403s
+  // until their cache lapses - the exact multi-day breakage this pairing prevents.
+  if (hit && hit.expiresAt > Date.now() + (CACHE_SECONDS + 60) * 1000) return hit.url
   const url = await getSignedUrl(objectKey, SIGNED_TTL_SECONDS)
   signedUrlCache.set(objectKey, { url, expiresAt: Date.now() + SIGNED_TTL_SECONDS * 1000 })
   return url

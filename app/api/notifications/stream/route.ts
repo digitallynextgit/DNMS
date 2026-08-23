@@ -16,6 +16,12 @@ export async function GET(req: NextRequest) {
   if (!session?.user?.id) {
     return new Response("Unauthorized", { status: 401 })
   }
+  // Staff-only stream. Client-portal accounts hold a valid JWT, so this handler
+  // rejects them itself rather than relying solely on the proxy fence - the same
+  // defense-in-depth the chat SSE stream applies.
+  if (session.user.kind === "client") {
+    return new Response("Forbidden", { status: 403 })
+  }
   const employeeId = session.user.id
   const encoder = new TextEncoder()
 

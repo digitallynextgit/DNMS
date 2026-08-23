@@ -4,7 +4,10 @@ import { AuthShell } from "@/features/auth"
 import { ClientSetPasswordForm } from "@/features/client-portal"
 import type { Metadata } from "next"
 
-export const metadata: Metadata = { title: "Set your password" }
+export const metadata: Metadata = {
+  title: "Set your password",
+  description: "Set the password for your client portal account.",
+}
 
 /**
  * Where proxy.ts parks a client whose `mustChangePassword` flag is set - i.e.

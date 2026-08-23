@@ -196,9 +196,36 @@ export default function ProjectDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-24 rounded" />
-        <Skeleton className="h-96 rounded" />
+      <div className="space-y-6">
+        {/* Header: logo + name/code + status/priority + Edit */}
+        <div className="space-y-4 py-4">
+          <Skeleton className="h-3 w-28 rounded" />
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 shrink-0 rounded" />
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-48 rounded" />
+                <Skeleton className="h-3 w-24 rounded" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-24 rounded" />
+              <Skeleton className="h-8 w-28 rounded" />
+              <Skeleton className="h-8 w-16 rounded" />
+            </div>
+          </div>
+        </div>
+        {/* Tab bar */}
+        <div className="flex flex-wrap items-center gap-2 border-b pb-2">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 w-24 rounded" />
+          ))}
+        </div>
+        {/* Overview stat strip */}
+        <Skeleton className="h-16 w-full rounded" />
+        {/* Overview body */}
+        <Skeleton className="h-40 w-full rounded" />
+        <Skeleton className="h-64 w-full rounded" />
       </div>
     )
   }

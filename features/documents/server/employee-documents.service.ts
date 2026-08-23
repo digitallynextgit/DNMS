@@ -12,8 +12,12 @@ import { ok, fail, runAction, serialize, type ActionResult } from "@/server/acti
 export async function getEmployeeDocuments(employeeId: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
-    const canRead = hasPermission(session, PERMISSIONS.DOCUMENT_READ)
-    if (!canRead && session.user.id !== employeeId) return fail("Forbidden")
+    // Reading ANOTHER employee's personal documents is an HR act, so it is gated
+    // on employee:read (HR/admin only) - NOT document:read, which the base
+    // `employee` role holds and which would otherwise let any staffer pull
+    // anyone's contracts/IDs. Everyone can still read their OWN via the self check.
+    const canReadAny = hasPermission(session, PERMISSIONS.EMPLOYEE_READ)
+    if (!canReadAny && session.user.id !== employeeId) return fail("Forbidden")
 
     const documents = await db.employeeDocument.findMany({
       where: { employeeId },
@@ -95,8 +99,10 @@ export async function getEmployeeDocumentUrl(
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
-    const canRead = hasPermission(session, PERMISSIONS.DOCUMENT_READ)
-    if (!canRead && session.user.id !== employeeId) return fail("Forbidden")
+    // See getEmployeeDocuments: cross-employee reads need employee:read (HR),
+    // not the base-role document:read; owners always reach their own.
+    const canReadAny = hasPermission(session, PERMISSIONS.EMPLOYEE_READ)
+    if (!canReadAny && session.user.id !== employeeId) return fail("Forbidden")
 
     const document = await db.employeeDocument.findFirst({ where: { id: docId, employeeId } })
     if (!document) return fail("Document not found")

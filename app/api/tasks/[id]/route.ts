@@ -218,9 +218,30 @@ export const PATCH = withSession(
       if (assigneeId !== undefined) data.assigneeId = assigneeId ?? null
       if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null
       if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null
-      if (estimatedHours !== undefined)
-        data.estimatedHours = estimatedHours ? parseFloat(estimatedHours) : null
-      if (loggedHours !== undefined) data.loggedHours = parseFloat(loggedHours)
+      // Validate numbers instead of writing raw parseFloat results (API-04): an
+      // empty string / non-numeric became NaN, which Prisma rejects -> the whole
+      // PATCH (including a legitimate status change) 500s. A finite, non-negative
+      // number or explicit null only.
+      if (estimatedHours !== undefined) {
+        if (estimatedHours === null || estimatedHours === "") {
+          data.estimatedHours = null
+        } else {
+          const n = Number(estimatedHours)
+          if (!Number.isFinite(n) || n < 0) {
+            return NextResponse.json({ error: "estimatedHours must be a number" }, { status: 422 })
+          }
+          data.estimatedHours = n
+        }
+      }
+      // loggedHours is system-measured from inProgressSince; accept it only when
+      // it is a valid number and never crash the update on bad input.
+      if (loggedHours !== undefined) {
+        const n = Number(loggedHours)
+        if (!Number.isFinite(n) || n < 0) {
+          return NextResponse.json({ error: "loggedHours must be a number" }, { status: 422 })
+        }
+        data.loggedHours = n
+      }
       if (tags !== undefined) data.tags = tags
       if (links !== undefined) {
         // Only http(s), and only what parses. A cell where anyone can type is a

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withSession } from "@/server/api-handler"
+import { withAuth } from "@/server/api-handler"
+import { PERMISSIONS } from "@/lib/constants"
 import { slugifyCareer } from "@/features/recruitment/careers-types"
 import type { Session } from "next-auth"
 
@@ -15,7 +16,11 @@ function emptyToNull(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-export const GET = withSession(
+// GET returns include:{ applicants } - candidate names, emails, phones, resume
+// URLs, HR notes. Gate on recruitment:read, matching the applicants/applications
+// siblings; bare withSession leaks third-party PII to every staffer.
+export const GET = withAuth(
+  PERMISSIONS.RECRUITMENT_READ,
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const job = await db.jobPosting.findUnique({
@@ -39,7 +44,8 @@ export const GET = withSession(
   },
 )
 
-export const PATCH = withSession(
+export const PATCH = withAuth(
+  PERMISSIONS.RECRUITMENT_WRITE,
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const body = await req.json()
@@ -88,7 +94,8 @@ export const PATCH = withSession(
   },
 )
 
-export const DELETE = withSession(
+export const DELETE = withAuth(
+  PERMISSIONS.RECRUITMENT_WRITE,
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       await db.jobPosting.delete({ where: { id: ctx.params.id } })

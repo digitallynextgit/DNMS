@@ -576,6 +576,11 @@ model Employee {
   // status filters used by the directory, dashboard and accrual jobs.
   @@index([managerId])
   @@index([status, isActive])
+  // Directory list: default sort is createdAt desc; department/designation are
+  // the optional filters. Without these the directory scans the whole table.
+  @@index([createdAt])
+  @@index([departmentId])
+  @@index([designationId])
   @@map("employees")
 }
 
@@ -714,6 +719,10 @@ model Notification {
   // Serves the inbox: where employeeId + orderBy createdAt desc. The
   // ([employeeId, isRead]) index above cannot satisfy that sort.
   @@index([employeeId, createdAt])
+  // Serves the admin dashboard's org-wide unread count (where isRead=false, no
+  // employeeId): the [employeeId, isRead] index can't be used for a pure isRead
+  // filter because employeeId is the leading column.
+  @@index([isRead])
   @@map("notifications")
 }
 
@@ -882,6 +891,15 @@ model Holiday {
 
   @@unique([date, name])
   @@map("holidays")
+}
+
+// Marketing homepage newsletter sign-ups.
+model NewsletterSubscriber {
+  id        String   @id @default(uuid()) @map("id")
+  email     String   @unique @map("email")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("newsletter_subscribers")
 }
 
 // =============================================================================
@@ -3318,6 +3336,11 @@ model Photo {
   id          String  @id @default(uuid()) @map("id")
   albumId     String  @map("album_id")
   objectKey   String  @map("object_key")
+  /// Small (480px WebP) variant of an image, served to grid cells and album
+  /// covers so a 40-photo album no longer downloads 40 full 2000px masters just
+  /// to paint 200px squares. Null for videos and for images uploaded before the
+  /// thumbnail feature (those fall back to objectKey until backfilled).
+  thumbKey    String? @map("thumb_key")
   fileName    String  @map("file_name")
   contentType String  @map("content_type")
   size        Int     @map("size")

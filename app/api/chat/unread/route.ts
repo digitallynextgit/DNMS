@@ -11,35 +11,33 @@ import { markDelivered } from "@/features/chat/server/chat.service"
 export const GET = withSession(async (_req, _ctx, session) => {
   const me = session.user.id
 
-  // This poll runs app-wide, so it is the moment anything sent while the tab was
-  // closed reaches this person. Awaited, so the count below already reflects it.
-  await markDelivered(me).catch((e) => console.error("[chat] delivery stamp failed:", e))
-
-  // Messages from other people, in threads I am in, newer than my read mark.
-  const parts = await db.conversationParticipant.findMany({
-    where: { employeeId: me, isArchived: false },
-    select: { conversationId: true, lastReadAt: true },
-  })
-  if (parts.length === 0) return NextResponse.json({ unreadCount: 0, conversations: 0 })
-
-  const counts = await Promise.all(
-    parts.map((p) =>
-      db.chatMessage.count({
-        where: {
-          conversationId: p.conversationId,
-          senderId: { not: me },
-          deletedAt: null,
-          NOT: { hiddenFor: { has: me } },
-          ...(p.lastReadAt ? { createdAt: { gt: p.lastReadAt } } : {}),
-        },
-      }),
-    ),
-  )
+  // One grouped query for the whole badge instead of one COUNT per conversation
+  // (the old code issued N+1 round trips on a 20s app-wide poll). Each row is a
+  // thread with unread messages and how many; threads at zero don't come back.
+  // The delivery stamp does NOT affect this count (it filters on read marks, not
+  // deliveredAt), so it runs CONCURRENTLY rather than blocking the badge - this
+  // poll is still the moment anything sent while the tab was closed is marked
+  // delivered, it just no longer sits in front of the count on the response path.
+  const [, rows] = await Promise.all([
+    markDelivered(me).catch((e) => console.error("[chat] delivery stamp failed:", e)),
+    db.$queryRaw<{ conversationId: string; count: number }[]>`
+      SELECT m.conversation_id AS "conversationId", COUNT(*)::int AS "count"
+      FROM chat_messages m
+      JOIN conversation_participants p
+        ON p.conversation_id = m.conversation_id AND p.employee_id = ${me}
+      WHERE p.is_archived = false
+        AND m.sender_id <> ${me}
+        AND m.deleted_at IS NULL
+        AND NOT (${me} = ANY(m.hidden_for))
+        AND (p.last_read_at IS NULL OR m.created_at > p.last_read_at)
+      GROUP BY m.conversation_id
+    `,
+  ])
 
   return NextResponse.json({
-    unreadCount: counts.reduce((n, c) => n + c, 0),
+    unreadCount: rows.reduce((n, r) => n + r.count, 0),
     // How many THREADS are unread - the more useful number on a nav item, kept
     // available so the badge can switch without another endpoint.
-    conversations: counts.filter((c) => c > 0).length,
+    conversations: rows.length,
   })
 })

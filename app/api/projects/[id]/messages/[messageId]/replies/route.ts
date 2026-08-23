@@ -53,6 +53,15 @@ export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId, messageId } = await ctx.params
+      // withProjectAccess only proved access to the URL project; messageId is an
+      // opaque string the caller supplied. Confirm the thread actually lives in
+      // this project before returning any of it, or A can read B's thread by
+      // pairing A's id with B's messageId.
+      const parent = await db.projectMessage.findFirst({
+        where: { id: messageId, projectId },
+        select: { id: true },
+      })
+      if (!parent) return NextResponse.json({ error: "Message not found" }, { status: 404 })
       const [replies, reads] = await Promise.all([
         db.projectMessageReply.findMany({
           where: { messageId },
@@ -119,8 +128,10 @@ export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, messageId } = await ctx.params
-      const parent = await db.projectMessage.findUnique({
-        where: { id: messageId },
+      // Scope by projectId: messageId is client-supplied, so quoting/replying
+      // into another project's thread must be impossible, not just unlikely.
+      const parent = await db.projectMessage.findFirst({
+        where: { id: messageId, projectId },
         select: {
           id: true,
           title: true,

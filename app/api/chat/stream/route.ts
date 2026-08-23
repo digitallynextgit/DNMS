@@ -62,6 +62,11 @@ export async function GET(req: NextRequest) {
         }
       }
       req.signal.addEventListener("abort", cleanup)
+      // If the client disconnected DURING `await subscribeChat`, the abort event
+      // fired before this listener existed (abort is one-shot), so cleanup would
+      // never run and the heartbeat + subscription would leak (API-11). Re-check
+      // and clean up now.
+      if (req.signal.aborted) cleanup()
     },
   })
 

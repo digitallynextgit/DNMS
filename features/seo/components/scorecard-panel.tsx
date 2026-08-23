@@ -5,7 +5,7 @@ import { AlertTriangle, Download, Gauge, Info, RefreshCw, Zap } from "lucide-rea
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { StatCardsSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 import type { ScorecardView, VitalsView } from "../types"
 import { useRebuildScorecard, useRunVitals, useScorecard, useVitals } from "../hooks/use-seo"
@@ -74,7 +74,15 @@ export function ScorecardPanel({
   const rebuild = useRebuildScorecard(projectId)
   const runVitals = useRunVitals(projectId)
 
-  if (isLoading) return <ListSkeleton />
+  if (isLoading)
+    return (
+      <div className="space-y-4">
+        <StatCardsSkeleton count={4} />
+        <div className="border-border bg-card overflow-hidden rounded-[2px] border">
+          <TableSkeleton rows={6} cols={4} />
+        </div>
+      </div>
+    )
 
   return (
     <div className="space-y-4">

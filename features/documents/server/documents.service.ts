@@ -126,10 +126,14 @@ export async function getDocumentUrl(
     if (!document) return fail("Document not found")
 
     if (document.employeeId !== null) {
-      const canRead = hasPermission(session, PERMISSIONS.DOCUMENT_READ)
+      // An employee-linked document: only its owner, or HR (employee:read),
+      // may fetch it. document:read is held by the base employee role and must
+      // NOT unlock another employee's file (SEC-01).
+      const canReadAny = hasPermission(session, PERMISSIONS.EMPLOYEE_READ)
       const isOwner = session.user.id === document.employeeId
-      if (!canRead && !isOwner) return fail("Forbidden")
+      if (!canReadAny && !isOwner) return fail("Forbidden")
     } else if (!hasPermission(session, PERMISSIONS.DOCUMENT_READ)) {
+      // Company-wide document (no employee): the general document:read is fine.
       return fail("Forbidden")
     }
 

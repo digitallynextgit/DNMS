@@ -29,6 +29,10 @@ import type { NextRequest } from "next/server"
 // endpoints do their own token-based auth, so the session guard must let them
 // through (otherwise cron-job.org / the careers site get 401 before the handler).
 const PUBLIC_PREFIXES = [
+  // Public marketing landing page. Only the EXACT root is public - the
+  // isPublic() match is `pathname === prefix` for "/" (its prefix+"/" form is
+  // "//", which nothing else matches), so no protected route is exposed by this.
+  "/",
   "/login",
   // External client portal sign-in. Its own page so a client never lands on the
   // staff login (and never sees the Google button, which is employees-only).

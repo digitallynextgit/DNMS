@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { assertCron } from "@/server/cron-auth"
 import { runSeoWeeklyJob } from "@/features/seo/server/seo.jobs"
 
 // Weekly Search Console pull for every active SEO property, then vitals, GA4,
@@ -12,9 +13,8 @@ export const runtime = "nodejs"
 export const maxDuration = 300
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = assertCron(req)
+  if (denied) return denied
   try {
     const result = await runSeoWeeklyJob()
     if (result.skipped === "gsc") {

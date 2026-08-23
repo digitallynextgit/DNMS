@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { getSession } from "@/server/api-handler"
-import { getSignedUrl } from "@/lib/storage"
+import { getSignedUrl, getCachedSignedUrl } from "@/lib/storage"
 
 export const runtime = "nodejs"
 
@@ -51,11 +51,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ attachmentI
     // Only a deliberate download is named and forced. Leaving it off for
     // pictures and video is what lets them render inline instead of landing in
     // the downloads folder the moment the thread scrolls past them.
-    const url = await getSignedUrl(
-      attachment.objectKey,
-      SIGNED_TTL_SECONDS,
-      wantsDownload ? { downloadFileName: attachment.fileName } : undefined,
-    )
+    const url = wantsDownload
+      ? await getSignedUrl(attachment.objectKey, SIGNED_TTL_SECONDS, {
+          downloadFileName: attachment.fileName,
+        })
+      : await getCachedSignedUrl(attachment.objectKey, SIGNED_TTL_SECONDS, CACHE_SECONDS + 60)
     return NextResponse.redirect(url, {
       status: 302,
       headers: { "Cache-Control": `private, max-age=${CACHE_SECONDS}` },

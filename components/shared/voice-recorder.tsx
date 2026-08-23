@@ -77,7 +77,17 @@ export function VoiceRecorder({
 
   // Releasing on unmount matters: navigating away mid-recording would otherwise
   // leave the browser's recording indicator on with nothing to turn it off.
-  React.useEffect(() => teardown, [teardown])
+  //
+  // Set abortRef BEFORE teardown (UI-02): stopping the tracks can fire
+  // MediaRecorder.onstop, and without the abort flag that path would UPLOAD the
+  // half-finished clip (and setState on an unmounted component). The explicit
+  // finish button is the only path that should ever send.
+  React.useEffect(() => {
+    return () => {
+      abortRef.current = true
+      teardown()
+    }
+  }, [teardown])
 
   /** Reduce the peak history to a fixed number of bars for storage. */
   function compress(peaks: number[], target = STORED_PEAKS): number[] {

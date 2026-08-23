@@ -4,7 +4,10 @@ import { listClientGrants } from "@/server/client-guard"
 import { PortalActivityLog } from "@/features/client-portal"
 import type { Metadata } from "next"
 
-export const metadata: Metadata = { title: "Activity" }
+export const metadata: Metadata = {
+  title: "Activity",
+  description: "Recent activity on your project.",
+}
 
 export default async function PortalActivityPage({
   params,

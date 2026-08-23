@@ -484,20 +484,34 @@ export async function getSeoRollup(projectId: string): Promise<SeoRollup> {
   const summaries: SeoPropertySummary[] = []
   const alerts: SeoRollup["alerts"] = []
 
+  // Fetch snapshots for ALL properties in ONE query and keep the latest two per
+  // property in JS (PERF-09) - previously this was a snapshot query per property.
+  // The @@index([propertyId, periodEnd]) backs this ordering.
+  const allSnaps = await db.seoSnapshot.findMany({
+    where: { propertyId: { in: properties.map((p) => p.id) } },
+    orderBy: { periodEnd: "desc" },
+    select: {
+      propertyId: true,
+      periodStart: true,
+      periodEnd: true,
+      clicks: true,
+      impressions: true,
+      ctr: true,
+      position: true,
+    },
+  })
+  const snapsByProp = new Map<string, typeof allSnaps>()
+  for (const s of allSnaps) {
+    const list = snapsByProp.get(s.propertyId)
+    if (list) {
+      if (list.length < 2) list.push(s)
+    } else {
+      snapsByProp.set(s.propertyId, [s])
+    }
+  }
+
   for (const p of properties) {
-    const snaps = await db.seoSnapshot.findMany({
-      where: { propertyId: p.id },
-      orderBy: { periodEnd: "desc" },
-      take: 2,
-      select: {
-        periodStart: true,
-        periodEnd: true,
-        clicks: true,
-        impressions: true,
-        ctr: true,
-        position: true,
-      },
-    })
+    const snaps = snapsByProp.get(p.id) ?? []
     const latest = snaps[0] ?? null
     const prev = snaps[1] ?? null
     const config = serializeConfig(p)

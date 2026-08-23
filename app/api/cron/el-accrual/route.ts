@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { assertCron } from "@/server/cron-auth"
 import { runMonthlyAccrual } from "@/features/leave/server/leave-accrual.service"
 
 // DEPRECATED endpoint kept for the existing scheduled job. EL is no longer a
@@ -9,9 +10,8 @@ import { runMonthlyAccrual } from "@/features/leave/server/leave-accrual.service
 export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = assertCron(req)
+  if (denied) return denied
   try {
     const year = new Date().getFullYear()
     const result = await runMonthlyAccrual(year)

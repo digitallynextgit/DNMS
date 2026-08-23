@@ -37,7 +37,9 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
       setIpAddress(editDevice.ipAddress)
       setPort(String(editDevice.port))
       setUsername(editDevice.username)
-      setPassword(editDevice.password)
+      // The password is never returned by the API. Leave the field blank on edit
+      // ("Leave blank to keep current") - only a typed value replaces it.
+      setPassword("")
       setLocation(editDevice.location ?? "")
     } else {
       setName("")
@@ -60,9 +62,11 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
       ipAddress,
       port: Number(port),
       username,
-      password,
       location: location || null,
     }
+    // Only send the password when the user actually typed one, so editing a
+    // device without retyping it keeps the stored credential instead of wiping it.
+    if (password) payload.password = password
 
     if (isEdit && editDevice) {
       await updateDevice.mutateAsync({ id: editDevice.id, body: payload })

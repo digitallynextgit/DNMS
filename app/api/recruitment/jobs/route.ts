@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withSession } from "@/server/api-handler"
+import { withAuth } from "@/server/api-handler"
+import { PERMISSIONS } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
 import { slugifyCareer } from "@/features/recruitment/careers-types"
 import type { Session } from "next-auth"
@@ -16,85 +17,95 @@ function emptyToNull(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-export const GET = withSession(async (req: NextRequest, _ctx: unknown, _session: Session) => {
-  try {
-    const { searchParams } = req.nextUrl
-    const status = searchParams.get("status") ?? undefined
+// Reads expose candidate PII (via the [id] route's applicant include) and DRAFT
+// postings with salary bands, so gate on recruitment:read like every sibling -
+// not bare withSession, which any staffer holds. Public careers listings live
+// under /api/public/careers and are unaffected.
+export const GET = withAuth(
+  PERMISSIONS.RECRUITMENT_READ,
+  async (req: NextRequest, _ctx: unknown, _session: Session) => {
+    try {
+      const { searchParams } = req.nextUrl
+      const status = searchParams.get("status") ?? undefined
 
-    const jobs = await db.jobPosting.findMany({
-      where: { ...(status && { status: status as never }) },
-      orderBy: { createdAt: "desc" },
-      include: {
-        _count: { select: { applicants: true } },
-        department: { select: { name: true } },
-      },
-    })
-    return NextResponse.json({ data: jobs })
-  } catch (error) {
-    console.error("[JOBS_GET]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
-})
+      const jobs = await db.jobPosting.findMany({
+        where: { ...(status && { status: status as never }) },
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: { select: { applicants: true } },
+          department: { select: { name: true } },
+        },
+      })
+      return NextResponse.json({ data: jobs })
+    } catch (error) {
+      console.error("[JOBS_GET]", error)
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    }
+  },
+)
 
-export const POST = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
-  try {
-    const body = await req.json()
-    const {
-      title,
-      description,
-      departmentId,
-      location,
-      type,
-      salaryMin,
-      salaryMax,
-      closingDate,
-      status,
-      slug,
-      meta,
-      summary,
-      intro,
-      jobEssence,
-      keyRequirements,
-      currentOpenings,
-      publishToCareers,
-    } = body
+export const POST = withAuth(
+  PERMISSIONS.RECRUITMENT_WRITE,
+  async (req: NextRequest, _ctx: unknown, session: Session) => {
+    try {
+      const body = await req.json()
+      const {
+        title,
+        description,
+        departmentId,
+        location,
+        type,
+        salaryMin,
+        salaryMax,
+        closingDate,
+        status,
+        slug,
+        meta,
+        summary,
+        intro,
+        jobEssence,
+        keyRequirements,
+        currentOpenings,
+        publishToCareers,
+      } = body
 
-    const titleStr = typeof title === "string" ? title.trim() : ""
-    const resolvedSlug = emptyToNull(slug) ?? (titleStr ? slugifyCareer(titleStr) : null)
+      const titleStr = typeof title === "string" ? title.trim() : ""
+      const resolvedSlug = emptyToNull(slug) ?? (titleStr ? slugifyCareer(titleStr) : null)
 
-    const job = await db.jobPosting.create({
-      data: {
-        title: titleStr,
-        slug: resolvedSlug,
-        description: emptyToNull(description),
-        departmentId: emptyToNull(departmentId),
-        location: emptyToNull(location),
-        type: type || "FULL_TIME",
-        salaryMin: salaryMin ? parseFloat(salaryMin) : null,
-        salaryMax: salaryMax ? parseFloat(salaryMax) : null,
-        closingDate: closingDate ? new Date(closingDate) : null,
-        status: (status || "DRAFT") as never,
-        postedById: session.user.id,
-        meta: emptyToNull(meta),
-        summary: emptyToNull(summary),
-        intro: emptyToNull(intro),
-        jobEssence: emptyToNull(jobEssence),
-        keyRequirements: asStringArray(keyRequirements),
-        currentOpenings: asStringArray(currentOpenings),
-        publishToCareers: Boolean(publishToCareers),
-      },
-    })
+      const job = await db.jobPosting.create({
+        data: {
+          title: titleStr,
+          slug: resolvedSlug,
+          description: emptyToNull(description),
+          departmentId: emptyToNull(departmentId),
+          location: emptyToNull(location),
+          type: type || "FULL_TIME",
+          salaryMin: salaryMin ? parseFloat(salaryMin) : null,
+          salaryMax: salaryMax ? parseFloat(salaryMax) : null,
+          closingDate: closingDate ? new Date(closingDate) : null,
+          status: (status || "DRAFT") as never,
+          postedById: session.user.id,
+          meta: emptyToNull(meta),
+          summary: emptyToNull(summary),
+          intro: emptyToNull(intro),
+          jobEssence: emptyToNull(jobEssence),
+          keyRequirements: asStringArray(keyRequirements),
+          currentOpenings: asStringArray(currentOpenings),
+          publishToCareers: Boolean(publishToCareers),
+        },
+      })
 
-    await createAuditLog(session, {
-      action: "CREATE",
-      module: "recruitment",
-      entityType: "JobPosting",
-      entityId: job.id,
-    })
+      await createAuditLog(session, {
+        action: "CREATE",
+        module: "recruitment",
+        entityType: "JobPosting",
+        entityId: job.id,
+      })
 
-    return NextResponse.json({ data: job }, { status: 201 })
-  } catch (error) {
-    console.error("[JOBS_POST]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
-})
+      return NextResponse.json({ data: job }, { status: 201 })
+    } catch (error) {
+      console.error("[JOBS_POST]", error)
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    }
+  },
+)

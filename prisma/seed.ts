@@ -155,6 +155,9 @@ async function main() {
         "project:write",
         "project:delete",
         "audit:read",
+        // Company noticeboard management (announcements + gallery albums).
+        "announcement:write",
+        "gallery:write",
       ],
     },
     {
@@ -170,13 +173,17 @@ async function main() {
         "attendance:read",
         "leave:read",
         // Self-service: an HR employee is still an employee who applies for
-        // their own leave/WFH/self-assessment. These were missing, which would
-        // have locked them out the moment those paths enforce their permission.
+        // their own leave/WFH/self-assessment and views their own payslips.
+        // These were missing, which would have locked them out the moment those
+        // paths enforce their permission. payroll:read is self-scoped by the
+        // route (non payroll:write callers see only their own records), so it
+        // grants payslip access without exposing anyone else's pay.
         "leave:write",
         "leave:approve",
         "wfh:read",
         "wfh:write",
         "wfh:approve",
+        "payroll:read",
         "performance:read",
         "performance:write",
         "resignation:read",

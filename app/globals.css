@@ -419,10 +419,10 @@
 @keyframes dnms-float {
   0%,
   100% {
-    transform: translate(0, 0) scale(1);
+    transform: translate(0, 0);
   }
   50% {
-    transform: translate(24px, -28px) scale(1.12);
+    transform: translate(20px, -24px);
   }
 }
 
@@ -588,6 +588,397 @@
 @media (prefers-reduced-motion: reduce) {
   .square-loader,
   .square-loader-run {
+    animation: none;
+  }
+}
+
+/* ========================================================================== */
+/* Marketing / landing-page FX kit                                            */
+/* ========================================================================== */
+
+/* Hide scrollbar but keep scrolling (applied to the marketing scroll shell). */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+@keyframes dnms-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes dnms-marquee-rev {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+/* Translate-only (no scale): scaling a heavily-blurred element re-rasterizes the
+   blur every frame, which is what makes scrolling stutter. Translate is
+   GPU-composited and cheap. */
+@keyframes dnms-aurora {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(5%, -7%);
+  }
+  66% {
+    transform: translate(-6%, 5%);
+  }
+}
+@keyframes dnms-glow {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+@keyframes dnms-spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes dnms-shimmer {
+  to {
+    background-position: 200% center;
+  }
+}
+@keyframes dnms-scan {
+  0% {
+    top: 4%;
+  }
+  50% {
+    top: 92%;
+  }
+  100% {
+    top: 4%;
+  }
+}
+@keyframes dnms-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes dnms-pulse-ring {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+}
+@keyframes dnms-dash {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes dnms-scan-x {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-dnms-marquee {
+  animation: dnms-marquee 38s linear infinite;
+}
+.animate-dnms-marquee-rev {
+  animation: dnms-marquee-rev 38s linear infinite;
+}
+.animate-dnms-aurora {
+  animation: dnms-aurora 22s ease-in-out infinite;
+  will-change: transform;
+}
+.animate-dnms-glow {
+  animation: dnms-glow 5s ease-in-out infinite;
+}
+.animate-dnms-spin-slow {
+  animation: dnms-spin-slow 28s linear infinite;
+}
+.animate-dnms-scan {
+  animation: dnms-scan 3.4s ease-in-out infinite;
+}
+.animate-dnms-scan-x {
+  animation: dnms-scan-x 2.8s ease-in-out infinite;
+}
+.animate-dnms-bob {
+  animation: dnms-bob 6s ease-in-out infinite;
+  will-change: transform;
+}
+/* Small, self-contained bob for the kanban chips - small enough to stay inside
+   its column's padding (never overflows the box). */
+@keyframes dnms-bob-sm {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+.animate-dnms-bob-sm {
+  animation: dnms-bob-sm 4.5s ease-in-out infinite;
+  will-change: transform;
+}
+/* A highlight segment that flows along a normalized (pathLength=1000) line, in a
+   seamless loop — the dash offset advances by exactly one period. */
+@keyframes dnms-flow-line {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+.animate-dnms-flow-line {
+  animation: dnms-flow-line 3.2s linear infinite;
+  will-change: stroke-dashoffset;
+}
+.animate-dnms-pulse-ring {
+  animation: dnms-pulse-ring 2.6s ease-out infinite;
+}
+
+/* Group pauses the marquee on hover (add `group` to the wrapper). */
+.group:hover .group-hover\:pause {
+  animation-play-state: paused;
+}
+
+/* Shimmering gradient text. */
+.dnms-gradient-text {
+  background-image: linear-gradient(
+    100deg,
+    rgb(239 68 68) 0%,
+    rgb(37 99 235) 50%,
+    rgb(239 68 68) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: dnms-shimmer 7s linear infinite;
+}
+
+/* Masked grid backdrop (same idea as the login brand panel). */
+.dnms-grid-bg {
+  background-image:
+    linear-gradient(to right, hsl(var(--foreground) / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--foreground) / 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse at center, black 8%, transparent 78%);
+  mask-image: radial-gradient(ellipse at center, black 8%, transparent 78%);
+}
+.dnms-dot-bg {
+  background-image: radial-gradient(hsl(var(--foreground) / 0.09) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(ellipse at center, black 5%, transparent 75%);
+  mask-image: radial-gradient(ellipse at center, black 5%, transparent 75%);
+}
+
+/* Scroll-reveal: base is hidden; the Reveal client component adds `is-in`. */
+.dnms-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dnms-reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Pointer-following radial highlight on cards (SpotlightCard sets --mx/--my). */
+.dnms-spotlight {
+  position: relative;
+  transition:
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.3s;
+}
+.dnms-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    240px circle at var(--mx, 50%) var(--my, 50%),
+    rgb(239 68 68 / 0.18),
+    transparent 62%
+  );
+  opacity: 0;
+  transition: opacity 0.35s;
+}
+.dnms-spotlight:hover::before {
+  opacity: 1;
+}
+.dnms-spotlight:hover {
+  transform: translateY(-4px);
+}
+
+/* Global pointer-following ambient glow (SpotlightCursor). */
+.dnms-cursor-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 480px;
+  height: 480px;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 30;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgb(239 68 68 / 0.14), transparent 60%);
+  transition: opacity 0.4s;
+  will-change: left, top;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-dnms-marquee,
+  .animate-dnms-marquee-rev,
+  .animate-dnms-aurora,
+  .animate-dnms-glow,
+  .animate-dnms-spin-slow,
+  .animate-dnms-scan,
+  .animate-dnms-scan-x,
+  .animate-dnms-bob,
+  .animate-dnms-bob-sm,
+  .animate-dnms-flow-line,
+  .animate-dnms-pulse-ring,
+  .dnms-gradient-text {
+    animation: none;
+  }
+  .dnms-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .dnms-cursor-glow {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Hero polish: border beam + shiny eyebrow (Magic UI-style effects)   */
+/* ------------------------------------------------------------------ */
+
+/* Animatable angle for the rotating border beam. Falls back to a static
+   red/blue arc where @property is unsupported. */
+@property --dnms-beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes dnms-beam-rotate {
+  to {
+    --dnms-beam-angle: 360deg;
+  }
+}
+.dnms-border-beam {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--dnms-beam-angle),
+    transparent 0%,
+    #ef4444 6%,
+    #3b82f6 13%,
+    transparent 22%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: dnms-beam-rotate 6s linear infinite;
+}
+
+/* Subtle sweeping shine on the eyebrow text (Magic UI AnimatedShinyText). */
+.dnms-shiny-text {
+  background-image: linear-gradient(
+    110deg,
+    hsl(var(--muted-foreground)) 35%,
+    hsl(var(--foreground)) 50%,
+    hsl(var(--muted-foreground)) 65%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: dnms-shimmer 5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dnms-border-beam,
+  .dnms-shiny-text {
+    animation: none;
+  }
+}
+
+/* Flowing dashes along the network-diagram lines (data flowing into the hub). */
+/* -20 is exactly 2 dash periods (dasharray "2 8" = 10px), so the loop is
+   perfectly seamless - no visible restart. Coordinates are in real pixels (the
+   SVG has no viewBox), so the dashes never stretch unevenly. */
+/* -36 is exactly 2 dash periods (dasharray "10 8" = 18px), so offset -36 ≡ 0
+   (mod 18): the loop is perfectly seamless with no visible restart. Coordinates
+   are real pixels (SVG has no viewBox), so dashes never stretch unevenly. */
+@keyframes dnms-line-flow {
+  to {
+    stroke-dashoffset: -36;
+  }
+}
+
+/* A flowing red/blue gradient ring (conic gradient masked to a thin ring). Rotate
+   the element to make the gradient flow around the circle. */
+.dnms-ring-beam {
+  border-radius: 9999px;
+  padding: 1.5px;
+  background: conic-gradient(
+    from 0deg,
+    hsl(var(--muted-foreground) / 0.1),
+    rgba(239, 68, 68, 0.5) 18%,
+    rgba(59, 130, 246, 0.5) 38%,
+    hsl(var(--muted-foreground) / 0.1) 58%,
+    hsl(var(--muted-foreground) / 0.1)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.animate-dnms-line {
+  animation: dnms-line-flow 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-dnms-line {
     animation: none;
   }
 }

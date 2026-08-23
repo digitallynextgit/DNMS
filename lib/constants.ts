@@ -103,6 +103,14 @@ export const MODULES = [
   "performance",
   "recruitment",
   "analytics",
+  "company",
+  "settings",
+  // Modules that only appear as audit-log entry values (no permission scope of
+  // their own). Listed so the audit-log module filter can select them.
+  "admin",
+  "asc",
+  "holiday",
+  "resignation",
 ] as const
 
 export const PERMISSION_DEFINITIONS = [
@@ -301,6 +309,22 @@ export const PERMISSION_DEFINITIONS = [
     module: "analytics",
     action: "read",
     description: "View analytics and reports",
+  },
+  // Company noticeboard. These were enforced by routes (announcements POST/PATCH/
+  // DELETE, gallery album delete) but were MISSING from this catalogue, so no
+  // permission row was seeded and only admin_ could pass - HR could not manage
+  // announcements or delete gallery albums. Reads stay open to all staff.
+  {
+    scope: "announcement:write",
+    module: "company",
+    action: "write",
+    description: "Create, edit, and delete company announcements",
+  },
+  {
+    scope: "gallery:write",
+    module: "company",
+    action: "write",
+    description: "Manage photo gallery albums (create/delete)",
   },
 ] as const
 

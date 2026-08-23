@@ -169,6 +169,10 @@ function CameraDialog({
   const [facing, setFacing] = React.useState<"user" | "environment">("user")
   const [shot, setShot] = React.useState<{ blob: Blob; url: string } | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  // Bumped by Retake to re-run the acquire effect (which has the cancelled guard),
+  // instead of a second hand-rolled getUserMedia that could leave a live stream
+  // if the dialog closed mid-acquire (UI-05).
+  const [restartNonce, setRestartNonce] = React.useState(0)
 
   const stop = React.useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
@@ -201,7 +205,7 @@ function CameraDialog({
       cancelled = true
       stop()
     }
-  }, [open, facing, stop])
+  }, [open, facing, restartNonce, stop])
 
   React.useEffect(() => {
     return () => {
@@ -232,16 +236,10 @@ function CameraDialog({
   function retake() {
     if (shot) URL.revokeObjectURL(shot.url)
     setShot(null)
-    // Re-running the effect is what restarts the stream; flipping and flipping
-    // back would be a hack, so nudge `facing` to itself via a fresh object.
-    setFacing((f) => f)
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: facing }, audio: false })
-      .then((stream) => {
-        streamRef.current = stream
-        if (videoRef.current) videoRef.current.srcObject = stream
-      })
-      .catch(() => setError("Could not restart the camera."))
+    // Re-acquire through the effect (UI-05): it stops the old stream in cleanup,
+    // re-acquires, and its `cancelled` guard stops the new stream if the dialog
+    // closes mid-acquire - which the previous inline getUserMedia did not.
+    setRestartNonce((n) => n + 1)
   }
 
   return (

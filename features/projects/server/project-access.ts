@@ -76,6 +76,36 @@ export async function canAccessProject(session: Session, projectId: string): Pro
 }
 
 /**
+ * Who may read/act on a TASK (its comments, checklist, timeline)?
+ *   • a project task → whoever can access the project (canAccessProject), OR
+ *   • an adhoc task (no project) → the assignee, the creator, or the assignee's
+ *     line manager - the only people it concerns.
+ *
+ * Tasks are addressed by a bare taskId at /api/tasks/[id]/*, with no project in
+ * the URL, so the boundary has to be resolved from the task's own row. Returns
+ * false if the task does not exist (handlers can 404 separately if they need to
+ * distinguish, by loading the task themselves).
+ */
+export async function canAccessTask(session: Session, taskId: string): Promise<boolean> {
+  if (!taskId) return false
+  const task = await db.projectTask.findUnique({
+    where: { id: taskId },
+    select: {
+      projectId: true,
+      assigneeId: true,
+      creatorId: true,
+      assignee: { select: { managerId: true } },
+    },
+  })
+  if (!task) return false
+  return task.projectId
+    ? canAccessProject(session, task.projectId)
+    : task.assigneeId === session.user.id ||
+        task.creatorId === session.user.id ||
+        task.assignee?.managerId === session.user.id
+}
+
+/**
  * Who may STAFF a team (add/remove its members)?
  *   • anyone who can manage the project (see canManageProject), OR
  *   • the manager of a team inside it.

@@ -5,7 +5,10 @@ import { listClientChannels } from "@/features/client-portal/server/client-porta
 import { Badge } from "@/components/ui/badge"
 import type { Metadata } from "next"
 
-export const metadata: Metadata = { title: "Sales channels" }
+export const metadata: Metadata = {
+  title: "Sales channels",
+  description: "Your sales channels and their sync status.",
+}
 
 interface Channel {
   id: string

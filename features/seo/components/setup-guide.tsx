@@ -6,7 +6,7 @@ import { ArrowRight, Check, Lock, Settings2, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 import type { SetupAction, SetupField, SetupStepView } from "../types"
 import {
@@ -58,7 +58,7 @@ export function SetupGuide({
   const vitals = useRunVitals(projectId)
   const scorecard = useRebuildScorecard(projectId)
 
-  if (isLoading) return compact ? null : <ListSkeleton />
+  if (isLoading) return compact ? null : <CardGridSkeleton count={6} />
   if (!setup || !propertyId) return null
 
   const busy =

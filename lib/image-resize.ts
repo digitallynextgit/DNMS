@@ -92,3 +92,45 @@ export async function resizeImage(
     return fallback
   }
 }
+
+export interface ThumbResult {
+  bytes: Buffer
+  contentType: string
+  ext: string
+  width: number | null
+  height: number | null
+}
+
+/**
+ * A small WebP thumbnail for grid cells and covers, generated ALONGSIDE the
+ * full-size master (never instead of it - the lightbox still needs the master).
+ *
+ * Returns null - not a fallback - when sharp is unavailable or the encode fails:
+ * a missing thumb just means the grid falls back to the master for that one
+ * image, which must never block the upload itself. Animated GIFs collapse to
+ * their first frame, which is the right trade for a 200px cell.
+ */
+export async function makeThumb(
+  original: Buffer,
+  opts: { maxDim?: number; quality?: number } = {},
+): Promise<ThumbResult | null> {
+  const sharp = await loadSharp()
+  if (!sharp) return null
+  try {
+    const out = await sharp(original)
+      .rotate()
+      .resize(opts.maxDim ?? 480, opts.maxDim ?? 480, { fit: "inside", withoutEnlargement: true })
+      .webp({ quality: opts.quality ?? 72 })
+      .toBuffer({ resolveWithObject: true })
+    return {
+      bytes: out.data,
+      contentType: "image/webp",
+      ext: "webp",
+      width: out.info.width,
+      height: out.info.height,
+    }
+  } catch (err) {
+    console.error("[image-resize] thumb failed, no thumbnail stored:", err)
+    return null
+  }
+}

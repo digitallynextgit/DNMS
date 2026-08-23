@@ -19,8 +19,11 @@ export const POST = withProjectAccess(
     try {
       const { id: projectId, messageId } = await ctx.params
 
-      const parent = await db.projectMessage.findUnique({
-        where: { id: messageId },
+      // Scope by projectId - messageId is client-supplied, so posting a card into
+      // another project's thread must be impossible (withProjectAccess only
+      // validated the URL project id).
+      const parent = await db.projectMessage.findFirst({
+        where: { id: messageId, projectId },
         select: { id: true, title: true, authorId: true, replies: { select: { authorId: true } } },
       })
       if (!parent) return NextResponse.json({ error: "Message not found" }, { status: 404 })

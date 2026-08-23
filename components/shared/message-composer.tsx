@@ -96,11 +96,23 @@ export function MessageComposer({
   onContact: () => void
   onVoice: (blob: Blob, durationSec: number, waveform: number[]) => Promise<void>
 }) {
+  // Remember the latest mention ids the field reported, so inserting an emoji
+  // does not clobber them (UI-03). An appended emoji cannot invalidate an
+  // existing "@Name" token, so the ids stay correct.
+  const lastMentionIds = React.useRef<string[]>([])
+  const handleChange = (v: string, ids: string[]) => {
+    lastMentionIds.current = ids
+    onChange(v, ids)
+  }
+
   return (
     <div className="bg-card flex shrink-0 items-end gap-1 border-t p-2">
       {!recording && (
         <>
-          <EmojiPicker onPick={(emoji) => onChange(value + emoji, [])} closeOnPick />
+          <EmojiPicker
+            onPick={(emoji) => onChange(value + emoji, lastMentionIds.current)}
+            closeOnPick
+          />
 
           <AttachmentMenu
             disabled={uploading}
@@ -119,7 +131,7 @@ export function MessageComposer({
         {members ? (
           <MentionTextarea
             value={value}
-            onChange={onChange}
+            onChange={handleChange}
             members={members}
             rows={1}
             dropup

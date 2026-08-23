@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PageHeader } from "@/components/shared/page-header"
+import { ProfilePageSkeleton } from "@/components/shared/loading-skeleton"
 import { InfoRow, SectionHeader } from "@/components/shared/info-row"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -133,11 +134,7 @@ export default function ProfilePage() {
   const gmailPwValid = gmailPwStripped.length === 16
 
   if (sessionStatus === "loading" || isLoading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Spinner size="xl" className="text-muted-foreground" />
-      </div>
-    )
+    return <ProfilePageSkeleton />
   }
 
   if (!data?.data || error) {

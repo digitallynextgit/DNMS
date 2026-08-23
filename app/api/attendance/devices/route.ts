@@ -3,6 +3,17 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
+import type { HikvisionDevice } from "@prisma/client"
+
+/**
+ * The device admin password must never reach the browser - it is only needed
+ * server-side by the sync path (device-resolver / hikvision), which reads its own
+ * DB rows. Strip it from every API response and expose a boolean instead so the
+ * UI can still show whether one is set.
+ */
+function redactDevice({ password, ...rest }: HikvisionDevice) {
+  return { ...rest, hasPassword: !!password }
+}
 
 export const GET = withAuth(
   PERMISSIONS.ATTENDANCE_WRITE,
@@ -12,7 +23,7 @@ export const GET = withAuth(
         orderBy: { createdAt: "desc" },
       })
 
-      return NextResponse.json({ data: devices })
+      return NextResponse.json({ data: devices.map(redactDevice) })
     } catch (error) {
       console.error("[DEVICES_GET]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -47,7 +58,7 @@ export const POST = withAuth(
         },
       })
 
-      return NextResponse.json({ data: device }, { status: 201 })
+      return NextResponse.json({ data: redactDevice(device) }, { status: 201 })
     } catch (error: unknown) {
       console.error("[DEVICES_POST]", error)
       if (

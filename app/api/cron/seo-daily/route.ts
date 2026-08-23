@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { assertCron } from "@/server/cron-auth"
 import { runSeoDailyJob } from "@/features/seo/server/seo.jobs"
 
 // The daily accident monitor (SEO plan step 9). Checks every active property's
@@ -13,9 +14,8 @@ export const runtime = "nodejs"
 export const maxDuration = 300
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = assertCron(req)
+  if (denied) return denied
   try {
     return NextResponse.json({ success: true, ...(await runSeoDailyJob()) })
   } catch (error) {

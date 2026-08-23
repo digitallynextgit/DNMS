@@ -321,18 +321,26 @@ async function applyUsedFloor(employeeIds: string[], year: number): Promise<void
   await db.$executeRaw`UPDATE "leave_balances" SET "accrued" = "used" WHERE "year" = ${year} AND "accrued" < "used" AND "employee_id" IN (${Prisma.join(employeeIds)})`
 }
 
-/** Update only `accrued` from the current `allocated` (idempotent monthly job). */
-export async function recomputeAccrued(employeeId: string, year: number): Promise<number> {
-  const employee = await db.employee.findUnique({
-    where: { id: employeeId },
-    select: {
-      employmentType: true,
-      dateOfJoining: true,
-      confirmationDate: true,
-      probationMonths: true,
-      gender: true,
-    },
-  })
+/** Update only `accrued` from the current `allocated` (idempotent monthly job).
+ *  Pass `preloaded` to skip the per-employee re-fetch when the caller already has
+ *  the accrual fields (PERF-10 - the monthly cron loops over every employee). */
+export async function recomputeAccrued(
+  employeeId: string,
+  year: number,
+  preloaded?: EmployeePolicyInfo,
+): Promise<number> {
+  const employee =
+    preloaded ??
+    (await db.employee.findUnique({
+      where: { id: employeeId },
+      select: {
+        employmentType: true,
+        dateOfJoining: true,
+        confirmationDate: true,
+        probationMonths: true,
+        gender: true,
+      },
+    }))
   if (!employee) return 0
 
   const balances = await db.leaveBalance.findMany({
@@ -378,12 +386,21 @@ export async function recomputeAccrued(employeeId: string, year: number): Promis
 export async function runMonthlyAccrual(
   year: number,
 ): Promise<{ employees: number; updated: number }> {
+  // Select the accrual fields up front and hand them to recomputeAccrued so it
+  // does not re-query each employee (PERF-10).
   const employees = await db.employee.findMany({
     where: { isActive: true, status: { in: ["ACTIVE", "ON_LEAVE"] }, ...NOT_LEAVE_EXEMPT },
-    select: { id: true },
+    select: {
+      id: true,
+      employmentType: true,
+      dateOfJoining: true,
+      confirmationDate: true,
+      probationMonths: true,
+      gender: true,
+    },
   })
   let updated = 0
-  for (const e of employees) updated += await recomputeAccrued(e.id, year)
+  for (const e of employees) updated += await recomputeAccrued(e.id, year, e)
   return { employees: employees.length, updated }
 }
 

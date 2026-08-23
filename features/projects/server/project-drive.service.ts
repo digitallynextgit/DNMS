@@ -143,6 +143,16 @@ export async function createProjectDoc(
   return createGoogleFile(folder.id, name, kind)
 }
 
-export async function trashProjectFile(fileId: string): Promise<void> {
+/**
+ * Trash a file, but ONLY if it actually lives under THIS project's Drive folder
+ * (SEC-07). The service account can see every project's folder, so without this
+ * check a manager of one project could pass any fileId and trash another
+ * project's files. Returns false when the file is not a member (caller 404s).
+ */
+export async function trashProjectFile(projectId: string, fileId: string): Promise<boolean> {
+  const folder = await ensureProjectFolder(projectId)
+  const files = await listFolder(folder.id)
+  if (!files.some((f) => f.id === fileId)) return false
   await trashDriveFile(fileId)
+  return true
 }

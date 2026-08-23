@@ -19,7 +19,15 @@ import type { Session } from "next-auth"
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
-      const { teamId } = ctx.params
+      const { id: projectId, teamId } = ctx.params
+      // withProjectAccess validated the URL project only; teamId is client-chosen.
+      // Confirm the team lives in this project before listing its roster, or A can
+      // read any other project's team members. Matches the POST/DELETE guards.
+      const team = await db.projectTeam.findFirst({
+        where: { id: teamId, projectId },
+        select: { id: true },
+      })
+      if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 })
       const members = await db.projectTeamMember.findMany({
         where: { teamId },
         include: {

@@ -133,14 +133,20 @@ export function LeaveDecisionDialog({
     [request, isReject, firstName, reason],
   )
 
+  // Only auto-fill the letter from `composed` while the user hasn't taken it over
+  // (UI-06). Previously every keystroke in the reason field recomputed `composed`
+  // and overwrote a manually-edited or AI-polished letter. Editing the reason
+  // still updates the letter until the moment the user edits/AI-polishes it.
+  const bodyDirty = React.useRef(false)
   React.useEffect(() => {
-    setBody(composed)
+    if (!bodyDirty.current) setBody(composed)
   }, [composed])
 
   React.useEffect(() => {
     if (open) {
       setReason("")
       setVariants([])
+      bodyDirty.current = false
     }
   }, [open, action])
 
@@ -298,6 +304,7 @@ export function LeaveDecisionDialog({
                     key={v.label}
                     type="button"
                     onClick={() => {
+                      bodyDirty.current = true
                       setBody(v.text)
                       setVariants([])
                     }}
@@ -339,7 +346,10 @@ export function LeaveDecisionDialog({
               <textarea
                 ref={bodyRef}
                 value={body}
-                onChange={(e) => setBody(e.target.value)}
+                onChange={(e) => {
+                  bodyDirty.current = true
+                  setBody(e.target.value)
+                }}
                 rows={1}
                 aria-label="Reply message"
                 style={{ outline: "none", boxShadow: "none" }}

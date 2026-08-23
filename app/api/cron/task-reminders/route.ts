@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { assertCron } from "@/server/cron-auth"
 import { runTaskReminders } from "@/features/notifications/server/task-reminder.service"
 
 // Warns assignees that the hours booked for a task they are working on right now
@@ -21,9 +22,8 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = assertCron(req)
+  if (denied) return denied
 
   try {
     return NextResponse.json({ data: await runTaskReminders() })

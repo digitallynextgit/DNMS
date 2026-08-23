@@ -59,7 +59,7 @@ export function ContentBriefPanel({
   const create = useCreateBrief(projectId)
   const [query, setQuery] = useState("")
 
-  if (isLoading) return <ListSkeleton />
+  if (isLoading) return <ListSkeleton rows={4} height="h-24" />
 
   const submit = () => {
     const q = query.trim()

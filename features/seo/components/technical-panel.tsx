@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { StatCardsSkeleton, ListSkeleton } from "@/components/shared/loading-skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
 import { cn } from "@/lib/utils"
 import type { TechnicalAuditView, TechnicalIssue, TechnicalPageAudit } from "../types"
@@ -54,7 +54,16 @@ export function TechnicalPanel({
   const { data: audit, isLoading } = useTechnicalAudit(projectId, propertyId)
   const run = useRunTechnicalAudit(projectId)
 
-  if (isLoading) return <ListSkeleton />
+  if (isLoading)
+    return (
+      <div className="space-y-4">
+        <StatCardsSkeleton count={4} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ListSkeleton rows={4} />
+          <ListSkeleton rows={4} />
+        </div>
+      </div>
+    )
 
   return (
     <div className="space-y-4">

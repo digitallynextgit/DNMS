@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withSession } from "@/server/api-handler"
+import { withAuth } from "@/server/api-handler"
+import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
-export const PATCH = withSession(
+export const PATCH = withAuth(
+  PERMISSIONS.RECRUITMENT_WRITE,
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const body = await req.json()
@@ -23,7 +25,8 @@ export const PATCH = withSession(
   },
 )
 
-export const DELETE = withSession(
+export const DELETE = withAuth(
+  PERMISSIONS.RECRUITMENT_WRITE,
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       await db.interview.delete({ where: { id: ctx.params.id } })

@@ -48,6 +48,14 @@ export const PATCH = withSession(
           { status: 403 },
         )
       }
+      // Separation of duties (SEC-10): you cannot review your OWN request, even
+      // as HR or as your own manager - mirrors reviewResignation's self block.
+      if (reqRow.employeeId === session.user.id) {
+        return NextResponse.json(
+          { error: "You cannot review your own floating-holiday request." },
+          { status: 403 },
+        )
+      }
       // Rejection always needs a reason (manager's or HR's).
       if (action === "REJECT" && !rejectionReason?.trim()) {
         return NextResponse.json({ error: "Rejection reason is required" }, { status: 400 })

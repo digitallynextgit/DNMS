@@ -391,10 +391,13 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
       ) : filtered.length === 0 ? (
         <EmptyState compact icon={ExternalLink} title="No campaigns match these filters." />
       ) : (
+        // rowKey is a composite (UI-07): Meta campaign names can repeat within an
+        // account, so name alone collides and can misassign rows on re-sort. A
+        // stable campaign id in the payload would be better; this avoids it meanwhile.
         <DataTable
           columns={columns}
           rows={paged}
-          rowKey={(c) => c.name}
+          rowKey={(c, i) => `${c.name}|${i}`}
           showSerial
           serialOffset={(currentPage - 1) * PAGE_SIZE}
           minWidth="min-w-[760px]"

@@ -12,8 +12,13 @@ import type { Session } from "next-auth"
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
-      const { entryId } = await ctx.params
-      const entry = await db.projectPasswordEntry.findUnique({ where: { id: entryId } })
+      const { id: projectId, entryId } = ctx.params
+      // Scope to the guarded project: withProjectAccess only proved access to
+      // THIS project, so an entry id from another project must 404 here rather
+      // than have its password decrypted (SEC-02).
+      const entry = await db.projectPasswordEntry.findFirst({
+        where: { id: entryId, projectId },
+      })
       if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 })
       return NextResponse.json({ data: { password: tryDecrypt(entry.encPassword) ?? "" } })
     } catch (error) {
@@ -28,8 +33,10 @@ export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, entryId } = ctx.params
-      const entry = await db.projectPasswordEntry.findUnique({
-        where: { id: entryId },
+      // Bind the entry to the authorized project BEFORE the ownership check -
+      // otherwise a manager of project A could edit project B's entry (SEC-02).
+      const entry = await db.projectPasswordEntry.findFirst({
+        where: { id: entryId, projectId },
         select: { id: true, createdById: true },
       })
       if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -74,8 +81,9 @@ export const DELETE = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, entryId } = ctx.params
-      const entry = await db.projectPasswordEntry.findUnique({
-        where: { id: entryId },
+      // Bind to the authorized project first (SEC-02).
+      const entry = await db.projectPasswordEntry.findFirst({
+        where: { id: entryId, projectId },
         select: { id: true, createdById: true },
       })
       if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 })

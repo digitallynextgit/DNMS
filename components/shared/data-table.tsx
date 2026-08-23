@@ -30,7 +30,7 @@ export interface DataTableSelection {
 interface DataTableProps<T> {
   columns: DataTableColumn<T>[]
   rows: T[]
-  rowKey: (row: T) => string
+  rowKey: (row: T, index: number) => string
   onRowClick?: (row: T) => void
   /** Min width for horizontal scroll on small screens, e.g. "min-w-[680px]". */
   minWidth?: string
@@ -165,7 +165,7 @@ export function DataTable<T>({
               : null}
             {!loading &&
               rows.map((row, rowIndex) => {
-                const key = rowKey(row)
+                const key = rowKey(row, rowIndex)
                 const selected = selection?.isSelected(key) ?? false
                 return (
                   <tr

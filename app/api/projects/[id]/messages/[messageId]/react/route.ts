@@ -17,15 +17,24 @@ import type { Session } from "next-auth"
 export const POST = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
-      const { messageId } = await ctx.params
+      const { id: projectId, messageId } = await ctx.params
       const { emoji, replyId } = (await req.json()) as { emoji?: string; replyId?: string }
       const clean = (emoji ?? "").trim().slice(0, 16)
       if (!clean) return NextResponse.json({ error: "An emoji is required" }, { status: 400 })
 
       const me = session.user.id
 
-      // Prove the target belongs to THIS thread before writing to it - the id in
-      // the URL is just a string somebody could change.
+      // Prove the thread belongs to THIS project first - withProjectAccess only
+      // validated the URL project, and messageId is a string the client chose.
+      // Without this, a reaction lands on an arbitrary project's opening post.
+      const message = await db.projectMessage.findFirst({
+        where: { id: messageId, projectId },
+        select: { id: true },
+      })
+      if (!message) return NextResponse.json({ error: "Message not found" }, { status: 404 })
+
+      // Prove the target reply belongs to THIS thread before writing to it - the
+      // id in the URL is just a string somebody could change.
       if (replyId) {
         const reply = await db.projectMessageReply.findFirst({
           where: { id: replyId, messageId },
@@ -42,17 +51,28 @@ export const POST = withProjectAccess(
         where,
         select: { id: true },
       })
+      // Idempotent toggle (API-13): tolerate the double-tap race - deleteMany
+      // accepts 0 rows, and a duplicate create is swallowed via P2002. deleteMany
+      // needs a plain filter, not the composite-unique `where` used for lookup.
       if (existing) {
-        await db.projectMessageReaction.delete({ where: { id: existing.id } })
-      } else {
-        await db.projectMessageReaction.create({
-          data: {
-            messageId: replyId ? null : messageId,
-            replyId: replyId ?? null,
-            employeeId: me,
-            emoji: clean,
-          },
+        await db.projectMessageReaction.deleteMany({
+          where: replyId
+            ? { replyId, employeeId: me, emoji: clean }
+            : { messageId, employeeId: me, emoji: clean },
         })
+      } else {
+        try {
+          await db.projectMessageReaction.create({
+            data: {
+              messageId: replyId ? null : messageId,
+              replyId: replyId ?? null,
+              employeeId: me,
+              emoji: clean,
+            },
+          })
+        } catch (e) {
+          if ((e as { code?: string }).code !== "P2002") throw e
+        }
       }
 
       return NextResponse.json({ data: { emoji: clean, on: !existing } })

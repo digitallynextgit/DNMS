@@ -4,7 +4,10 @@ import { listClientGrants } from "@/server/client-guard"
 import { PortalProductGrid } from "@/features/client-portal"
 import type { Metadata } from "next"
 
-export const metadata: Metadata = { title: "Products" }
+export const metadata: Metadata = {
+  title: "Products",
+  description: "Your product catalog and marketplace listings.",
+}
 
 export default async function PortalProductsPage({
   params,

@@ -14,7 +14,7 @@ import {
 } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
-import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
+import { StatCardsSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCurrency } from "@/lib/utils"
 
@@ -64,7 +64,11 @@ export default function AnalyticsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["analytics"],
     queryFn: fetchAnalytics,
-    refetchInterval: 60000,
+    // Executive rollup (~16 queries). A minute-old figure is fine, and the route
+    // now serves a 60s private cache, so poll every 5 min and treat the data as
+    // fresh for a minute rather than re-running everything every 60s.
+    refetchInterval: 5 * 60_000,
+    staleTime: 60_000,
   })
   const d = data?.data
 
@@ -72,7 +76,9 @@ export default function AnalyticsPage() {
     return (
       <div className="space-y-6">
         <PageHeader title="Analytics" description="Executive dashboard and reporting" />
-        <CardGridSkeleton count={8} />
+        {/* KPI cards are a 4-up stat grid, not the 3-up entity grid CardGridSkeleton
+            draws - so the placeholder must match sm:grid-cols-2 lg:grid-cols-4. */}
+        <StatCardsSkeleton count={8} />
         <div className="grid gap-4 lg:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-64 rounded" />

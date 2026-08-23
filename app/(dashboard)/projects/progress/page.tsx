@@ -24,7 +24,6 @@ import { apiFetch } from "@/lib/api-fetch"
 import { formatDate } from "@/lib/utils"
 import {
   MemberProgressDialog,
-  MyProgress,
   ReportOptionsDialog,
   DEFAULT_REPORT_CONFIG,
   describeConfig,
@@ -78,6 +77,13 @@ const ProjectProgressDetail = dynamic(
 )
 const PortfolioCharts = dynamic(
   () => import("@/features/projects").then((m) => m.PortfolioCharts),
+  { loading: () => <Skeleton className="h-64 rounded" /> },
+)
+// Dynamic + concrete module (PERF-11): MyProgress renders only for non-managers
+// and pulls recharts, so a manager should not download it. The concrete path
+// (not the barrel) keeps it from dragging the rest of the feature in with it.
+const MyProgress = dynamic(
+  () => import("@/features/projects/components/my-progress").then((m) => m.MyProgress),
   { loading: () => <Skeleton className="h-64 rounded" /> },
 )
 

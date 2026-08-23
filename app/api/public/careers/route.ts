@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPublishedCareers } from "@/features/careers/server/careers.service"
+import { verifyApiKey } from "@/lib/api-key"
+import { rateLimited, clientIp } from "@/lib/rate-limit"
 
 // Public Careers API consumed by the marketing site. Returns the PUBLISHED
 // careers tree for the requested mode in the CareersDepartmentGroup[] contract
@@ -26,9 +28,13 @@ export async function GET(req: NextRequest) {
       { status: 500, headers: CORS_HEADERS },
     )
   }
-  const provided = req.headers.get("x-api-key")
-  if (!provided || provided !== expected) {
+  // Constant-time compare via the shared helper (SEC-12 / DUP-09).
+  if (!verifyApiKey(req.headers.get("x-api-key"), expected)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS })
+  }
+  // Even a valid-key job-board read is rate limited per IP (defence in depth).
+  if (rateLimited(`careers-read:${clientIp(req)}`, 60, 60_000)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: CORS_HEADERS })
   }
 
   // ?mode MUST be exactly full-time or internship. Anything else (typo, missing)

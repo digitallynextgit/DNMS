@@ -147,6 +147,15 @@ export function ChatView() {
       ).data.data,
   })
 
+  // The open conversation, in a ref so the SSE effect can read the latest value
+  // without re-subscribing (UI-04 / PERF-05). Keying the effect on activeId tore
+  // the stream down and reopened it on every conversation switch, dropping events
+  // that arrived in the reconnect gap.
+  const activeIdRef = React.useRef(activeId)
+  React.useEffect(() => {
+    activeIdRef.current = activeId
+  }, [activeId])
+
   React.useEffect(() => {
     const es = new EventSource("/api/chat/stream")
     es.addEventListener("chat", (e) => {
@@ -162,12 +171,17 @@ export function ChatView() {
 
       // Only toast for a thread you are NOT looking at - a toast for the message
       // already on screen is noise.
-      if (event.type === "message" && event.conversationId !== activeId && event.senderName) {
+      if (
+        event.type === "message" &&
+        event.conversationId !== activeIdRef.current &&
+        event.senderName
+      ) {
         toast.message(event.senderName, { description: event.body?.slice(0, 120) })
       }
     })
     return () => es.close()
-  }, [qc, activeId])
+    // One EventSource for the component's lifetime - do NOT depend on activeId.
+  }, [qc])
 
   const conversations = data?.conversations ?? []
   const active = conversations.find((c) => c.id === activeId) ?? null

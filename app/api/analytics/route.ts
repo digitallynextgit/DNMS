@@ -107,29 +107,46 @@ export const GET = withAuth(
             }
           : null
 
-      return NextResponse.json({
-        data: {
-          employees: { total: totalEmployees, active: activeEmployees, newThisMonth, newLastMonth },
-          departments: deptHeadcount.map((d) => ({ name: d.name, count: d._count.employees })),
-          leave: { pending: pendingLeaves, approvedThisMonth: approvedLeavesThisMonth },
-          attendance: attendanceThisMonth.reduce(
-            (acc, g) => ({ ...acc, [g.status]: g._count.id }),
-            {} as Record<string, number>,
-          ),
-          payroll: lastPayroll,
-          recruitment: {
-            openJobs,
-            applicantsThisMonth,
-            byStage: applicantsByStage.map((a) => ({ stage: a.stage, count: a._count.id })),
+      return NextResponse.json(
+        {
+          data: {
+            employees: {
+              total: totalEmployees,
+              active: activeEmployees,
+              newThisMonth,
+              newLastMonth,
+            },
+            departments: deptHeadcount.map((d) => ({ name: d.name, count: d._count.employees })),
+            leave: { pending: pendingLeaves, approvedThisMonth: approvedLeavesThisMonth },
+            attendance: attendanceThisMonth.reduce(
+              (acc, g) => ({ ...acc, [g.status]: g._count.id }),
+              {} as Record<string, number>,
+            ),
+            payroll: lastPayroll,
+            recruitment: {
+              openJobs,
+              applicantsThisMonth,
+              byStage: applicantsByStage.map((a) => ({ stage: a.stage, count: a._count.id })),
+            },
+            projects: { active: activeProjects, tasksCompletedThisMonth: tasksCompleted },
+            trends: { hires: hireTrend },
+            statusDistribution: statusDistribution.map((s) => ({
+              status: s.status,
+              count: s._count.id,
+            })),
           },
-          projects: { active: activeProjects, tasksCompletedThisMonth: tasksCompleted },
-          trends: { hires: hireTrend },
-          statusDistribution: statusDistribution.map((s) => ({
-            status: s.status,
-            count: s._count.id,
-          })),
         },
-      })
+        {
+          // This rollup is ~16 queries. Executive numbers don't need to be to the
+          // second, so let a re-open within a minute serve from cache (and revalidate
+          // in the background for two more) instead of re-running every query.
+          // `private`: it varies per viewer's permissions and must not sit in a
+          // shared proxy cache.
+          headers: {
+            "Cache-Control": "private, max-age=60, stale-while-revalidate=120",
+          },
+        },
+      )
     } catch (error) {
       console.error("[ANALYTICS_GET]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })

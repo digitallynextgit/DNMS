@@ -4,6 +4,7 @@ import NextTopLoader from "nextjs-toploader"
 import "./globals.css"
 import { Providers } from "@/components/providers/providers"
 import { auth } from "@/server/auth"
+import { siteConfig } from "@/config/site"
 
 // Self-hosted via next/font (no render-blocking Google Fonts request, no FOUT,
 // no layout shift). Exposed as a CSS variable consumed by globals.css.
@@ -15,11 +16,40 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteConfig.url),
   title: {
     template: "%s | DNMS",
-    default: "DNMS - Digitally Next Management System",
+    default: siteConfig.defaultTitle,
   },
-  description: "Modern DNMS for managing your workforce",
+  description: siteConfig.description,
+  applicationName: siteConfig.fullName,
+  keywords: [...siteConfig.keywords],
+  authors: [{ name: siteConfig.company }],
+  creator: siteConfig.company,
+  publisher: siteConfig.company,
+  // The dashboard/portal are gated apps; only the public landing should be
+  // indexed. Per-route metadata under (dashboard)/(portal) can override, but the
+  // proxy already blocks crawlers from reaching authed routes.
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" },
+  },
+  openGraph: {
+    type: "website",
+    siteName: siteConfig.name,
+    title: siteConfig.defaultTitle,
+    description: siteConfig.description,
+    url: siteConfig.url,
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteConfig.defaultTitle,
+    description: siteConfig.description,
+  },
+  icons: { icon: "/favicon.ico", shortcut: "/favicon.ico", apple: "/brand-mark.png" },
+  alternates: { canonical: "/" },
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

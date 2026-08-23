@@ -297,8 +297,13 @@ export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
 
     let usedThisMonth = 0
     if (tier === 3) {
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      // UTC boundaries (API-09): rows are stored at UTC midnight; local-midnight
+      // bounds on a TZ ahead of UTC (e.g. IST) push the last calendar day out of
+      // the window, undercounting the monthly quota.
+      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+      const monthEnd = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+      )
       usedThisMonth = await db.wfhRequest.count({
         where: {
           employeeId: session.user.id,
@@ -425,8 +430,11 @@ export async function applyWfh(body: {
     }
 
     if (tier === 3) {
-      const monthStart = new Date(wfhDate.getUTCFullYear(), wfhDate.getUTCMonth(), 1)
-      const monthEnd = new Date(wfhDate.getUTCFullYear(), wfhDate.getUTCMonth() + 1, 0)
+      // UTC boundaries (API-09) - match the UTC-midnight stored dates.
+      const monthStart = new Date(Date.UTC(wfhDate.getUTCFullYear(), wfhDate.getUTCMonth(), 1))
+      const monthEnd = new Date(
+        Date.UTC(wfhDate.getUTCFullYear(), wfhDate.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+      )
       const usedThisMonth = await db.wfhRequest.count({
         where: {
           employeeId: session.user.id,
@@ -532,34 +540,34 @@ export async function updateWfhRequest(
     if (action === "REJECT" && !rejectionReason?.trim()) return fail("Rejection reason is required")
     const reason = rejectionReason?.trim()
 
-    const updated = isHr
-      ? await db.wfhRequest.update({
-          where: { id },
-          data:
-            action === "APPROVE"
-              ? { status: "APPROVED", hrApproverId: session.user.id, hrApprovedAt: new Date() }
-              : { status: "REJECTED", rejectionReason: reason, hrApproverId: session.user.id },
-          include: WFH_INCLUDE,
-        })
-      : await db.wfhRequest.update({
-          where: { id },
-          // The manager's decision now settles it, exactly like HR's.
-          data:
-            action === "APPROVE"
-              ? {
-                  status: "APPROVED",
-                  managerDecision: "APPROVED",
-                  managerApproverId: session.user.id,
-                  managerApprovedAt: new Date(),
-                }
-              : {
-                  status: "REJECTED",
-                  managerDecision: "REJECTED",
-                  managerApproverId: session.user.id,
-                  rejectionReason: reason,
-                },
-          include: WFH_INCLUDE,
-        })
+    // Build the transition, then claim it atomically so two near-simultaneous
+    // deciders (manager + HR under "first decision wins") can't both settle it
+    // and fire duplicate notifications/emails (API-01). updateMany with the
+    // status guard is a single conditional UPDATE; the loser matches 0 rows.
+    const decisionData = isHr
+      ? action === "APPROVE"
+        ? { status: "APPROVED" as const, hrApproverId: session.user.id, hrApprovedAt: new Date() }
+        : { status: "REJECTED" as const, rejectionReason: reason, hrApproverId: session.user.id }
+      : action === "APPROVE"
+        ? {
+            status: "APPROVED" as const,
+            managerDecision: "APPROVED",
+            managerApproverId: session.user.id,
+            managerApprovedAt: new Date(),
+          }
+        : {
+            status: "REJECTED" as const,
+            managerDecision: "REJECTED",
+            managerApproverId: session.user.id,
+            rejectionReason: reason,
+          }
+    const claimed = await db.wfhRequest.updateMany({
+      where: { id, status: "PENDING" },
+      data: decisionData,
+    })
+    if (claimed.count === 0) return fail("This request has already been decided.", undefined, 409)
+    const updated = await db.wfhRequest.findUnique({ where: { id }, include: WFH_INCLUDE })
+    if (!updated) return fail("WFH request not found", undefined, 404)
 
     const dateStr = new Date(request.date).toDateString()
     try {

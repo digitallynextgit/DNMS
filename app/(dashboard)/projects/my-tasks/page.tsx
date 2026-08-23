@@ -586,7 +586,11 @@ export default function MyTasksPage() {
 
       {/* Sheet or day cards */}
       {isLoading ? (
-        <Skeleton className="h-64 rounded" />
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-14 w-full rounded" />
+          ))}
+        </div>
       ) : viewMode === "sheet" ? (
         // Before the empty check: an empty week is exactly when you need the
         // grid, because the blank cells are what you type the plan into.

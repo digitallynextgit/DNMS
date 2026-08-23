@@ -5,7 +5,10 @@ import { getClientInventory } from "@/features/client-portal/server/client-porta
 import { cn } from "@/lib/utils"
 import type { Metadata } from "next"
 
-export const metadata: Metadata = { title: "Inventory" }
+export const metadata: Metadata = {
+  title: "Inventory",
+  description: "Stock levels, low-stock and out-of-stock alerts.",
+}
 
 interface Inventory {
   total: number

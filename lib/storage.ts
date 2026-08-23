@@ -171,10 +171,29 @@ export async function downloadFile(objectKey: string, accountId?: string): Promi
  * Quotes and CR/LF are stripped either way: a filename is user input, and a raw
  * newline here splits the header.
  */
+/**
+ * RFC 5987 ext-value encoding for the `filename*` parameter.
+ *
+ * `encodeURIComponent` leaves `( ) ' * ! . - _ ~` unescaped, but the RFC 5987
+ * `attr-char` set does NOT include `( ) ' *`, and Backblaze B2 validates the
+ * `b2-content-disposition` strictly - an unescaped `(` in a filename (e.g.
+ * "photo (1).png") is exactly the "expected a token character … but got '('"
+ * rejection on download. Percent-encode those four so the value is valid.
+ */
+function rfc5987(str: string): string {
+  return encodeURIComponent(str).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
+}
+
 function contentDisposition(name: string): string {
   const clean = name.replace(/["\r\n]/g, "").trim() || "download"
-  const ascii = clean.replace(/[^\x20-\x7E]/g, "_")
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(clean)}`
+  // The ASCII fallback is a quoted-string, but strip the few characters that are
+  // unsafe even quoted; parens/spaces/commas are fine inside quotes. The
+  // RFC 5987 `filename*` (which modern clients prefer) carries the exact name.
+  const ascii = clean.replace(/[^\x20-\x7E]/g, "_").replace(/[\\"]/g, "_")
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${rfc5987(clean)}`
 }
 
 export async function getSignedUrl(
@@ -196,6 +215,41 @@ export async function getSignedUrl(
   // asking for longer don't trigger a hard rejection from the signer.
   const SEVEN_DAYS = 7 * 24 * 60 * 60
   return presignUrl(s3, command, { expiresIn: Math.min(expirySeconds, SEVEN_DAYS) })
+}
+
+// ── Shared signed-URL cache (perf) ───────────────────────────────────────────
+// Every inline <img> in the gallery/chat hits a Next route that re-signs the
+// object on each request. Signing is CPU-only, but doing it per image per user
+// per page still adds up; memoising the plain (no-disposition) URL lets repeat
+// and cross-user views skip the re-sign. NOT used for downloads - those carry a
+// per-filename Content-Disposition and must not share a cache slot.
+//
+// The reuse window is the SIGNATURE life MINUS the browser cache window, not the
+// full signature life: these routes 302 to the signed URL with a long
+// Cache-Control max-age, so the browser remembers the redirect target. If we
+// hand out a URL whose remaining life is shorter than that max-age, the viewer
+// keeps redirecting to a dead URL and every hit 403s until their cache expires -
+// for days. So a cached URL is only reused while it still outlives a full fresh
+// browser cache window; callers pass that window (+ a buffer) as
+// minRemainingSeconds. SigV4 caps signatures at 7 days, so the signature TTL
+// cannot simply be raised to sidestep this - the two windows have to be paired.
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
+
+export async function getCachedSignedUrl(
+  objectKey: string,
+  expirySeconds = 900,
+  minRemainingSeconds = 60,
+): Promise<string> {
+  const hit = signedUrlCache.get(objectKey)
+  if (hit && hit.expiresAt > Date.now() + minRemainingSeconds * 1000) return hit.url
+  const url = await getSignedUrl(objectKey, expirySeconds)
+  signedUrlCache.set(objectKey, { url, expiresAt: Date.now() + expirySeconds * 1000 })
+  // Bound the map: signed URLs are cheap to regenerate, so evict oldest when large.
+  if (signedUrlCache.size > 5_000) {
+    const now = Date.now()
+    for (const [k, v] of signedUrlCache) if (v.expiresAt <= now) signedUrlCache.delete(k)
+  }
+  return url
 }
 
 export async function deleteFile(objectKey: string, accountId?: string): Promise<void> {

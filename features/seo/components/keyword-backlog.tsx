@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EmptyState } from "@/components/shared/empty-state"
-import { ListSkeleton } from "@/components/shared/loading-skeleton"
+import { TableSkeleton } from "@/components/shared/loading-skeleton"
 import { cn } from "@/lib/utils"
 import type { KeywordView } from "../types"
 import {
@@ -78,7 +78,12 @@ export function KeywordBacklog({
     return list
   }, [keywords, intentFilter, statusFilter, winFilter, sourceFilter])
 
-  if (isLoading) return <ListSkeleton />
+  if (isLoading)
+    return (
+      <div className="border-border bg-card overflow-hidden rounded-[2px] border">
+        <TableSkeleton rows={8} cols={8} />
+      </div>
+    )
 
   const patch = (
     k: KeywordView,

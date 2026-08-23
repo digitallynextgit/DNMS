@@ -71,13 +71,20 @@ export const PATCH = withAuth(
         return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
       }
 
+      // Read the prior status so the referrer is notified only on a real
+      // TRANSITION (API-10) - editing hrNotes while re-sending the same status
+      // must not fire a duplicate "was shortlisted" notification.
+      const prior = await db.careerApplication.findUnique({
+        where: { id: ctx.params.id },
+        select: { status: true },
+      })
+      if (!prior) return NextResponse.json({ error: "Application not found" }, { status: 404 })
+
       const updated = await db.careerApplication.update({ where: { id: ctx.params.id }, data })
 
       // If somebody referred this candidate, tell them the moment HR records the
-      // decision. Without it a referrer hears nothing after the introduction,
-      // which is the complaint every referral scheme dies of. No-ops when the
-      // application has no referrer.
-      if (data.status !== undefined) {
+      // decision - but only when the stage actually changed.
+      if (data.status !== undefined && data.status !== prior.status) {
         await notifyReferrerOfStage(ctx.params.id)
       }
 

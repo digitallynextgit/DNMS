@@ -98,12 +98,19 @@ export function PollComposer({
 }) {
   const qc = useQueryClient()
   const [question, setQuestion] = React.useState("")
-  const [options, setOptions] = React.useState<string[]>(["", ""])
+  // Each option carries a stable id so React keys survive a mid-list removal
+  // (UI-08) - keying by array index moved focus/caret to a different option when
+  // one above it was deleted.
+  const newOption = () => ({ id: crypto.randomUUID(), text: "" })
+  const [options, setOptions] = React.useState<{ id: string; text: string }[]>(() => [
+    newOption(),
+    newOption(),
+  ])
   const [allowMultiple, setAllowMultiple] = React.useState(false)
 
   function reset() {
     setQuestion("")
-    setOptions(["", ""])
+    setOptions([newOption(), newOption()])
     setAllowMultiple(false)
   }
 
@@ -112,7 +119,12 @@ export function PollComposer({
       apiFetch(endpoint.createUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "poll", question, options, allowMultiple }),
+        body: JSON.stringify({
+          kind: "poll",
+          question,
+          options: options.map((o) => o.text),
+          allowMultiple,
+        }),
       }),
     onSuccess: () => {
       for (const key of endpoint.invalidate) qc.invalidateQueries({ queryKey: key })
@@ -122,7 +134,7 @@ export function PollComposer({
     onError: (e: Error) => toast.error(e.message),
   })
 
-  const filled = options.filter((o) => o.trim()).length
+  const filled = options.filter((o) => o.text.trim()).length
   const valid = question.trim().length > 0 && filled >= 2
 
   return (
@@ -156,11 +168,13 @@ export function PollComposer({
           <div className="space-y-1.5">
             <Label className="text-xs">Options</Label>
             {options.map((opt, i) => (
-              <div key={i} className="flex items-center gap-1.5">
+              <div key={opt.id} className="flex items-center gap-1.5">
                 <Input
-                  value={opt}
+                  value={opt.text}
                   onChange={(e) =>
-                    setOptions((list) => list.map((o, j) => (j === i ? e.target.value : o)))
+                    setOptions((list) =>
+                      list.map((o) => (o.id === opt.id ? { ...o, text: e.target.value } : o)),
+                    )
                   }
                   onKeyDown={(e) => {
                     // Enter adds the next option rather than submitting - a poll
@@ -168,7 +182,7 @@ export function PollComposer({
                     // between each one is the annoying part.
                     if (e.key === "Enter" && i === options.length - 1 && options.length < 12) {
                       e.preventDefault()
-                      setOptions((list) => [...list, ""])
+                      setOptions((list) => [...list, newOption()])
                     }
                   }}
                   placeholder={`Option ${i + 1}`}
@@ -180,7 +194,7 @@ export function PollComposer({
                     size="icon-sm"
                     aria-label={`Remove option ${i + 1}`}
                     className="text-muted-foreground hover:text-destructive shrink-0"
-                    onClick={() => setOptions((list) => list.filter((_, j) => j !== i))}
+                    onClick={() => setOptions((list) => list.filter((o) => o.id !== opt.id))}
                   >
                     <X className="h-3.5 w-3.5" />
                   </Button>
@@ -192,7 +206,7 @@ export function PollComposer({
                 variant="ghost"
                 size="sm"
                 className="h-8 gap-1.5 text-xs"
-                onClick={() => setOptions((list) => [...list, ""])}
+                onClick={() => setOptions((list) => [...list, newOption()])}
               >
                 <Plus className="h-3.5 w-3.5" />
                 Add option

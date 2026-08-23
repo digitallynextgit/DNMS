@@ -244,19 +244,38 @@ export async function votePoll(pollId: string, optionId: string, voterId: string
     return { error: null, status: 200 }
   }
 
-  await db.$transaction(async (tx) => {
-    // Single-choice means exactly that: the previous pick goes before the new
-    // one lands, in the same transaction so the poll is never briefly showing
-    // two votes from one person.
-    if (!poll.allowMultiple) {
-      await tx.messagePollVote.deleteMany({
-        where: { voterId, option: { pollId } },
-      })
+  if (poll.allowMultiple) {
+    // Multiple-choice: just add this option; a duplicate (double-tap) is a no-op.
+    try {
+      await db.messagePollVote.create({ data: { optionId, voterId } })
+    } catch (e) {
+      if ((e as { code?: string }).code !== "P2002") throw e
     }
-    await tx.messagePollVote.create({ data: { optionId, voterId } })
-  })
+    return { error: null, status: 200 }
+  }
 
-  return { error: null, status: 200 }
+  // Single-choice: the previous pick must go before the new one lands. Run at
+  // Serializable isolation so two near-simultaneous votes for DIFFERENT options
+  // cannot both delete-nothing then insert, leaving the voter holding two
+  // (API-03) - the @@unique(optionId,voterId) can't catch that since the option
+  // ids differ. On a serialization conflict (P2034) retry a couple of times.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await db.$transaction(
+        async (tx) => {
+          await tx.messagePollVote.deleteMany({ where: { voterId, option: { pollId } } })
+          await tx.messagePollVote.create({ data: { optionId, voterId } })
+        },
+        { isolationLevel: "Serializable" },
+      )
+      return { error: null, status: 200 }
+    } catch (e) {
+      const code = (e as { code?: string }).code
+      if (code === "P2002") return { error: null, status: 200 } // already on this option
+      if (code === "P2034" && attempt < 2) continue // serialization failure - retry
+      throw e
+    }
+  }
 }
 
 /** Which conversation a poll belongs to, so a vote can be authorised. */

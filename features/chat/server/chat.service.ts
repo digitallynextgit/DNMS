@@ -143,45 +143,53 @@ export async function listConversations(session: Session): Promise<ActionResult<
       take: 100,
     })
 
-    // Unread counted per conversation against this person's own read mark.
-    const conversations = await Promise.all(
-      rows.map(async (r) => {
-        const last = r.conversation.messages[0]
-        const unread = await db.chatMessage.count({
-          where: {
-            conversationId: r.conversation.id,
-            senderId: { not: me },
-            deletedAt: null,
-            ...(r.lastReadAt ? { createdAt: { gt: r.lastReadAt } } : {}),
-          },
-        })
-        return {
-          id: r.conversation.id,
-          lastMessageAt: r.conversation.lastMessageAt,
-          other: r.conversation.participants[0]?.employee ?? null,
-          lastMessage: last
-            ? {
-                // A photo or voice note has no text to preview, so name the kind
-                // rather than showing an empty row.
-                body: last.deletedAt
-                  ? "Message deleted"
-                  : last.body ||
-                    (last.attachments[0]?.kind === "AUDIO"
-                      ? "Voice message"
-                      : last.attachments[0]?.kind === "IMAGE"
-                        ? "Photo"
-                        : last.attachments[0]
-                          ? "File"
-                          : ""),
-                createdAt: last.createdAt,
-                fromMe: last.senderId === me,
-              }
-            : null,
-          unread,
-          pinnedAt: r.pinnedAt,
-        }
-      }),
-    )
+    // One grouped query for unread-per-conversation instead of one COUNT per row
+    // (was N+1 on every chat-list load). Same filter as the /api/chat/unread
+    // badge so the sidebar list and the nav badge can never disagree - including
+    // the hidden-for-me exclusion (DUP-13).
+    const unreadRows = await db.$queryRaw<{ conversationId: string; count: number }[]>`
+      SELECT m.conversation_id AS "conversationId", COUNT(*)::int AS "count"
+      FROM chat_messages m
+      JOIN conversation_participants p
+        ON p.conversation_id = m.conversation_id AND p.employee_id = ${me}
+      WHERE p.is_archived = false
+        AND m.sender_id <> ${me}
+        AND m.deleted_at IS NULL
+        AND NOT (${me} = ANY(m.hidden_for))
+        AND (p.last_read_at IS NULL OR m.created_at > p.last_read_at)
+      GROUP BY m.conversation_id
+    `
+    const unreadByConv = new Map(unreadRows.map((u) => [u.conversationId, u.count]))
+
+    const conversations = rows.map((r) => {
+      const last = r.conversation.messages[0]
+      const unread = unreadByConv.get(r.conversation.id) ?? 0
+      return {
+        id: r.conversation.id,
+        lastMessageAt: r.conversation.lastMessageAt,
+        other: r.conversation.participants[0]?.employee ?? null,
+        lastMessage: last
+          ? {
+              // A photo or voice note has no text to preview, so name the kind
+              // rather than showing an empty row.
+              body: last.deletedAt
+                ? "Message deleted"
+                : last.body ||
+                  (last.attachments[0]?.kind === "AUDIO"
+                    ? "Voice message"
+                    : last.attachments[0]?.kind === "IMAGE"
+                      ? "Photo"
+                      : last.attachments[0]
+                        ? "File"
+                        : ""),
+              createdAt: last.createdAt,
+              fromMe: last.senderId === me,
+            }
+          : null,
+        unread,
+        pinnedAt: r.pinnedAt,
+      }
+    })
 
     return ok(
       serialize({
@@ -371,13 +379,26 @@ export async function sendMessage(
     const membership = await requireMembership(conversationId, me)
     if (!membership) return fail("Conversation not found", undefined, 404)
 
+    // A quote must belong to THIS conversation. The id arrives from the client
+    // and the schema only checks it is a uuid, so without this a reply in Y could
+    // quote (and surface the body of) a message from another conversation X.
+    let replyToId: string | null = null
+    if (input.replyToId) {
+      const quoted = await db.chatMessage.findFirst({
+        where: { id: input.replyToId, conversationId },
+        select: { id: true },
+      })
+      if (!quoted) return fail("Cannot quote that message", undefined, 400)
+      replyToId = quoted.id
+    }
+
     const [message] = await db.$transaction([
       db.chatMessage.create({
         data: {
           conversationId,
           senderId: me,
           body: input.body,
-          replyToId: input.replyToId ?? null,
+          replyToId,
         },
         select: { id: true, body: true, createdAt: true, senderId: true },
       }),
@@ -737,12 +758,24 @@ export async function toggleReaction(
     })
     if (!message) return fail("Message not found", undefined, 404)
 
+    // Idempotent toggle (API-13): a double-tap or two devices used to race the
+    // find-then-delete/create into a P2002/P2025 500. deleteMany tolerates 0
+    // rows, and a duplicate create (lost add race) is swallowed via P2002.
     const existing = await db.chatMessageReaction.findUnique({
       where: { messageId_employeeId_emoji: { messageId, employeeId: me, emoji: clean } },
       select: { id: true },
     })
-    if (existing) await db.chatMessageReaction.delete({ where: { id: existing.id } })
-    else await db.chatMessageReaction.create({ data: { messageId, employeeId: me, emoji: clean } })
+    if (existing) {
+      await db.chatMessageReaction.deleteMany({
+        where: { messageId, employeeId: me, emoji: clean },
+      })
+    } else {
+      try {
+        await db.chatMessageReaction.create({ data: { messageId, employeeId: me, emoji: clean } })
+      } catch (e) {
+        if ((e as { code?: string }).code !== "P2002") throw e
+      }
+    }
 
     // Both sides must see it appear without a refresh, same as a new message.
     // The other participant is the recipient; my own tab already has the answer
