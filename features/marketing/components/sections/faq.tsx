@@ -15,7 +15,7 @@ export function Faq() {
   const [open, setOpen] = React.useState<number | null>(0)
 
   return (
-    <section id="faq" className="relative scroll-mt-20 py-24 sm:py-28">
+    <section id="faq" className="relative scroll-mt-20 py-20 sm:py-24">
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6">
         {/* Hero-style pill */}
         <Reveal>

@@ -7,7 +7,7 @@ import { CountUp, DotBackdrop, Reveal } from "../fx"
  */
 export function StatsBand() {
   return (
-    <section className="relative overflow-hidden py-24 sm:py-28">
+    <section className="relative overflow-hidden py-20 sm:py-24">
       <DotBackdrop />
       <div className="relative mx-auto max-w-[1600px] px-4 sm:px-6">
         <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-4">

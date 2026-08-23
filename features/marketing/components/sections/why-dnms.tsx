@@ -32,7 +32,7 @@ export function WhyDnms() {
   return (
     <section
       id="why"
-      className="border-border/60 bg-muted/20 relative scroll-mt-20 border-y py-24 sm:py-28"
+      className="border-border/60 bg-muted/20 relative scroll-mt-20 border-y py-20 sm:py-24"
     >
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6">
         {/* Hero-style pill */}

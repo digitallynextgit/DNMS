@@ -29,7 +29,7 @@ export function SecuritySection() {
   return (
     <section
       id="security"
-      className="border-border/60 bg-muted/20 relative scroll-mt-20 overflow-hidden border-y py-24 sm:py-28"
+      className="border-border/60 bg-muted/20 relative scroll-mt-20 overflow-hidden border-y py-20 sm:py-24"
     >
       <GridBackdrop className="opacity-50" />
 

@@ -63,7 +63,7 @@ export function Hero() {
       {/* Minimalist backdrop: faint grid. */}
       <GridBackdrop className="opacity-[0.5]" />
 
-      <div className="relative mx-auto max-w-[1600px] px-4 pt-24 pb-20 sm:px-6 sm:pt-28">
+      <div className="relative mx-auto max-w-[1600px] px-4 pt-24 pb-16 sm:px-6 sm:pt-28">
         {/* ---- Top band: text left, panel right ---- */}
         <div className="grid items-start gap-12 lg:grid-cols-[1.65fr_1fr] lg:gap-16">
           {/* Left */}

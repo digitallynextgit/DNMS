@@ -9,7 +9,7 @@ const BRAND_RED = "#ef4444"
 /** Centered pull-quote - the product philosophy. No CTAs. */
 export function Philosophy() {
   return (
-    <section className="relative overflow-hidden py-24 sm:py-28">
+    <section className="relative overflow-hidden py-20 sm:py-24">
       <DotBackdrop className="opacity-60" />
       <div className="relative mx-auto max-w-4xl px-4 text-center sm:px-6">
         <Reveal>

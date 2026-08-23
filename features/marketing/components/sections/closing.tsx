@@ -10,7 +10,7 @@ const BRAND_RED = "#ef4444"
 /** Final full-bleed band: closing statement + newsletter sign-up. */
 export function Closing() {
   return (
-    <section className="relative overflow-hidden py-28">
+    <section className="relative overflow-hidden py-24">
       <GridBackdrop />
 
       <div className="relative mx-auto max-w-[1600px] px-4 sm:px-6">

@@ -75,7 +75,7 @@ export function SpotlightSection({
     <section
       id={id}
       className={cn(
-        "relative scroll-mt-20 py-24 sm:py-28",
+        "relative scroll-mt-20 py-20 sm:py-24",
         tinted && "border-border/60 bg-muted/20 border-y",
       )}
     >

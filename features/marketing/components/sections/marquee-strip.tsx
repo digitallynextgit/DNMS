@@ -17,19 +17,22 @@ function Chip({ label }: { label: string }) {
  * sides keep the loop feeling seamless.
  */
 export function MarqueeStrip() {
-  const firstRow = MARQUEE_ITEMS
+  // Double the items per row so a single copy always overflows the viewport;
+  // the Marquee then renders two copies and loops seamlessly at -50%.
+  const firstRow = [...MARQUEE_ITEMS, ...MARQUEE_ITEMS]
   const secondRow = [...MARQUEE_ITEMS].reverse()
+  const secondRowDoubled = [...secondRow, ...secondRow]
   return (
     <section className="border-border/60 bg-muted/20 relative overflow-hidden border-y py-10">
       <div className="flex flex-col gap-4">
         <Marquee>
-          {firstRow.map((item) => (
-            <Chip key={`a-${item}`} label={item} />
+          {firstRow.map((item, i) => (
+            <Chip key={`a-${i}`} label={item} />
           ))}
         </Marquee>
         <Marquee reverse>
-          {secondRow.map((item) => (
-            <Chip key={`b-${item}`} label={item} />
+          {secondRowDoubled.map((item, i) => (
+            <Chip key={`b-${i}`} label={item} />
           ))}
         </Marquee>
       </div>

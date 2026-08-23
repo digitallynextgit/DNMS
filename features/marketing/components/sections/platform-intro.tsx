@@ -96,7 +96,7 @@ function ConnectedNodes() {
  */
 export function PlatformIntro() {
   return (
-    <section id="platform" className="relative scroll-mt-20 pt-14 pb-28 sm:pt-16 sm:pb-32">
+    <section id="platform" className="relative scroll-mt-20 pt-14 pb-20 sm:pt-16 sm:pb-24">
       <div className="relative mx-auto max-w-[1600px] px-4 sm:px-6">
         {/* Hero-style pill */}
         <Reveal>

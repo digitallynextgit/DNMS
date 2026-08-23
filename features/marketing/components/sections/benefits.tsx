@@ -11,7 +11,7 @@ const BRAND_RED = "#ef4444"
  *  alternating red/blue accents that light up on hover. */
 export function Benefits() {
   return (
-    <section id="benefits" className="relative scroll-mt-20 overflow-hidden py-24 sm:py-28">
+    <section id="benefits" className="relative scroll-mt-20 overflow-hidden py-20 sm:py-24">
       <DotBackdrop />
 
       <div className="relative mx-auto max-w-[1600px] px-4 sm:px-6">
