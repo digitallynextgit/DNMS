@@ -29,7 +29,7 @@ export function Providers({
       <ExtensionHydrationFilter />
       <ThemeProvider
         attribute="class"
-        defaultTheme="system"
+        defaultTheme="dark"
         enableSystem
         disableTransitionOnChange={false}
       >

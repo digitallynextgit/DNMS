@@ -135,7 +135,7 @@ export default function ForgotPasswordPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="username@digitallynext.com"
+              placeholder="username@company.com"
               className="h-11"
               required
             />

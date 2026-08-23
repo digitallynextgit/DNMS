@@ -111,10 +111,10 @@ export function LoginForm() {
                 <FormControl>
                   <Input
                     type="email"
-                    placeholder="username@digitallynext.com"
+                    placeholder="username@company.com"
                     autoComplete="email"
                     disabled={isSubmitting}
-                    className="h-11"
+                    className="h-11 rounded-[6px]"
                     {...field}
                   />
                 </FormControl>
@@ -136,7 +136,7 @@ export function LoginForm() {
                       placeholder="••••••••"
                       autoComplete="current-password"
                       disabled={isSubmitting}
-                      className="h-11 pr-10"
+                      className="h-11 rounded-[6px] pr-10"
                       {...field}
                     />
                     <button
@@ -172,7 +172,7 @@ export function LoginForm() {
 
           <Button
             type="submit"
-            className="h-11 w-full text-sm"
+            className="h-11 w-full rounded-[6px] text-sm"
             disabled={isSubmitting}
             loading={isSubmitting}
           >
