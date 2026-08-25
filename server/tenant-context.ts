@@ -34,7 +34,33 @@ export interface TenantContext {
   slug: string
 }
 
-const storage = new AsyncLocalStorage<TenantContext>()
+// =============================================================================
+// THE STORES ARE PINNED TO globalThis, AND THAT IS LOAD-BEARING.
+//
+// The bundler splits server code into chunks and can instantiate this module
+// more than once - the auth callbacks land in one chunk, the Prisma extension in
+// another. Two module instances means two AsyncLocalStorage objects, and then
+// `runUnscoped()` writes to one while the tenant guard reads the other. The
+// guard sees no context and refuses a query that was correctly declared:
+//
+//   [auth][cause]: Error: [TENANT] refusing Membership.findMany with no tenant
+//   context.        ← thrown from inside loadActiveMemberships, which IS wrapped
+//
+// That broke sign-in completely: it is the one flow with no session yet, so the
+// `x-tenant-id` header fallback in tenant-guard.ts is not there to paper over it.
+// Every other path kept working, which is exactly why it took a real login to
+// surface.
+//
+// server/db.ts pins the Prisma client and the pg Pool to globalThis for the same
+// reason. One instance per process, whatever the bundler does.
+// =============================================================================
+const globalForTenant = globalThis as unknown as {
+  dnmsTenantStorage?: AsyncLocalStorage<TenantContext>
+  dnmsUnscopedStorage?: AsyncLocalStorage<string>
+}
+
+const storage: AsyncLocalStorage<TenantContext> = (globalForTenant.dnmsTenantStorage ??=
+  new AsyncLocalStorage<TenantContext>())
 
 /**
  * Run `fn` with `tenant` as the ambient context for everything it awaits.
@@ -80,7 +106,10 @@ export function enterTenant(tenant: TenantContext): void {
 // pass unremarked (warn), and the second is worse: an unscoped query that is
 // correct looks exactly like one that is a bug.
 // -----------------------------------------------------------------------------
-const unscoped = new AsyncLocalStorage<string>()
+// Pinned to globalThis for the same reason as `storage` above - and this is the
+// one that actually broke sign-in when it was not.
+const unscoped: AsyncLocalStorage<string> = (globalForTenant.dnmsUnscopedStorage ??=
+  new AsyncLocalStorage<string>())
 
 /**
  * Run `fn` with tenant scoping deliberately OFF. `reason` shows up in logs.

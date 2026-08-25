@@ -295,6 +295,57 @@ async function main() {
     else console.log("  a wrong key → 401")
   }
 
+  // ---- NO-SESSION paths ---------------------------------------------------
+  //
+  // The blind spot that let three separate bugs reach production. Every probe
+  // above carries a session, so the `x-tenant-id` header the proxy writes is
+  // always present and the tenant guard's fallback silently covers for anything
+  // that failed to establish context another way.
+  //
+  // These have NO session, by definition - you are signing in, or resetting a
+  // password you have forgotten - so they depend on runUnscoped() alone. That is
+  // exactly where a duplicated AsyncLocalStorage broke sign-in outright:
+  //
+  //   [auth][cause]: [TENANT] refusing Membership.findMany with no tenant context
+  //
+  // thrown from inside a function that WAS wrapped.
+  console.log("\n── No-session paths (nothing to fall back on) ──")
+  {
+    const csrfRes = await fetch(`${BASE}/api/auth/csrf`)
+    const setCookie = csrfRes.headers.get("set-cookie") ?? ""
+    const { csrfToken } = (await csrfRes.json()) as { csrfToken: string }
+
+    // A WRONG password on purpose: this exercises the whole authorize() path -
+    // findLoginUser, then loadActiveMemberships - without signing anyone in.
+    const signIn = await fetch(`${BASE}/api/auth/callback/credentials`, {
+      method: "POST",
+      redirect: "manual",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        cookie: setCookie.split(";")[0] ?? "",
+      },
+      body: new URLSearchParams({
+        csrfToken,
+        email: "verification-probe@example.invalid",
+        password: "not-a-real-password",
+      }),
+    })
+    // 302 back to the login page is the correct answer to a bad credential.
+    // A 500 means the path threw before it could decide.
+    if (signIn.status >= 500) bad(`credentials sign-in path → ${signIn.status} (it threw)`)
+    else console.log(`  credentials sign-in path → ${signIn.status}`)
+
+    // Unknown address: reaches the employee lookup, then declines. A 500 here
+    // means the lookup itself was refused.
+    const forgot = await fetch(`${BASE}/api/password/forgot`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "verification-probe@example.invalid" }),
+    })
+    if (forgot.status >= 500) bad(`forgot-password path → ${forgot.status} (it threw)`)
+    else console.log(`  forgot-password path → ${forgot.status}`)
+  }
+
   console.log("═".repeat(78))
   console.log(problems === 0 ? "NO PROBLEMS FOUND.\n" : `${problems} problem(s) found.\n`)
   process.exitCode = problems === 0 ? 0 : 1
