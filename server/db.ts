@@ -32,7 +32,7 @@ function getPool(): Pool {
 function createClient() {
   return new PrismaClient({
     adapter: new PrismaPg(getPool()),
-    log: ["error", "warn"],
+    log: process.env.PRISMA_LOG_QUERIES === "1" ? ["query", "error", "warn"] : ["error", "warn"],
     // Credentials are DENY-BY-DEFAULT: Prisma strips these from every query, so a
     // `findMany`/`include` without an explicit `select` can never leak them into an
     // API response. The three places that legitimately need them opt back in with
