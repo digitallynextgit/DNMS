@@ -42,8 +42,10 @@ interface PageHeaderProps {
   className?: string
 }
 
-const TITLE_CLASS = "text-foreground truncate text-lg font-semibold tracking-tight"
-const DESC_CLASS = "text-muted-foreground truncate text-sm"
+// Phones wrap instead of truncating - with the actions stacked below there is a
+// full row to use, and an ellipsised title/description reads as broken there.
+const TITLE_CLASS = "text-foreground text-lg font-semibold tracking-tight sm:truncate"
+const DESC_CLASS = "text-muted-foreground text-sm text-pretty sm:truncate"
 
 export function PageHeader({
   title,
@@ -71,7 +73,10 @@ export function PageHeader({
           {backLabel}
         </Button>
       ) : null}
-      <div className="flex items-center justify-between gap-4">
+      {/* Phones stack the actions under the title: the actions slot is shrink-0,
+          so side-by-side it squeezes the (truncating) title down to nothing on a
+          390px screen. From `sm` up the original single row is restored. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="flex min-w-0 items-center gap-3">
           {leading}
           <div className="min-w-0 space-y-0.5">
@@ -97,7 +102,11 @@ export function PageHeader({
               ))}
           </div>
         </div>
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        {actions && (
+          <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   )

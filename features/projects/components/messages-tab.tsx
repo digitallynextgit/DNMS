@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-fetch"
-import { Fragment, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   useProjectMessages,
   useProjectMembers,
@@ -83,7 +83,12 @@ import {
   type ContactCardData,
   type CardEndpoint,
 } from "@/components/shared/message-cards"
-import { editWindowRemaining, formatWindowLeft, isWithinEditWindow } from "@/lib/edit-window"
+import {
+  MESSAGE_EDIT_WINDOW_MS,
+  editWindowRemaining,
+  formatWindowLeft,
+  isWithinEditWindow,
+} from "@/lib/edit-window"
 import { dayKey, formatChatTime, formatClockTime, formatDaySeparator } from "@/lib/chat-time"
 
 interface Props {
@@ -167,7 +172,11 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
 
   return (
     <>
-      <div className="bg-card flex h-[68vh] min-h-120 overflow-hidden rounded-sm border">
+      {/* dvh, and a smaller min-height below md. The bottom tab bar is a real
+          layout row, so `main` is shorter than the viewport on phones: a
+          `min-h-120` (480px) pane inside a ~440px row pushed the composer out of
+          reach. chat-view.tsx:207 documents the same fix; this was missed. */}
+      <div className="bg-card flex h-[68dvh] min-h-80 overflow-hidden rounded-sm border md:min-h-120">
         {/* LEFT: chat list */}
         <div
           className={cn(
@@ -489,16 +498,24 @@ function ChatView({
    * all is carried through with `seenAt: null` so the info panel can list them
    * under "not read by" rather than silently dropping them.
    */
-  const audienceFor = (authorId: string): ReceiptPerson[] =>
-    members
-      .filter((m) => m.id !== authorId)
-      .map((m) => ({
-        id: m.id,
-        firstName: m.firstName,
-        lastName: m.lastName,
-        profilePhoto: m.profilePhoto,
-        seenAt: readers.find((r) => r.id === m.id)?.lastSeenAt ?? null,
-      }))
+  // Indexed once per readers change. This was `readers.find(...)` INSIDE the
+  // map below, so building one message's audience was O(members x readers) -
+  // and it ran per bubble, on every render, on a 1s tick.
+  const seenAtById = useMemo(() => new Map(readers.map((r) => [r.id, r.lastSeenAt])), [readers])
+
+  const audienceFor = useCallback(
+    (authorId: string): ReceiptPerson[] =>
+      members
+        .filter((m) => m.id !== authorId)
+        .map((m) => ({
+          id: m.id,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          profilePhoto: m.profilePhoto,
+          seenAt: seenAtById.get(m.id) ?? null,
+        })),
+    [members, seenAtById],
+  )
 
   /**
    * Group-chat ticks, WhatsApp's rule: one tick until somebody has opened it,
@@ -506,14 +523,17 @@ function ChatView({
    * "delivered" signal for a project chat, so "delivered" here means "seen by
    * some" rather than pretending to a network receipt we never collected.
    */
-  const deliveryFor = (authorId: string, createdAt: string): Delivery => {
-    const audience = audienceFor(authorId)
-    if (audience.length === 0) return "sent"
-    const sent = new Date(createdAt).getTime()
-    const seen = audience.filter((a) => a.seenAt && new Date(a.seenAt).getTime() >= sent).length
-    if (seen === 0) return "sent"
-    return seen === audience.length ? "read" : "delivered"
-  }
+  const deliveryFor = useCallback(
+    (authorId: string, createdAt: string): Delivery => {
+      const audience = audienceFor(authorId)
+      if (audience.length === 0) return "sent"
+      const sent = new Date(createdAt).getTime()
+      const seen = audience.filter((a) => a.seenAt && new Date(a.seenAt).getTime() >= sent).length
+      if (seen === 0) return "sent"
+      return seen === audience.length ? "read" : "delivered"
+    },
+    [audienceFor],
+  )
 
   const [infoFor, setInfoFor] = useState<{ authorId: string; createdAt: string } | null>(null)
   /** Files picked but not yet sent - the review screen is open while this is
@@ -623,11 +643,31 @@ function ChatView({
   // A message stops being editable 15 minutes after it was posted, and that has
   // to happen while the user is looking at it - not at the next re-render. One
   // interval for the whole conversation re-evaluates every window each second.
+  //
+  // GATED, though: it used to tick forever on every open thread, re-rendering
+  // the entire message list once a second for the life of the tab. The clock is
+  // only worth running while something is actually still inside its window, so
+  // the interval starts when one is and stops as soon as the last one closes.
+  const newestPostedAt = useMemo(() => {
+    let newest = new Date(thread.createdAt).getTime()
+    for (const r of replies) {
+      const t = new Date(r.createdAt).getTime()
+      if (t > newest) newest = t
+    }
+    return newest
+  }, [thread.createdAt, replies])
+
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000)
+    // Re-armed whenever a new message arrives (newestPostedAt changes).
+    if (Date.now() >= newestPostedAt + MESSAGE_EDIT_WINDOW_MS) return
+    const t = setInterval(() => {
+      const n = Date.now()
+      setNow(n)
+      if (n >= newestPostedAt + MESSAGE_EDIT_WINDOW_MS) clearInterval(t)
+    }, 1000)
     return () => clearInterval(t)
-  }, [])
+  }, [newestPostedAt])
 
   const scrollRef = useRef<HTMLDivElement>(null)
 

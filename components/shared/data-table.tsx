@@ -51,6 +51,19 @@ interface DataTableProps<T> {
   loading?: boolean
   /** How many skeleton rows to draw while `loading` (default 8). */
   skeletonRows?: number
+  /**
+   * Phone rendering (below `md`). A wide table cannot work on a 390px screen -
+   * it either clips or scrolls sideways - so every table also renders as a stack
+   * of cards there.
+   *
+   * - omitted: each row becomes an automatic `header: value` card built from
+   *   `columns`, so a page gets a usable phone layout for free.
+   * - a function: bespoke card for that page (preferred - lets the page lead with
+   *   the two or three fields that matter and drop the rest).
+   * - `false`: keep the horizontally-scrolling table on phones too (for grids
+   *   that are genuinely spreadsheet-shaped).
+   */
+  mobileCard?: ((row: T, index: number) => React.ReactNode) | false
   /** Optional pagination bar rendered directly below the table. Pair `serialOffset`
    *  with `(page - 1) * pageSize` so the S.No stays continuous across pages. */
   pagination?: {
@@ -95,15 +108,104 @@ export function DataTable<T>({
   loading = false,
   skeletonRows = 8,
   pagination,
+  mobileCard,
 }: DataTableProps<T>) {
   const alignClass = (align?: DataTableColumn<T>["align"]) =>
     align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
   const justifyClass = (align?: DataTableColumn<T>["align"]) =>
     align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"
 
+  const cardsOn = mobileCard !== false
+
+  // Phone list: one card per row. Bespoke when the page supplies a renderer,
+  // otherwise an automatic label/value stack derived from `columns`.
+  const cards = cardsOn ? (
+    <div className="divide-border divide-y md:hidden">
+      {loading
+        ? Array.from({ length: Math.min(skeletonRows, 5) }).map((_, i) => (
+            <div key={`mc-${i}`} className="space-y-2 p-4">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          ))
+        : rows.map((row, rowIndex) => {
+            const key = rowKey(row, rowIndex)
+            const selected = selection?.isSelected(key) ?? false
+            return (
+              <div
+                key={key}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                onKeyDown={
+                  onRowClick
+                    ? (e) => {
+                        if (e.target !== e.currentTarget) return
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          onRowClick(row)
+                        }
+                      }
+                    : undefined
+                }
+                role={onRowClick ? "button" : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                className={cn(
+                  "p-4 transition-colors",
+                  onRowClick &&
+                    "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+                  onRowClick && "hover:bg-muted/20 cursor-pointer",
+                  selected && "bg-muted/30",
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  {selection && (
+                    <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selected}
+                        onCheckedChange={() => selection.toggle(key)}
+                        aria-label="Select row"
+                      />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    {mobileCard ? (
+                      mobileCard(row, rowIndex)
+                    ) : (
+                      <dl className="space-y-1.5">
+                        {columns.map((col, i) => {
+                          const value = col.cell(row, rowIndex)
+                          if (value === null || value === undefined || value === "") return null
+                          return (
+                            <div key={i} className="flex items-start justify-between gap-3 text-sm">
+                              <dt className="text-muted-foreground shrink-0 text-xs">
+                                {col.header}
+                              </dt>
+                              {/* col.className is carried through: two callers
+                                  (holidays:186, wfh:80) rely on it for their
+                                  truncation, and dropping it here rendered
+                                  those values at full length on phones. */}
+                              <dd className={cn("min-w-0 text-right", col.className)}>{value}</dd>
+                            </div>
+                          )
+                        })}
+                      </dl>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+    </div>
+  ) : null
+
   const table = (
     <div className={cn("bg-card rounded-[2px] border", className)}>
-      <div className={cn(minWidth && "overflow-x-auto")}>
+      {cards}
+      {/* overflow-x-auto is unconditional: `md` is the app's TIGHTEST content
+          column (cards stop at md, but the 224px sidebar starts at md, leaving
+          ~496px at 768px - narrower than the 358px phone case gets after cards).
+          Gating the scroller on `minWidth` left 16 tables clipped there with no
+          way to reach their right-hand columns. */}
+      <div className={cn("overflow-x-auto", cardsOn && "hidden md:block")}>
         <table className={cn("w-full text-sm", minWidth)}>
           <thead>
             <tr className="bg-muted/40 border-b">
@@ -171,8 +273,23 @@ export function DataTable<T>({
                   <tr
                     key={key}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    onKeyDown={
+                      onRowClick
+                        ? (e) => {
+                            if (e.target !== e.currentTarget) return
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              onRowClick(row)
+                            }
+                          }
+                        : undefined
+                    }
+                    role={onRowClick ? "button" : undefined}
+                    tabIndex={onRowClick ? 0 : undefined}
                     className={cn(
                       "hover:bg-muted/20 transition-colors",
+                      onRowClick &&
+                        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
                       onRowClick && "cursor-pointer",
                       selected && "bg-muted/30",
                     )}

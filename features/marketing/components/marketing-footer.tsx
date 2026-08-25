@@ -1,9 +1,7 @@
 import Link from "next/link"
 
 import { siteConfig } from "@/config/site"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 interface FooterLinkItem {
   href: string
@@ -71,13 +69,19 @@ export function MarketingFooter() {
           <Link href="/" className="inline-flex items-center gap-2" aria-label={siteConfig.name}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo_white_bg.png"
+              src="/logo_white_bg-96.png"
+              width={370}
+              height={96}
+              decoding="async"
               alt={siteConfig.name}
               className="h-10 w-auto sm:h-11 dark:hidden"
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo_dark_bg.webp"
+              src="/logo_dark_bg-96.webp"
+              width={370}
+              height={96}
+              decoding="async"
               alt={siteConfig.name}
               className="hidden h-10 w-auto sm:h-11 dark:block"
             />

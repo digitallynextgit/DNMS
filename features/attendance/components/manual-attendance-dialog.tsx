@@ -15,7 +15,7 @@ import {
   useUpdateAttendanceLog,
 } from "@/features/attendance/hooks/use-attendance"
 import type { AttendanceLog } from "@/features/attendance/hooks/use-attendance"
-import { EmployeeCombobox } from "@/features/employees"
+import { EmployeeCombobox } from "@/features/employees/components/employee-combobox"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 // same shell the real view fills.
 function ChatSkeleton() {
   return (
-    <div className="flex h-[calc(100vh-6rem)] overflow-hidden rounded-sm border">
+    <div className="flex h-full min-h-96 overflow-hidden rounded-sm border">
       <div className="w-full max-w-xs shrink-0 space-y-2 border-r p-3">
         {Array.from({ length: 9 }).map((_, i) => (
           <Skeleton key={i} className="bg-muted h-14 w-full animate-pulse rounded" />

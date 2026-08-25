@@ -56,7 +56,12 @@ export function Pagination({
         {total !== 1 ? "s" : ""}
       </p>
 
-      <div className="flex items-center gap-1">
+      {/* flex-wrap + justify-center: Prev + up to 7 numbers + Next is ~364px,
+          wider than the 358px column a 390px phone gives and far wider than
+          320px. `main` is overflow-x-hidden, so without wrapping the "Next"
+          button was pushed outside the viewport with no scrollbar and no way to
+          reach it - on every paginated page in the app. */}
+      <div className="flex flex-wrap items-center justify-center gap-1">
         <Button
           variant="outline"
           size="sm"

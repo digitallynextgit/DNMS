@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/select"
 import { FormDialog } from "@/components/shared/form-dialog"
 import { DateField } from "@/components/shared/date-field"
-import { EmployeeCombobox, useEmployees } from "@/features/employees"
-import { usePermissions } from "@/features/admin"
+import { EmployeeCombobox } from "@/features/employees/components/employee-combobox"
+import { useEmployees } from "@/features/employees/hooks/use-employees"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { ProjectLogoPicker } from "./project-logo-picker"
 import { PERMISSIONS, PROJECT_STATUS_LABELS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { IndianRupee } from "lucide-react"
@@ -190,7 +191,7 @@ export function ProjectFormDialog({
       submitDisabled={!canSubmit}
       submitLabel={mode === "create" ? "Create Project" : "Save Changes"}
       onSubmit={handleSubmit}
-      contentClassName="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+      contentClassName="sm:max-w-lg"
     >
       <div className="space-y-4">
         <div className="space-y-2">

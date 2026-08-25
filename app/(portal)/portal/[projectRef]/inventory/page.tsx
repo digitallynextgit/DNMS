@@ -78,7 +78,7 @@ export default async function PortalInventoryPage({
             Nothing is running low right now.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-sm border">
+          <div className="overflow-x-auto rounded-sm border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-muted-foreground">
                 <tr>

@@ -24,7 +24,7 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import {
   usePerfKpiProfile,

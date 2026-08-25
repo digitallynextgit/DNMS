@@ -15,7 +15,7 @@ import { Megaphone, Plus, Pencil, Trash2, Clock, AlertTriangle, Shapes } from "l
 
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -290,7 +290,7 @@ function ComposeDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto lg:max-w-2xl">
+      <DialogContent className="max-w-2xl lg:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-sm">
             {editing ? "Edit announcement" : "New announcement"}

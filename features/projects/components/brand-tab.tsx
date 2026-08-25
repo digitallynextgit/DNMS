@@ -202,8 +202,14 @@ function StrategySection({ projectId, canManage }: Props) {
   const origManifestation = { ...emptyManifestation(), ...(d?.manifestation ?? {}) }
   const origGuidelines = { ...EMPTY_GUIDELINES, ...(d?.guidelines ?? {}) }
 
+  // Seeded ONCE. `d` is a new object identity on every refetch, so this used
+  // to re-run on each one and overwrite whatever the user had typed but not yet
+  // saved. After the first load the local fields are the source of truth until
+  // they save or discard.
+  const seededRef = useRef(false)
   useEffect(() => {
-    if (!d) return
+    if (!d || seededRef.current) return
+    seededRef.current = true
     setBrief(d.brief ?? "")
     setOverview(d.overview ?? "")
     setObjectives(Array.isArray(d.objectives) ? d.objectives : [])

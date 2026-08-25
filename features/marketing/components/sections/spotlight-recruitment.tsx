@@ -25,11 +25,11 @@ function RecruitmentVisual() {
     { name: "Hired", count: 3, chips: ["NP", "AA"] },
   ]
   return (
-    // Scrolls (bar hidden) on very narrow screens so the 5 lanes never overflow
-    // or clip; fits without scrolling from ~380px up.
-    <div className="no-scrollbar -mx-1 flex h-full items-stretch gap-1.5 overflow-x-auto px-1">
+    // Phones: stack the stages vertically (full-width, never cramped). Tablet+:
+    // horizontal lanes with chevrons, scrolling (bar hidden) if they overflow.
+    <div className="no-scrollbar flex h-full flex-col gap-2 sm:-mx-1 sm:flex-row sm:items-stretch sm:gap-1.5 sm:overflow-x-auto sm:px-1">
       {stages.map((s, i) => (
-        <div key={s.name} className="flex min-w-[64px] flex-1 items-stretch gap-1.5">
+        <div key={s.name} className="flex sm:min-w-[64px] sm:flex-1 sm:items-stretch sm:gap-1.5">
           <div
             className={cn(
               "flex flex-1 flex-col rounded-[6px] border p-2.5",
@@ -76,7 +76,7 @@ function RecruitmentVisual() {
             )}
           </div>
           {i < stages.length - 1 && (
-            <div className="flex items-center">
+            <div className="hidden items-center sm:flex">
               <ChevronRight className="text-muted-foreground/60 h-3.5 w-3.5" />
             </div>
           )}

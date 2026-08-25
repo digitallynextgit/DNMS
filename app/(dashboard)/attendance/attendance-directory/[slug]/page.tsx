@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { useEmployee } from "@/features/employees"
 import { useEmployeeAttendanceCalendar } from "@/features/attendance"
 import { AttendanceCalendar } from "@/features/attendance/components/attendance-calendar"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { formatWorkHours } from "@/lib/utils"
 

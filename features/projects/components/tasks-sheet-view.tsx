@@ -421,13 +421,16 @@ function diffCell(lines: PlanLine[], existing: SheetTask[]) {
  * sit frozen at the value it had when the page loaded. 30s is under the
  * smallest unit displayed (a minute), so the number is never visibly stale.
  */
-function useTick(active: boolean, everyMs = 30_000) {
-  const [, setTick] = useState(0)
+function useTick(active: boolean, everyMs = 30_000): number {
+  const [tick, setTick] = useState(0)
   useEffect(() => {
     if (!active) return
     const id = setInterval(() => setTick((n) => n + 1), everyMs)
     return () => clearInterval(id)
   }, [active, everyMs])
+  // Returned so a derived value that depends on elapsed time can list it as a
+  // dependency, instead of being recomputed on EVERY render to stay live.
+  return tick
 }
 
 /**
@@ -576,7 +579,7 @@ export function TasksSheetView({
   // Beat along while a clock is running OR an edit window is still open, so a
   // line locks itself the moment its 15 minutes are up rather than staying
   // editable-looking until the next refetch.
-  useTick(
+  const tick = useTick(
     tasks.some(
       (t) => t.inProgressSince || isWithinEditWindow(t.createdAt, Date.now(), TASK_EDIT_WINDOW_MS),
     ),
@@ -1031,27 +1034,39 @@ export function TasksSheetView({
     void patchTask(task, { status: next }, `${task.id}|status`, "Status updated")
   }
 
-  // Per-day totals for the footer strip. Recomputed every render rather than
-  // memoised: a running clock changes these without changing any dependency,
-  // and a memo would leave the footer frozen while the row totals ticked on.
-  const dayTotals: Record<string, { count: number; allocated: number; spent: number }> = {}
-  for (const c of columns) {
-    let count = 0
-    let allocated = 0
-    let spent = 0
-    for (const r of rows) {
-      for (const t of cells.get(`${r.id}|${c.key}`) ?? []) {
-        count++
-        allocated += t.estimatedHours ?? 0
-        spent += spentHours(t)
+  // Per-day totals for the footer strip.
+  //
+  // This used to run on EVERY render - columns x rows x cells - because a
+  // running clock changes `spentHours(t)` without changing columns/rows/cells,
+  // so a memo keyed on those alone would freeze the footer while the row totals
+  // ticked on. That reasoning was right; the missing piece was `tick`. With the
+  // beat as a dependency the memo recomputes exactly when the numbers can
+  // actually have changed - once every 30s, or when the data does - instead of
+  // on every keystroke, hover and selection change.
+  const { dayTotals, grand } = useMemo(() => {
+    const totals: Record<string, { count: number; allocated: number; spent: number }> = {}
+    for (const c of columns) {
+      let count = 0
+      let allocated = 0
+      let spent = 0
+      for (const r of rows) {
+        for (const t of cells.get(`${r.id}|${c.key}`) ?? []) {
+          count++
+          allocated += t.estimatedHours ?? 0
+          spent += spentHours(t)
+        }
       }
+      totals[c.key] = { count, allocated, spent }
     }
-    dayTotals[c.key] = { count, allocated, spent }
-  }
-  const grand = Object.values(dayTotals).reduce(
-    (a, b) => ({ allocated: a.allocated + b.allocated, spent: a.spent + b.spent }),
-    { allocated: 0, spent: 0 },
-  )
+    return {
+      dayTotals: totals,
+      grand: Object.values(totals).reduce(
+        (a, b) => ({ allocated: a.allocated + b.allocated, spent: a.spent + b.spent }),
+        { allocated: 0, spent: 0 },
+      ),
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columns, rows, cells, tick])
 
   return (
     <div className="space-y-3">
@@ -1101,6 +1116,13 @@ export function TasksSheetView({
         </div>
       ) : (
         <div className="bg-card overflow-x-auto rounded-[2px] border">
+          {/* This grid is genuinely spreadsheet-shaped - seven day columns cannot
+              become a phone card without losing the week-at-a-glance that is the
+              whole point. So it stays a scrolling sheet with the Client column
+              pinned, and says so rather than leaving the swipe to be discovered. */}
+          <p className="text-muted-foreground border-b px-3 py-1.5 text-[11px] sm:hidden">
+            Swipe sideways to see the rest of the week →
+          </p>
           {/* border-SEPARATE, not collapse: a collapsed border belongs to the
               table, not to the cell that declares it, so the Client column's
               right edge painted underneath the sticky cell and slid away with
@@ -1115,7 +1137,7 @@ export function TasksSheetView({
                 <th
                   rowSpan={2}
                   className={cn(
-                    "bg-muted z-20 w-40 min-w-40 border-b px-3 py-2 text-left text-[11px] font-semibold tracking-wide uppercase",
+                    "bg-muted z-20 w-28 min-w-28 border-b px-3 py-2 text-left text-[11px] font-semibold tracking-wide uppercase sm:w-40 sm:min-w-40",
                     STICKY_EDGE,
                   )}
                 >
@@ -1204,7 +1226,7 @@ export function TasksSheetView({
                     </th>
                     <th
                       className={cn(
-                        "w-40 min-w-40 border-r border-b px-2 py-1 text-left font-medium",
+                        "w-28 min-w-28 border-r border-b px-2 py-1 text-left font-medium sm:w-40 sm:min-w-40",
                         c.key === todayKey && "bg-primary/10",
                       )}
                       title="Brief, doc, published page"

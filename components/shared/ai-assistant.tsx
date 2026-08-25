@@ -76,9 +76,13 @@ export function AiAssistant() {
 
   return (
     <>
-      {/* Panel - opened from the Topbar launcher. */}
+      {/* Panel - opened from the Topbar launcher.
+          Sits ABOVE the mobile tab bar rather than on top of it: the bar is a
+          real layout row (~4.5rem incl. its safe-area padding), and a fixed
+          panel at bottom-5 covered it along with whatever tab you were on.
+          dvh so iOS Safari's collapsing chrome is excluded from the height. */}
       {open && (
-        <div className="bg-card fixed right-5 bottom-5 z-50 flex h-[min(560px,calc(100vh-6rem))] w-[min(400px,calc(100vw-2.5rem))] flex-col rounded-[2px] border shadow-2xl">
+        <div className="bg-card fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex h-[min(560px,calc(100dvh-12rem))] w-[min(400px,calc(100vw-2.5rem))] flex-col rounded-[2px] border shadow-2xl md:bottom-5 md:h-[min(560px,calc(100dvh-6rem))]">
           <div className="flex items-center justify-between border-b px-4 py-2.5">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />

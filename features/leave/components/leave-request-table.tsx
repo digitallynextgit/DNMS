@@ -240,6 +240,98 @@ export function LeaveRequestTable({
         showSerial={showSerial}
         serialOffset={serialOffset}
         selection={selection}
+        // Phone card: identity (or leave type) + status on top, then the dates,
+        // and the decision buttons as full labelled controls rather than the
+        // 32px icon buttons the table row uses.
+        mobileCard={(request) => {
+          const isOwn = currentUserId === request.employeeId
+          const canAct = canApprove && request.status === "PENDING" && request.viewerRole
+          return (
+            <div className="space-y-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  {showEmployee && (
+                    <AvatarDisplay
+                      src={request.employee.profilePhoto}
+                      firstName={request.employee.firstName}
+                      lastName={request.employee.lastName}
+                      size="sm"
+                      className="shrink-0"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {showEmployee
+                        ? `${request.employee.firstName} ${request.employee.lastName}`
+                        : request.leaveType.name}
+                    </p>
+                    <p className="text-muted-foreground truncate text-xs">
+                      {showEmployee
+                        ? request.leaveType.name
+                        : request.leaveType.isPaid
+                          ? "Paid"
+                          : "Unpaid"}
+                    </p>
+                  </div>
+                </div>
+                <StatusBadge
+                  status={request.status}
+                  colorMap={LEAVE_STATUS_COLORS}
+                  labelMap={LEAVE_STATUS_LABELS}
+                  size="xs"
+                />
+              </div>
+
+              <p className="text-muted-foreground text-xs">
+                {formatDate(request.startDate)}
+                {request.startDate !== request.endDate && <> – {formatDate(request.endDate)}</>}
+                {" · "}
+                {request.totalDays} {request.totalDays === 1 ? "day" : "days"}
+              </p>
+
+              {request.reason && <p className="text-xs">{request.reason}</p>}
+              {request.rejectionReason && (
+                <p className="text-destructive text-xs">Reason: {request.rejectionReason}</p>
+              )}
+
+              {(canAct || (isOwn && request.status === "PENDING")) && (
+                <div className="flex flex-wrap gap-2 pt-0.5">
+                  {canAct && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => setDecision({ action: "APPROVE", request })}
+                      >
+                        <Check className="h-3.5 w-3.5" /> Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive gap-1.5"
+                        onClick={() => setDecision({ action: "REJECT", request })}
+                      >
+                        <X className="h-3.5 w-3.5" /> Reject
+                      </Button>
+                    </>
+                  )}
+                  {isOwn && request.status === "PENDING" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive gap-1.5"
+                      disabled={cancelLeave.isPending}
+                      onClick={() => cancelLeave.mutate(request.id)}
+                    >
+                      <Ban className="h-3.5 w-3.5" /> Cancel
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        }}
       />
 
       <LeaveDecisionDialog

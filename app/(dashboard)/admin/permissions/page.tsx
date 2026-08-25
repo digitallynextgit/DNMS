@@ -66,13 +66,13 @@ export default function PermissionsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="min-w-[200px] py-2 pr-4 text-left font-medium text-slate-600">
+                    <th className="text-muted-foreground min-w-[200px] py-2 pr-4 text-left font-medium">
                       Permission
                     </th>
                     {rolesData?.map((role) => (
                       <th
                         key={role.id}
-                        className="min-w-[100px] px-3 py-2 text-center font-medium text-slate-600"
+                        className="text-muted-foreground min-w-[100px] px-3 py-2 text-center font-medium"
                       >
                         <div className="flex flex-col items-center gap-1">
                           <span>{role.displayName}</span>
@@ -91,18 +91,20 @@ export default function PermissionsPage() {
                     <>
                       <tr key={`group-${group.module}`}>
                         <td colSpan={(rolesData?.length ?? 0) + 1} className="px-0 pt-4 pb-1">
-                          <span className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
+                          <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
                             {group.module}
                           </span>
                         </td>
                       </tr>
                       {group.permissions.map((perm) => (
-                        <tr key={perm.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                        <tr key={perm.id} className="border-border hover:bg-muted/50 border-b">
                           <td className="py-2 pr-4">
                             <div>
-                              <code className="font-mono text-xs text-slate-700">{perm.scope}</code>
+                              <code className="text-foreground font-mono text-xs">
+                                {perm.scope}
+                              </code>
                               {perm.description && (
-                                <p className="mt-0.5 text-[11px] text-slate-400">
+                                <p className="text-muted-foreground mt-0.5 text-[11px]">
                                   {perm.description}
                                 </p>
                               )}
@@ -113,7 +115,7 @@ export default function PermissionsPage() {
                               {role.name === "admin_" || hasPermission(role, perm.id) ? (
                                 <CheckCircle2 className="mx-auto h-4 w-4 text-green-500" />
                               ) : (
-                                <XCircle className="mx-auto h-4 w-4 text-slate-200" />
+                                <XCircle className="text-muted-foreground/40 mx-auto h-4 w-4" />
                               )}
                             </td>
                           ))}

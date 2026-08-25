@@ -38,7 +38,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { getProbationStatus, PROBATION_MONTHS_OPTIONS } from "@/features/employees/probation"
 import { cn, formatDate, employeeSlug } from "@/lib/utils"
 import {

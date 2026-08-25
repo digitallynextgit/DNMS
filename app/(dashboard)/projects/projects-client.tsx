@@ -21,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from "@/lib/constants"
 import { formatDate } from "@/lib/utils"
 import { ProjectFormDialog, ProjectLogo, projectHref } from "@/features/projects"
@@ -284,6 +284,7 @@ export function ProjectsClient() {
                                   variant="ghost"
                                   size="icon-sm"
                                   className="relative z-10 shrink-0"
+                                  aria-label="More actions"
                                 >
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>

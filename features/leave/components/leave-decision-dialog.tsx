@@ -198,7 +198,7 @@ export function LeaveDecisionDialog({
   if (advisory) {
     return (
       <AlertDialog open={open} onOpenChange={onOpenChange}>
-        <AlertDialogContent className="rounded">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="text-sm font-semibold tracking-tight">
               {isReject ? "Recommend rejection" : "Recommend approval"}
@@ -249,7 +249,7 @@ export function LeaveDecisionDialog({
   // ── Final decision (admin/HR) - the reply that gets emailed. ─────────────────
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto rounded">
+      <AlertDialogContent className="max-w-2xl">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-sm font-semibold tracking-tight">
             {isReject ? "Reject Leave Request" : "Approve Leave Request"}

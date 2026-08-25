@@ -24,6 +24,16 @@ import {
 import { siteConfig } from "@/config/site"
 
 /** Pre-filled "Book a demo" mailto. Change the address in config/site.ts. */
+/**
+ * The marketing/auth accent red (matches the logo mark).
+ *
+ * Was redeclared verbatim as a local `const BRAND_RED = "#ef4444"` in 14 files,
+ * so changing the brand colour meant finding all 14. It stays a hex literal
+ * rather than a CSS token because these sections set it via inline `style` on
+ * gradients and SVG strokes, where a Tailwind class cannot reach.
+ */
+export const BRAND_RED = "#ef4444"
+
 export const demoHref = `mailto:${siteConfig.contactEmail}?subject=${encodeURIComponent(
   "DNMS demo request",
 )}`

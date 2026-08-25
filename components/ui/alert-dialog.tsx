@@ -34,7 +34,17 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-lg duration-200 sm:rounded",
+        // Matches dialog.tsx, which had these and this did not:
+        //   w-[calc(100%-2rem)]        - a 1rem gutter; `w-full` went edge-to-edge
+        //                                on every phone.
+        //   max-h-[calc(100dvh-2rem)]  - cap the height. dvh, not vh, so iOS
+        //                                Safari's collapsing chrome is excluded.
+        //   overflow-y-auto            - and SCROLL past the cap. Without both,
+        //                                a tall alert (leave decision, reject
+        //                                reason, task status) overflowed top and
+        //                                bottom and its action buttons could not
+        //                                be reached at all.
+        "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border p-6 shadow-lg duration-200 sm:rounded-[2px]",
         className,
       )}
       {...props}

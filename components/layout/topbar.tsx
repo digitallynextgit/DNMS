@@ -18,11 +18,12 @@ import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { useSidebarStore } from "@/stores/sidebar-store"
 import { useThemeStore } from "@/stores/theme-store"
 import { useAiAssistantStore } from "@/stores/ai-assistant-store"
-import { useEmployee } from "@/features/employees"
+import { useEmployee } from "@/features/employees/hooks/use-employees"
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
 import { cn } from "@/lib/utils"
 import { ThemePicker } from "./theme-picker"
 import Link from "next/link"
+import Image from "next/image"
 
 export function Topbar({ session }: { session: Session }) {
   const { id, firstName, lastName, email, profilePhoto: sessionPhoto } = session.user
@@ -53,7 +54,25 @@ export function Topbar({ session }: { session: Session }) {
 
   return (
     <header className="bg-background border-border flex h-14.25 shrink-0 items-center justify-between border-b px-4">
-      <div className="flex flex-1 items-center">
+      <div className="flex min-w-0 flex-1 items-center">
+        {/* Phones have no sidebar to collapse, so the bar carries the wordmark
+            instead of the toggle. */}
+        <Link href="/dashboard" aria-label="DNMS" className="flex items-center md:hidden">
+          <Image
+            src="/logo_white_bg.png"
+            alt="Digitally Next"
+            width={370}
+            height={96}
+            className="h-8 w-auto max-w-none dark:hidden"
+          />
+          <Image
+            src="/logo_dark_bg.webp"
+            alt="Digitally Next"
+            width={370}
+            height={96}
+            className="hidden h-8 w-auto max-w-none dark:block"
+          />
+        </Link>
         <TooltipProvider delayDuration={300}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -61,7 +80,7 @@ export function Topbar({ session }: { session: Session }) {
                 variant="ghost"
                 size="icon-sm"
                 onClick={toggle}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground hidden md:inline-flex"
                 aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
                 {isCollapsed ? (
@@ -93,7 +112,9 @@ export function Topbar({ session }: { session: Session }) {
           aria-label="Ask DNMS"
           aria-pressed={aiOpen}
           className={cn(
-            "text-muted-foreground hover:text-foreground",
+            // 40px on touch, 32px from md up: this bar is always on screen, and
+            // an icon-sm target is below the comfortable tap size on a phone.
+            "text-muted-foreground hover:text-foreground h-10 w-10 md:h-8 md:w-8",
             aiOpen && "bg-muted text-foreground",
           )}
         >
@@ -107,7 +128,7 @@ export function Topbar({ session }: { session: Session }) {
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-muted-foreground hover:text-foreground relative"
+            className="text-muted-foreground hover:text-foreground relative h-10 w-10 md:h-8 md:w-8"
             aria-label="Notifications"
           >
             <Bell className="h-4 w-4" />

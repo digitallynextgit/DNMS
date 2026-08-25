@@ -26,7 +26,7 @@ import {
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
 } from "@/lib/constants"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import {
   ADHOC_LABEL,
   ADHOC_ROW_ID,
@@ -637,7 +637,10 @@ export default function MyTasksPage() {
                         <div
                           key={task.id}
                           className={cn(
-                            "flex items-center gap-3 rounded-[2px] border p-2.5",
+                            // Phones stack: a 128px status select beside the
+                            // title leaves too little room for it on 390px, so
+                            // the select drops onto its own line there.
+                            "flex flex-col items-stretch gap-2 rounded-[2px] border p-2.5 sm:flex-row sm:items-center sm:gap-3",
                             isOverdue &&
                               "border-red-200 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
                             isRejected && "border-red-200 bg-red-50/40",
@@ -647,7 +650,7 @@ export default function MyTasksPage() {
                           <TaskStatusSelect
                             value={task.status}
                             disabled={isRejected}
-                            triggerClassName="h-8 w-32 text-xs"
+                            triggerClassName="h-8 w-full text-xs sm:w-32"
                             onCommit={(payload) => updateMut.mutate({ id: task.id, ...payload })}
                           />
 

@@ -74,7 +74,7 @@ export function TaskStatusReasonDialog({
 
   return (
     <AlertDialog open={!!mode} onOpenChange={(o) => !o && onOpenChange(false)}>
-      <AlertDialogContent className="rounded">
+      <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="text-sm font-semibold tracking-tight">
             {mode === "ON_HOLD" ? "Put task on hold" : "Discard task"}

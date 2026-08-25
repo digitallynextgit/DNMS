@@ -197,7 +197,12 @@ export function AccountCard({
             projects grid it sits beside. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="relative z-10 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="relative z-10 shrink-0"
+              aria-label="More actions"
+            >
               {busy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (

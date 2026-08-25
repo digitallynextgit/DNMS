@@ -21,7 +21,7 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { RoleForm } from "@/features/admin"
+import { RoleForm } from "@/features/admin/components/role-form"
 import { PERMISSIONS } from "@/lib/constants"
 
 // ---------------------------------------------------------------------------
@@ -249,6 +249,68 @@ export default function RolesPage() {
           serialOffset={(page - 1) * PAGE_SIZE}
           loading={loading}
           skeletonRows={PAGE_SIZE}
+          // Phone card: role identity, then the two counts as labelled chips and
+          // the edit/delete actions as real buttons.
+          mobileCard={(role) => (
+            <div className="space-y-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{role.displayName}</p>
+                  <p className="text-muted-foreground truncate font-mono text-[11px]">
+                    {role.name}
+                  </p>
+                </div>
+                {role.isSystem ? (
+                  <Badge variant="secondary" className="shrink-0 gap-1">
+                    <ShieldCheck className="h-3 w-3" />
+                    System
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="shrink-0">
+                    Custom
+                  </Badge>
+                )}
+              </div>
+
+              {role.description && (
+                <p className="text-muted-foreground text-xs">{role.description}</p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                <span className="text-muted-foreground">
+                  <span className="text-foreground font-medium">{role._count.rolePermissions}</span>{" "}
+                  permissions
+                </span>
+                <span className="text-muted-foreground">
+                  <span className="text-foreground font-medium">{role._count.employeeRoles}</span>{" "}
+                  employees
+                </span>
+              </div>
+
+              {canWrite && (
+                <div className="flex flex-wrap gap-2 pt-0.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => openEdit(role)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </Button>
+                  {!role.isSystem && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive gap-1.5"
+                      onClick={() => setDeleteTarget(role)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           pagination={{
             page,
             totalPages,

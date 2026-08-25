@@ -33,7 +33,7 @@ import {
 } from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

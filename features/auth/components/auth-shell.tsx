@@ -1,9 +1,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { Check } from "lucide-react"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 const HIGHLIGHTS = [
   "People, departments & org chart",
@@ -39,8 +37,10 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             <Image
               src="/logo_dark_bg.webp"
               alt="Digitally Next"
-              width={4500}
-              height={1167}
+              width={370}
+              height={96}
+              // Kept: unlike the theme-swapped pairs below, this one has no
+              // CSS-hidden twin, so the preload is never discarded.
               priority
               className="h-12 w-auto"
             />
@@ -105,17 +105,15 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
               <Image
                 src="/logo_white_bg.png"
                 alt="Digitally Next"
-                width={4500}
-                height={1167}
-                priority
+                width={370}
+                height={96}
                 className="h-9 w-auto dark:hidden"
               />
               <Image
                 src="/logo_dark_bg.webp"
                 alt="Digitally Next"
-                width={4500}
-                height={1167}
-                priority
+                width={370}
+                height={96}
                 className="hidden h-9 w-auto dark:block"
               />
             </Link>

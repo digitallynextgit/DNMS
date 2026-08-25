@@ -204,7 +204,9 @@ export function ChatView() {
   })
 
   return (
-    <div className="space-y-4">
+    // Fills the scroll container instead of measuring the viewport: with a
+    // bottom tab bar on phones a `100vh` pane would hang below the fold.
+    <div className="flex h-full flex-col gap-4">
       <PageHeader
         title="Chat"
         description="Private one-to-one messages with colleagues"
@@ -218,7 +220,7 @@ export function ChatView() {
 
       {/* Both panes share one fixed height so the thread scrolls internally and
           the page itself never does - the composer stays put while you read. */}
-      <div className="grid h-[calc(100vh-13rem)] min-h-96 overflow-hidden rounded-sm border lg:grid-cols-[340px_1fr]">
+      <div className="grid min-h-96 flex-1 overflow-hidden rounded-sm border lg:grid-cols-[340px_1fr]">
         {/* ── Conversation list ─────────────────────────────────────────── */}
         <aside
           className={cn("bg-card flex min-h-0 flex-col border-r", activeId && "hidden lg:flex")}
@@ -726,7 +728,16 @@ function Thread({
     <section className="bg-background relative flex min-h-0 flex-col">
       {/* Header */}
       <div className={cn(SPLIT_PANE_HEADER, "bg-card gap-2.5 px-3")}>
-        <Button variant="ghost" size="icon-sm" className="lg:hidden" onClick={onBack}>
+        {/* h-10 w-10, not the 32px icon-sm default: below lg this is the ONLY
+            way back to the conversation list, and it only ever renders on
+            touch devices (lg:hidden). */}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="h-10 w-10 lg:hidden"
+          onClick={onBack}
+          aria-label="Back to conversations"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <button

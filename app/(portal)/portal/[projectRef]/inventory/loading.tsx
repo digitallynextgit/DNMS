@@ -22,7 +22,7 @@ export default function PortalInventoryLoading() {
 
       <div>
         <Skeleton className="bg-muted mb-3 h-4 w-32 animate-pulse" />
-        <div className="overflow-hidden rounded-sm border">
+        <div className="overflow-x-auto rounded-sm border">
           <TableSkeleton rows={6} cols={4} />
         </div>
       </div>

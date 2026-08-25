@@ -18,8 +18,8 @@ import { DateField } from "@/components/shared/date-field"
 import { apiFetch } from "@/lib/api-fetch"
 import { PERMISSIONS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { useProject, useProjects, useProjectTeams } from "@/features/projects/hooks/use-projects"
-import { usePermissions } from "@/features/admin"
-import { useSeoSites } from "@/features/seo"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
+import { useSeoSites } from "@/features/seo/hooks/use-seo"
 import {
   ADHOC_DESCRIPTION,
   ADHOC_LABEL,

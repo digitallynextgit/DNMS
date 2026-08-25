@@ -29,7 +29,7 @@ import {
   useLeaveBalanceDirectory,
   type LeaveRequest,
 } from "@/features/leave"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { useUrlState } from "@/hooks/use-url-state"
 import { PERMISSIONS, LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { formatDate } from "@/lib/utils"

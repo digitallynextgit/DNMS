@@ -31,17 +31,15 @@ export default async function PortalHomePage() {
       <Image
         src="/logo_white_bg.png"
         alt="Digitally Next"
-        width={4500}
-        height={1167}
-        priority
+        width={370}
+        height={96}
         className="mb-10 h-9 w-auto dark:hidden"
       />
       <Image
         src="/logo_dark_bg.webp"
         alt="Digitally Next"
-        width={4500}
-        height={1167}
-        priority
+        width={370}
+        height={96}
         className="mb-10 hidden h-9 w-auto dark:block"
       />
 

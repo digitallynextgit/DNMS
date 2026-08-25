@@ -18,20 +18,13 @@ import {
 } from "recharts"
 import { EMPLOYEE_STATUS_LABELS } from "@/lib/constants"
 import {
+  CHART_NEUTRAL_SERIES,
   CHART_TOOLTIP_STYLE,
   CHART_TOOLTIP_LABEL_STYLE,
   CHART_TOOLTIP_ITEM_STYLE,
 } from "@/lib/chart-theme"
 
-const DEPT_COLORS = [
-  "hsl(var(--foreground))",
-  "hsl(var(--muted-foreground))",
-  "#555",
-  "#888",
-  "#aaa",
-  "#333",
-  "#777",
-]
+const DEPT_COLORS = CHART_NEUTRAL_SERIES
 
 export function DepartmentPieChart({ data }: { data: { department: string; count: number }[] }) {
   return (

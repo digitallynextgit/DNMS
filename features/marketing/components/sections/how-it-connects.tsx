@@ -2,9 +2,7 @@ import { Sparkles } from "lucide-react"
 
 import { HOW_STEPS, type FlowStep } from "../../marketing.constants"
 import { DotBackdrop, Reveal } from "../fx"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 // One-row nodes: every icon sits at cy=110 (viewBox 0 0 1200 240) at the column
 // centres (150/450/750/1050). The connector waves up and down between them.

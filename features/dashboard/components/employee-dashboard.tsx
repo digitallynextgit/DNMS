@@ -182,41 +182,44 @@ export function EmployeeDashboard() {
 
       {/* Quick actions */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <Button asChild variant="outline" className="h-9 justify-start gap-2 text-sm">
+        <Button asChild variant="outline" className="h-9 min-w-0 justify-start gap-2 text-sm">
           <Link href="/projects/my-tasks">
             <ListTodo className="text-muted-foreground h-4 w-4" />
-            <span>My Tasks</span>
+            <span className="truncate">My Tasks</span>
           </Link>
         </Button>
-        <Button asChild variant="outline" className="h-9 justify-start gap-2 text-sm">
+        <Button asChild variant="outline" className="h-9 min-w-0 justify-start gap-2 text-sm">
           <Link href="/leave/apply">
             <Plus className="text-muted-foreground h-4 w-4" />
-            <span>Apply Leave</span>
+            <span className="truncate">Apply Leave</span>
           </Link>
         </Button>
-        <Button asChild variant="outline" className="h-9 justify-start gap-2 text-sm">
+        <Button asChild variant="outline" className="h-9 min-w-0 justify-start gap-2 text-sm">
           <Link href="/wfh/apply">
             <Laptop className="text-muted-foreground h-4 w-4" />
-            <span>Apply WFH</span>
+            <span className="truncate">Apply WFH</span>
           </Link>
         </Button>
-        <Button asChild variant="outline" className="h-9 justify-start gap-2 text-sm">
+        <Button asChild variant="outline" className="h-9 min-w-0 justify-start gap-2 text-sm">
           <Link href="/attendance/me">
             <Clock className="text-muted-foreground h-4 w-4" />
-            <span>My Attendance</span>
+            <span className="truncate">My Attendance</span>
           </Link>
         </Button>
-        <Button asChild variant="outline" className="h-9 justify-start gap-2 text-sm">
+        <Button asChild variant="outline" className="h-9 min-w-0 justify-start gap-2 text-sm">
           <Link href="/payroll/me">
             <DollarSign className="text-muted-foreground h-4 w-4" />
-            <span>My Payslips</span>
+            <span className="truncate">My Payslips</span>
           </Link>
         </Button>
       </div>
 
       {/* ── What I am supposed to be doing ─────────────────────────────────── */}
+      {/* min-w-0 on the cards: a grid item defaults to min-width:auto, so a long
+          task title (or any nowrap content) would otherwise widen the column past
+          the viewport instead of truncating inside it. */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
               Today&apos;s Work
@@ -252,7 +255,7 @@ export function EmployeeDashboard() {
         </Card>
 
         {/* This week, in hours - the honest version of "am I on track". */}
-        <Card>
+        <Card className="min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
               This Week
@@ -324,12 +327,12 @@ export function EmployeeDashboard() {
                   {p.slug ? (
                     <Link
                       href={`/projects/${p.slug}`}
-                      className="truncate text-sm font-medium hover:underline"
+                      className="block truncate text-sm font-medium hover:underline"
                     >
                       {p.name}
                     </Link>
                   ) : (
-                    <span className="text-muted-foreground truncate text-sm">{p.name}</span>
+                    <span className="text-muted-foreground block truncate text-sm">{p.name}</span>
                   )}
                   <p className="text-muted-foreground text-xs">{p.open} open</p>
                 </div>

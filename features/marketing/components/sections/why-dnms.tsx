@@ -2,9 +2,7 @@ import { Check, X, Sparkles } from "lucide-react"
 
 import { WHY_REASONS } from "../../marketing.constants"
 import { Reveal } from "../fx"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 // Mirrors WHY_REASONS one-for-one: the "bad" counterpart of each DNMS win, so
 // both columns carry the same number of points with the same title + copy shape.

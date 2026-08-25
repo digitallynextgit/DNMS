@@ -208,7 +208,7 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
           </div>
 
           <div className="space-y-2">
-            <div className="text-muted-foreground grid grid-cols-[1fr_90px_120px] gap-3 px-1 text-xs">
+            <div className="text-muted-foreground grid grid-cols-[1fr_80px_110px] gap-3 px-1 text-xs">
               <span>Component</span>
               <span className="text-right">%</span>
               <span className="text-right">Amount</span>

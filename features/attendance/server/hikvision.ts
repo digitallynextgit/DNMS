@@ -9,6 +9,7 @@
  */
 
 import { createHash } from "crypto"
+import { networkInterfaces } from "os"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,6 +102,87 @@ function buildDigestHeader(
 
 // ─── Core request function ─────────────────────────────────────────────────────
 
+/** The IPv4 networks this server is actually attached to, e.g. ["192.168.1.38/24"]. */
+function localIPv4s(): string[] {
+  const out: string[] = []
+  for (const addrs of Object.values(networkInterfaces())) {
+    for (const a of addrs ?? []) {
+      if (a.family === "IPv4" && !a.internal && !a.address.startsWith("169.254.")) {
+        out.push(a.address)
+      }
+    }
+  }
+  return out
+}
+
+/** True when `ip` shares no /24 with any address on this machine. */
+function looksOffSubnet(ip: string): boolean {
+  const net = (s: string) => s.split(".").slice(0, 3).join(".")
+  const locals = localIPv4s()
+  if (locals.length === 0 || !/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return false
+  return !locals.some((l) => net(l) === net(ip))
+}
+
+/**
+ * Is this host on a mesh VPN (Tailscale / headscale)?
+ *
+ * Matters because a subnet ROUTE reaches a LAN without holding an address on
+ * it: with `--advertise-routes` on an office machine and `--accept-routes`
+ * here, this server can talk to 192.168.29.x while owning no 192.168.29.*
+ * interface. Without this check `looksOffSubnet` would be technically true and
+ * the message would confidently blame "no route" when the real fault is a
+ * powered-off device or an unapproved route.
+ *
+ * 100.64.0.0/10 is the CGNAT range Tailscale assigns.
+ */
+function hasMeshVpn(): boolean {
+  return localIPv4s().some((a) => {
+    const [x, y] = a.split(".").map(Number)
+    return x === 100 && y !== undefined && y >= 64 && y <= 127
+  })
+}
+
+/**
+ * Turn a raw fetch failure into something that says what actually went wrong.
+ *
+ * The old message was `Connection refused or unreachable: This operation was
+ * aborted`, which is wrong twice over: nothing refused anything, and "this
+ * operation was aborted" is undici's word for "your AbortSignal fired", i.e. a
+ * TIMEOUT. Those are completely different faults - a refusal means the host is
+ * up and the port is shut, a silent timeout usually means the packets are not
+ * being routed at all - and the message pointed at neither.
+ */
+function describeFetchFailure(err: unknown, ip: string, port: number, timeoutMs: number): string {
+  const raw = err instanceof Error ? err.message : String(err)
+  const name = err instanceof Error ? err.name : ""
+  const code = (err as { cause?: { code?: string } })?.cause?.code
+
+  if (name === "AbortError" || /abort/i.test(raw)) {
+    const locals = localIPv4s()
+    let hint: string
+    if (!looksOffSubnet(ip)) {
+      hint = ` The server is on the same /24, so check the device is powered on and that no firewall is dropping port ${port}.`
+    } else if (hasMeshVpn()) {
+      // A subnet route can carry us to a LAN we hold no address on, so "off
+      // subnet" is not evidence of "no route" here.
+      hint = ` This server reaches ${ip} over a VPN subnet route rather than a local interface, so check: the route for that subnet is advertised AND approved in the VPN admin, this host was brought up with --accept-routes, and the device is powered on.`
+    } else {
+      hint = ` This server is on ${locals.join(", ") || "no LAN address"}, which is a different network from ${ip} - it has no route to the device. Sync has to run from a machine on the device's LAN, or from a host with a VPN subnet route into it.`
+    }
+    return `No response from ${ip}:${port} within ${Math.round(timeoutMs / 1000)}s - the connection was not refused, nothing answered at all.${hint}`
+  }
+  if (code === "ECONNREFUSED") {
+    return `${ip}:${port} refused the connection - the host is reachable but nothing is listening on that port.`
+  }
+  if (code === "EHOSTUNREACH" || code === "ENETUNREACH") {
+    return `No route to ${ip}:${port} from this server (${localIPv4s().join(", ") || "no LAN address"}).`
+  }
+  if (code === "ETIMEDOUT") {
+    return `Timed out connecting to ${ip}:${port}.`
+  }
+  return `${ip}:${port}: ${raw}`
+}
+
 /**
  * Makes an authenticated request to a Hikvision device using HTTP Digest Auth.
  * Performs the standard two-request flow (challenge → authenticated request).
@@ -122,22 +204,34 @@ async function hikvisionRequest(
 
   const bodyStr = body ? JSON.stringify(body) : undefined
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  // One timer PER round trip, not one shared across both.
+  //
+  // Digest auth is two requests, and a single AbortController started before the
+  // challenge meant they shared one budget: if the 401 probe took 6 of the 8
+  // seconds, the authenticated request - the one that actually does the work -
+  // got 2. On a slow device that produced a spurious "aborted" on a link that
+  // was working, and the timeout value no longer meant what it says.
+  const withTimeout = async <T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      return await fn(controller.signal)
+    } finally {
+      clearTimeout(timer)
+    }
+  }
 
-  try {
+  {
     // ── Step 1: probe - expect 401 with Digest challenge ──────────────────────
     let probe: Response
     try {
-      probe = await fetch(url, {
-        method,
-        headers,
-        body: bodyStr,
-        signal: controller.signal,
-      })
+      probe = await withTimeout((signal) => fetch(url, { method, headers, body: bodyStr, signal }))
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return { ok: false, status: 0, text: `Connection refused or unreachable: ${msg}` }
+      return {
+        ok: false,
+        status: 0,
+        text: describeFetchFailure(err, device.ipAddress, device.port, timeoutMs),
+      }
     }
 
     if (probe.status !== 401) {
@@ -157,21 +251,24 @@ async function hikvisionRequest(
     // ── Step 2: authenticated request ─────────────────────────────────────────
     let authRes: Response
     try {
-      authRes = await fetch(url, {
-        method,
-        headers: { ...headers, Authorization: authHeader },
-        body: bodyStr,
-        signal: controller.signal,
-      })
+      authRes = await withTimeout((signal) =>
+        fetch(url, {
+          method,
+          headers: { ...headers, Authorization: authHeader },
+          body: bodyStr,
+          signal,
+        }),
+      )
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return { ok: false, status: 0, text: `Auth request failed: ${msg}` }
+      return {
+        ok: false,
+        status: 0,
+        text: describeFetchFailure(err, device.ipAddress, device.port, timeoutMs),
+      }
     }
 
     const text = await authRes.text().catch(() => "")
     return { ok: authRes.ok, status: authRes.status, text }
-  } finally {
-    clearTimeout(timer)
   }
 }
 

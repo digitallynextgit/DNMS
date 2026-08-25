@@ -12,8 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { EmailTemplateForm } from "@/features/admin"
-import { usePermissions } from "@/features/admin"
+import { EmailTemplateForm } from "@/features/admin/components/email-template-form"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { formatDate, truncate } from "@/lib/utils"
 
@@ -192,6 +192,51 @@ export default function EmailTemplatesPage() {
           serialOffset={(page - 1) * PAGE_SIZE}
           loading={isLoading}
           skeletonRows={PAGE_SIZE}
+          // Phone card: name + active switch on top (the switch is the one
+          // control you reach for in a list), then slug/subject/trigger.
+          mobileCard={(template) => (
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{template.name}</p>
+                  <code className="bg-muted mt-1 inline-block rounded-[2px] px-1.5 py-0.5 font-mono text-[11px]">
+                    {template.slug}
+                  </code>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Switch
+                    checked={template.isActive}
+                    disabled={!canWrite || toggleActiveMutation.isPending}
+                    onCheckedChange={(checked) =>
+                      toggleActiveMutation.mutate({ id: template.id, isActive: checked })
+                    }
+                    aria-label={`Toggle ${template.name}`}
+                  />
+                  {canWrite && (
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => handleEdit(template)}
+                      aria-label={`Edit ${template.name}`}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <p className="text-muted-foreground text-xs">{truncate(template.subject, 60)}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {template.trigger && (
+                  <Badge variant="outline" className="font-mono text-[10px]">
+                    {template.trigger}
+                  </Badge>
+                )}
+                <span className="text-muted-foreground text-[11px]">
+                  Updated {formatDate(template.updatedAt)}
+                </span>
+              </div>
+            </div>
+          )}
           pagination={{
             page,
             totalPages,

@@ -6,9 +6,7 @@ import { ChevronDown, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { FAQS } from "../../marketing.constants"
 import { Reveal } from "../fx"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 /** Accordion of frequently-asked questions. One item open at a time. */
 export function Faq() {

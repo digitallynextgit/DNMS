@@ -31,9 +31,15 @@ import {
   useDeletePayrollRecord,
   type PayrollRecord,
 } from "@/features/payroll"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { cn } from "@/lib/utils"
-import { MONTHS, PAYROLL_STATUS_COLORS, PAYROLL_STATUS_LABELS, PERMISSIONS } from "@/lib/constants"
+import {
+  MONTHS,
+  PAYROLL_STATUS_COLORS,
+  PAYROLL_STATUS_LABELS,
+  PERMISSIONS,
+  TONE,
+} from "@/lib/constants"
 
 function fmt(amount: number): string {
   return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
@@ -313,7 +319,7 @@ export default function PayrollPage() {
           statuses are fixed); only the counts are placeheld. */}
       <div className="flex flex-wrap gap-2">
         {Object.entries(statusBreakdown).map(([s, statusCount]) => {
-          const color = PAYROLL_STATUS_COLORS[s] ?? "bg-gray-100 text-gray-700"
+          const color = PAYROLL_STATUS_COLORS[s] ?? TONE.neutral
           const label = PAYROLL_STATUS_LABELS[s] ?? s
           return (
             <span

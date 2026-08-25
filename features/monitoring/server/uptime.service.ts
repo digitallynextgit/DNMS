@@ -111,36 +111,54 @@ export async function runUptimeSweep(): Promise<SweepSummary> {
     monitors.map(async (m) => ({ monitor: m, result: await probe(m.url) })),
   )
 
-  for (const { monitor, result } of results) {
+  // The probes were already parallel, but everything after them was not: one
+  // UPDATE and one findFirst per monitor, serialized. Both are now done for the
+  // whole sweep up front - one batched write and one keyed read - leaving only
+  // the incident/notification work, which genuinely differs per monitor, in the
+  // loop.
+  const computed = results.map(({ monitor, result }) => {
+    const failures = result.ok ? 0 : monitor.consecutiveFailures + 1
+    const successes = result.ok ? monitor.consecutiveSuccesses + 1 : 0
+    let nextState = monitor.state
+    if (!result.ok && failures >= FAILURES_TO_OPEN) nextState = "DOWN"
+    else if (result.ok && successes >= SUCCESSES_TO_CLOSE) nextState = "UP"
+    return { monitor, result, failures, successes, nextState }
+  })
+
+  const checkedAt = new Date()
+  await db.$transaction(
+    computed.map((c) =>
+      db.uptimeMonitor.update({
+        where: { id: c.monitor.id },
+        data: {
+          state: c.nextState,
+          lastCheckedAt: checkedAt,
+          lastStatusCode: c.result.statusCode ?? null,
+          lastError: c.result.error ?? null,
+          consecutiveFailures: c.failures,
+          consecutiveSuccesses: c.successes,
+        },
+      }),
+    ),
+  )
+
+  // startedAt desc + first-wins reproduces the per-monitor findFirst exactly.
+  const openIncidents = await db.uptimeIncident.findMany({
+    where: { monitorId: { in: computed.map((c) => c.monitor.id) }, endedAt: null },
+    orderBy: { startedAt: "desc" },
+  })
+  const openByMonitor = new Map<string, (typeof openIncidents)[number]>()
+  for (const inc of openIncidents)
+    if (!openByMonitor.has(inc.monitorId)) openByMonitor.set(inc.monitorId, inc)
+
+  for (const { monitor, result, nextState } of computed) {
     summary.checked++
     if (result.ok) summary.up++
     else summary.down++
 
-    const failures = result.ok ? 0 : monitor.consecutiveFailures + 1
-    const successes = result.ok ? monitor.consecutiveSuccesses + 1 : 0
     const name = monitor.label || monitor.url
     const monitorLink = projectMonitoringLink(monitor.project.slug, monitor.projectId)
-
-    let nextState = monitor.state
-    if (!result.ok && failures >= FAILURES_TO_OPEN) nextState = "DOWN"
-    else if (result.ok && successes >= SUCCESSES_TO_CLOSE) nextState = "UP"
-
-    await db.uptimeMonitor.update({
-      where: { id: monitor.id },
-      data: {
-        state: nextState,
-        lastCheckedAt: new Date(),
-        lastStatusCode: result.statusCode ?? null,
-        lastError: result.error ?? null,
-        consecutiveFailures: failures,
-        consecutiveSuccesses: successes,
-      },
-    })
-
-    const openIncident = await db.uptimeIncident.findFirst({
-      where: { monitorId: monitor.id, endedAt: null },
-      orderBy: { startedAt: "desc" },
-    })
+    const openIncident = openByMonitor.get(monitor.id) ?? null
 
     // ── Went down ────────────────────────────────────────────────────────────
     if (nextState === "DOWN" && !openIncident) {

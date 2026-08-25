@@ -64,7 +64,8 @@ export function PortalTopbar({
                 variant="ghost"
                 size="icon-sm"
                 onClick={toggle}
-                className="text-muted-foreground hover:text-foreground"
+                // No rail to collapse on a phone - the tab bar is the nav there.
+                className="text-muted-foreground hover:text-foreground hidden md:inline-flex"
                 aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
                 {isCollapsed ? (

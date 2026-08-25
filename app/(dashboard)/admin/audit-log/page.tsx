@@ -221,7 +221,7 @@ export default function AuditLogPage() {
       <div className="bg-card border-border flex flex-wrap gap-3 rounded-[2px] border p-4">
         {/* Module filter */}
         <Select value={moduleFilter || ALL_MODULES_VALUE} onValueChange={handleModuleChange}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-full sm:w-40">
             <SelectValue placeholder="All modules" />
           </SelectTrigger>
           <SelectContent>
@@ -235,7 +235,7 @@ export default function AuditLogPage() {
         </Select>
 
         {/* Action search */}
-        <div className="relative min-w-[180px] flex-1">
+        <div className="relative w-full sm:min-w-[180px] sm:flex-1">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
           <Input
             placeholder="Filter by action…"
@@ -254,7 +254,7 @@ export default function AuditLogPage() {
             setDateFrom(e.target.value)
             setPage(1)
           }}
-          className="w-40"
+          className="w-full sm:w-40"
           aria-label="Date from"
         />
 
@@ -266,7 +266,7 @@ export default function AuditLogPage() {
             setDateTo(e.target.value)
             setPage(1)
           }}
-          className="w-40"
+          className="w-full sm:w-40"
           aria-label="Date to"
         />
 
@@ -300,6 +300,39 @@ export default function AuditLogPage() {
           serialOffset={(pagination.page - 1) * pagination.limit}
           loading={loading}
           skeletonRows={10}
+          // Phone card reads as a log entry: action + module on top, then who did
+          // it, then the timestamp / entity / IP as one muted forensic line.
+          mobileCard={(entry) => (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={actionBadgeVariant(entry.action)}>{entry.action}</Badge>
+                <span className="text-muted-foreground bg-muted rounded-[2px] px-2 py-0.5 text-xs font-medium">
+                  {entry.module}
+                </span>
+              </div>
+              {entry.actor ? (
+                <p className="text-sm font-medium">
+                  {entry.actor.firstName} {entry.actor.lastName}
+                  <span className="text-muted-foreground ml-1.5 font-mono text-[11px]">
+                    {entry.actor.employeeNo}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-muted-foreground text-sm italic">System</p>
+              )}
+              <p className="text-muted-foreground text-[11px]">
+                {format(new Date(entry.createdAt), "dd/MM/yyyy HH:mm:ss")}
+                {entry.entityType && (
+                  <>
+                    {" · "}
+                    {entry.entityType}
+                    {entry.entityId && ` ${entry.entityId.slice(0, 8)}…`}
+                  </>
+                )}
+                {entry.ipAddress && <> · {entry.ipAddress}</>}
+              </p>
+            </div>
+          )}
           pagination={{
             page: pagination.page,
             totalPages: pagination.totalPages,

@@ -64,7 +64,7 @@ export const PATCH = withSession(
         startDate,
         dueDate,
         estimatedHours,
-        loggedHours,
+        // loggedHours is deliberately NOT destructured - see API-04 below.
         tags,
         links,
         isMilestone,
@@ -233,15 +233,13 @@ export const PATCH = withSession(
           data.estimatedHours = n
         }
       }
-      // loggedHours is system-measured from inProgressSince; accept it only when
-      // it is a valid number and never crash the update on bad input.
-      if (loggedHours !== undefined) {
-        const n = Number(loggedHours)
-        if (!Number.isFinite(n) || n < 0) {
-          return NextResponse.json({ error: "loggedHours must be a number" }, { status: 422 })
-        }
-        data.loggedHours = n
-      }
+      // loggedHours is NOT client-writable (API-04). It is measured by the
+      // server from inProgressSince above (:179), and it feeds the performance
+      // page, progress buckets and over-budget reminders - so accepting it from
+      // the request body let anyone set their own "time spent" to whatever they
+      // liked, and worse, silently overwrote the value just measured on this
+      // very request. No client sends it; every UI reads it. Ignored, not 422'd,
+      // so an older client that still posts the field keeps working.
       if (tags !== undefined) data.tags = tags
       if (links !== undefined) {
         // Only http(s), and only what parses. A cell where anyone can type is a

@@ -4,6 +4,7 @@ import { withAuth } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotifications } from "@/lib/notifications"
+import { computePayslip } from "@/features/payroll/payroll"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import type { Prisma } from "@prisma/client"
 import type { Session } from "next-auth"
@@ -332,25 +333,26 @@ export const POST = withAuth(
           const otherAllowances = Math.round(ss.otherAllowances * ratio * 100) / 100
           const overtime = 0
 
-          const grossSalary =
-            basicSalary +
-            hra +
-            conveyance +
-            medicalAllowance +
-            telephoneAllowance +
-            otherAllowances +
-            overtime
-
-          // Company has < 20 employees → no statutory deductions; salary is fully
-          // in-hand. Net = Gross (LWP/absences already reduced gross via proration).
-          const pfEmployee = 0
-          const pfEmployer = 0
-          const esi = 0
-          const tds = 0
           const otherDeductions = 0
 
-          const totalDeductions = pfEmployee + esi + tds + otherDeductions
-          const netSalary = Math.max(0, grossSalary - totalDeductions)
+          // Shared with the PATCH editor - see computePayslip (DUP-01). The two
+          // formulas used to be written out separately here and there, and they
+          // disagreed. Statutory deductions are zeroed inside computePayslip via
+          // STATUTORY_DEDUCTIONS_ENABLED (company is under the 20-employee
+          // threshold; LWP/absences already reduced gross via proration).
+          const { grossSalary, pfEmployee, pfEmployer, esi, tds, totalDeductions, netSalary } =
+            computePayslip(
+              {
+                basicSalary,
+                hra,
+                conveyance,
+                medicalAllowance,
+                telephoneAllowance,
+                otherAllowances,
+                overtime,
+              },
+              otherDeductions,
+            )
 
           rowsToCreate.push({
             employeeId: employee.id,

@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { usePayrollRecord, PayslipDocument, PayslipSkeleton } from "@/features/payroll"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS, PAYROLL_STATUS_LABELS, PAYROLL_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 
@@ -25,6 +25,26 @@ const NEXT_STATUS: Record<string, string | null> = {
   PAID: null,
 }
 const inr = (n: number) => `₹${(n ?? 0).toLocaleString("en-IN")}`
+
+// Module scope, NOT inside PayrollRecordPage. Declared in the component body,
+// these got a brand-new function identity on every render, so React treated
+// each of the 16 rows as a different component type and unmounted + remounted
+// the whole payslip breakdown on every state change. Neither closes over
+// anything - they are pure prop renderers.
+const Row = ({ label, value, bold }: { label: string; value: string; bold?: boolean }) => (
+  <div className={cn("flex justify-between py-1.5 text-sm", bold && "border-t font-semibold")}>
+    <span className={cn(!bold && "text-muted-foreground")}>{label}</span>
+    <span>{value}</span>
+  </div>
+)
+
+/** A label/value line, placeheld - same 1.5-unit row rhythm as <Row>. */
+const RowSkeleton = ({ bold }: { bold?: boolean }) => (
+  <div className={cn("flex justify-between py-1.5", bold && "border-t")}>
+    <Skeleton className="my-0.5 h-4 w-32" />
+    <Skeleton className="my-0.5 h-4 w-16" />
+  </div>
+)
 
 export default function PayrollRecordPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -75,20 +95,6 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
     ? new Date(r.year, r.month - 1).toLocaleString("default", { month: "long" })
     : null
   const next = r ? NEXT_STATUS[r.status] : null
-  const Row = ({ label, value, bold }: { label: string; value: string; bold?: boolean }) => (
-    <div className={cn("flex justify-between py-1.5 text-sm", bold && "border-t font-semibold")}>
-      <span className={cn(!bold && "text-muted-foreground")}>{label}</span>
-      <span>{value}</span>
-    </div>
-  )
-  /** A label/value line, placeheld - same 1.5-unit row rhythm as <Row>. */
-  const RowSkeleton = ({ bold }: { bold?: boolean }) => (
-    <div className={cn("flex justify-between py-1.5", bold && "border-t")}>
-      <Skeleton className="my-0.5 h-4 w-32" />
-      <Skeleton className="my-0.5 h-4 w-16" />
-    </div>
-  )
-
   return (
     <div className="space-y-6">
       <PageHeader

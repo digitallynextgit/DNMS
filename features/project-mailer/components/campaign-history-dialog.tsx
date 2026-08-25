@@ -132,7 +132,7 @@ export function CampaignHistoryDialog({
 
   return (
     <Dialog open={!!campaign} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[88vh] max-w-3xl flex-col lg:max-w-3xl">
+      <DialogContent className="flex max-w-3xl flex-col lg:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="text-sm">{campaign?.name}</DialogTitle>
           <DialogDescription className="text-xs">{campaign?.subject}</DialogDescription>

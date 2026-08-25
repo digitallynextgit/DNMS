@@ -48,7 +48,9 @@ export const metadata: Metadata = {
     title: siteConfig.defaultTitle,
     description: siteConfig.description,
   },
-  icons: { icon: "/favicon.ico", shortcut: "/favicon.ico", apple: "/brand-mark.png" },
+  // apple-touch-icon is a 180x180 derivative, not the 2505x2200 / 729 KB master:
+  // iOS downloads this whole file just to draw a home-screen icon.
+  icons: { icon: "/favicon.ico", shortcut: "/favicon.ico", apple: "/apple-touch-icon.png" },
   alternates: { canonical: "/" },
 }
 

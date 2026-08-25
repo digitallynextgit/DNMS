@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS, JOB_STATUS_LABELS, JOB_STATUS_COLORS } from "@/lib/constants"
 import { cn, formatDate } from "@/lib/utils"
 import { apiFetch } from "@/lib/api-fetch"
@@ -118,8 +118,10 @@ export default function RecruitmentPage() {
     queryFn: () => fetchJobs(statusFilter || undefined),
   })
   const { data: deptsData } = useQuery({ queryKey: ["departments"], queryFn: fetchDepts })
-  const jobs = jobsData?.data ?? []
-  const depts = deptsData?.data ?? []
+  // useMemo, not a bare `?? []`: the fallback minted a new array identity on
+  // every render, so every downstream useMemo keyed on these re-ran regardless.
+  const jobs = useMemo(() => jobsData?.data ?? [], [jobsData])
+  const depts = useMemo(() => deptsData?.data ?? [], [deptsData])
 
   // Client-side pagination of the postings grid. Stats below stay computed from
   // the full `jobs` list so the counts remain accurate across all pages.
@@ -190,10 +192,15 @@ export default function RecruitmentPage() {
   const [deptJobsLabel, setDeptJobsLabel] = useState("")
   const [deptSaving, setDeptSaving] = useState(false)
 
+  // Deps are the department IDENTITY only. With careersTone/careersJobsLabel in
+  // here as well, a background refetch that returned updated values re-ran this
+  // and silently discarded the edits the user had not saved yet. Switching
+  // department is the only thing that should reload these fields.
   useEffect(() => {
     setDeptTone(selectedDept?.careersTone ?? "")
     setDeptJobsLabel(selectedDept?.careersJobsLabel ?? "")
-  }, [selectedDept?.id, selectedDept?.careersTone, selectedDept?.careersJobsLabel])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDept?.id])
 
   const [aiGenerating, setAiGenerating] = useState(false)
 

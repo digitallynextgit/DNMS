@@ -1,6 +1,16 @@
 "use client"
 
+import { useState } from "react"
 import { Check } from "lucide-react"
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
 import { MonthNav } from "@/components/shared/month-nav"
 import { CalendarLegend, type CalendarLegendItem } from "@/components/shared/calendar-legend"
 import { cn } from "@/lib/utils"
@@ -44,6 +54,14 @@ export function HolidayMonthCalendar({
   birthdays,
   className,
 }: Props) {
+  // Tapping a day opens its detail: the phone cell has no room for the name.
+  const [selected, setSelected] = useState<{
+    date: string
+    holiday?: CalendarHoliday
+    birthdays?: string[]
+    approved: boolean
+  } | null>(null)
+
   const holidayByDay = new Map(holidays.map((h) => [h.date.slice(0, 10), h]))
 
   const birthdaysByDay = new Map<string, string[]>()
@@ -68,10 +86,13 @@ export function HolidayMonthCalendar({
     <div className={cn("space-y-4", className)}>
       <MonthNav year={year} month={month} onPrev={onPrevMonth} onNext={onNextMonth} />
 
-      <div className="bg-card rounded-[2px] border p-4">
-        <div className="grid grid-cols-7 gap-1">
+      <div className="bg-card rounded-[2px] border p-2 sm:p-4">
+        <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
           {WEEKDAYS.map((w) => (
-            <div key={w} className="text-muted-foreground py-1 text-center text-xs font-medium">
+            <div
+              key={w}
+              className="text-muted-foreground py-1 text-center text-[10px] font-medium sm:text-xs"
+            >
               {w}
             </div>
           ))}
@@ -97,8 +118,17 @@ export function HolidayMonthCalendar({
             const approved = !!h && h.isOptional && !!approvedFloatingIds?.has(h.id)
 
             return (
-              <div
+              <button
+                type="button"
                 key={day}
+                onClick={() =>
+                  setSelected({
+                    date: dateStr,
+                    holiday: h,
+                    birthdays: bdayNames,
+                    approved,
+                  })
+                }
                 title={
                   isBirthday
                     ? `Birthday: ${bdayNames!.join(", ")}`
@@ -107,7 +137,10 @@ export function HolidayMonthCalendar({
                       : undefined
                 }
                 className={cn(
-                  "flex min-h-19 flex-col rounded-[2px] p-1.5 text-left",
+                  // Phone cells are ~33px wide, too narrow for a holiday name -
+                  // they carry the colour + day number, with the name in the
+                  // title tooltip; the label returns from `sm` up.
+                  "flex aspect-square w-full flex-col items-center justify-center rounded-[2px] p-1 text-center transition-shadow hover:ring-2 hover:ring-inset focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset sm:aspect-auto sm:min-h-19 sm:items-stretch sm:justify-start sm:p-1.5 sm:text-left",
                   isBirthday
                     ? "bg-rose-100 text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200"
                     : h
@@ -124,14 +157,68 @@ export function HolidayMonthCalendar({
                   {approved && <Check className="h-3 w-3" />}
                 </span>
                 {(isBirthday || h) && (
-                  <span className="mt-auto line-clamp-2 text-[10px] leading-tight font-medium">
+                  <span className="mt-auto line-clamp-2 hidden text-[10px] leading-tight font-medium sm:inline">
                     {isBirthday ? bdayLabel : h?.name}
                   </span>
                 )}
-              </div>
+              </button>
             )
           })}
         </div>
+
+        {/* Day detail - the phone cell shows only a coloured number, so the
+            holiday name and its kind live one tap away. */}
+        <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-sm">
+                {selected
+                  ? new Date(`${selected.date}T00:00:00Z`).toLocaleDateString("en-GB", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                      timeZone: "UTC",
+                    })
+                  : ""}
+              </DialogTitle>
+              {selected && !selected.holiday && !selected.birthdays?.length && (
+                <DialogDescription className="text-xs">
+                  No holiday or birthday on this day.
+                </DialogDescription>
+              )}
+            </DialogHeader>
+
+            {selected && (selected.holiday || selected.birthdays?.length) && (
+              <div className="space-y-3">
+                {selected.holiday && (
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-medium">{selected.holiday.name}</p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant="outline">
+                        {selected.holiday.isOptional ? "Floating holiday" : "Public holiday"}
+                      </Badge>
+                      {selected.approved && (
+                        <Badge variant="secondary" className="gap-1">
+                          <Check className="h-3 w-3" />
+                          Approved for you
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {!!selected.birthdays?.length && (
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground text-[10px] tracking-wide uppercase">
+                      Birthday
+                    </p>
+                    <p className="text-sm">🎂 {selected.birthdays.join(", ")}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <CalendarLegend items={legend}>
           {approvedFloatingIds && (

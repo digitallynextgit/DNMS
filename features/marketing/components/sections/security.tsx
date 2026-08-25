@@ -2,9 +2,7 @@ import { Check, Sparkles } from "lucide-react"
 
 import { MODULES, SECURITY_POINTS } from "../../marketing.constants"
 import { GridBackdrop, Reveal } from "../fx"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 const governance = MODULES.find((x) => x.name === "Governance & Control")!
 

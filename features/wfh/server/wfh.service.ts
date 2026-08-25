@@ -464,20 +464,34 @@ export async function applyWfh(body: {
     })
     if (duplicate) return fail("You already have a WFH request for this date.")
 
-    const request = await db.wfhRequest.create({
-      data: {
-        employeeId: session.user.id,
-        date: wfhDate,
-        reason: reason ? String(reason).trim() : null,
-        status: "PENDING",
-        isEmergency: !!isEmergency,
-      },
-      include: {
-        employee: {
-          select: EMPLOYEE_SUMMARY_SELECT,
+    // The `duplicate` check above is a friendly pre-check, not a guarantee: two
+    // concurrent submissions both pass it. The partial unique index
+    // `wfh_requests_employee_id_date_active_key` (PENDING/APPROVED only, so
+    // re-applying after a rejection still works) is what actually enforces it,
+    // and P2002 is that race surfacing - report it as the same user-facing
+    // message rather than a 500.
+    let request
+    try {
+      request = await db.wfhRequest.create({
+        data: {
+          employeeId: session.user.id,
+          date: wfhDate,
+          reason: reason ? String(reason).trim() : null,
+          status: "PENDING",
+          isEmergency: !!isEmergency,
         },
-      },
-    })
+        include: {
+          employee: {
+            select: EMPLOYEE_SUMMARY_SELECT,
+          },
+        },
+      })
+    } catch (e) {
+      if ((e as { code?: string }).code === "P2002") {
+        return fail("You already have a WFH request for this date.")
+      }
+      throw e
+    }
 
     // Route to the employee's manager (advisory) + HR (final), like leave.
     await notifyApprovers({
@@ -525,7 +539,16 @@ export async function updateWfhRequest(
     if (action === "CANCEL") {
       if (request.employeeId !== session.user.id)
         return fail("You can only cancel your own WFH requests")
-      const updated = await db.wfhRequest.update({ where: { id }, data: { status: "CANCELLED" } })
+      // Claim the row the same way APPROVE/REJECT do: the status check above is
+      // a read from before this write, so a cancel racing an approval would
+      // otherwise silently overwrite the decision. Re-asserting PENDING in the
+      // WHERE makes the loser a no-op we can report.
+      const claimed = await db.wfhRequest.updateMany({
+        where: { id, status: "PENDING" },
+        data: { status: "CANCELLED" },
+      })
+      if (claimed.count === 0) return fail("This request has already been decided.")
+      const updated = await db.wfhRequest.findUnique({ where: { id } })
       return ok(serialize({ data: updated }))
     }
 

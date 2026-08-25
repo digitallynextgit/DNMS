@@ -9,9 +9,7 @@ import {
 } from "lucide-react"
 
 import { BorderBeam, DotBackdrop, Reveal } from "../fx"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 interface NodeSpec {
   icon: LucideIcon
@@ -33,59 +31,73 @@ const NODES: NodeSpec[] = [
 /** Central hub + connecting lines + module chips, all built in divs/SVG. */
 function ConnectedNodes() {
   return (
-    <div className="relative mx-auto mt-20 h-[22rem] w-full max-w-[1400px] sm:h-[28rem]">
-      {/* Subtle tech texture */}
-      <DotBackdrop className="opacity-60" />
+    <div className="relative mx-auto mt-14 h-[18rem] w-full max-w-[1400px] sm:mt-20 sm:h-[28rem]">
+      {/* Below sm the whole diagram scales down uniformly so the pills never
+          overflow, while the connector lines + pills stay perfectly aligned. */}
+      <div className="absolute inset-0 origin-center scale-[0.68] sm:scale-100">
+        {/* Subtle tech texture */}
+        <DotBackdrop className="opacity-60" />
 
-      {/* Dotted connector lines that flow continuously (seamless loop). NO
+        {/* Dotted connector lines that flow continuously (seamless loop). NO
           viewBox → percentage coords resolve to real pixels, so the dotted
           pattern stays uniform and the offset loop never jumps. x/y percentages
           match each pill's left%/top%. */}
-      <svg aria-hidden className="text-muted-foreground/60 absolute inset-0 h-full w-full">
-        {NODES.map((n) => (
-          <line
-            key={n.label}
-            x1="50%"
-            y1="50%"
-            x2={`${n.x}%`}
-            y2={`${n.y}%`}
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeDasharray="10 8"
-            strokeLinecap="round"
-            className="animate-dnms-line"
+        <svg aria-hidden className="text-muted-foreground/60 absolute inset-0 h-full w-full">
+          {NODES.map((n) => (
+            <line
+              key={n.label}
+              x1="50%"
+              y1="50%"
+              x2={`${n.x}%`}
+              y2={`${n.y}%`}
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeDasharray="10 8"
+              strokeLinecap="round"
+              className="animate-dnms-line"
+            />
+          ))}
+        </svg>
+
+        {/* Central DNMS hub - logo mark + moving gradient beam + a soft radar pulse. */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+          <span
+            aria-hidden
+            className="border-primary/25 animate-dnms-pulse-ring absolute inset-0 rounded-[6px] border"
           />
-        ))}
-      </svg>
-
-      {/* Central DNMS hub - logo mark + moving gradient beam + a soft radar pulse. */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-        <span
-          aria-hidden
-          className="border-primary/25 animate-dnms-pulse-ring absolute inset-0 rounded-[6px] border"
-        />
-        <div className="border-border bg-card relative flex h-28 w-28 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[6px] border shadow-2xl">
-          <BorderBeam />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand-mark.png" alt="DNMS" className="h-9 w-9 object-contain" />
-          <span className="text-sm font-bold">DNMS</span>
+          <div className="border-border bg-card relative flex h-28 w-28 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[6px] border shadow-2xl">
+            <BorderBeam />
+            {/* 72px source for a 36px slot (2x retina) - the full-size
+                brand-mark.png is 2505x2200 / 729 KB on a public landing page. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand-mark-72.png"
+              alt="DNMS"
+              width={36}
+              height={36}
+              loading="lazy"
+              decoding="async"
+              className="h-9 w-9 object-contain"
+            />
+            <span className="text-sm font-bold">DNMS</span>
+          </div>
         </div>
-      </div>
 
-      {/* Module chips - centered on their line's end point (static, so they stay
+        {/* Module chips - centered on their line's end point (static, so they stay
           connected to the line). */}
-      {NODES.map((n) => (
-        <div
-          key={n.label}
-          style={{ left: `${n.x}%`, top: `${n.y}%` }}
-          className="border-border bg-card hover:border-primary/50 absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium whitespace-nowrap shadow-md transition-colors"
-        >
-          <span className="bg-primary/10 text-primary flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
-            <n.icon className="h-3.5 w-3.5" />
-          </span>
-          {n.label}
-        </div>
-      ))}
+        {NODES.map((n) => (
+          <div
+            key={n.label}
+            style={{ left: `${n.x}%`, top: `${n.y}%` }}
+            className="border-border bg-card hover:border-primary/50 absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium whitespace-nowrap shadow-md transition-colors"
+          >
+            <span className="bg-primary/10 text-primary flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
+              <n.icon className="h-3.5 w-3.5" />
+            </span>
+            {n.label}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

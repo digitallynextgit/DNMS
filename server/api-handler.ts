@@ -94,13 +94,25 @@ async function normalize(res: Response): Promise<Response> {
   if (!contentType.includes("application/json")) return res
 
   const status = res.status
+
+  // Read the body ONCE.
+  //
+  // This was `await res.clone().json()`, which tees the stream and buffers the
+  // entire payload a SECOND time - on every response from all 283 routes,
+  // including the large list endpoints. Reading text once and parsing it costs
+  // one buffer, and the two pass-through branches below can then hand back the
+  // original string instead of re-serialising the parsed object graph.
+  const text = await res.text()
+  const passThrough = () =>
+    new NextResponse(text, { status, headers: res.headers, statusText: res.statusText })
+
   let body: unknown
   try {
-    body = await res.clone().json()
+    body = JSON.parse(text)
   } catch {
-    return res
+    return passThrough()
   }
-  if (body && typeof body === "object" && "success" in body) return res // already standard
+  if (body && typeof body === "object" && "success" in body) return passThrough() // already standard
 
   if (status >= 400) {
     const b = (body ?? {}) as Record<string, unknown>
@@ -123,7 +135,6 @@ async function normalize(res: Response): Promise<Response> {
   return NextResponse.json({ success: true, ...(body as Record<string, unknown>) }, { status })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AuthedHandler = (
   req: NextRequest,
   context: { params: any },

@@ -3,7 +3,7 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
-import { computeStatutoryDeductions } from "@/features/payroll/payroll"
+import { computePayslip } from "@/features/payroll/payroll"
 import { createNotification } from "@/lib/notifications"
 import { addEmailJob } from "@/lib/queue"
 import type { Session } from "next-auth"
@@ -109,29 +109,23 @@ export const PATCH = withAuth(
           body.otherDeductions !== undefined
             ? Math.max(0, Number(body.otherDeductions))
             : existing.otherDeductions
-        const grossSalary =
-          existing.basicSalary +
-          existing.hra +
-          existing.conveyance +
-          existing.medicalAllowance +
-          existing.otherAllowances +
-          overtime
-        const { pfEmployee, pfEmployer, esi, tds } = computeStatutoryDeductions({
-          basic: existing.basicSalary,
-          gross: grossSalary,
-        })
-        const totalDeductions = pfEmployee + esi + tds + otherDeductions
-        Object.assign(updateData, {
-          overtime,
+        // Same formula the generator uses - see computePayslip (DUP-01). This
+        // path previously omitted telephoneAllowance from gross AND applied
+        // statutory deductions the generator zeroes, so simply editing overtime
+        // changed the payslip's total.
+        const totals = computePayslip(
+          {
+            basicSalary: existing.basicSalary,
+            hra: existing.hra,
+            conveyance: existing.conveyance,
+            medicalAllowance: existing.medicalAllowance,
+            telephoneAllowance: existing.telephoneAllowance,
+            otherAllowances: existing.otherAllowances,
+            overtime,
+          },
           otherDeductions,
-          grossSalary,
-          pfEmployee,
-          pfEmployer,
-          esi,
-          tds,
-          totalDeductions,
-          netSalary: Math.max(0, grossSalary - totalDeductions),
-        })
+        )
+        Object.assign(updateData, { overtime, otherDeductions, ...totals })
       }
 
       if (status) {

@@ -78,6 +78,7 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
                   variant="ghost"
                   size="icon-sm"
                   className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                  aria-label="More actions"
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" />
                   <span className="sr-only">Actions</span>

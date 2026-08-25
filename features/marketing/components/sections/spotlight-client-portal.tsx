@@ -16,11 +16,9 @@ import {
 import { cn } from "@/lib/utils"
 import { MODULES } from "../../marketing.constants"
 import { SpotlightSection } from "../spotlight-section"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 const m = MODULES.find((x) => x.name === "Client Portal")!
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
 
 type ViewKey = "products" | "channels" | "inventory" | "campaigns" | "activity"
 

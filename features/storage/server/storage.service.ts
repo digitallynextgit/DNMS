@@ -77,22 +77,23 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
 
   const bucket = await bucketNameFor(accountId)
 
-  // Bucket contents + every DB row that owns an object, in parallel.
-  const [
-    objects,
-    photos,
-    docs,
-    empDocs,
-    brandAssets,
-    resources,
-    projectLogos,
-    galleryPhotos,
-    mailerImages,
-    chatAttachments,
-    messageAttachments,
-    applicants,
-  ] = await Promise.all([
-    listAllObjects(accountId),
+  // Bucket contents + every DB row that owns an object.
+  //
+  // These reads are deliberately UNBOUNDED and must stay that way: the map they
+  // build is what marks an object "orphaned", and a row this misses becomes a
+  // live file that "Clean up orphans" deletes. So the fix for pool pressure is
+  // to bound CONCURRENCY, not rows.
+  //
+  // They used to run as one 12-wide Promise.all against a 10-connection pool
+  // (server/db.ts) with a 5s connectionTimeoutMillis - i.e. this single admin
+  // page could exhaust every connection and time out UNRELATED requests
+  // app-wide while it ran. Now at most 3 DB queries are in flight at once.
+  //
+  // listAllObjects is a B2 HTTP call, not a DB query, so it holds no connection
+  // and is started first to overlap with all of them.
+  const objectsPromise = listAllObjects(accountId)
+
+  const [photos, docs, empDocs] = await Promise.all([
     db.employee.findMany({
       where: { profilePhotoKey: { not: null } },
       select: { profilePhotoKey: true, firstName: true, lastName: true },
@@ -111,6 +112,9 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
         employee: { select: { firstName: true, lastName: true } },
       },
     }),
+  ])
+
+  const [brandAssets, resources, projectLogos] = await Promise.all([
     db.brandAsset.findMany({
       select: { objectKey: true, fileName: true, project: { select: { name: true } } },
     }),
@@ -124,6 +128,9 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
       where: { logoKey: { not: null } },
       select: { logoKey: true, name: true },
     }),
+  ])
+
+  const [galleryPhotos, mailerImages, chatAttachments] = await Promise.all([
     // Gallery photos and campaign images are owned rows too. Without these they
     // read as orphaned, and 'Clean up orphans' would cheerfully delete every
     // team photo and every image already embedded in a sent campaign.
@@ -144,6 +151,9 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
         message: { select: { sender: { select: { firstName: true, lastName: true } } } },
       },
     }),
+  ])
+
+  const [messageAttachments, applicants, objects] = await Promise.all([
     db.projectMessageAttachment.findMany({
       select: {
         objectKey: true,
@@ -151,12 +161,14 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
         reply: { select: { message: { select: { project: { select: { name: true } } } } } },
       },
     }),
-    // Applicant CVs. The row stores a signed URL rather than the key, so these
-    // are matched by substring below - same leak, same consequence.
+    // Applicant CVs. resumeKey is the object key (exact match); resumeUrl is
+    // kept for rows uploaded before that column existed, which are still matched
+    // by substring below.
     db.applicant.findMany({
-      where: { resumeUrl: { not: null } },
-      select: { resumeUrl: true, firstName: true, lastName: true },
+      where: { OR: [{ resumeKey: { not: null } }, { resumeUrl: { not: null } }] },
+      select: { resumeKey: true, resumeUrl: true, firstName: true, lastName: true },
     }),
+    objectsPromise,
   ])
 
   // key -> { owner, refType, name } for every referenced object.
@@ -229,16 +241,17 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
       name: a.fileName,
     })
 
-  // Resumes are keyed by URL, not by object key, so they can't go in the loop
-  // above: match each CV against the resume objects actually in the bucket.
-  // Keys are sanitised to [a-z0-9-/.] by getObjectKey(), so they survive into
-  // the signed URL verbatim and a substring test is exact.
+  // Resumes now carry their object key on the row (API-07), so this is an exact
+  // match rather than the old `resumeUrl.includes(key)` scan over every bucket
+  // object. The URL fallback stays for rows uploaded before resumeKey existed -
+  // getting this wrong marks a live CV as an orphan and "Clean up orphans"
+  // deletes it.
   const resumeKeys = objects
     .map((o: StorageObject) => o.key)
     .filter((k: string) => k.startsWith("resumes/"))
   for (const a of applicants) {
-    if (!a.resumeUrl) continue
-    const key = resumeKeys.find((k: string) => a.resumeUrl!.includes(k))
+    const key =
+      a.resumeKey ?? (a.resumeUrl ? resumeKeys.find((k: string) => a.resumeUrl!.includes(k)) : null)
     if (key)
       refs.set(key, {
         owner: `${a.firstName} ${a.lastName}`.trim(),

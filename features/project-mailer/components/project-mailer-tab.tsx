@@ -1727,7 +1727,10 @@ function ComposeDialog({
       templateId: "",
       tags: [],
     })
-  }, [open, activeMailers])
+    // Deps are [open] ONLY. activeMailers is refetched every 5s, so including
+    // it re-ran this on every poll and wiped whatever was being typed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   // Choosing a template copies its content in rather than referencing it: the
   // campaign keeps what was actually sent, so editing the template later never

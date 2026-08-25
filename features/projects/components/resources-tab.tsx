@@ -255,7 +255,7 @@ function ResourceActions({
 
   return (
     <>
-      <Button variant="ghost" size="icon-sm" onClick={handleDownload}>
+      <Button variant="ghost" size="icon-sm" onClick={handleDownload} aria-label="Download">
         <Download className="h-3.5 w-3.5" />
       </Button>
       {canDelete && (

@@ -1,5 +1,14 @@
 "use client"
 
+/* eslint-disable react-hooks/static-components --
+ * False positive, file-wide. `const Icon = iconFor(file)` does not CREATE a
+ * component during render: iconFor() returns one of three module-level lucide
+ * components (FileSpreadsheet | FileText | File), so the reference is stable per
+ * file type and nothing ever remounts. The rule only sees a capitalised binding
+ * assigned inside a component body and cannot follow the lookup. Scoped to this
+ * file so a genuine violation elsewhere is still caught.
+ */
+
 /**
  * The send screen you get after picking files, the way every messenger does it:
  * see what you are about to send, caption it, add or drop items, then send.
@@ -306,6 +315,11 @@ export function AttachmentPreview({
 
 /** A document has nothing to show, so say what it IS rather than nothing at all. */
 function NoPreview({ file }: { file: File }) {
+  // Not a component created during render: iconFor() picks one of three
+  // module-level lucide components (FileSpreadsheet | FileText | File), so the
+  // reference is stable for a given file type and nothing remounts. The rule
+  // cannot see through the lookup and reads the capitalised binding as a fresh
+  // component.
   const Icon = iconFor(file)
   return (
     <div className="bg-card flex w-full max-w-sm flex-col items-center gap-3 rounded-sm px-6 py-12">
@@ -335,6 +349,11 @@ function Thumb({ file, url }: { file: File; url?: string }) {
       />
     )
   }
+  // Not a component created during render: iconFor() picks one of three
+  // module-level lucide components (FileSpreadsheet | FileText | File), so the
+  // reference is stable for a given file type and nothing remounts. The rule
+  // cannot see through the lookup and reads the capitalised binding as a fresh
+  // component.
   const Icon = iconFor(file)
   return <Icon className="text-muted-foreground h-5 w-5" />
 }

@@ -489,6 +489,7 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
             className="absolute right-2.5 bottom-2.5"
             onClick={handlePost}
             disabled={!text.trim() || add.isPending}
+            aria-label="Send"
           >
             <Send className="h-3 w-3" />
           </Button>

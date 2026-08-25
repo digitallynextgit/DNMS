@@ -5,6 +5,9 @@ import { createNotification } from "@/lib/notifications"
 import { openFirstStatusPeriod } from "@/features/projects/server/task-status-periods"
 import type { Session } from "next-auth"
 
+/** Most tasks returned for one project board. Reported via meta.truncated. */
+const PROJECT_TASK_LIMIT = 2000
+
 export const GET = withProjectAccess(
   async (req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
@@ -12,21 +15,31 @@ export const GET = withProjectAccess(
       const status = searchParams.get("status") ?? undefined
       const assigneeId = searchParams.get("assigneeId") ?? undefined
 
-      const tasks = await db.projectTask.findMany({
+      // Bounded, and the two @db.Text columns no list consumer reads are
+      // omitted - the board used to pull every task on the project with every
+      // wide column via `include`.
+      const rows = await db.projectTask.findMany({
         where: {
           projectId: ctx.params.id,
           ...(status && { status: status as never }),
           ...(assigneeId && { assigneeId }),
         },
         orderBy: [{ status: "asc" }, { priority: "desc" }, { createdAt: "desc" }],
+        take: PROJECT_TASK_LIMIT + 1,
+        omit: { holdReason: true, discardReason: true },
         include: {
           assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
           creator: { select: { id: true, firstName: true, lastName: true } },
           requirement: { select: { id: true, title: true, status: true } },
         },
       })
+      const truncated = rows.length > PROJECT_TASK_LIMIT
+      if (truncated) rows.length = PROJECT_TASK_LIMIT
 
-      return NextResponse.json({ data: tasks })
+      return NextResponse.json({
+        data: rows,
+        meta: { truncated, limit: PROJECT_TASK_LIMIT },
+      })
     } catch (error) {
       console.error("[PROJECT_TASKS_GET]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -50,32 +63,39 @@ export const POST = withProjectManager(
         tags,
       } = body
 
-      const task = await db.projectTask.create({
-        data: {
-          projectId: ctx.params.id,
-          title,
-          description: description || null,
-          status: (status ?? "TODO") as never,
-          priority: (priority ?? "MEDIUM") as never,
-          assigneeId: assigneeId ?? null,
-          creatorId: session.user.id,
-          startDate: startDate ? new Date(startDate) : null,
-          dueDate: dueDate ? new Date(dueDate) : null,
-          estimatedHours: estimatedHours ? parseFloat(estimatedHours) : null,
-          tags: tags ?? [],
-        },
-        include: {
-          assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
-          creator: { select: { id: true, firstName: true, lastName: true } },
-          requirement: { select: { id: true, title: true, status: true } },
-        },
-      })
+      // One transaction - see the same fix in app/api/tasks/route.ts. A task and
+      // its first status period must be created together or the "exactly one
+      // open period" invariant can be left broken with no repair path.
+      const task = await db.$transaction(async (tx) => {
+        const created = await tx.projectTask.create({
+          data: {
+            projectId: ctx.params.id,
+            title,
+            description: description || null,
+            status: (status ?? "TODO") as never,
+            priority: (priority ?? "MEDIUM") as never,
+            assigneeId: assigneeId ?? null,
+            creatorId: session.user.id,
+            startDate: startDate ? new Date(startDate) : null,
+            dueDate: dueDate ? new Date(dueDate) : null,
+            estimatedHours: estimatedHours ? parseFloat(estimatedHours) : null,
+            tags: tags ?? [],
+          },
+          include: {
+            assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
+            creator: { select: { id: true, firstName: true, lastName: true } },
+            requirement: { select: { id: true, title: true, status: true } },
+          },
+        })
 
-      await openFirstStatusPeriod(db, {
-        taskId: task.id,
-        status: task.status,
-        actorId: session.user.id,
-        at: task.createdAt,
+        await openFirstStatusPeriod(tx, {
+          taskId: created.id,
+          status: created.status,
+          actorId: session.user.id,
+          at: created.createdAt,
+        })
+
+        return created
       })
 
       // Notify assignee if assigned to someone other than the creator

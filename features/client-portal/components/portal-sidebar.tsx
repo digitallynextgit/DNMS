@@ -93,17 +93,15 @@ export function PortalSidebar({
           <Image
             src="/logo_white_bg.png"
             alt="Digitally Next"
-            width={4500}
-            height={1167}
-            priority
+            width={370}
+            height={96}
             className="h-10 w-auto max-w-none dark:hidden"
           />
           <Image
             src="/logo_dark_bg.webp"
             alt="Digitally Next"
-            width={4500}
-            height={1167}
-            priority
+            width={370}
+            height={96}
             className="hidden h-10 w-auto max-w-none dark:block"
           />
         </div>

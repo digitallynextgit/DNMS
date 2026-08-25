@@ -2,9 +2,7 @@ import { Check, Sparkles } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Reveal, SpotlightCard } from "./fx"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 // The punchy tail of each module headline, painted brand red like the hero &
 // bento titles. Keyed by the eyebrow, which is the module name each section passes.
@@ -79,8 +77,8 @@ export function SpotlightSection({
         tinted && "border-border/60 bg-muted/20 border-y",
       )}
     >
-      <div className="mx-auto grid max-w-[1600px] items-stretch gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:gap-16">
-        <Reveal className={cn(reverse && "lg:order-2")}>
+      <div className="mx-auto grid max-w-[1600px] grid-cols-1 items-stretch gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:gap-16">
+        <Reveal className={cn("min-w-0", reverse && "lg:order-2")}>
           {pill}
           <h2 className="mt-6 text-4xl font-bold tracking-tight text-pretty sm:text-5xl">
             {accentAt === -1 ? (
@@ -112,8 +110,8 @@ export function SpotlightSection({
             ))}
           </ul>
         </Reveal>
-        <Reveal delay={120} className={cn("h-full", reverse && "lg:order-1")}>
-          <div className="flex h-full flex-col">
+        <Reveal delay={120} className={cn("h-full min-w-0", reverse && "lg:order-1")}>
+          <div className="flex h-full min-w-0 flex-col">
             {/* Invisible pill-height spacer so the card's top lines up with the
                 TITLE (not the pill) on desktop. Hidden on mobile where it stacks. */}
             <div aria-hidden className="pointer-events-none hidden opacity-0 select-none lg:block">

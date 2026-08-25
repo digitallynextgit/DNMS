@@ -40,9 +40,10 @@ export function ViewToggle({
         role="tab"
         aria-selected={value === "card"}
         title="Card view"
+        aria-label="Card view"
         onClick={() => onChange("card")}
         className={cn(
-          "flex h-7 w-8 items-center justify-center rounded-[2px] transition-colors",
+          "flex h-8 w-9 items-center justify-center rounded-[2px] transition-colors",
           value === "card"
             ? "bg-muted text-foreground"
             : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
@@ -56,9 +57,10 @@ export function ViewToggle({
           role="tab"
           aria-selected={value === "table"}
           title="Table view"
+          aria-label="Table view"
           onClick={() => onChange("table")}
           className={cn(
-            "flex h-7 w-8 items-center justify-center rounded-[2px] transition-colors",
+            "flex h-8 w-9 items-center justify-center rounded-[2px] transition-colors",
             value === "table"
               ? "bg-muted text-foreground"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
@@ -73,9 +75,10 @@ export function ViewToggle({
           role="tab"
           aria-selected={value === "kanban"}
           title="Board view"
+          aria-label="Board view"
           onClick={() => onChange("kanban")}
           className={cn(
-            "flex h-7 w-8 items-center justify-center rounded-[2px] transition-colors",
+            "flex h-8 w-9 items-center justify-center rounded-[2px] transition-colors",
             value === "kanban"
               ? "bg-muted text-foreground"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
@@ -90,9 +93,10 @@ export function ViewToggle({
           role="tab"
           aria-selected={value === "sheet"}
           title="Sheet view"
+          aria-label="Sheet view"
           onClick={() => onChange("sheet")}
           className={cn(
-            "flex h-7 w-8 items-center justify-center rounded-[2px] transition-colors",
+            "flex h-8 w-9 items-center justify-center rounded-[2px] transition-colors",
             value === "sheet"
               ? "bg-muted text-foreground"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/50",

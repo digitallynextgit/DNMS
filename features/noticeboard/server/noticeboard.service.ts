@@ -70,7 +70,14 @@ export async function listAnnouncements(
       where.publishedAt = { gte: from, lt: to }
     }
 
-    const [items, all] = await Promise.all([
+    // The list is capped at 200, but the stats used to come from a SECOND,
+    // completely unbounded findMany over the same table - every announcement
+    // ever posted, streamed into Node purely to compute four numbers and a
+    // distinct category list. They are aggregates, so the database does them.
+    const visible = visibleWhere(canManage)
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000)
+
+    const [items, byCategory, total, newThisWeek, highPriority] = await Promise.all([
       db.announcement.findMany({
         where,
         select: ANNOUNCEMENT_SELECT,
@@ -79,23 +86,22 @@ export async function listAnnouncements(
         orderBy: [{ priority: "desc" }, { publishedAt: "desc" }],
         take: Math.min(opts.limit ?? 100, 200),
       }),
-      db.announcement.findMany({
-        where: visibleWhere(canManage),
-        select: { category: true, priority: true, publishedAt: true },
-      }),
+      db.announcement.groupBy({ by: ["category"], where: visible, _count: true }),
+      db.announcement.count({ where: visible }),
+      db.announcement.count({ where: { ...visible, publishedAt: { gte: weekAgo } } }),
+      db.announcement.count({ where: { ...visible, priority: "HIGH" } }),
     ])
 
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000)
     return ok(
       serialize({
         data: {
           items,
-          categories: [...new Set(all.map((a) => a.category))].sort(),
+          categories: byCategory.map((g) => g.category).sort(),
           stats: {
-            total: all.length,
-            newThisWeek: all.filter((a) => a.publishedAt >= weekAgo).length,
-            highPriority: all.filter((a) => a.priority === "HIGH").length,
-            categoriesActive: new Set(all.map((a) => a.category)).size,
+            total,
+            newThisWeek,
+            highPriority,
+            categoriesActive: byCategory.length,
           },
         },
       }),

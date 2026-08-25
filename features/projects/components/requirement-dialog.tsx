@@ -84,7 +84,7 @@ export function RequirementDialog({
       isPending={create.isPending}
       submitDisabled={!title.trim() || !requestedFromId}
       submitLabel="Raise requirement"
-      contentClassName="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+      contentClassName="sm:max-w-lg"
       onSubmit={(e) => {
         e.preventDefault()
         create.mutate(

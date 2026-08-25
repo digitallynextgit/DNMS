@@ -159,6 +159,55 @@ export function AttendanceTable({
       showSerial={showSerial}
       serialOffset={serialOffset}
       selection={selection}
+      // Phone card: who + status on top, then the punch pair and hours as a
+      // compact meta line - the four time columns cannot sit side by side.
+      mobileCard={(log) => {
+        const employee = log.employee
+        const fullName = employee ? `${employee.firstName} ${employee.lastName}` : "Unknown"
+        return (
+          <div className="space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <AvatarDisplay
+                  src={employee?.profilePhoto}
+                  firstName={employee?.firstName ?? "?"}
+                  lastName={employee?.lastName ?? ""}
+                  size="sm"
+                  className="shrink-0"
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{fullName}</p>
+                  <p className="text-muted-foreground truncate text-xs">{formatDate(log.date)}</p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <StatusBadge
+                  status={log.status}
+                  colorMap={ATTENDANCE_STATUS_COLORS}
+                  labelMap={ATTENDANCE_STATUS_LABELS}
+                  size="xs"
+                />
+                {canEdit && log.isManual && onEdit && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => onEdit(log)}
+                    title="Edit attendance record"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    <span className="sr-only">Edit</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+            <p className="text-muted-foreground text-xs">
+              In {formatTime(log.checkIn)} · Out {formatTime(log.checkOut)}
+              {log.workHours !== null && log.workHours !== undefined && <> · {log.workHours}h</>}
+              {log.isManual && <span className="italic"> · manual</span>}
+            </p>
+          </div>
+        )
+      }}
     />
   )
 }

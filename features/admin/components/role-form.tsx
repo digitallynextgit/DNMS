@@ -305,7 +305,9 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
 
         {/* Permissions */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          {/* Wraps on a phone: the "select all" control next to the heading
+              overflows a 390px sheet otherwise. */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-foreground text-sm font-medium">Permissions</p>
               <p className="text-muted-foreground mt-0.5 text-xs">
@@ -407,8 +409,9 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
 
         <Separator />
 
-        {/* Footer buttons */}
-        <div className="flex justify-end gap-3">
+        {/* Footer buttons - full width and stacked on a phone so both stay
+            comfortably tappable at the bottom of a narrow sheet. */}
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end [&>button]:w-full sm:[&>button]:w-auto">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>

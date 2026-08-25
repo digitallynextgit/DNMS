@@ -212,8 +212,12 @@ export async function handlePunchPush(
 
   try {
     const { day, result } = await recordPunch(employee.id, device.id, punchAt)
+    // lastPushAt is stamped ONLY here. lastSyncAt is written by the pull sync
+    // too, so it cannot tell the Devices page whether the live path is working
+    // or whether a cron is merely polling on a timer.
+    const now = new Date()
     await db.hikvisionDevice
-      .update({ where: { id: device.id }, data: { lastSyncAt: new Date() } })
+      .update({ where: { id: device.id }, data: { lastSyncAt: now, lastPushAt: now } })
       .catch(() => {})
     return NextResponse.json({ ok: true, day, result })
   } catch (error) {

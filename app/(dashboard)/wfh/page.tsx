@@ -215,6 +215,49 @@ export default function MyWfhPage() {
             selection={selection}
             loading={reqLoading}
             skeletonRows={5}
+            mobileCard={(r) => (
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">
+                      {new Date(r.date).toLocaleDateString("en-IN", {
+                        weekday: "short",
+                        day: "2-digit",
+                        month: "short",
+                      })}
+                    </p>
+                    {r.isEmergency ? (
+                      <Badge
+                        variant="outline"
+                        className="mt-1 border-red-200 bg-red-50 text-[10px] text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"
+                      >
+                        Emergency
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">Standard</span>
+                    )}
+                  </div>
+                  <StatusBadge
+                    status={r.status}
+                    colorMap={LEAVE_STATUS_COLORS}
+                    labelMap={LEAVE_STATUS_LABELS}
+                    size="xs"
+                  />
+                </div>
+                {r.reason && <p className="text-muted-foreground text-xs">{r.reason}</p>}
+                {r.status === "PENDING" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive gap-1.5"
+                    onClick={() => cancel.mutate(r.id)}
+                    disabled={cancel.isPending}
+                  >
+                    <Ban className="h-3.5 w-3.5" /> Cancel
+                  </Button>
+                )}
+              </div>
+            )}
           />
         ) : (
           <EmptyState icon={Inbox} title="No WFH requests yet." variant="card" />

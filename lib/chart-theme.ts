@@ -40,3 +40,25 @@ export const CHART_TOOLTIP_LABEL_STYLE = {
 export const CHART_TOOLTIP_ITEM_STYLE = {
   color: "hsl(var(--foreground))",
 } as const
+
+/**
+ * Neutral series palette for the monochrome charts (the dashboard's department
+ * pie and friends).
+ *
+ * These were raw hex greys - `#555`, `#333`, `#777` - chosen against a white
+ * background. On the dark theme, which is the app's DEFAULT, they sit on a
+ * `#0a0a0a` surface and are effectively invisible: three of the seven slices
+ * simply vanished.
+ *
+ * Alpha steps of `--foreground` instead, so the ramp inverts with the theme and
+ * every slice keeps its contrast in both. Ordered most- to least-prominent.
+ */
+export const CHART_NEUTRAL_SERIES = [
+  "hsl(var(--foreground))",
+  "hsl(var(--foreground) / 0.78)",
+  "hsl(var(--foreground) / 0.62)",
+  "hsl(var(--foreground) / 0.5)",
+  "hsl(var(--foreground) / 0.4)",
+  "hsl(var(--foreground) / 0.32)",
+  "hsl(var(--foreground) / 0.24)",
+] as const

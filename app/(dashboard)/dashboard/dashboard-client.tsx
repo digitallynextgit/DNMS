@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { AdminDashboard } from "@/features/dashboard"
 import { EmployeeDashboard } from "@/features/dashboard"

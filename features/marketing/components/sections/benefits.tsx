@@ -3,9 +3,7 @@ import { Sparkles } from "lucide-react"
 import { BENEFITS } from "../../marketing.constants"
 import { cn } from "@/lib/utils"
 import { DotBackdrop, Reveal, SpotlightCard } from "../fx"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 /** Outcome-led grid: what a company GETS, rendered as pointer-follow cards with
  *  alternating red/blue accents that light up on hover. */

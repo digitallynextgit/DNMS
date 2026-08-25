@@ -27,7 +27,10 @@ const buttonVariants = cva(
         // Two sanctioned icon sizes - never override these with a className.
         // `icon`     - standalone icon button, pairs with a default (h-9) Button.
         // `icon-sm`  - compact row/toolbar action, pairs with a `sm` (h-8) Button.
-        icon: "h-9 w-9 rounded",
+        // rounded-[2px], not bare `rounded` (4px): every other size here uses
+        // 2px, so a standalone icon button was visibly rounder than the default
+        // Button sitting next to it - straight out of the core primitive.
+        icon: "h-9 w-9 rounded-[2px]",
         "icon-sm": "h-8 w-8 rounded-[2px] [&_svg]:size-3.5",
       },
     },

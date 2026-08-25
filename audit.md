@@ -1,516 +1,401 @@
 # DNMS Codebase Audit
 
-**Date:** 2026-08-22
-**Scope:** All API routes (280), feature services, shared + feature components, auth/permission infra, Prisma schema.
-**Focus:** Security holes, API correctness bugs, UI bugs/glitches, duplicated functionality (same behaviour built differently), and performance.
+**Date:** 2026-08-24
+**Supersedes:** the 2026-08-22 security/correctness audit (its findings are re-verified in §2).
+**Scope:** 994 TS/TSX files, 283 API routes, 82 pages, Prisma schema, build + lint toolchain, and the mobile/responsive layer completed on 2026-08-24.
+**Focus:** performance (server + client), optimisation, UI/UX and responsive correctness — plus verification that the previous audit's fixes actually landed.
 
-> **This is an audit only - no code was changed.** Every item below is a description of the defect and the recommended fix.
+> **This is an audit.** Only two items were changed during it — both regressions introduced by the immediately-preceding mobile work, listed in §1 and already fixed and shipped. Everything else is described, not changed.
 
 ---
 
 ## Methodology
 
-- A multi-agent sweep fanned out across five dimensions (security, API correctness, UI, duplication, performance), each reading the real files.
-- Every finding was then put through an **adversarial verification pass** - a second reviewer opened the cited file and confirmed, refuted, or corrected it. 66 findings survived verification (several had their details or counts corrected in the process).
-- The **critical finding and the top security items were additionally re-verified by hand** against the source (`prisma/seed.ts`, the password-vault route, the recruitment routes, and all 13 cron routes).
+Four independent auditors read the real files in parallel:
 
-**Confidence note:** locations are cited as `path:line` (line numbers approximate). A handful of items are environment- or scale-conditional and are flagged as such in their entry.
+1. **DB & server performance** — N+1s, unbounded reads, indexes, transactions.
+2. **Client bundle & React runtime** — barrels, dynamic imports, memoisation, polling, images.
+3. **UI, responsive & design consistency** — with an explicit brief to find what the just-finished mobile pass _missed_.
+4. **Prior-audit verification** — every Critical/High and the 12 worst Mediums from `AUDIT.md` re-opened against current source.
+
+Claims were then spot-checked by hand where they were load-bearing: the DB pool config, the 11 concurrent scans in `storage.service.ts`, the barrel-beside-`dynamic()` contradiction, the 729 KB brand-mark, the `overflow-x-auto` gate, and `/more` on desktop. Two agent claims were **rejected** on verification and are recorded in §7 so they are not re-reported.
+
+**Confidence:** line numbers are approximate. Anything scale- or environment-conditional is marked as such.
 
 ---
 
 ## Executive summary
 
-| Severity     | Count | Headline                                                                                                               |
-| ------------ | ----- | ---------------------------------------------------------------------------------------------------------------------- |
-| **Critical** | 1     | Any employee can download every other employee's personal HR documents                                                 |
-| **High**     | 11    | Cross-project password-vault disclosure; fail-open cron auth; open recruitment PII; unpaginated full-table reads       |
-| **Medium**   | 35    | TOCTOU on leave/poll/reaction writes; half-day leave charging bug; N+1 query storms; ~13 duplicated components/helpers |
-| **Low**      | 19    | Minor IDOR, timing, key/focus, and code-consistency issues                                                             |
+| Severity     | Count | Headline                                                                                                                                                         |
+| ------------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Critical** | 5     | Unbounded full-table reads on the app's hottest endpoints; 11 concurrent scans vs a 10-conn pool                                                                 |
+| **High**     | 21    | Sequential N+1 loops in request paths; missing composite indexes; barrel imports defeating code-splitting; clipped tables and unreachable dialog buttons at `md` |
+| **Medium**   | 28    | Render-cost hotspots, redundant polling, oversized images, tap targets, design-token drift                                                                       |
+| **Low**      | 12    | Latent defaults, stray radii, cosmetic wrapping                                                                                                                  |
 
-**Distinct issues after merging duplicate reports:** ~57 (the password-vault, cron-auth, and chat-SSE issues were each reported from multiple angles and are consolidated here).
+**Two regressions from the 2026-08-24 mobile work were found and fixed during this audit** (§1).
 
-### Fix these first (in order)
+**Health of the previous audit:** 17 of 26 re-checked findings are genuinely **FIXED** with real enforcement; 6 remain open (all previously flagged "deferred"); 3 are partial. Two _undocumented_ gaps were found in supposedly-complete fixes.
 
-1. **SEC-01 - Employee document BOLA (Critical).** Every staff member holds `document:read`, which unlocks _anyone's_ personal documents. One-line policy error, worst blast radius.
-2. **SEC-02 - Project password vault is not project-scoped (High).** Any project member can reveal, overwrite, or delete _any other project's_ stored credentials by id.
-3. **SEC-03 - Cron auth fails open (High).** Three cron routes run unauthenticated if `CRON_SECRET` is unset.
-4. **SEC-04 - Recruitment endpoints open to all staff (High).** Candidate PII + create/edit/delete gated on `withSession`, not recruitment scopes.
-5. **SEC-08 / SEC-05 - Company payroll totals exposed; password-reset unthrottled (High/Med).**
-
-The security fixes are small and localized. The duplication and performance items are lower urgency but reduce a whole class of future drift and load.
+**The single biggest theme:** the server is fast at the edges (JWT auth with no per-request DB hit, SSE instead of polling, correctly-batched chat unread counts) but has a **small number of endpoints that read entire tables** — and a 10-connection pool that turns each of those into an app-wide stall rather than one slow page.
 
 ---
 
-## 1. Security
+## 1. Regressions found and fixed during this audit
 
-### SEC-01 · CRITICAL · Any employee can read/download any other employee's personal HR documents
+Both were introduced by the mobile responsive pass. Both are fixed, type-checked and building.
 
-**Where:** `features/documents/server/employee-documents.service.ts:16` (and `documents.service.ts` `getDocumentUrl` for `employeeId !== null`)
-**What:** The read gate is `canRead = hasPermission(session, DOCUMENT_READ)` and only falls back to a self-check when `canRead` is false. But **`prisma/seed.ts:200` grants the base `employee` role `document:read`** (verified by hand), so _every_ staff account passes the gate for _any_ `employeeId`.
-**Scenario:** Employee A calls `GET /api/employees/<B>/documents`, then `GET /api/employees/<B>/documents/<docId>?download=1`, and receives a presigned download URL for B's ID proof / contract / offer letter.
-**Impact:** Company-wide exposure of the most sensitive personal HR files - a broad BOLA/PII breach.
-**Fix:** Do **not** gate cross-employee document access on the directory-wide `document:read`. Use a privileged HR scope (`employee:read`, or a new `employee-document:read` **not** held by the base employee role) for the "read anyone" branch; keep the self-only fallback. Apply the same to `documents.service.getDocumentUrl` for records where `employeeId !== null`. (Alternatively, remove `document:read` from the base `employee` role - but confirm nothing legitimately relies on it first.)
+### 1.1 `DataTable` lost horizontal scroll at exactly the tightest breakpoint — **HIGH, FIXED**
 
-### SEC-02 · HIGH · Project password vault is not scoped to the project (reveal + tamper + delete)
+`components/shared/data-table.tsx:184` gated the scroll container on the optional `minWidth` prop:
 
-**Where:** `app/api/projects/[id]/passwords/[entryId]/route.ts` - GET:16, PATCH:31/37, DELETE:77/83 _(consolidates three reported findings)_
-**What:** All three handlers load the entry with `findUnique({ where: { id: entryId } })` - **no `projectId` filter**. `withProjectAccess`/`withProjectManager` only prove access to the project in the URL, not that the entry belongs to it. For PATCH/DELETE the ownership check is `entry.createdById !== me && !isAdmin`, but `isAdmin = canManageProject(me, urlProjectId)` is computed against the _caller's_ project, so a manager of project A satisfies it for a project B entry.
-**Scenario:** A member of project A who learns an `entryId` from project B calls `GET /api/projects/A/passwords/<B-entry-id>` → B's decrypted password is returned. A manager of A can `PATCH`/`DELETE` B's entry the same way.
-**Impact:** Cross-project disclosure of decrypted stored credentials, and cross-project tampering/destruction of them.
-**Fix:** In all three handlers, load with `findFirst({ where: { id: entryId, projectId: ctx.params.id } })` (the wrapper already resolved `ctx.params.id` to the real project id) and 404 on no match - mirroring the `resources/[fileId]` route, which correctly rejects on `projectId` mismatch.
+```tsx
+<div className={cn(cardsOn && "hidden md:block", minWidth && "overflow-x-auto")}>
+```
 
-### SEC-03 · HIGH · Three cron routes skip authentication entirely when `CRON_SECRET` is unset (fail-open)
+Mobile cards stop at `md`, but the 224px sidebar _starts_ at `md`. So **768px is the narrowest content column in the whole app** (768 − 224 − 48 ≈ 496px) — tighter than the 358px phones get _after_ cards. 16 `DataTable` callers pass no `minWidth`; at 768px their right-hand columns were clipped by `main`'s `overflow-x-hidden` with no way to scroll to them. `payroll-directory` renders 10 columns (320px of cell padding alone) into 496px.
 
-**Where:** `app/api/cron/birthdays/route.ts:13`, `app/api/cron/attendance-sync/route.ts:20`, `app/api/cron/leave-accrual/route.ts:12` _(verified by hand across all 13 cron routes)_
-**What:** These three use `const secret = process.env.CRON_SECRET; if (secret) { ...check Bearer... }` - when the env var is unset the entire check is **skipped** and the handler runs for anyone. The other 10 cron routes compare directly against `` `Bearer ${process.env.CRON_SECRET}` `` (which stays closed, though it then accepts the literal `Bearer undefined` when unset - see SEC-06). `CRON_SECRET` is **not** validated in `lib/env.ts`, so "unset" is a reachable state (fresh deploy, rotated-away var, non-Vercel host).
-**Scenario:** With `CRON_SECRET` unset, anonymous `GET /api/cron/leave-accrual?year=2020` recomputes every active employee's accrued balance; `GET /api/cron/attendance-sync` rewrites attendance logs; `GET /api/cron/birthdays` fires company-wide notifications/emails.
-**Impact:** State-mutating jobs callable by anyone on the internet whenever the secret is absent.
-**Fix:** Fail **closed** - introduce one shared `assertCron(req)` helper that returns 401 when `CRON_SECRET` is missing _or_ the bearer doesn't match (constant-time), and call it from every cron route. See also DUP-02.
+**Fixed:** `overflow-x-auto` is now unconditional.
 
-### SEC-04 · HIGH · Recruitment applicant & interview endpoints open to any staff
+### 1.2 `/more` rendered a blank page on desktop — **MEDIUM, FIXED**
 
-**Where:** `app/api/recruitment/applicants/route.ts:6`, `applicants/[id]/route.ts:49,104`, `interviews/route.ts:6,25`
-**What:** GET/POST/PATCH/DELETE are wrapped in `withSession` (any signed-in staff), not `withAuth(RECRUITMENT_READ/WRITE)`. The sibling `resume/route.ts` and `offer/route.ts` _do_ use `RECRUITMENT_WRITE`, so this is an inconsistency, not a missing scope.
-**Scenario:** An employee with no recruitment permission lists all applicants (names, emails, and ~1-year presigned resume URLs - see API-09), PATCHes an applicant to `HIRED` (which fires a candidate-facing stage email), and deletes applicants/interviews.
-**Impact:** Candidate PII exposure to all staff + unauthorized create/edit/delete + spurious candidate emails.
-**Fix:** Wrap reads in `withAuth(PERMISSIONS.RECRUITMENT_READ)` and mutations in `withAuth(PERMISSIONS.RECRUITMENT_WRITE)`.
+`app/(dashboard)/more/page.tsx` wrapped its only content in `md:hidden`, so at ≥768px the route resolved, the shell rendered, and the content area was empty. Reachable by bookmark, deep link, or rotating a tablet.
 
-### SEC-05 · MEDIUM · Password-reset request endpoint has no rate limiting
-
-**Where:** `app/api/password/forgot/route.ts:6` → `auth.service.ts` `requestPasswordOtp`
-**What:** `withErrorHandler` with no limiter; one DB lookup + one email per call, and the response distinguishes "No active employee account" from success. (OTP _verify_ is well protected: bcrypt, 5-attempt lock, 10-min TTL - this is specifically about unbounded sends + enumeration.)
-**Scenario:** A loop over one email floods the victim's inbox and burns the shared `notifications` SMTP quota; a loop over a wordlist enumerates active accounts quickly.
-**Impact:** Email bombing, SMTP-quota exhaustion, fast account enumeration.
-**Fix:** Apply the same in-memory sliding-window limiter used by `app/api/public/careers/applications/route.ts` (per-IP **and** per-email), plus a minimum resend interval per account.
-
-### SEC-06 · MEDIUM · Cron routes accept `Authorization: Bearer undefined` when the secret is unset; non-constant-time compare
-
-**Where:** the 10 "direct compare" cron routes, e.g. `leave-rollover/route.ts:12`, `content-reminders/route.ts:23`, `seo-daily/route.ts:16`, `el-accrual/route.ts:12`
-**What:** `` req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}` `` becomes `!== 'Bearer undefined'` when unset, so a request carrying that literal header passes; also a non-constant-time comparison.
-**Impact:** Env-conditional fail-open (narrower than SEC-03 since a header is required) + timing side-channel.
-**Fix:** Same shared `assertCron` helper as SEC-03/DUP-02 (reject on missing secret, `timingSafeEqual`).
-
-### SEC-07 · MEDIUM · Cross-project Google Drive file deletion
-
-**Where:** `app/api/projects/[id]/drive/file/route.ts` DELETE → `project-drive.service.ts:146`
-**What:** `withProjectManager` authorizes on the URL project, but `body.fileId` is passed straight to `trashDriveFile` with no check that the file lives under this project's Drive folder. The service account can see every project's folder.
-**Scenario:** Manager of A sends `DELETE /api/projects/A/drive/file { fileId: <B's file> }` → B's file is trashed.
-**Impact:** Cross-project availability loss (recoverable from Drive trash, hence Medium).
-**Fix:** Resolve the project's folder via `ensureProjectFolder(ctx.params.id)` and verify the target's parent is that folder (or a DB-tracked resource with matching `projectId`) before trashing; 404 otherwise.
-
-### SEC-08 · MEDIUM · Company-wide payroll totals exposed to every employee
-
-**Where:** `app/api/payroll/summary/route.ts`
-**What:** Gated only on `PAYROLL_READ`, which the base `employee` role holds (seed.ts), and applies **no** per-employee scoping - unlike `records/[id]` GET, which restricts non-`PAYROLL_WRITE` callers to their own row.
-**Scenario:** Any employee calls `GET /api/payroll/summary?month=8&year=2026` and gets company `totalGross`/`totalNet`/`totalDeductions`/`employeeCount`/status breakdown.
-**Impact:** Confidential company payroll spend exposed to all staff.
-**Fix:** Gate the summary on `PAYROLL_WRITE` (HR only). `PAYROLL_READ` must not unlock company-wide aggregates.
-
-### SEC-09 · LOW · Single attendance record readable by any staff member
-
-**Where:** `app/api/attendance/[id]/route.ts:9`
-**What:** GET is `withSession` with no self-or-permission check; PATCH/DELETE require `ATTENDANCE_WRITE`. Practical risk limited by the non-enumerable cuid id.
-**Fix:** Gate GET with `withAuth(ATTENDANCE_READ)` plus a self-or-permission object-level check.
-
-### SEC-10 · LOW · No self-review guard on floating-holiday approval
-
-**Where:** `app/api/attendance/floating-holidays/requests/[id]/route.ts:43`
-**What:** PATCH authorizes on `isHr || isManager` but never checks `reqRow.employeeId !== session.user.id`, so an HR-role holder (or someone set as their own manager) can approve their own request. Resignations explicitly block this.
-**Fix:** Reject with 403 when `reqRow.employeeId === session.user.id`, matching `reviewResignation`.
-
-### SEC-11 · LOW · SVG logos stored and served inline unmodified (stored XSS on the storage origin)
-
-**Where:** `app/api/projects/[id]/logo/route.ts:11,128`
-**What:** `IMAGE_TYPES` includes `image/svg+xml`; SVG bytes are stored as-is (bypassing sharp) and GET 302-redirects to a signed B2 URL with no `Content-Disposition`, so the SVG opens inline and any embedded script runs - on the **B2 origin**, not the app origin (so it can't read app cookies), which caps severity.
-**Fix:** Sanitize SVG (strip `script`/`on*`) before storing, or force `Content-Disposition: attachment` for SVG, or rasterize/deny SVG logos.
-
-### SEC-12 · LOW · Public careers **read** API uses non-constant-time key compare
-
-**Where:** `app/api/public/careers/route.ts:30` (vs the applications route's `timingSafeEqual`)
-**Fix:** Use the same constant-time `keyMatches` helper. See DUP-09.
+**Fixed:** desktop now renders a short explainer pointing at the sidebar plus a link to the dashboard.
 
 ---
 
-## 2. API correctness bugs
+## 2. Prior-audit verification (`AUDIT.md`, 2026-08-22)
 
-> The password-vault tamper/delete bugs (originally filed as API bugs) are consolidated into **SEC-02** above.
+Re-opened against current source. **17 FIXED · 6 STILL OPEN · 3 PARTIAL.**
 
-### API-01 · MEDIUM · Leave decision is not re-checked inside its transaction (TOCTOU → balance corruption)
+### Confirmed fixed (evidence sampled)
 
-**Where:** `features/leave/server/leave.service.ts:1241` (same pattern in `wfh.service.ts` `updateWfhRequest`)
-**What:** Status is checked _before_ the transaction; inside it, `leaveRequest.update({ where: { id } })` and `leaveBalance.upsert(pending: {decrement:1}, used: {increment:1})` run with no status condition.
-**Scenario:** A PENDING request approved near-simultaneously by the manager and HR (both eligible under "first decision wins") → both pass the outer check, both apply the balance delta → `pending = -1`, `used = 2`.
-**Fix:** Make it atomic: inside the tx do `leaveRequest.updateMany({ where: { id, status: 'PENDING' }, data: {...} })` and only apply the balance change when `count === 1`; otherwise abort as "already decided." Same for WFH.
+| ID          | Finding                                     | Enforcement now in place                                                                                               |
+| ----------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **SEC-01**  | Any employee could read anyone's HR docs    | `employee-documents.service.ts:19-20` — `canReadAny` + owner check; base `employee` role lacks `employee:read` in seed |
+| **SEC-02**  | Password vault not project-scoped           | `passwords/[entryId]/route.ts:19` — `findFirst({ where: { id, projectId } })` **before** the ownership check           |
+| **SEC-03**  | Cron auth failed open with no `CRON_SECRET` | `server/cron-auth.ts:32-35` fail-closed 401; all **13/13** routes call it first                                        |
+| **SEC-04**  | Recruitment PII open to all staff           | `withAuth(PERMISSIONS.RECRUITMENT_READ/WRITE)` on all applicant + interview routes                                     |
+| **SEC-06**  | `Bearer undefined`, non-constant-time       | `cron-auth.ts:44` length pre-check + `timingSafeEqual`                                                                 |
+| **SEC-07**  | Cross-project Drive deletion                | `project-drive.service.ts:152-156` membership check before trash                                                       |
+| **SEC-08**  | Company payroll totals exposed              | `payroll/summary/route.ts:10` — `PAYROLL_WRITE`                                                                        |
+| **API-01**  | Leave/WFH decision TOCTOU                   | `leave.service.ts:1335` — `updateMany({ where: { id, status: "PENDING" } })` in a transaction, 409 on 0 rows           |
+| **API-02**  | Half-day charged 0.5 across a range         | `leave.service.ts:992` rejects multi-day half-days                                                                     |
+| **API-03**  | Poll vote not atomic                        | `server/message-cards.ts:262` — Serializable transaction + P2034 retry                                                 |
+| **API-05**  | Project-code race                           | `projects/route.ts:62-95` — P2002 retry loop                                                                           |
+| **API-06**  | Checklist item ignored `taskId`             | `checklist/[itemId]/route.ts:24,29` — taskId match + `canAccessProject`                                                |
+| **UI-01**   | Edit-project form discarded edits           | `project-form-dialog.tsx:80-88` — `wasOpen` ref, deps `[open]`                                                         |
+| **DUP-02**  | Cron auth hand-rolled 13×                   | single `assertCron`                                                                                                    |
+| **PERF-01** | Chat badge = COUNT per conversation         | one grouped `$queryRaw` — _the remediation note wrongly lists this as deferred; it is fixed_                           |
+| **PERF-06** | `listConversations` N unread counts         | same grouped raw query, identical `hiddenFor` predicate — _also wrongly listed as deferred_                            |
+| **PERF-07** | Payroll summary summed in JS                | `aggregate` + `groupBy`                                                                                                |
 
-### API-02 · MEDIUM · `applyLeave` accepts `isHalfDay` on a multi-day range → charges 0.5 days for the whole span
+### Still open
 
-**Where:** `features/leave/server/leave.service.ts:981`
-**What:** `let totalDays = isHalfDay ? 0.5 : countCalendarDays(start,end)` with no `start === end` validation. The POST route calls the service directly, so UI guards don't apply.
-**Scenario:** `{ leaveTypeId: CL, startDate: 2026-03-02, endDate: 2026-03-06, isHalfDay: true }` → 5 days off, 0.5 charged.
-**Fix:** In the service, reject `isHalfDay` unless `startDate === endDate` (or force a single-day range).
+| ID          | Finding                                           | Current state                                                                                                                                                                                            |
+| ----------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **DUP-01**  | Payroll PATCH formula diverges from the generator | `payroll/records/[id]/route.ts:112` omits `telephoneAllowance` and recomputes statutory deductions the generator hard-zeros. **A payslip's total changes if you edit it.** No shared `computePayslip()`. |
+| **PERF-02** | `projects/performance` double full-table scan     | `route.ts:51` + `:207`, no `take`                                                                                                                                                                        |
+| **PERF-03** | `GET /api/tasks` unpaginated                      | `tasks/route.ts:141`                                                                                                                                                                                     |
+| **PERF-04** | Project messages unpaginated, re-sorted in JS     | `messages/route.ts:96`                                                                                                                                                                                   |
+| **API-07**  | Résumé stores a 1-year URL clamped to 7 days      | migration-blocked (needs a `resumeKey` column)                                                                                                                                                           |
+| **API-08**  | `requeueStuckSends` measures from `createdAt`     | migration-blocked (needs `claimedAt`)                                                                                                                                                                    |
 
-### API-03 · MEDIUM · Single-choice poll vote is not atomic (double vote)
+### Partial — with two **newly discovered** gaps
 
-**Where:** `server/message-cards.ts:250`
-**What:** The `existing` check (toggle-same-option-off) is outside the transaction. For a _different_ option, the tx does `deleteMany` then `create` under READ COMMITTED, so two near-simultaneous votes each delete-nothing then insert different options. `@@unique([optionId, voterId])` doesn't catch it (different `optionId`s).
-**Scenario:** Double-click A then B → user holds two options; counts exceed voter count.
-**Fix:** Add a poll-scoped unique `(pollId, voterId)` for single-choice polls, or run at Serializable isolation, or re-check inside the tx.
-
-### API-04 · MEDIUM · Task PATCH `parseFloat` on hours → NaN write 500s the whole update; client can overwrite measured `loggedHours`
-
-**Where:** `app/api/tasks/[id]/route.ts:222`
-**What:** `data.loggedHours = parseFloat(loggedHours)` (and `estimatedHours`) with no coercion/validation; `parseFloat('')` = NaN → Prisma rejects → 500, so a legitimate status change also fails. `loggedHours` is taken verbatim from the body though it's system-measured from `inProgressSince`.
-**Fix:** Validate with `z.coerce.number().finite().nonnegative()` (422 on bad input); do **not** accept `loggedHours` from the client (or gate it behind a manager-only manual-adjust path).
-
-### API-05 · MEDIUM · Project code (`DN#####`) generation races → 500 instead of next number
-
-**Where:** `app/api/projects/route.ts:63`
-**What:** `findFirst(orderBy code desc)` + compute + `create` with no `@unique` (P2002) handling. Two simultaneous creates compute the same code; the second 500s.
-**Fix:** Generate inside a retry loop that catches P2002 and recomputes, or use a Postgres sequence/counter row in the same transaction.
-
-### API-06 · MEDIUM · Checklist item PATCH/DELETE/GET ignore `taskId` and enforce no project access
-
-**Where:** `app/api/tasks/[id]/checklist/[itemId]/route.ts:11` (and the checklist GET)
-**What:** Handlers read only `itemId`, call `update`/`delete` with `withSession` and no item→project access check and no `item.taskId === params.id` check.
-**Scenario:** Any signed-in staff toggles/deletes any task's checklist items regardless of membership.
-**Fix:** Load the item→task→project, run the standard `canAccessProject` check, and verify `item.taskId === params.id` (404 on mismatch). Apply to the checklist/comments GET handlers too.
-
-### API-07 · MEDIUM · Resume upload persists a 1-year signed URL that the signer clamps to 7 days
-
-**Where:** `app/api/recruitment/applicants/[id]/resume/route.ts` (`getSignedUrl(objectKey, ONE_YEAR)` stored in `applicant.resumeUrl`; `lib/storage.ts:197` clamps to 7 days)
-**What:** The stored URL 403s after 7 days and nothing re-signs; also a long-lived bearer URL to PII sits in the DB.
-**Fix:** Store only `objectKey`; mint a short-lived signed URL on demand in a `RECRUITMENT_READ` endpoint.
-
-### API-08 · MEDIUM · `requeueStuckSends` measures "stuck" from `createdAt`, not claim time → duplicate sends
-
-**Where:** `features/project-mailer/server/campaign-runner.ts:239`
-**What:** Filters `status: 'SENDING', createdAt < cutoff`. `ProjectCampaignSend` has no `updatedAt`/`claimedAt`, so a healthy in-flight send from a campaign queued >10 min ago can be flipped back to PENDING and re-sent (multi-instance), while a genuinely stuck recent row is requeued late.
-**Fix:** Add a `claimedAt` (or `@updatedAt`) set when status flips to SENDING, and requeue on _that_ older than the cutoff.
-
-### API-09 · MEDIUM · Monthly-quota windows built with local `new Date(y,m,d)` vs UTC-stored rows
-
-**Where:** `features/wfh/server/wfh.service.ts:428` (same class in `leave.service.ts` CL/SHORT checks and `getWfhEligibility`)
-**What:** `wfhDate` is `startOfDayUTC`, but `monthStart`/`monthEnd` are `new Date(getUTCFullYear, getUTCMonth[, +1], 0)` - **local** midnights. On IST, `monthEnd` = last-day 00:00 IST = previous-day 18:30 UTC, so the final calendar day's row (00:00Z) is `> monthEnd` and escapes `count: { lte: monthEnd }`.
-**Scenario:** On IST, a 28-Feb WFH doesn't count toward February's cap; a second WFH that month is wrongly approved.
-**Impact:** Monthly WFH/CL/SHORT caps under-count on the last day of the month. _(Conditional on server TZ ahead of UTC.)_
-**Fix:** Build boundaries with `Date.UTC(...)` to match stored UTC-midnight dates.
-
-### API-10 · LOW · Application status PATCH re-notifies the referrer on every write
-
-**Where:** `app/api/recruitment/applications/[id]/route.ts:80`
-**What:** `if (data.status !== undefined) notifyReferrerOfStage(...)` with no comparison to the stored status; `notifyReferrerOfStage` doesn't dedupe on transition. Editing `hrNotes` while re-sending the same status re-notifies.
-**Fix:** Load the current application and only notify when the incoming status actually differs.
-
-### API-11 · LOW · Chat SSE can leak a subscription + heartbeat if the client disconnects during subscribe
-
-**Where:** `app/api/chat/stream/route.ts:45`
-**What:** The abort cleanup is registered _after_ `await subscribeChat`; a disconnect during that await never triggers cleanup (abort is one-shot), leaking the subscriber callback and the 25s interval.
-**Fix:** Register the abort handler around the await and re-check `req.signal.aborted` immediately after `subscribeChat` resolves; guard cleanup so it's safe before the heartbeat/unsubscribe exist.
-
-### API-12 · LOW · Per-employee HR attendance calendar never invalidated after a manual punch correction
-
-**Where:** `features/attendance/hooks/use-attendance.ts:404` - `useCreateAttendanceLog`/`useUpdateAttendanceLog`/`useDeleteAttendanceLog` omit the `employee-attendance-calendar` key from their invalidate lists.
-**Scenario:** HR corrects A's punch then reopens A's calendar within the 30s `staleTime` → stale data.
-**Fix:** Add `['employee-attendance-calendar']` to those three mutations' invalidate lists.
-
-### API-13 · LOW · Emoji reaction toggle is a non-atomic read-then-write (rapid taps 500)
-
-**Where:** `features/chat/server/chat.service.ts:720` (same shape in the project react route - see DUP-14)
-**What:** `find` composite-unique → delete-by-id or create. Two concurrent same-emoji adds both see `null` and both create → P2002; two concurrent removes → P2025. `runAction` surfaces these as 500.
-**Fix:** For add, `create`/`upsert` and ignore P2002; for remove, `deleteMany` on the composite key (0 rows is fine). Report state from the actual write.
+- **SEC-05** — flooding is fixed (`rateLimited` per IP + per email), but `auth.service.ts:40-41` still returns a distinguishable message, so the **enumeration oracle remains**.
+- **API-04** — NaN guard added, but `tasks/[id]/route.ts:238-243` still lets a **client-supplied `loggedHours` overwrite system-measured time**.
+- **API-09** — WFH moved to UTC month bounds; **leave did not** (`leave.service.ts:1058,1076` still use local midnight for CL/SHORT quotas, while the EL window three lines away uses `Date.UTC` — the inconsistency is visible in-file).
+- 🔴 **NEW —** the WFH **cancel** path (`wfh.service.ts:528`) skips the atomic status claim that API-01 added everywhere else: a plain `update` with no `status: "PENDING"` guard.
+- 🔴 **NEW —** `wfh.service.ts:458→467` checks for a duplicate then inserts with **no transaction and no unique constraint** (`schema.prisma:909` has no `@@unique([employeeId, date])`) — two concurrent submissions both succeed.
 
 ---
 
-## 3. UI bugs & glitches
+## 3. Server & database performance
 
-### UI-01 · HIGH · Edit-Project form silently discards in-progress edits on any parent re-render
+### Critical
 
-**Where:** `features/projects/components/project-form-dialog.tsx:80`
-**What:** The reset effect `useEffect(() => { if (open) { setForm({ ...EMPTY_FORM, ...initial }); … } }, [open, initial])` depends on `initial`, but both callers pass it as an **inline object literal** (`projects/[id]/page.tsx:444`, `projects-client.tsx:393`), so `initial` is a new reference every render. The detail page runs `useUnreadMessageCount` with `refetchInterval: 15_000` + `refetchOnWindowFocus: true`, guaranteeing periodic re-renders while the dialog is open.
-**Scenario:** Admin edits a project's description; within 15s the unread poll refetches (or they tab away and back) → the form resets to stored values mid-edit. Appears random because it's driven by background polling.
-**Fix:** Fire the reset only on the open transition - depend on `open` alone (with a prev-open ref) or on the opened project id; or memoize `initial` in the callers; or remount via `key={projectId}`. (Create path is unaffected - no `initial`.)
+**3.1 `app/api/projects/performance/route.ts:51` — whole `project_tasks` table per page load.**
+For an admin with no filters, `where` collapses to `{ AND: [] }`. Prisma streams every row into Node and tallies in a JS loop (`:164`). A second scan follows at `:207`.
+→ `groupBy`/`COUNT(*) FILTER`, and require a date window.
 
-### UI-02 · MEDIUM · Navigating away mid-recording silently uploads the partial voice note
+**3.2 `app/api/tasks/route.ts:141` — My Tasks returns the whole task table.**
+No `take`/`cursor`; uses `include` not `select`, so three `@db.Text` columns (`description`, `holdReason`, `discardReason`) plus four relations ship per row. With `scope=all` + `project:write`, `assigneeIds` is every active employee.
+→ cursor-paginate; `include` → `select`; drop text columns from the list payload.
 
-**Where:** `components/shared/voice-recorder.tsx:80`
-**What:** The unmount cleanup (`teardown`) stops the mic tracks but does **not** set `abortRef`. Stopping tracks can fire `MediaRecorder.onstop`, which - seeing `abortRef` false and chunks non-empty - calls `deliver()`/`onSend()` (uploads) and then `setState` after unmount.
-**Fix:** Set `abortRef.current = true` before `teardown` (or detach `recorder.onstop` before stopping tracks) so a track-end `onstop` discards the clip; keep the explicit finish path as the only sender. _(Browser-dependent whether track-stop fires onstop; Chrome does.)_
+**3.3 `features/storage/server/storage.service.ts:100-160` — 11 unbounded scans in one `Promise.all`.** _(hand-verified: 11 `findMany`, 0 `take`)_
+Against a pool of **10** (`server/db.ts:9`) with a 5s `connectionTimeoutMillis`, this saturates the pool and fails _unrelated requests app-wide_ while it runs.
+→ sequence in sub-pool chunks, `select: { objectKey: true }`, page the scan.
 
-### UI-03 · MEDIUM · Emoji picker in the composer clears all @mentions before send
+**3.4 `features/projects/server/meta-sync.service.ts:402-419` — `upsert` inside a `for` over `campaigns × days`.**
+100 campaigns × 30 days = 3,000 sequential round trips. Same shape at `:368`.
+→ chunked `createMany({ skipDuplicates })` + one bulk `UPDATE … FROM (VALUES …)`.
 
-**Where:** `components/shared/message-composer.tsx:103`
-**What:** `EmojiPicker onPick` calls `onChange(value + emoji, [])`, overwriting the parent's `mentionIds` with `[]`. If the emoji is the last edit before Send, mentioned teammates get no notification.
-**Fix:** Route emoji insertion through the mention pipeline so ids are recomputed from the new text (e.g. `MentionTextarea.insert(text)` using `liveMentionIds`), or at minimum preserve the current `mentionIds`; insert at the caret rather than appending.
+**3.5 `app/api/attendance/export/route.ts:35` — CSV export with no mandatory date bound.**
+Every filter is optional, so a bare call is `where: {}` over all attendance logs, joined per row, materialised, then string-concatenated. The sibling `attendance-directory.queries.ts:52` already clamps to `MAX_RANGE_DAYS` — this one doesn't.
+→ require and clamp a range; stream.
 
-### UI-04 · MEDIUM · Chat SSE stream torn down and reopened on every conversation switch
+### High
 
-**Where:** `features/chat/components/chat-view.tsx:170` _(also filed as PERF-05)_
-**What:** The stream effect deps are `[qc, activeId]`, but `activeId` is only used inside the handler for toast suppression. Every conversation open runs `es.close()` + reopen; events arriving in the reconnect gap are lost, so `['chat','conversations']`/`unread-count` aren't invalidated until the next action. Defeats the file's own "ONE EventSource" design.
-**Fix:** Store `activeId` in a ref updated each render, read `activeIdRef.current` in the handler, and reduce deps to `[qc]`.
+| #    | Location                                                        | Defect                                                                                                                                                         |
+| ---- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.6  | `performance/evaluations/generate/route.ts:47-70` (+ cron twin) | 3 serialized queries **per employee** (~900 for 300 staff); no `@@unique([employeeId, periodLabel])`, so a concurrent cron + manual run duplicates evaluations |
+| 3.7  | `leave-accrual.service.ts:473`                                  | `for (const e of employees) await allocateFromPolicy(...)` — read + multi-statement transaction per employee, **inside an HTTP request**                       |
+| 3.8  | `attendance/server/sync.ts:468-526`                             | one `upsert` per employee-day; a `?full=1` backfill is `employees × up to 730` writes                                                                          |
+| 3.9  | `leave.service.ts:956-1180`                                     | `applyLeave` awaits ~10 queries back-to-back before its transaction; ≥6 are independent; four have no `select`                                                 |
+| 3.10 | `task-audit.ts:123` + `schema.prisma:293`                       | filters `entityType+entityId` with **no supporting index** → full scan, fanned out up to 50-wide by `task-status-periods.ts:231` against a 10-connection pool  |
+| 3.11 | `task-status-periods.ts:157,170`                                | two `for` loops each doing up to 50 serial `findUnique`/`findMany` hops — 100 RTTs before real work → one `WITH RECURSIVE` CTE                                 |
+| 3.12 | `progress.queries.ts:223`                                       | every non-rejected task, no `take`, joined, to compute counters and then slice 40                                                                              |
+| 3.13 | `projects/[id]/messages/route.ts:96`                            | all messages + reactions + `_count`; DB ordering discarded and re-sorted in JS, making pagination impossible; search uses `ILIKE %q%` with no trigram index    |
+| 3.14 | `messages/[messageId]/replies/route.ts:66`                      | every reply, no `take`, 7-way `include` → ~10 queries per thread open                                                                                          |
+| 3.15 | `projects/[id]/tasks/route.ts:15`                               | project board unbounded, `include` of wide rows                                                                                                                |
+| 3.16 | `meta-sync.service.ts:268`                                      | all metrics ever synced, summed in JS (docstring admits "undefined = all synced data")                                                                         |
+| 3.17 | `recruitment/applicants/route.ts:15` + `jobs/[id]/route.ts:26`  | both unbounded; the second nests all applicants + interviews → thousands of PII rows                                                                           |
 
-### UI-05 · MEDIUM · Camera stream can stay live if the dialog is closed during Retake
+**3.18 Missing composite indexes** (`prisma/schema.prisma`) — pure migration, no app change:
 
-**Where:** `components/shared/attachment-menu.tsx:238`
-**What:** `retake()` calls `getUserMedia().then(stream => streamRef.current = stream)` with no cancelled/closed guard, and `setFacing(f => f)` is a no-op that doesn't restart the `[open,facing]` effect. Closing during re-init runs `stop()` while `streamRef` is still null; the promise then assigns a live stream nothing stops → webcam light stays on.
-**Fix:** Add a `cancelled` ref set on close/unmount and stop the freshly acquired stream if the dialog is no longer open before assigning; or restart via the existing `[open,facing]` effect.
+| Model             | Add                                                                                 | Why                                                               |
+| ----------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `ProjectTask`     | `@@index([assigneeId, dueDate])`, `([projectId, dueDate])`, `([projectId, status])` | **no `dueDate` index exists at all**; every hot query sorts on it |
+| `AuditLog`        | `@@index([entityType, entityId, createdAt])`                                        | see 3.10 — the worst pool-saturation path                         |
+| `Evaluation`      | `@@unique([employeeId, periodLabel])`                                               | see 3.6 — also prevents duplicates                                |
+| `LeaveRequest`    | `@@index([status, createdAt])`                                                      | every list sorts `createdAt` with `skip`/`take`, no index         |
+| `WfhRequest`      | `@@index([status, createdAt])`                                                      | same                                                              |
+| `ProjectActivity` | `@@index([projectId, createdAt])`                                                   | indexed separately, queried together                              |
 
-### UI-06 · MEDIUM · Leave decision letter wiped when the rejection reason is edited
+### Medium
 
-**Where:** `features/leave/components/leave-decision-dialog.tsx:137`
-**What:** `composed` is a `useMemo` over `[request, isReject, firstName, reason]` and `useEffect(() => setBody(composed), [composed])` force-syncs the editable letter. The rejection template embeds `reason`, so every keystroke in the reason field recomputes `composed` and overwrites any manual edit or AI-polished body.
-**Fix:** Seed `body` once on open (or on request/action change) with a dirty flag; only re-apply `composed` while the user hasn't edited/AI-polished. (This is the same "force-sync overwrites edits" shape as UI-01.)
-
-### UI-07 · LOW · Meta campaigns table keyed by campaign name, not a stable id
-
-**Where:** `features/projects/components/insights-tab.tsx:397` (`rowKey={(c) => c.name}`); `meta-sync.service.ts` `topCampaigns` returns no id.
-**What:** Meta campaign names can duplicate within an account; re-sorting can make React reuse the wrong row's DOM/state.
-**Fix:** Include the campaign id in `topCampaigns` and key on it; interim `${c.name}|${index}`.
-
-### UI-08 · LOW · PollComposer uses array index as React key for removable option inputs
-
-**Where:** `components/shared/message-cards.tsx:158`
-**What:** `options.map((opt,i) => <div key={i}>)`; removing a middle option shifts indices → focus/caret/IME lands on the wrong option.
-**Fix:** Store each option with a stable id and key by it.
-
----
-
-## 4. Duplication (same behaviour, different code)
-
-> The user specifically asked for these. Each is genuine divergence, not a shared component reused.
-
-### DUP-01 · HIGH · Payroll PATCH recomputes gross/net with a formula that diverges from the generator
-
-**Where:** `app/api/payroll/records/[id]/route.ts:112` vs the generator at `records/route.ts:335`
-**What:** The generator includes `telephoneAllowance` in gross and **hard-zeros** statutory deductions ("company <20 employees"). The PATCH adjust branch **omits** `telephoneAllowance` and calls `computeStatutoryDeductions` (PF/ESI/TDS). Two hand-written formulas → any DRAFT payslip HR adjusts loses the telephone allowance and gains deductions the generator zeroed.
-**Impact:** Materially wrong net pay on adjusted DRAFT payslips (DRAFT-only, `PAYROLL_PROCESS`-gated).
-**Fix:** Extract one pure `computePayslip()` used by both the generator and the adjust branch; layer overtime/other-deductions on top.
-
-### DUP-02 · HIGH · Cron auth hand-rolled in 13 routes, two divergent idioms with opposite fail semantics
-
-**Where:** all of `app/api/cron/*` _(security impact is SEC-03/SEC-06)_
-**Fix:** One shared `withCronAuth`/`assertCron(req)` (constant-time, rejects when the secret is unset), wrap all cron routes, delete the three `if (secret)` guards and the ten inline compares.
-
-### DUP-03 · MEDIUM · ~20 raw `<Loader2 className="animate-spin">` spinners instead of the shared `Spinner` / `<Button loading>`
-
-**Where:** `components/shared/spinner.tsx` exists (sized xs–xl, with a docstring saying it replaces exactly these hand-copied lines), yet raw `Loader2` appears across ~20 files (e.g. `attachment-preview.tsx:297`, `voice-recorder.tsx:295`).
-**Fix:** Replace each with `<Spinner size=… />` (or `<Button loading>` inside buttons).
-
-### DUP-04 · MEDIUM · Identical IST time formatter defined three times with divergent empty-value handling
-
-**Where:** `formatTime()` `attendance-table.tsx:31` (`'-'`), `fmtTime()` `attendance-calendar.tsx:32` (`'--:--'`), `toLocalTime()` `manual-attendance-dialog.tsx:29` (`''`) - all wrap the same `toLocaleTimeString('en-GB', {hour12:false, timeZone:'Asia/Kolkata'})`.
-**Fix:** One `formatTimeIST()` (or a time-only option on `formatDateTime`) in `lib/utils.ts` with one null policy; point all three at it.
-
-### DUP-05 · MEDIUM · File-upload pipeline duplicated across 5+ routes with divergent caps and validation
-
-**Where:** `resources/route.ts` (250MB), `brand/assets` (250MB), `drive` (250MB, **no** extension guard), `mailer/images` (10MB), recruitment resume - each re-implements formData extraction + validation + `ensureBucket`/`getObjectKey`/`uploadFile`. Two 413 messages are wrong (say "100MB" while the cap is 250MB). `ALLOWED_FILE_TYPES`/`MAX_FILE_SIZE` exist but only the documents service uses them.
-**Fix:** One `readAndStoreUpload({ form, field, prefix, id, maxBytes, allowedTypes, blockedExtensions })` fed by `lib/constants` + per-route overrides; apply a uniform blocked-extension list; fix the wrong 413 messages.
-
-### DUP-06 · MEDIUM · Employee "who" select shape re-inlined across many routes instead of `EMPLOYEE_SUMMARY_SELECT`
-
-**Where:** `document-requests/route.ts:10` re-declares the exact 5-field shape; many project routes inline a **4-field** variant dropping `employeeNo`.
-**Impact:** The embedded employee object differs between endpoints for no deliberate reason (a chip expecting `employeeNo` silently loses it on some payloads).
-**Fix:** Use `EMPLOYEE_SUMMARY_SELECT` (spread for supersets); decide once whether nested refs include `employeeNo` (canonical says yes).
-
-### DUP-07 · MEDIUM · Data tables hand-rolled with raw `<table>` instead of the shared `DataTable`
-
-**Where:** `features/seo/components/keyword-backlog.tsx:186` and sibling SEO/admin screens, though `components/shared/data-table.tsx` renders the standard card+table (skeleton, S.No, selection, pagination) from a `columns` array.
-**Fix:** Move to `<DataTable columns rows />` (custom cell renderers stay). _(Verify each cited file individually.)_
-
-### DUP-08 · MEDIUM · Signed-file and SSE routes hand-roll the staff gate; `notifications/stream` diverged (no client rejection)
-
-**Where:** `chat/attachments/.../file:22`, `gallery/photos/.../file:19`, `projects/message-attachments/.../file:24` share an identical `getSession + 401 + kind==='client' 403` block and the same 24h/12h constants; `chat/stream` rejects clients but `notifications/stream` does **not** - the same gate two ways, one weaker.
-**Fix:** Run signed-file routes through `withSession` (its `normalize` passes redirects through) and lift TTL/cache + `getSignedUrl → redirect` into one helper; add a shared `sseResponse(session, subscribe)` and gate both streams via `withSession`.
-
-### DUP-09 · MEDIUM · Public careers API-key check implemented two ways
-
-**Where:** `public/careers/route.ts:30` (`!==`, no rate limit) vs `public/careers/applications/route.ts` (`timingSafeEqual` + limiter).
-**Fix:** One `verifyApiKey(provided, expected)` (length check + `timingSafeEqual`, closed on unset) for both; reuse the applications limiter for the read route.
-
-### DUP-10 · MEDIUM · Byte/file-size formatting reimplemented in 6 places
-
-**Where:** `humanSize` (`message-attachments.tsx:41`, `attachment-preview.tsx:41`), `fmtBytes` (`storage-manager.tsx:38`, `drive-tab.tsx:77`), `formatBytes` (`storage-account-views.tsx:47`, `resources-tab.tsx:61`) - divergent GB/TB support and null handling; `lib/utils.ts formatFileSize` caps at MB.
-**Fix:** Extend `formatFileSize` to GB/TB with one null/zero rule; replace the six copies.
-
-### DUP-11 · MEDIUM · Native `<Input type="date">` used where the shared `DateField` is standard
-
-**Where:** `employee-form.tsx` uses `DateField` at 945/1226 but a native `type="date"` at 1535 in the same form; also recruitment/performance/audit-log/attendance-filters.
-**Impact:** Native controls render OS-locale format (`mm/dd/yyyy`) vs `DateField`'s `dd/MM/yyyy` - dates read differently per screen.
-**Fix:** Use `DateField`/`DateRangeField` for all `yyyy-MM-dd` entry.
-
-### DUP-12 · MEDIUM · Inconsistent API response envelopes (raw vs `ok()/fail()` vs `respond()`, plus a bespoke third shape)
-
-**Where:** `public/careers/applications/route.ts` defines a local `fail` emitting `{ error: { code, message } }`; the sibling careers GET returns `{ error: 'Unauthorized' }` (plain string); cron routes return bare `{ error }`. None match the canonical `{ success:false, error:{code,message} }`.
-**Fix:** Wrap cron/public routes in `withErrorHandler` and return `ok()`/`fail()` from `lib/api-response`; delete the local `fail` and raw `{ error }` strings.
-
-### DUP-13 · MEDIUM · Per-conversation unread count duplicated with a divergent `hiddenFor` filter
-
-**Where:** `app/api/chat/unread/route.ts:32` counts with `NOT: { hiddenFor: { has: me } }`; `listConversations` (`chat.service.ts:150`) counts the same thing **without** that filter → the nav badge and the chat-list badge disagree for a hidden-for-me message. (Both are also N+1 - see PERF-01/06.)
-**Fix:** One batched unread-count helper with a single agreed definition, called from both.
-
-### DUP-14 · LOW · Emoji-reaction toggle logic duplicated (chat service vs project react route)
-
-**Where:** `chat.service.ts:720` and `app/api/projects/[id]/messages/[messageId]/react/route.ts` implement the same find→delete-or-create toggle with independent code over two near-identical models.
-**Fix:** One `toggleReaction(...)` helper (mirroring `server/message-cards.ts`), each route keeping only its access check. (Fixing API-13's atomicity here fixes both.)
-
-### DUP-15 · LOW · Client portal reimplements Previous/Next pagination instead of shared `Pagination`
-
-**Where:** `features/client-portal/components/portal-product-grid.tsx:207` vs `components/shared/pagination.tsx`.
-**Fix:** Use `<Pagination page totalPages total onPageChange itemLabel />`.
-
-### DUP-16 · LOW · Colleague search picker duplicated (un-debounced vs debounced)
-
-**Where:** `ContactComposer` (`message-cards.tsx:585`) binds a raw `<Input>` whose value is directly in the query key (one request per keystroke); `ForwardDialog` (`forward-dialog.tsx:103`) uses the shared debounced `SearchInput`.
-**Fix:** Use `SearchInput` in `ContactComposer`, or extract one `ColleaguePicker`.
-
-### DUP-17 · LOW · Inline `toLocaleDateString('en-GB', …)` duplicates `formatDate()`
-
-**Where:** `longDate()` `employee-profile-dialog.tsx:62`, `announcements-board.tsx:192` vs `lib/utils.ts formatDate`.
-**Fix:** Call `formatDate(iso, 'd MMMM yyyy')` / `'d MMM yyyy'`.
-
-### DUP-18 · LOW · Currency formatting reimplemented in the portal
-
-**Where:** `portal-product-grid.tsx:41` `money()` vs `lib/utils.ts formatCurrency` (INR/0-digit). The portal needs a variable currency the shared helper can't express - that's the real gap.
-**Fix:** Generalize `formatCurrency` to accept a currency code + fraction option; have `money()` delegate.
-
-### DUP-19 · LOW · Destructive confirm rebuilt from `AlertDialog` instead of shared `ConfirmDialog`
-
-**Where:** `features/seo/components/seo-tab.tsx:375` (no loading state during the delete mutation) vs `components/shared/confirm-dialog.tsx` (spinner + optional delay).
-**Fix:** Use `<ConfirmDialog variant="destructive" isLoading … />`.
-
-### DUP-20 · LOW · `resources` POST re-implements membership (`isProjectParticipant`) instead of the project-access guards
-
-**Where:** `app/api/projects/[id]/resources/route.ts` POST (`withSession` + local `isProjectParticipant`) while GET correctly uses `withProjectAccess`.
-**Fix:** Route POST through `withProjectManager` (or `canAccessProject`/`canManageProject`) and delete `isProjectParticipant`.
+- **3.19 `lib/notifications.ts:100-108`** — `notifyApprovers` loops `await createNotification`, each of which is an INSERT **plus** a push-subscription lookup. 6 approvers = 12 serialized queries where 2 would do. A batched `createNotifications` already exists but still loops the push. **51 call sites**, several in loops.
+- **3.20 `renewals.service.ts:187` → `escalation.ts:70`** — nested N+1: `assets × (3 + 2×recipients)` serialized round trips.
+- **3.21 `uptime.service.ts:114-135`** — probes correctly parallel, then one serialized `update` per monitor.
+- **3.22 `noticeboard.service.ts:80-84`** — a capped `findMany` paired with a second **unbounded** one purely to compute 4 aggregates in JS.
+- **3.23 Missing transactions** — `tasks/route.ts:224+247` and `projects/[id]/tasks/route.ts:53+74` create a task then `openFirstStatusPeriod` **outside a transaction**, breaking the documented "exactly one open period" invariant on failure. The PATCH path does it correctly.
+- **3.24 `server/api-handler.ts:92-124`** — `normalize()` runs `res.clone().json()` on **every** response across all 283 routes, then re-serialises. Doubles CPU/heap on the unbounded endpoints above.
+- **3.25 `server/db.ts:9`** — `max: 10` in production _(hand-verified)_. Not a defect alone, but the **amplifier** that turns 3.3 and 3.10 into app-wide stalls.
 
 ---
 
-## 5. Performance
+## 4. Client bundle & React runtime
 
-### PERF-01 · HIGH · Chat unread badge poll runs one COUNT per conversation, per poll, per user
+### The dominant defect: barrel imports defeat code-splitting
 
-**Where:** `app/api/chat/unread/route.ts:26`
-**What:** On every poll it awaits `markDelivered(me)` (write fan-out) then `Promise.all(parts.map(p => chatMessage.count(...)))` - one count per conversation. Polled app-wide on a timer.
-**Scale:** 60 users × ~30 conversations, every 30s ≈ ~1,800 counts + ~60 delivery fan-outs per interval, just to render a digit.
-**Fix:** One `groupBy` on `chatMessage` (by `conversationId`, `senderId != me`, `deletedAt null`) over the user's conversation ids, thresholded against each `lastReadAt` in JS (or one raw SQL join). Gate `markDelivered` so its writes don't run on a read-only badge poll. Share with `listConversations` (PERF-06) and the `hiddenFor` definition (DUP-13).
+`features/projects/index.ts` is 31 `export *` lines → **33,851 transitive lines**. `package.json` has **no `"sideEffects": false"`**, so those chains cannot be tree-shaken. The repo documents the correct rule in `projects/progress/page.tsx:82-84` and follows it in **1 of 16** dynamic-import sites.
 
-### PERF-02 · HIGH · `projects/performance` scans the whole `ProjectTask` table twice for admins
+- **4.1 HIGH — `app/(dashboard)/projects/[id]/page.tsx:17-22,51`** _(hand-verified)_. The page statically imports hooks and components **from the same barrel** that its **9** `dynamic(() => import("@/features/projects"))` calls target. A static import lands the module in the eager chunk, so the async chunks resolve to already-loaded code: **the 14 lazy tabs are a no-op**, and `tasks-sheet-view` (2,155 lines), `messages-tab` (1,637) and 5 recharts components load on first paint of the busiest detail route. The comment claiming "each now loads on first activation" is false.
+- **4.2 HIGH — `components/layout/topbar.tsx:21` + `mobile-more-menu.tsx:26`** — `useEmployee` from `@/features/employees` (43 modules / 10,209 lines) for one hooks file, in the **shared layout chunk on every authenticated route**. Widest-reach single line in the repo.
+- **4.3 HIGH — `project-form-dialog.tsx:18`** — imports `@/features/employees`; because the projects barrel `export *`s this file, this one line is why that closure is 33,851 instead of ~12,658 lines.
+- **4.4 HIGH — `task-create-dialog.tsx:22`** — `useSeoSites` from `@/features/seo` drags 19 modules including a recharts-importing tab. Line `:20` in the same file already uses a concrete path.
+- **4.5 HIGH — `projects/progress/page.tsx:25-32`** — the file that documents the rule breaks it.
+- **4.6 MED-HIGH — `@/features/admin`** imported by **32 files** for a 37-line `usePermissions` hook that ships beside two large forms.
+- **4.7 MED — self-importing barrels** (`employee-sync-panel.tsx:22`, `wfh-requests-inbox.tsx:15`) create cycles and force whole-barrel loads.
+- **4.8 LOW-MED — no `"sideEffects": false`** in `package.json` — the multiplier that makes all of the above real bytes.
 
-**Where:** `app/api/projects/performance/route.ts:51,207`
-**What:** For an admin with no date filter `scopeWhere = {}`, so the main `findMany` pulls every task (with assignee+project) to bucket in JS, then a **second** `findMany` with `distinct: ['projectId']` runs over the same unfiltered set just to build the project-picker list.
-**Fix:** Derive the picker list from `Project`/`ProjectTeam` (or a `groupBy` on `projectId`); push filters into the main query; prefer DB `groupBy`/aggregate for the buckets. _(Same double-scan reportedly in `performance/report/route.ts`.)_
+### Runtime cost
 
-### PERF-03 · HIGH · `GET /api/tasks` has no pagination and returns the entire `ProjectTask` table for admins / non-`mine` calls
+- **4.9 HIGH — `messages-tab.tsx:626-630`** — an **ungated 1-second `setInterval`** re-renders the whole thread; each render runs `deliveryFor()` per bubble, which is `members.filter().map()` with `readers.find()` **inside the map** (O(members × readers)), unmemoised, over an **unpaginated** reply list. ≈29k array ops + 200 rich re-renders _per second_.
+- **4.10 HIGH — composer keystrokes re-render entire message lists** (`messages-tab.tsx:553`, `chat-view.tsx:466`). Every row inline-renders a Radix `DropdownMenu` with fresh callbacks; `React.memo` appears in only 2 files repo-wide.
+- **4.11 MED-HIGH — `tasks-sheet-view.tsx:1037`** — footer totals loop `columns × rows × cells` unmemoised on a 30s tick (~1,280 components/tick). The reasoning in the comment is valid; the fix is to expose the tick from `useTick` (`:425` discards it) and memo on it.
+- **4.12 MED — `employee-form.tsx:550`** — bare `watch()` subscribes to all ~50 fields, re-rendering a ~360-line step per keystroke.
+- **4.13 MED — `recruitment/page.tsx:121,188`** — `?? []` mints a new identity so the `useMemo` never hits; a derived-state effect double-renders and **silently clobbers unsaved edits** on refetch.
+- **4.14 MED — `project-mailer-tab.tsx:1717`** — a reset effect keyed on data from a **5s poll** blanks a half-written campaign body mid-compose. Same shape in `brand-tab.tsx:205`.
+- **4.15 MED — redundant polling.** `use-unread-notifications` and `use-unread-chat` both poll at 20s in the layout, but `realtime-notifications.tsx:112` already invalidates `["notifications"]` on every SSE push, which prefix-matches both. ~3 wasted req/min per open tab, forever.
 
-**Where:** `app/api/tasks/route.ts:141`
-**What:** `findMany` with no `take`/`skip`; when `mine !== 'true'` there's no `assigneeId` filter (returns every task), and `scope=all` for a `PROJECT_WRITE` admin expands to every active employee. Each row includes project, team, assignee, and requirement relations.
-**Fix:** Add cursor/page-limit pagination, require a bounded scope, and reject/default the no-filter path.
+### Images & fonts
 
-### PERF-04 · MEDIUM · `GET project messages` loads every thread with no pagination and sorts in JS
+- **4.16 HIGH — `width={4500} height={1167}` logos with `priority`, rendered at 123-185 CSS px**, in 5 files. **Zero `sizes` props exist in the repo** _(hand-verified: 0 matches)_, so Next clamps to the largest device size and serves a **3840w** re-encode for a ~154px slot. Worse: light and dark variants both render (CSS-hidden) and **both carry `priority`** — two competing preloads on the app shell.
+- **4.17 HIGH — `platform-intro.tsx:73`** — `<img src="/brand-mark.png">` is **729 KB, 2505×2200** _(hand-verified)_, served raw at 36×36 px on the **public landing page**. The same file is `icons.apple`, so iOS downloads 729 KB for a home-screen icon.
+- **4.18 MED — `app/layout.tsx:11-16`** — passing an explicit 5-weight array to the variable font `Inter` forces static instances: **7 woff2 / 224 KB**. Dropping `weight` uses the single variable file.
 
-**Where:** `app/api/projects/[id]/messages/route.ts:96`
-**What:** `findMany({ where: { projectId }, include: { author, _count.replies, reactions(with employee), replies take:1 } })` with no `take`, then decorate + re-sort by `lastActivityAt` in JS.
-**Fix:** Paginate; denormalise a `lastActivityAt` column on `ProjectMessage` (updated on reply) to order/page in SQL; avoid pulling all reactions for every thread in the list view.
+### Client-boundary placement
 
-### PERF-05 · MEDIUM · Chat EventSource reopened on every conversation switch → server SSE handlers churn
-
-**Where:** `features/chat/components/chat-view.tsx:170` _(same root as UI-04)_
-**Fix:** Depend only on `[qc]`; hold the current conversation id in a ref for the toast comparison.
-
-### PERF-06 · MEDIUM · `listConversations` issues up to 100 unread-count queries per call
-
-**Where:** `features/chat/server/chat.service.ts:147`
-**What:** `findMany(take:100)` + `Promise.all(rows.map(r => chatMessage.count(...)))`.
-**Fix:** One `groupBy` over the fetched conversation ids, apply each `lastReadAt` in memory; share the helper with PERF-01.
-
-### PERF-07 · MEDIUM · `payroll/summary` fetches all matching records and sums in JS
-
-**Where:** `app/api/payroll/summary/route.ts:19`
-**What:** `month`/`year` optional, so a no-filter call pulls the entire payroll history to compute four totals + a status breakdown. `analytics/route.ts:68` already does this correctly with `aggregate`.
-**Fix:** `payrollRecord.aggregate({ where, _sum:{…}, _count })` + `groupBy({ by:['status'], where, _count })`.
-
-### PERF-08 · MEDIUM · Project detail tabs dynamic-imported from the full feature barrel → one giant chunk
-
-**Where:** `app/(dashboard)/projects/[id]/page.tsx:57`
-**What:** All 11 `dynamic()` calls use `import('@/features/projects').then(m => m.X)`. `index.ts` is an `export *` barrel of ~25 components (incl. every recharts consumer), all referenced, so none tree-shake and all 11 share one module specifier → webpack emits **one** async chunk (barrel + static deps) downloaded on the first tab opened.
-**Fix:** Dynamic-import the concrete component modules (`import('@/features/projects/components/brand-tab')`), mirroring `admin-dashboard.tsx`; verify per-tab chunks via a production build.
-
-### PERF-09 · MEDIUM · `getSeoRollup` runs one snapshot query per SEO property (N+1)
-
-**Where:** `features/seo/server/seo.queries.ts:488`
-**What:** Task counts are batched (two `groupBy`) but the loop then awaits `seoSnapshot.findMany({ where:{propertyId}, take:2 })` per property. Also hit by the Progress page (`getProjectProgress`).
-**Fix:** One `findMany` for all `propertyId`s ordered by `periodEnd desc` (the `@@index([propertyId,periodEnd])` supports it), keep the first two per property in JS (or a window query).
-
-### PERF-10 · LOW · `runMonthlyAccrual` re-fetches each employee (N+1)
-
-**Where:** `features/leave/server/leave-accrual.service.ts:386` - selects `{id}` then `recomputeAccrued(e.id)` which re-runs `employee.findUnique`. `resyncLeaveBalances`/`rolloverYear` already load fields once and `applyUsedFloor` batches.
-**Fix:** Select accrual fields up front and pass them into `recomputeAccrued` via an `opts.employee`; call `applyUsedFloor(ids, year)` once after the loop.
-
-### PERF-11 · LOW · `MyProgress` statically imported on the progress route → recharts in the manager chunk
-
-**Where:** `app/(dashboard)/projects/progress/page.tsx:27` imports `MyProgress` statically (it renders only under `if (!canManageProjects)`), while siblings are `next/dynamic`. `my-progress.tsx` imports recharts at module top.
-**Fix:** Load `MyProgress` via `next/dynamic` so recharts loads only when that branch renders.
+- **4.19 MED-HIGH — `docs/[slug]/page.tsx`** is client only for `useParams()` (App Router passes `params` as a prop), and `guide-content.tsx` statically imports all 7 guides — so **~975 lines of static prose ship and hydrate on the client, and every slug ships all 7**.
+- **4.20 MED — `marketing/sections/hero.tsx:5`** — `motion/react` (~30-35 KB gz, not in `optimizePackageImports`) on the **public LCP element**, for entrance fades the repo's own `.animate-dnms-fade-up` already does with a `prefers-reduced-motion` guard.
+- **4.21 MED — `admin/permissions/page.tsx`** is client for two `useQuery` calls with zero interactivity; the server-prefetch + `HydrationBoundary` pattern already exists in `dashboard/page.tsx`.
+- **4.22 MED — `date-field.tsx:6`** statically imports react-day-picker (~25 KB gz) into all **22** routes using `DateField`, though the calendar only renders after a click.
 
 ---
 
-## Cross-cutting themes & recommended shared helpers
+## 5. UI, responsive & design
 
-Several findings share a root cause. Introducing these once removes whole classes of the issues above:
+### High
 
-1. **`assertCron(req)` / `withCronAuth`** - fixes SEC-03, SEC-06, DUP-02 (13 routes).
-2. **Project-scoped entry loader** (`findFirst({ id, projectId })` + 404) - the pattern behind SEC-02; audit every `[id]/[entryId]`-style route for it (passwords confirmed; check drive SEC-07, checklist API-06).
-3. **`readAndStoreUpload(...)`** - DUP-05, and a place to enforce content-type/size/extension uniformly (touches SEC-11 SVG handling).
-4. **One unread-count helper (batched)** - PERF-01, PERF-06, DUP-13.
-5. **"Seed body once, track dirty" pattern** for editable-letter dialogs - UI-01, UI-06 are the same force-sync-overwrites-edits bug.
-6. **Stable-ref stream effect** (ref for `activeId`) - UI-04 / PERF-05.
-7. **Atomic conditional writes** (`updateMany` with the state in the `where`, or upsert-ignore-P2002) - API-01, API-03, API-13.
-8. **Reuse existing shared UI** - `Spinner` (DUP-03), `DataTable` (DUP-07), `DateField` (DUP-11), `Pagination` (DUP-15), `ConfirmDialog` (DUP-19), `SearchInput` (DUP-16), `formatFileSize`/`formatDate`/`formatCurrency` (DUP-10/17/18), `EMPLOYEE_SUMMARY_SELECT` (DUP-06), `ok()/fail()` envelope (DUP-12).
+- **5.1 `components/shared/pagination.tsx:59`** — the pager row has **no `flex-wrap`**: Prev + 7 numbers + Next ≈ 364px against a 358px (390px screen) or 288px (320px) column. `main` is `overflow-x-hidden`, so **"Next" is silently unreachable** — no scrollbar, no clue. Affects every paginated page.
+- **5.2 `portal/[projectRef]/inventory/page.tsx:81`** — `overflow-hidden` (not `-x-auto`) on a 4-column table with ~420px of min-content. Columns are **cut off with no way to reach them**, on a client-facing page. Same in `inventory/loading.tsx:25`.
+- **5.3 `components/ui/alert-dialog.tsx:37`** — `AlertDialogContent` has **no width gutter and no height cap**, unlike `dialog.tsx:51` (`w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)]`). At 390px every AlertDialog is edge-to-edge, and a tall one (leave decision, reject reason, task status) **overflows both ends with no internal scroll — the action buttons are unreachable**.
+- **5.4 `features/projects/components/messages-tab.tsx:170`** — `h-[68vh] min-h-120` ignores the new bottom tab bar. `chat-view.tsx:207` explicitly documents fixing exactly this; **messages-tab was missed**. On a 568px-tall phone the composer sits behind the tab bar.
+- **5.5 `components/shared/ai-assistant.tsx:81`** — `fixed bottom-5 z-50` puts the panel **on top of the mobile tab bar** (~60px + safe-area), and its `100vh-6rem` height doesn't subtract it.
+- **5.6 Seven dialogs override the base `max-h-[calc(100dvh-2rem)]` with `vh`** (`project-form-dialog:193`, `requirement-dialog:87`, `document-upload-dialog:94`, `announcements-board:293`, `recipient-import-dialog:297`, `campaign-history-dialog:135`, `leave-decision-dialog:252`). `twMerge` makes the caller win, so on iOS Safari `90vh` exceeds the _visible_ viewport and the submit button falls behind browser chrome — regressing the dvh fix. Five also add a second scroll container.
+- **5.7 `chat-view.tsx:731`** — the mobile-only chat **back button has no accessible name** and is a 32px target. It is the _only_ way back to the conversation list below `lg`.
+- **5.8 `admin/permissions/page.tsx:69-116`** — hardcoded `slate-*` with no dark variants on a `bg-card` surface: the whole role × permission matrix is **unreadable in dark mode** (the app's default).
 
-## Suggested remediation order
+### Medium
 
-1. **Today:** SEC-01, SEC-02, SEC-03, SEC-04, SEC-08 (small, high-impact security).
-2. **This week:** SEC-05/06/07; API-01, API-02, API-04, API-06 (correctness with data-integrity or auth impact); PERF-01/02/03 (load).
-3. **Backlog:** remaining Medium/Low API + UI bugs; the duplication cleanups (best done as the shared-helper introductions above, which also close several bugs).
+- **5.9 `components/shared/info-row.tsx:26`** — no `min-w-0`/`break-all`; an unbreakable email pushes the grid wider than the column and is clipped (live on both profile pages).
+- **5.10 `components/shared/stat-card.tsx:36`** — no `min-w-0` on the text column, no `shrink-0` on the icon tile: at 320px "PENDING REQUESTS" overflows and squashes the tile.
+- **5.11 `data-table.tsx:158-170`** — the **auto** mobile card drops `column.className`, so the two columns relying on it for truncation (`holidays:186`, `wfh:80`) render at full length on phones.
+- **5.12 `data-table.tsx:135,249`** — clickable rows are `div`/`tr` with `cursor-pointer` but **no `role="button"`, `tabIndex`, or key handler** — the primary interaction on every table is keyboard-inaccessible.
+- **5.13 `topbar.tsx:81,109,128`** — every persistent header control is a 32px target on a bar that is always on screen.
+- **5.14 `view-toggle.tsx:45+`** — 28×32px buttons with `title` but no `aria-label`; this is how you switch views on a phone.
+- **5.15 `salary-structure-form.tsx:211 vs :219`** — header tracks `[1fr_90px_120px]` vs body `[1fr_80px_110px]`: the "%" and "Amount" labels are **misaligned with their inputs at every width**.
+- **5.16 19 icon-only buttons with no accessible name** (resources-tab, teams-tab, projects-client, careers-manager, passwords-tab, task-detail-sheet).
+- **5.17 `components/ui/button.tsx:30`** — `icon: "h-9 w-9 rounded"` (4px) sits directly above `icon-sm: "… rounded-[2px]"`. Two sanctioned sizes, two radii, in the core primitive — it propagates everywhere.
+- **5.18 Radius drift** — 424 `rounded-[2px]` vs **175 bare `rounded`**; 6 `AlertDialogContent className="rounded"` overrides plus `sm:rounded` in the base make confirm/delete dialogs visibly rounder than every other dialog.
+- **5.19 Hand-rolled status chips** with raw `gray-*`/`red-*` and **no dark variants** (`leave/types:126,164`, `payroll-directory:316`, `wfh:87`) — `StatusBadge` exists precisely to replace these.
+- **5.20 `stat-strip.tsx:58`** — 2-up cells with no `min-w-0` and untruncated `tracking-widest` uppercase labels overflow at 320px.
+- **5.21 Chart palettes are raw hex with no dark handling** — `dashboard-charts.tsx:29-33` uses `#555`/`#888`/`#333`, near-invisible on the dark background.
+
+### Low
+
+- **5.22** `attendance-directory-client.tsx:220,224` — two `w-44` date fields force a 3-row filter block at 390px (wraps correctly; cosmetic).
+- **5.23** `components/ui/sheet.tsx:39` — default `w-3/4` (292px) is latent: every current caller overrides with `w-full`, the next one won't.
+- **5.24** `features/marketing/**` + auth run a second design system: 101 × `rounded-[6px]`, and `const BRAND_RED = "#ef4444"` redeclared verbatim in **13 files**. Auth straddles both systems and is the first thing users see.
+- **5.25** 22 TODO/FIXME markers and 20 `console.log` calls remain in app code.
 
 ---
 
-_Audit produced from a verified multi-agent sweep; the Critical and top-severity security items were additionally confirmed by hand against the source. No source files were modified._
+## 6. Tooling & configuration
+
+- **6.1 HIGH — ESLint does not run. ✅ FIXED 2026-08-24** (see §8 Tier 1 item 4 for the two-part root cause) — `npx eslint .` crashes with `TypeError: Converting circular structure to JSON` from `@eslint/eslintrc`'s config validator. `eslint.config.mjs` uses `FlatCompat` to load `next/core-web-vitals` under **ESLint 10.4**, and `next lint` was removed in Next 16 (it now resolves `lint` as a directory). **Static analysis is silently disabled for the whole repo** — several findings above (unused imports, missing `key`, `no-img-element`, exhaustive-deps) are exactly what it would have caught. → migrate to `eslint-config-next`'s flat config without `FlatCompat`, or pin ESLint 9.
+- **6.2 NEW — the lint backlog that 6.1 was hiding.** With ESLint working, the repo reports **352 problems (110 errors, 242 warnings)**. None are introduced by the repair; all were simply invisible. By rule:
+
+  | count | rule                                         | severity  | note                                                                                                                                   |
+  | ----- | -------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+  | 221   | `@typescript-eslint/no-unused-vars`          | warn      | dead imports/vars; mostly noise, cheap to sweep                                                                                        |
+  | 72    | `react-hooks/set-state-in-effect`            | **error** | cascading re-renders — same class as §4.10                                                                                             |
+  | 18    | `react-hooks/static-components`              | **error** | components declared inside components → **remount every render**; 16 in `payroll/records/[id]/page.tsx`, 2 in `attachment-preview.tsx` |
+  | 17    | `react-hooks/exhaustive-deps`                | warn      | stale-closure risk                                                                                                                     |
+  | 5     | `react/no-unescaped-entities`                | error     | cosmetic                                                                                                                               |
+  | 4     | `@typescript-eslint/no-explicit-any`         | error     | 2 in `prisma/seed*.ts`, 1 in `server/api-handler.ts`                                                                                   |
+  | 3+3+2 | `react-hooks/refs`, `immutability`, `purity` | error     | genuine hook-rule violations                                                                                                           |
+  | 1     | `@next/next/no-sync-scripts`                 | error     | the deliberate `theme-boot.js` in `app/layout.tsx` — should carry a scoped disable                                                     |
+
+  The two clusters worth fixing on merit are **`static-components`** (a real, measurable perf bug) and **`set-state-in-effect`**. The 221 unused-vars are a mechanical sweep. Recommend fixing those two clusters, then setting `--max-warnings` in CI to lock the level in.
+
+- **6.3 Prettier is clean** across the repo — formatting is not a concern.
+- **6.4 `next build` succeeds** in ~30-52s with no type errors (`tsc --noEmit` clean). Next 16 no longer prints per-route bundle sizes, so size regressions cannot be tracked from build output alone — consider `@next/bundle-analyzer` in CI given §4.
+- **6.5 Client chunks total ~9.0 MB on a clean build.** (An earlier 6.6 MB reading came from a non-clean `.next`; the two are not comparable. Two clean builds before and after the Tier-1 work both measure 9.0 MB.); largest is 424 KB and contains `xlsx` — **correctly lazy** (`recipient-import-dialog.tsx:138`), so not initial load.
 
 ---
 
-# Remediation status (2026-08-22)
+## 7. Claims investigated and rejected
 
-Fixes were applied in priority order - **security → correctness → UI bugs → bounded performance/duplication**. Everything below compiles clean (`tsc --noEmit` passes) and is Prettier-formatted. No database migrations were run.
+Recorded so they are not re-reported:
 
-## ✅ Fixed (40 findings)
+- **"`xlsx` bloats the bundle"** — false. It is `await import("xlsx")` behind a click; the 424 KB chunk is lazy.
+- **"recharts is eagerly loaded"** — false. Dynamic at all 7 sites; `optimizePackageImports` covers lucide/recharts/date-fns.
+- **"Tables are stuck as wide scrolling grids on phones"** — false. No caller passes `mobileCard={false}`; all 42 get cards below `md`. (The _real_ table defect was at `md`, §1.1.)
+- **"`w-40`/`w-44` filter selects overflow"** — false. `select.tsx:21` (`[&>span]:line-clamp-1`) lets every trigger shrink to ~40px inside its `flex-wrap` row.
+- **"Auth re-queries permissions per request"** — false. JWT-based (`server/auth.ts:209`), and `proxy.ts` does no DB work.
+- **"Realtime uses polling"** — false. Both streams use Postgres `LISTEN/NOTIFY`.
 
-**Security - all 12:** SEC-01 (employee-doc read now gated on `employee:read`, not the base-role `document:read`; same for company docs), SEC-02 (password-vault GET/PATCH/DELETE now scoped to the resolved project id), SEC-03 + SEC-06 (new `server/cron-auth.ts` `assertCron` - fail-closed, constant-time - wired into all 13 cron routes), SEC-04 (recruitment applicants/interviews now `withAuth(RECRUITMENT_READ/WRITE)`), SEC-05 (password-reset rate limited per IP+email via new `lib/rate-limit.ts`), SEC-07 (drive delete verifies the file is in the project's folder), SEC-08 (payroll summary now `PAYROLL_WRITE`), SEC-09 (attendance GET self-or-`attendance:write`), SEC-10 (floating-holiday self-review blocked), SEC-11 (SVG logos served `Content-Disposition: attachment`), SEC-12 (careers read key now constant-time via new `lib/api-key.ts` + rate limited).
+---
 
-**API correctness - 11:** API-01 (leave **and** WFH decisions now claim the transition atomically with `updateMany … where status:PENDING`, so concurrent approvals can't double-apply the balance), API-02 (half-day rejected on a multi-day range), API-03 (single-choice poll vote runs Serializable + retry; multi tolerates P2002), API-04 (task hours validated, no NaN 500), API-05 (project-code create retries on the unique race), API-06 (checklist item PATCH/DELETE verify task+project access), API-09 (WFH monthly window uses UTC bounds), API-10 (referrer notified only on a real status change), API-11 (chat SSE cleans up if aborted during subscribe), API-12 (per-employee attendance calendar invalidated on punch edits), API-13 (chat + project reaction toggles idempotent, no double-tap 500).
+## 8. Recommended order of work
 
-**UI bugs - all 8:** UI-01 (project edit form resets only on open, not on every parent re-render), UI-02 (voice recorder discards the clip on unmount instead of uploading it), UI-03 (emoji insert preserves @mentions), UI-04 / PERF-05 (chat SSE subscribes once, reads activeId from a ref), UI-05 (camera Retake re-acquires through the guarded effect), UI-06 (leave-decision letter no longer wiped when the reason is edited), UI-07 (Meta campaigns table keyed by a composite; `DataTable.rowKey` now gets the index), UI-08 (poll options keyed by stable id).
+**Tier 1 — cheap, wide, no behaviour change — ✅ DONE (2026-08-24)**
 
-**Performance - 5:** PERF-05 (see UI-04), PERF-07 (payroll summary via `aggregate`/`groupBy`), PERF-09 (SEO rollup snapshots in one query, top-2-per-property in JS), PERF-10 (monthly accrual passes preloaded employee fields, no per-employee refetch), PERF-11 (`MyProgress` dynamically imported from its concrete module).
+1. ✅ Composite indexes (§3.18) — shipped as migration `20260824000000_perf_indexes`, **9** indexes (not 6), verified present in the DB. Checked for pre-existing duplicate rows first: 0 evaluation dupes, 0 WFH dupes.
+   - **Deviation:** the recommended plain `@@unique([employeeId, date])` on `WfhRequest` would have been wrong — it blocks re-applying after a rejection, which is legitimate. Shipped a **partial** unique index (`WHERE status IN ('PENDING','APPROVED')`) in raw SQL instead, matching the service's actual duplicate guard.
+2. ✅ Barrel imports (§4.1-4.4) — all 9 `dynamic()` calls in `projects/[id]/page.tsx` retargeted at concrete modules, plus topbar, mobile-more-menu, and `usePermissions` across 32 files. 0 `@/features/admin` barrel imports remain.
+   - **Deviation:** shipped `"sideEffects": ["*.css"]`, not `false` — a bare `false` would let a bundler drop the one global CSS import.
+   - **Unverified:** the byte win is _not_ measured. Next 16/Turbopack emits no per-route `app-build-manifest`, and total chunk bytes _rise_ with more splitting, so there is no like-for-like number. The change is correct by construction (a static barrel import defeats `dynamic()` on that barrel) but the claimed "~10k lines" saving remains unproven.
+3. ✅ Images (§4.16-4.17) — all 7 logo sites + brand-mark.
+   - **Deviation:** did **not** add `sizes`. These are fixed-size images; supplying `sizes` switches Next to the full `deviceSizes` srcset, which is _worse_. The actual bug was `width={4500}`, which made Next offer 4500w/9000w candidates for a ~123px render. Fixed by declaring the rendered size (370×96).
+   - `priority` dropped from the theme-swapped pairs (one preload was always discarded) but **kept** on the lone auth-shell hero logo, which has no twin.
+   - **Beyond the audit:** the same master images were also being served raw to email clients, where no optimizer exists — signature 729 KB → 12 KB, header 118 KB → 12 KB. The header was additionally a `.webp`, which **Outlook desktop cannot render at all**; it is now a PNG. This was a live correctness bug, not just a size one.
+4. ✅ ESLint (§6.1) — repaired; the repo now lints for the first time.
+   - Root cause was **two** stacked failures, not one: `FlatCompat` wrapping configs that are _already_ native flat arrays in `eslint-config-next` v16, and then `eslint-plugin-react@7.37.5` calling `context.getFilename()` (removed in ESLint 10) during React-version auto-detection. Fixed by dropping `FlatCompat` and pinning `settings.react.version`.
+   - `package.json` still ran `next lint`, removed in Next 16 — now `eslint .`.
+   - **Result: 352 problems (110 errors, 242 warnings) are now visible.** These are pre-existing and untriaged — see §6.2.
 
-**Duplication - 4 (+ shared helpers introduced):** DUP-02 (cron auth → `assertCron`), DUP-09 (API-key check → `verifyApiKey`), DUP-13 (chat-list unread count now applies the same `hiddenFor` filter as the nav badge), DUP-14 (reaction-toggle bug fixed on both surfaces). New reusable helpers now exist for future consolidation: `server/cron-auth.ts`, `lib/api-key.ts`, `lib/rate-limit.ts`.
+**Tier 2 — correctness and stability — ✅ DONE (2026-08-24)**
 
-## ⏳ Deferred - need a migration, tested SQL, a prod build, or a broad sweep (not safe to do blind)
+5. ✅ All five Critical reads bounded, pool raised.
+   - **§3.1** `projects/performance` — the tally moved into ONE grouped SQL aggregate (`COUNT(*) FILTER`, grouped by assignee × project; every bucket is additive so summary/byEmployee/byProject are cheap roll-ups). Truncation was rejected outright: the page is nothing but aggregates, so a clipped scan reports confidently wrong totals. **Verified against the old JS on real data: 286 rows → 38 group rows, all 14 buckets identical across summary and every employee and project.** The second scan at `:207` now queries `projects` directly instead of one row per task.
+   - **§3.2** `/api/tasks` — the `where: {}` full-table path (no in-app caller) now falls back to the caller's own tasks; `take` cap with **`meta.truncated`** so a clipped list is never presented as complete. **Deviation:** the audit said to drop the text columns — `description` is rendered by my-tasks:697, so only the two genuinely unused `@db.Text` columns were omitted.
+   - **§3.3** storage overview — **deliberately still unbounded** (a row it misses becomes a live file "Clean up orphans" deletes), so _concurrency_ was bounded instead: 12-wide → 3-wide, with the B2 call overlapped since it holds no connection.
+   - **§3.4** meta-sync — both upsert loops batched via array-form `$transaction` (chunks of 100), collapsing ~3,000 sequential round trips.
+   - **§3.5** attendance export — bounded range now mandatory (max 366d), `include` → `select`. No in-app caller, so it was pure DoS surface.
+   - **§3.25** pool 10 → 20, sized against the real server (`max_connections=100`, 3 reserved, 11 in use), overridable via `DB_POOL_MAX`.
+6. ✅ WFH gaps — closed early alongside item 1 (atomic cancel claim + P2002 catch).
+7. ✅ **DUP-01 payroll** — one `computePayslip()`, used by both the generator and the editor. The editor had _two_ divergences, not one: it dropped `telephoneAllowance` from gross **and** applied statutory deductions the generator zeroes. Demonstrated: on a ₹52,000 payslip a single overtime edit silently cut **₹2,800**. Generator behaviour is preserved exactly; the policy is now one named `STATUTORY_DEDUCTIONS_ENABLED` constant instead of a magic `= 0` in one place and a live calculation in the other.
+8. ✅ Unreachable controls — pager `flex-wrap` (§5.1), AlertDialog gutter + dvh cap + internal scroll (§5.3), portal inventory `overflow-x-auto` (§5.2), messages-tab dvh height (§5.4), AI panel lifted above the tab bar (§5.5). Also **§5.6**: the six dialogs whose `vh` overrides re-broke the dvh fix, and **§5.18**: six `AlertDialogContent className="rounded"` overrides.
 
-**Need a Prisma migration (I did not run migrations):**
+**Tier 3 — polish — ✅ MOSTLY DONE (2026-08-24)**
 
-- **API-07** - durable resume links. `Applicant.resumeUrl` is dual-purpose (uploaded-file URL _or_ a pasted external link), so on-demand signing needs a separate `resumeKey` column to disambiguate; overloading the field would break the pasted-link path and the storage orphan-matcher.
-- **API-08** - mailer requeue by claim time needs a `claimedAt`/`@updatedAt` column on `ProjectCampaignSend`.
+9. **§4.9 ✅** — `readers.find()` hoisted out of the map into a `Map` (was O(members × readers) per bubble), both helpers `useCallback`'d, and the 1s interval **gated** so it runs only while a message is still inside its 15-minute edit window instead of forever. **§4.10 (composer re-renders) NOT done** — needs `React.memo` on the row components, a real refactor.
+10. ✅ Dark mode — permissions matrix off hardcoded `slate-*` onto semantic tokens (§5.8); a theme-aware `CHART_NEUTRAL_SERIES` replaces the `#555`/`#333` greys (§5.21); chips onto the existing `TONE` map (§5.19).
+    - **§5.19 partly rejected:** `wfh/page.tsx:87` already had dark variants — the audit was stale on it.
+11. ✅ Button radius unified (§5.17); `BRAND_RED` consolidated from 14 local copies into `marketing.constants.ts` (§5.24).
+    - **§5.16 partly done, and the audit's count was closer than mine.** I initially "labelled 44" icon buttons — most were false positives that already had `title=`/`sr-only`. **Net new labels: 7**, including the §5.7 chat back button, which also went from a 32px to a 40px target (it is the only way back below `lg`).
 
-**Need tested raw SQL / a load test (a wrong count or heavy scan would be a worse regression):**
+**Also fixed, beyond the tier list**
 
-- **PERF-01, PERF-06** - batch the per-conversation unread counts. Correct batching needs a windowed/lateral raw query (per-conversation `lastReadAt` cutoffs can't be expressed in one typed `groupBy`); the correctness half (DUP-13) is already done.
+- **API-04** — `loggedHours` is no longer client-writable. It is system-measured, no client ever sent it, and accepting it let anyone set their own "time spent" _and_ silently overwrite the value measured on that same request.
+- **API-09** — CL/SHORT monthly quotas moved to `Date.UTC`, matching the EL window three lines away. Local midnight shifted each window by the server's offset, so a request dated the 1st fell into the previous month's quota.
+- **§3.23** — both task-create paths are now transactional, so a task can no longer exist without its first status period.
+- **§6.2 lint backlog: 352 → 187 problems (110 → 92 errors).**
+  - `no-unused-vars` given the repo's own `^_` convention (148 of the 221 were intentional placeholders on fixed handler signatures).
+  - `static-components` cleared: `Row`/`RowSkeleton` hoisted out of the payroll page body (16 rows were remounting on every render); the 2 in `attachment-preview` are a **genuine rule false positive** — `iconFor()` returns one of three module-level components — and carry a scoped disable, not a refactor.
 
-**Need a production bundle analysis or a paging contract change + client updates:**
+**Deliberately NOT changed**
 
-- **PERF-02, PERF-03, PERF-04** - pagination / avoid full-table scans on `projects/performance`, `GET /api/tasks`, project-messages list (changes response shape; needs client updates and load verification).
-- **PERF-08** - split the project-detail tab chunk (dynamic-import concrete modules instead of the `export *` barrel); confirm with a prod build.
+- **SEC-05 (login enumeration oracle).** `auth.service.ts:29-31` documents this as a product requirement: _"This flow deliberately reveals whether an active account exists, per product requirement - it is not anti-enumeration."_ Flooding is already rate-limited per IP and per email. Reversing a documented product decision is the owner's call, not the auditor's — **this needs a decision, not a patch**.
+- **§4.15 chat polling.** The audit claims `invalidateQueries(["notifications"])` prefix-matches `["chat","unread-count"]`. It does not. The chat hook documents why it must poll (its SSE stream only runs while the Chat screen is open). The **notifications** half was real and is fixed: 20s → 90s, aligned with the inbox-watch fallback it backs up. It could not be removed entirely — that fallback refetches the inbox but does not invalidate the unread-count key, so the badge would sit stale through an SSE outage.
 
-**Mechanical multi-file consistency sweeps (low harm if left, real regression risk if rushed unseen) - the shared helpers/targets already exist:**
+**Second pass — the remainder (2026-08-24)**
 
-- **DUP-01** (extract one payslip-compute shared by the generator and the adjust branch - money math, needs care), DUP-03 (raw `Loader2` → `Spinner`, ~20 files), DUP-04 (three IST time formatters → one), DUP-05 (one upload helper across 5 routes; also fixes the wrong 413 messages), DUP-06 (`EMPLOYEE_SUMMARY_SELECT` across many routes), DUP-07 (raw tables → `DataTable`), DUP-08 (signed-file/SSE gate consolidation), DUP-10 (byte formatter ×6 → `formatFileSize`), DUP-11 (native date inputs → `DateField`), DUP-12 (response envelopes → `ok()/fail()`), DUP-15 (portal → shared `Pagination`), DUP-16 (ContactComposer → `SearchInput`), DUP-17 (inline date → `formatDate`), DUP-18 (portal currency → `formatCurrency`), DUP-19 (seo confirm → `ConfirmDialog`), DUP-20 (resources POST → project-access guard).
+_Server (§3)_
 
-These are best done as reviewed batches - the two migrations together, the perf items with a load test, and the duplication sweeps one component-family at a time so each can be eyeballed.
+- **§3.24 ✅** `normalize()` no longer does `res.clone().json()`. That teed the stream and buffered every payload a second time on **all 283 routes**; it now reads the body once and hands the original string back on both pass-through branches instead of re-serialising the parsed object.
+- **§3.9 ✅** `applyLeave`'s first three reads (leave type, employee, resignation) are independent and now run together instead of as three sequential round trips.
+- **§3.13 ✅** project message list bounded (500 threads). **Documented limitation left in place:** the final order is by `lastActivityAt`, which is derived from the newest reply and cannot be expressed in the `orderBy`, so the cap keeps the newest threads _by creation_. Doing it properly needs `lastActivityAt` denormalised onto `projectMessage` — which is also what would make the endpoint genuinely paginable.
+- **§3.14 ✅** thread replies bounded (500) with `desc + take + reverse`, so the cap keeps the **newest** replies. Capping the original `asc` order would have kept the oldest and hidden the newest — backwards for a chat.
+- **§3.15 ✅** project board bounded (2000) + the two unread `@db.Text` columns omitted.
+- **§3.17 ✅** applicants bounded (500).
+- **§3.19 ✅** `notifyApprovers` uses the existing batched `createNotifications` — one `createMany` plus non-blocking pushes, instead of 2N serialized queries.
+- **§3.21 ✅** uptime sweep: per-monitor `UPDATE` and `findFirst` hoisted out of the loop into one batched write and one keyed read.
+- **§3.22 ✅** noticeboard's second, unbounded `findMany` replaced with `groupBy` + three `count`s.
+- Every new cap reports `meta.truncated` — no silent truncation anywhere.
+
+_Correctness_
+
+- **API-07 ✅ (was "migration-blocked")** — added `applicants.resume_key`. `getSignedUrl` clamps to 7 days no matter what is requested (`lib/storage.ts:216`), so the stored "one year" link **403'd a week after upload** and every CV became unreachable. There is now a stable `GET /api/recruitment/applicants/[id]/resume` that mints a fresh 5-minute signature per click and redirects; `resumeUrl` is also a free-text field, so external links (LinkedIn, Drive) pass through untouched. The storage orphan-scan now matches CVs on the exact key instead of `resumeUrl.includes(key)`.
+- **API-08 ✅ (was "migration-blocked")** — added `project_campaign_sends.claimed_at` + index, backfilled. `requeueStuckSends` measured staleness from `createdAt`, but a bulk campaign inserts every row at once — so once a run outlived the threshold, rows that were **actively sending** were flipped back to PENDING and those recipients got the campaign **twice**.
+- Migration `20260824010000_resume_key_and_claimed_at`, applied via `migrate deploy` and verified in the DB (both columns + the index).
+
+_UI (§5)_
+
+- ✅ **5.9** InfoRow `min-w-0` + `break-words`; **5.10** StatCard `min-w-0` + `shrink-0` icon; **5.11** auto mobile card now carries `column.className`; **5.12** clickable rows got `role="button"`, `tabIndex`, Enter/Space and a focus ring (the primary interaction on 42 tables was mouse-only); **5.13** topbar controls 40px on touch / 32px from `md`; **5.14** view-toggle `aria-label`s + 32px targets; **5.15** the salary-structure header track now matches its body track; **5.20** stat-strip `min-w-0` + truncate; **5.23** Sheet default `w-3/4` → `w-full sm:max-w-sm`.
+
+_Runtime (§4)_
+
+- ✅ **4.11** `useTick` now returns its beat, so the footer totals memoise on `[columns, rows, cells, tick]` — recomputing once every 30s instead of on every keystroke, hover and selection. (The existing comment was right that a memo without the tick would freeze the footer; the tick was the missing dependency.)
+- ✅ **4.13** recruitment `?? []` → `useMemo`, and the department reset effect keyed on identity only — it was re-running on refetch and **discarding unsaved edits**.
+- ✅ **4.14** the campaign composer reset no longer fires on the 5s poll, and `brand-tab` seeds once instead of overwriting in-progress typing on every refetch.
+
+_Lint_ — **352 → 184** (110 → 91 errors). `static-components` fully cleared.
+
+**Still open, with reasons**
+
+- **§4.10 composer re-renders** — needs a leaf bubble component extracted from an ~860-line inline `Thread` and wrapped in `React.memo`. A real refactor on the most-used surface, and it cannot be verified without exercising the chat UI. The _algorithmic_ half (the O(members × readers) per bubble) was fixed in §4.9.
+- **§4.12 employee-form `watch()`** — `watchedValues` is read for 33 distinct fields across 73 references, so a targeted `watch([...])` saves almost nothing. The real fix is restructuring a 1,500-line form into individually-subscribed sub-components.
+- **§3.6-3.8, §3.11-3.12, §3.16, §3.20** — remaining N+1s, each needing its own restructure. §3.10's supporting index landed in Tier 1, so its worst path (the 50-wide fan-out) is already far cheaper.
+- **§5.22** — cosmetic; the audit itself notes it wraps correctly.
+- **§5.25 — REJECTED.** All 20 `console.log` calls are intentional scheduler operational logging in one server file (two are inside doc comments). Removing them would make the background workers silent.
+- **Remaining lint:** 71 `set-state-in-effect`, 73 genuinely-dead unused vars, 16 `exhaustive-deps`.
+
+---
+
+## 9. What is genuinely good
+
+Worth recording so it isn't "fixed" later:
+
+- **Security posture has held.** Every Critical/High from the prior audit is closed with real enforcement — permission constants, project-scoped `findFirst` before ownership checks, fail-closed cron auth with `timingSafeEqual`, atomic `updateMany … where status: 'PENDING'` claims, Serializable poll votes.
+- **Credentials are deny-by-default** at the Prisma client level (`server/db.ts` global `omit`), so a careless `include` cannot leak a password hash.
+- **Realtime is done properly** — Postgres `LISTEN/NOTIFY`, not polling.
+- **Chat is the best-optimised feature** — grouped `$queryRaw` unread counts, `take` caps on every list, cursor pagination.
+- **The heavy libraries are already lazy** — recharts, `xlsx`, the 68 KB emoji dataset.
+- **`components/ui` is lean** (1,624 lines total) and no barrel re-exports server code.
+- The mobile layer's shared primitives (`PageHeader`, `Tabs`, the portal shell mirroring the staff shell) verified correct on independent review.

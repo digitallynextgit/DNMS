@@ -9,6 +9,13 @@ import { CARD_SELECT, shapePoll } from "@/server/message-cards"
 import { groupReactions } from "@/server/reactions"
 import { resolveProjectMemberIds } from "../../route"
 
+/**
+ * Most replies returned for one thread. High enough that no real conversation
+ * is clipped in practice; low enough that a runaway thread cannot pull every
+ * reply plus every reaction and attachment into one response.
+ */
+const MESSAGE_REPLY_LIMIT = 500
+
 /** Everything the shared attachment renderer needs, and nothing more. */
 export const ATTACHMENT_SELECT = {
   select: {
@@ -62,10 +69,18 @@ export const GET = withProjectAccess(
         select: { id: true },
       })
       if (!parent) return NextResponse.json({ error: "Message not found" }, { status: 404 })
-      const [replies, reads] = await Promise.all([
+      const [recentFirst, reads] = await Promise.all([
         db.projectMessageReply.findMany({
           where: { messageId },
-          orderBy: { createdAt: "asc" },
+          // desc + take + reverse, NOT asc + take. This thread was completely
+          // unbounded with a 7-way include, so a long-running conversation
+          // pulled every reply and every reaction on each open. Capping with the
+          // original `asc` ordering would have kept the OLDEST replies and
+          // hidden the newest, which is exactly backwards for a chat - so the
+          // newest MESSAGE_REPLY_LIMIT are taken and flipped back to ascending
+          // for the renderer.
+          orderBy: { createdAt: "desc" },
+          take: MESSAGE_REPLY_LIMIT + 1,
           include: {
             author: { select: AUTHOR_SELECT },
             attachments: ATTACHMENT_SELECT,
@@ -89,9 +104,17 @@ export const GET = withProjectAccess(
           },
         }),
       ])
+
+      const truncated = recentFirst.length > MESSAGE_REPLY_LIMIT
+      if (truncated) recentFirst.length = MESSAGE_REPLY_LIMIT
+      const replies = recentFirst.reverse() // back to oldest-first for the thread
+
       // The poll is reshaped per viewer - "did I vote?" is not a property of the
       // row, it is a property of who is asking.
       return NextResponse.json({
+        // `truncated` so a clipped thread can say "older replies not shown"
+        // rather than quietly presenting a partial conversation as complete.
+        meta: { truncated, limit: MESSAGE_REPLY_LIMIT },
         data: replies.map(({ replyTo, replyToRoot, ...r }) => {
           // Flattened to ONE shape whichever kind of bubble was quoted, so the
           // renderer does not branch on which column happened to be set. A quote

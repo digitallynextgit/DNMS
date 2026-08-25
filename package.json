@@ -2,11 +2,15 @@
   "name": "dnms",
   "version": "0.2.0",
   "private": true,
+  "sideEffects": [
+    "*.css"
+  ],
   "scripts": {
     "dev": "prisma generate && next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "type-check": "node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc --noEmit",

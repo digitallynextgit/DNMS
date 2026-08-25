@@ -7,58 +7,24 @@ import { useEffect, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Session } from "next-auth"
-import {
-  LayoutDashboard,
-  Users,
-  FileText,
-  Bell,
-  Shield,
-  ScrollText,
-  Mail,
-  ChevronDown,
-  Clock,
-  CalendarDays,
-  DollarSign,
-  FolderKanban,
-  TrendingUp,
-  Star,
-  Briefcase,
-  BarChart3,
-  Laptop,
-  Network,
-  ListChecks,
-  UserMinus,
-  Plug,
-  HardDrive,
-  PartyPopper,
-  UserPlus,
-  Megaphone,
-  Images,
-  MessageSquare,
-} from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebarStore } from "@/stores/sidebar-store"
 import { PERMISSIONS } from "@/lib/constants"
+import {
+  EMPLOYEE_ITEMS,
+  COMPANY_ITEMS,
+  HRMS_ITEMS,
+  ADMIN_ITEMS,
+  projectItems,
+  canAccess,
+  isItemVisible,
+  type NavItem,
+} from "@/config/nav"
 import { usePendingResignationCount } from "@/features/resignations"
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
 import { useUnreadChatCount } from "@/hooks/use-unread-chat"
-
-interface NavChild {
-  label: string
-  href: string
-  permission?: string
-}
-
-interface NavItem {
-  label: string
-  href?: string
-  icon: React.ElementType
-  permission?: string
-  children?: NavChild[]
-  /** Live count badge to render next to the item. */
-  badge?: "pending-resignations" | "unread-notifications" | "unread-chat"
-}
 
 // Live count badge shown on the Resignations nav item. Also watches for new
 // arrivals (count increases): toasts a notification and refreshes any open
@@ -153,203 +119,6 @@ function NavBadge({
   if (badge === "pending-resignations") return <ResignationCountBadge collapsed={collapsed} />
   if (badge === "unread-chat") return <ChatCountBadge collapsed={collapsed} />
   return <NotificationCountBadge collapsed={collapsed} />
-}
-
-// ── Employee: personal self-service. No permission gate - every signed-in
-//    user sees the same set, each a flat link to their own view. ────────────
-const EMPLOYEE_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "My Attendance", href: "/attendance/me", icon: Clock },
-  { label: "My Leave", href: "/leave", icon: CalendarDays },
-  { label: "My Payslips", href: "/payroll/me", icon: DollarSign },
-  { label: "My Performance", href: "/performance/me", icon: Star },
-  { label: "Work From Home", href: "/wfh", icon: Laptop },
-  { label: "Holiday Calendar", href: "/holiday-calendar", icon: PartyPopper },
-  // No permission gate: referring somebody is open to every employee, and the
-  // page only ever shows the caller's own referrals.
-  { label: "My Referrals", href: "/referrals", icon: UserPlus },
-  { label: "Notifications", href: "/notifications", icon: Bell, badge: "unread-notifications" },
-]
-
-// ── Company: shared, company-wide. Visible to everyone. ─────────────────────
-const COMPANY_ITEMS: NavItem[] = [
-  { label: "Chat", href: "/chat", icon: MessageSquare, badge: "unread-chat" },
-  { label: "Announcements", href: "/announcements", icon: Megaphone },
-  { label: "Photo Gallery", href: "/gallery", icon: Images },
-  { label: "Documents", href: "/documents", icon: FileText },
-  { label: "Organisation Chart", href: "/employees/org-chart", icon: Network },
-]
-
-// ── Project: personal project workspace. Shown to anyone with project access. ─
-const PROJECT_ITEMS: NavItem[] = [
-  // No permission gate: everyone gets a personal project workspace. The pages are
-  // scoped to the user's own (owned + member) projects, so a non-participant just
-  // sees an empty list - and an account manager who is a plain employee can reach
-  // the projects they own.
-  {
-    label: "My Projects",
-    href: "/projects/my-projects",
-    icon: FolderKanban,
-  },
-  {
-    label: "My Tasks",
-    href: "/projects/my-tasks",
-    icon: ListChecks,
-  },
-]
-
-/**
- * Project links, with the progress entry named for who is reading it.
- *
- * The page behind it is already scoped server-side: `project:write` holders see
- * every project, everyone else sees the teams they manage, the projects they
- * own, and their own tasks. The label should say which of those you are getting
- * rather than promising a company-wide view to someone who cannot have one.
- */
-function projectItems(canManageProjects: boolean): NavItem[] {
-  return [
-    ...PROJECT_ITEMS,
-    {
-      label: canManageProjects ? "Progress" : "My Progress",
-      href: "/projects/progress",
-      icon: TrendingUp,
-    },
-  ]
-}
-
-// ── HRMS: only privileged roles. Gated by manage-level permissions
-//    (WRITE/APPROVE/REVIEW) so regular employees never see these groups; they
-//    use the flat Employee links above instead. ──────────────────────────────
-const HRMS_ITEMS: NavItem[] = [
-  {
-    label: "Employees",
-    icon: Users,
-    permission: PERMISSIONS.EMPLOYEE_READ,
-    children: [
-      { label: "Employee Directory", href: "/employees/employee-directory" },
-      { label: "Departments", href: "/employees/departments" },
-      { label: "Designations", href: "/employees/designations" },
-      { label: "Job Roles", href: "/employees/job-roles" },
-    ],
-  },
-  {
-    label: "Resignations",
-    href: "/resignations",
-    icon: UserMinus,
-    permission: PERMISSIONS.RESIGNATION_READ,
-    badge: "pending-resignations",
-  },
-  {
-    label: "Attendance",
-    icon: Clock,
-    permission: PERMISSIONS.ATTENDANCE_WRITE,
-    children: [
-      { label: "Attendance Directory", href: "/attendance/attendance-directory" },
-      { label: "Devices", href: "/attendance/devices" },
-    ],
-  },
-  {
-    label: "Holiday Calendar",
-    href: "/holidays",
-    icon: PartyPopper,
-    permission: PERMISSIONS.HOLIDAY_WRITE,
-  },
-  {
-    label: "Leave",
-    icon: CalendarDays,
-    permission: PERMISSIONS.LEAVE_APPROVE,
-    children: [
-      { label: "Leave Directory", href: "/leave/leave-directory" },
-      { label: "Leave Types & Policy", href: "/leave/types" },
-    ],
-  },
-  {
-    label: "Work From Home",
-    href: "/wfh/requests",
-    icon: Laptop,
-    permission: PERMISSIONS.WFH_APPROVE,
-  },
-  {
-    label: "Payroll",
-    icon: DollarSign,
-    permission: PERMISSIONS.PAYROLL_WRITE,
-    children: [
-      { label: "Payroll Directory", href: "/payroll/payroll-directory" },
-      { label: "Salary Structures", href: "/payroll/salary-structures" },
-    ],
-  },
-  {
-    label: "Performance",
-    icon: Star,
-    permission: PERMISSIONS.PERFORMANCE_REVIEW,
-    children: [
-      { label: "Evaluations", href: "/performance/evaluations" },
-      { label: "KPI Profiles", href: "/performance/kpi-profiles" },
-    ],
-  },
-  {
-    label: "Recruitment",
-    icon: Briefcase,
-    permission: PERMISSIONS.RECRUITMENT_READ,
-    children: [
-      { label: "Careers", href: "/admin/careers" },
-      { label: "Applications", href: "/recruitment/applications" },
-      { label: "Referrals", href: "/admin/referrals" },
-    ],
-  },
-  {
-    label: "Analytics",
-    href: "/analytics",
-    icon: BarChart3,
-    permission: PERMISSIONS.ANALYTICS_READ,
-  },
-]
-
-const ADMIN_ITEMS: NavItem[] = [
-  {
-    label: "Roles & Permissions",
-    href: "/admin/roles",
-    icon: Shield,
-    permission: PERMISSIONS.ROLE_READ,
-  },
-  {
-    label: "Audit Log",
-    href: "/admin/audit-log",
-    icon: ScrollText,
-    permission: PERMISSIONS.AUDIT_READ,
-  },
-  {
-    label: "Email Templates",
-    href: "/admin/email-templates",
-    icon: Mail,
-    permission: PERMISSIONS.EMAIL_TEMPLATE_READ,
-  },
-  {
-    label: "Integrations",
-    href: "/admin/integrations",
-    icon: Plug,
-    permission: PERMISSIONS.SETTINGS_WRITE,
-  },
-  {
-    label: "Storage",
-    href: "/admin/storage",
-    icon: HardDrive,
-    permission: PERMISSIONS.SETTINGS_WRITE,
-  },
-]
-
-function canAccess(item: { permission?: string }, permissions: string[], roles: string[]): boolean {
-  if (roles.includes("admin_")) return true
-  if (!item.permission) return true
-  return permissions.includes(item.permission)
-}
-
-// A nav item is visible if the user can access it AND (for groups) at least one
-// child is accessible - otherwise the row would render nothing.
-function isItemVisible(item: NavItem, permissions: string[], roles: string[]): boolean {
-  if (!canAccess(item, permissions, roles)) return false
-  if (item.children) return item.children.some((c) => canAccess(c, permissions, roles))
-  return true
 }
 
 interface SidebarNavItemProps {
@@ -581,18 +350,16 @@ export function Sidebar({ session }: { session: Session }) {
           <Image
             src="/logo_white_bg.png"
             alt="Digitally Next"
-            width={4500}
-            height={1167}
-            priority
+            width={370}
+            height={96}
             className="h-10 w-auto max-w-none dark:hidden"
           />
           {/* Dark / custom themes → white-text logo */}
           <Image
             src="/logo_dark_bg.webp"
             alt="Digitally Next"
-            width={4500}
-            height={1167}
-            priority
+            width={370}
+            height={96}
             className="hidden h-10 w-auto max-w-none dark:block"
           />
         </div>

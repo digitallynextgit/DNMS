@@ -1,5 +1,6 @@
 import "server-only"
 
+import { Prisma } from "@prisma/client"
 import { db } from "@/server/db"
 import { encrypt, tryDecrypt } from "@/lib/crypto"
 
@@ -11,6 +12,17 @@ import { encrypt, tryDecrypt } from "@/lib/crypto"
 // =============================================================================
 
 const GRAPH = "https://graph.facebook.com/v21.0"
+
+// How many writes ride in one batched $transaction. Big enough to collapse the
+// round trips that dominated this sync, small enough that one chunk is not a
+// long-held write transaction against the 10-connection pool.
+const WRITE_CHUNK = 100
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
+}
 
 // Meta campaign status -> our status.
 const STATUS_MAP: Record<string, string> = {
@@ -364,20 +376,28 @@ export async function syncMetaProject(
     const campaigns = await graphAll<{ id: string; name: string; status: string }>(
       `${GRAPH}/${acct}/campaigns?fields=id,name,status&limit=200&access_token=${token}`,
     )
+    // Batched, not one await per campaign. The array form of $transaction ships
+    // a whole chunk to the engine in a single round trip; the previous shape was
+    // one full network round trip per campaign, serialized.
     const idMap = new Map<string, string>()
-    for (const c of campaigns) {
-      const row = await db.metaCampaign.upsert({
-        where: { projectId_campaignId: { projectId, campaignId: c.id } },
-        create: {
-          projectId,
-          campaignId: c.id,
-          name: c.name,
-          status: STATUS_MAP[c.status] ?? "active",
-        },
-        update: { name: c.name, status: STATUS_MAP[c.status] ?? "active" },
-        select: { id: true },
-      })
-      idMap.set(c.id, row.id)
+    for (const slice of chunk(campaigns, WRITE_CHUNK)) {
+      const rows = await db.$transaction(
+        slice.map((c) =>
+          db.metaCampaign.upsert({
+            where: { projectId_campaignId: { projectId, campaignId: c.id } },
+            create: {
+              projectId,
+              campaignId: c.id,
+              name: c.name,
+              status: STATUS_MAP[c.status] ?? "active",
+            },
+            update: { name: c.name, status: STATUS_MAP[c.status] ?? "active" },
+            select: { id: true },
+          }),
+        ),
+      )
+      // $transaction preserves input order, so row i belongs to slice[i].
+      slice.forEach((c, i) => idMap.set(c.id, rows[i]!.id))
     }
 
     // 2. Account-level daily insights (one call for every campaign, per day).
@@ -398,7 +418,10 @@ export async function syncMetaProject(
       `${GRAPH}/${acct}/insights?level=campaign&fields=${fields}&time_increment=1&date_preset=last_${lookbackDays}d&limit=500&access_token=${token}`,
     )
 
-    let records = 0
+    // Same batching as the campaign loop above. This is the loop the sync
+    // actually lives in: campaigns x days, so 100 campaigns over a 30-day
+    // lookback was 3,000 sequential round trips.
+    const metricWrites: Prisma.PrismaPromise<unknown>[] = []
     for (const day of insights) {
       const metaCampaignId = day.campaign_id as string
       const campaignId = idMap.get(metaCampaignId)
@@ -416,45 +439,52 @@ export async function syncMetaProject(
         if (costPerConversion > 0) break
       }
 
-      await db.metaCampaignMetric.upsert({
-        where: { campaignId_date: { campaignId, date: new Date(day.date_start as string) } },
-        create: {
-          campaignId,
-          date: new Date(day.date_start as string),
-          spend,
-          impressions: BigInt(Math.round(Number(day.impressions || 0))),
-          clicks: BigInt(Math.round(Number(day.clicks || 0))),
-          ctr: Number(day.ctr || 0),
-          cpc: Number(day.cpc || 0),
-          cpm: Number(day.cpm || 0),
-          reach: BigInt(Math.round(Number(day.reach || 0))),
-          conversions: sumActions(actions, CONVERSION_TYPES),
-          costPerConversion,
-          purchases: sumActions(actions, PURCHASE_TYPES),
-          purchaseValue,
-          roas: spend > 0 ? purchaseValue / spend : 0,
-          addToCart: sumActions(actions, ATC_TYPES),
-          landingPageViews: sumActions(actions, new Set(["landing_page_view"])),
-          currency: "INR",
-        },
-        update: {
-          spend,
-          impressions: BigInt(Math.round(Number(day.impressions || 0))),
-          clicks: BigInt(Math.round(Number(day.clicks || 0))),
-          ctr: Number(day.ctr || 0),
-          cpc: Number(day.cpc || 0),
-          cpm: Number(day.cpm || 0),
-          reach: BigInt(Math.round(Number(day.reach || 0))),
-          conversions: sumActions(actions, CONVERSION_TYPES),
-          costPerConversion,
-          purchases: sumActions(actions, PURCHASE_TYPES),
-          purchaseValue,
-          roas: spend > 0 ? purchaseValue / spend : 0,
-          addToCart: sumActions(actions, ATC_TYPES),
-          landingPageViews: sumActions(actions, new Set(["landing_page_view"])),
-        },
-      })
-      records++
+      metricWrites.push(
+        db.metaCampaignMetric.upsert({
+          where: { campaignId_date: { campaignId, date: new Date(day.date_start as string) } },
+          create: {
+            campaignId,
+            date: new Date(day.date_start as string),
+            spend,
+            impressions: BigInt(Math.round(Number(day.impressions || 0))),
+            clicks: BigInt(Math.round(Number(day.clicks || 0))),
+            ctr: Number(day.ctr || 0),
+            cpc: Number(day.cpc || 0),
+            cpm: Number(day.cpm || 0),
+            reach: BigInt(Math.round(Number(day.reach || 0))),
+            conversions: sumActions(actions, CONVERSION_TYPES),
+            costPerConversion,
+            purchases: sumActions(actions, PURCHASE_TYPES),
+            purchaseValue,
+            roas: spend > 0 ? purchaseValue / spend : 0,
+            addToCart: sumActions(actions, ATC_TYPES),
+            landingPageViews: sumActions(actions, new Set(["landing_page_view"])),
+            currency: "INR",
+          },
+          update: {
+            spend,
+            impressions: BigInt(Math.round(Number(day.impressions || 0))),
+            clicks: BigInt(Math.round(Number(day.clicks || 0))),
+            ctr: Number(day.ctr || 0),
+            cpc: Number(day.cpc || 0),
+            cpm: Number(day.cpm || 0),
+            reach: BigInt(Math.round(Number(day.reach || 0))),
+            conversions: sumActions(actions, CONVERSION_TYPES),
+            costPerConversion,
+            purchases: sumActions(actions, PURCHASE_TYPES),
+            purchaseValue,
+            roas: spend > 0 ? purchaseValue / spend : 0,
+            addToCart: sumActions(actions, ATC_TYPES),
+            landingPageViews: sumActions(actions, new Set(["landing_page_view"])),
+          },
+        }),
+      )
+    }
+
+    let records = 0
+    for (const slice of chunk(metricWrites, WRITE_CHUNK)) {
+      await db.$transaction(slice)
+      records += slice.length
     }
 
     await db.projectIntegration.update({

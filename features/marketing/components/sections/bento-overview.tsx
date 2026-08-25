@@ -3,9 +3,7 @@ import { Check, Sparkles } from "lucide-react"
 import { MODULES, type MarketingModule } from "../../marketing.constants"
 import { cn } from "@/lib/utils"
 import { Reveal, SpotlightCard } from "../fx"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 /**
  * Per-module column span on the lg 6-col grid. Every consecutive PAIR sums to 6,

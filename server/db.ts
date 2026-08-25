@@ -6,7 +6,15 @@ function getPool(): Pool {
   if (globalForPrisma.pgPool) return globalForPrisma.pgPool
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    max: process.env.NODE_ENV === "production" ? 10 : 5,
+    // Raised from 10 now that the endpoints which used to hold many connections
+    // at once are bounded (the storage overview ran 12 unbounded scans in one
+    // Promise.all - it now runs 3 at a time).
+    //
+    // Sized against the server's actual limit: max_connections=100 with 3
+    // superuser-reserved, so 20 per instance leaves room for ~4 app instances
+    // plus migrations, psql sessions and the cron worker. Override with
+    // DB_POOL_MAX if you run more instances than that.
+    max: Number(process.env.DB_POOL_MAX) || (process.env.NODE_ENV === "production" ? 20 : 5),
     idleTimeoutMillis: 30_000,
     // Fail fast instead of queueing forever when every connection is busy (e.g. a
     // long backfill pinning the pool) - a stuck request is better than a stalled app.

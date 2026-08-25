@@ -154,7 +154,8 @@ export async function runCampaignQueue(): Promise<RunnerSummary> {
       // update matches zero rows.
       const claimed = await db.projectCampaignSend.updateMany({
         where: { id: row.id, status: "PENDING" },
-        data: { status: "SENDING" },
+        // claimedAt is what requeueStuckSends measures staleness from (API-08).
+        data: { status: "SENDING", claimedAt: new Date() },
       })
       if (claimed.count === 0) continue
 
@@ -236,9 +237,16 @@ export async function runCampaignQueue(): Promise<RunnerSummary> {
  */
 export async function requeueStuckSends(olderThanMinutes = 10): Promise<number> {
   const cutoff = new Date(Date.now() - olderThanMinutes * 60_000)
+  // claimedAt, NOT createdAt (API-08). A bulk campaign inserts every send row
+  // at once, so they share a createdAt: measuring from it meant that once a run
+  // outlived the threshold, rows that were actively SENDING were flipped back to
+  // PENDING and their recipients got the campaign twice. claimedAt is stamped at
+  // the moment of the claim, so this now means what it says.
+  //
+  // A null claimedAt is a row that was never claimed, so it is not stuck.
   const { count } = await db.projectCampaignSend.updateMany({
-    where: { status: "SENDING", createdAt: { lt: cutoff } },
-    data: { status: "PENDING" },
+    where: { status: "SENDING", claimedAt: { lt: cutoff } },
+    data: { status: "PENDING", claimedAt: null },
   })
   return count
 }

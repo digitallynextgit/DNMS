@@ -18,8 +18,8 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { useLeaveTypes, useDeleteLeaveType, useUpdateLeaveType } from "@/features/leave"
 import type { LeaveType } from "@/features/leave"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
-import { usePermissions } from "@/features/admin"
-import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
+import { PERMISSIONS, SYSTEM_ROLES, TONE } from "@/lib/constants"
 import { Plus, Pencil, ToggleLeft, ToggleRight, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRowSelection } from "@/hooks/use-row-selection"
@@ -120,12 +120,7 @@ export default function LeaveTypesAndPolicyPage() {
     {
       header: "Type",
       cell: (type) => (
-        <Badge
-          className={cn(
-            "border-0 text-xs",
-            type.isPaid ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700",
-          )}
-        >
+        <Badge className={cn("border-0 text-xs", type.isPaid ? TONE.green : TONE.neutral)}>
           {type.isPaid ? "Paid" : "Unpaid"}
         </Badge>
       ),
@@ -158,12 +153,7 @@ export default function LeaveTypesAndPolicyPage() {
     {
       header: "Status",
       cell: (type) => (
-        <Badge
-          className={cn(
-            "border-0 text-xs",
-            type.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700",
-          )}
-        >
+        <Badge className={cn("border-0 text-xs", type.isActive ? TONE.green : TONE.neutral)}>
           {type.isActive ? "Active" : "Inactive"}
         </Badge>
       ),

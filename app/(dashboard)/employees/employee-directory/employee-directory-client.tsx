@@ -29,7 +29,7 @@ import {
   useHardDeleteEmployee,
   type EmployeeListItem,
 } from "@/features/employees"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { useDebounce } from "@/hooks/use-debounce"
 import { formatDate, employeeSlug } from "@/lib/utils"
 import { isOnProbation } from "@/features/employees"
@@ -101,7 +101,6 @@ export function EmployeeDirectoryClient() {
   // initial mount so a deep-linked ?page=N isn't wiped on first render.
   useUpdateEffect(() => {
     setParams({ search: debouncedSearch, page: "1" })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch])
 
   function handleDepartmentChange(v: string) {
@@ -426,6 +425,39 @@ export function EmployeeDirectoryClient() {
           selection={selection}
           loading={isLoading}
           skeletonRows={10}
+          // Phone card: person + status, then role/department as one meta line.
+          mobileCard={(emp) => (
+            <Link
+              href={`/employees/${employeeSlug(emp.employeeNo, emp.firstName, emp.lastName)}`}
+              className="flex items-start gap-3"
+            >
+              <AvatarDisplay
+                src={emp.profilePhoto}
+                firstName={emp.firstName}
+                lastName={emp.lastName}
+                size="sm"
+                className="shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {emp.firstName} {emp.lastName}
+                </p>
+                <p className="text-muted-foreground truncate text-xs">
+                  {emp.designation?.title ?? "-"}
+                  {emp.department?.name ? ` · ${emp.department.name}` : ""}
+                </p>
+                <p className="text-muted-foreground mt-0.5 truncate text-[11px]">
+                  {emp.employeeNo}
+                </p>
+              </div>
+              <StatusBadge
+                status={emp.status}
+                colorMap={ACTIVE_STATUS_COLORS}
+                labelMap={EMPLOYEE_STATUS_LABELS}
+                size="xs"
+              />
+            </Link>
+          )}
           pagination={
             pagination
               ? {

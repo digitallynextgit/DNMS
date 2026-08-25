@@ -26,7 +26,7 @@ import {
   useDepartments,
   type JobRole,
 } from "@/features/employees"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 

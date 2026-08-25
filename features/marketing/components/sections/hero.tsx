@@ -9,9 +9,7 @@ import { siteConfig } from "@/config/site"
 import { Button } from "@/components/ui/button"
 import { GridBackdrop } from "../fx"
 import { HeroAppMockup } from "../hero-app-mockup"
-
-// Brand red (matches the logo mark + the app's toploader).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 // Headline words as one flowing line so `text-balance` can split them into two
 // even-width lines; "one platform" is the brand-red accent.

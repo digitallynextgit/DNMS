@@ -21,9 +21,17 @@ export interface InfoRowProps {
 
 export function InfoRow({ label, value, mono, icon: Icon, className }: InfoRowProps) {
   return (
-    <div className={cn("space-y-0.5", className)}>
+    // min-w-0 lets this shrink inside a grid/flex parent (grid items default to
+    // min-width:auto, which is what pushed the cell past its column), and
+    // break-words wraps an unbreakable value instead of clipping it.
+    <div className={cn("min-w-0 space-y-0.5", className)}>
       <p className="text-muted-foreground text-xs tracking-wide uppercase">{label}</p>
-      <p className={cn("flex items-center gap-1.5 text-sm font-medium", mono && "font-mono")}>
+      <p
+        className={cn(
+          "flex min-w-0 items-center gap-1.5 text-sm font-medium break-words",
+          mono && "font-mono",
+        )}
+      >
         {Icon && <Icon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />}
         {value || "-"}
       </p>

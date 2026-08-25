@@ -97,14 +97,20 @@ export async function notifyApprovers(opts: {
     for (const a of hrApprovers) recipientIds.add(a.id)
     recipientIds.delete(opts.requesterId)
 
-    for (const employeeId of recipientIds) {
-      await createNotification({
-        employeeId,
-        title: opts.title,
-        message: opts.message,
-        type: "info",
-        link: opts.link,
-      })
+    // One batched insert, not a serialized await per recipient. Each
+    // createNotification() is an INSERT *plus* a push-subscription lookup, so
+    // six approvers cost twelve round trips where createNotifications() does one
+    // createMany and fires the pushes without awaiting them.
+    if (recipientIds.size > 0) {
+      await createNotifications(
+        [...recipientIds].map((employeeId) => ({
+          employeeId,
+          title: opts.title,
+          message: opts.message,
+          type: "info" as const,
+          link: opts.link,
+        })),
+      )
     }
   } catch (err) {
     console.error("[notifyApprovers] failed:", err)

@@ -6,6 +6,9 @@ import { groupReactions } from "@/server/reactions"
 import { createNotifications } from "@/lib/notifications"
 import type { Session } from "next-auth"
 
+/** Most chat threads returned for one project. Reported via meta.truncated. */
+const MESSAGE_THREAD_LIMIT = 500
+
 const AUTHOR_SELECT = {
   id: true,
   firstName: true,
@@ -93,9 +96,20 @@ export const GET = withProjectAccess(
         })
       }
 
-      const messages = await db.projectMessage.findMany({
+      // Bounded. This is the chat LIST (one row per subject/thread), not the
+      // messages inside them, so the cap is generous.
+      //
+      // Known limitation, deliberately left: the final ordering below is by
+      // `lastActivityAt`, which is DERIVED from the newest reply and therefore
+      // cannot be expressed in this `orderBy`. So the cap keeps the newest
+      // threads by creation, and a very old thread that was replied to recently
+      // could in principle fall outside it. Fixing that properly means
+      // denormalising `lastActivityAt` onto projectMessage and ordering on it -
+      // a schema change, which also makes this endpoint genuinely paginable.
+      const rows = await db.projectMessage.findMany({
         where: { projectId },
         orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+        take: MESSAGE_THREAD_LIMIT + 1,
         include: {
           author: { select: AUTHOR_SELECT },
           _count: { select: { replies: true } },
@@ -120,9 +134,12 @@ export const GET = withProjectAccess(
         },
       })
 
+      const truncated = rows.length > MESSAGE_THREAD_LIMIT
+      if (truncated) rows.length = MESSAGE_THREAD_LIMIT
+
       // Decorate each thread with a compact last-message preview + last-activity
       // timestamp, then order chats by most-recent activity (pinned first).
-      const data = messages
+      const data = rows
         .map(({ replies, ...m }) => {
           const last = replies[0]
           return {
@@ -143,7 +160,7 @@ export const GET = withProjectAccess(
           return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
         })
 
-      return NextResponse.json({ data })
+      return NextResponse.json({ data, meta: { truncated, limit: MESSAGE_THREAD_LIMIT } })
     } catch (error) {
       console.error("[PROJECT_MESSAGES_GET]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })

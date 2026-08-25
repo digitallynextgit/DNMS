@@ -40,7 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { InfoRow, SectionHeader } from "@/components/shared/info-row"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { useEmployee } from "@/features/employees"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { getProbationStatus } from "@/features/employees"
 import { formatDate } from "@/lib/utils"
 import {

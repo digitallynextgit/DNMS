@@ -170,6 +170,76 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
         minWidth="min-w-[840px]"
         showSerial
         serialOffset={(page - 1) * PAGE_SIZE}
+        // Approving is the whole job of this screen, so the phone card keeps the
+        // two decision buttons full-size instead of the row's icon buttons.
+        mobileCard={(r) => (
+          <div className="space-y-2.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <AvatarDisplay
+                  src={r.employee.profilePhoto}
+                  firstName={r.employee.firstName}
+                  lastName={r.employee.lastName}
+                  size="sm"
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">
+                    {r.employee.firstName} {r.employee.lastName}
+                  </p>
+                  <p className="text-muted-foreground truncate text-xs">
+                    {new Date(r.date).toLocaleDateString("en-IN", {
+                      weekday: "short",
+                      day: "2-digit",
+                      month: "short",
+                    })}
+                  </p>
+                </div>
+              </div>
+              <StatusBadge
+                status={r.status}
+                colorMap={LEAVE_STATUS_COLORS}
+                labelMap={LEAVE_STATUS_LABELS}
+                size="xs"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {r.isEmergency ? (
+                <Badge
+                  variant="outline"
+                  className="border-red-200 bg-red-50 text-[10px] text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"
+                >
+                  Emergency
+                </Badge>
+              ) : (
+                <span className="text-muted-foreground text-xs">Standard</span>
+              )}
+              {r.reason && <span className="text-muted-foreground text-xs">· {r.reason}</span>}
+            </div>
+
+            {r.status === "PENDING" && (
+              <div className="flex flex-wrap gap-2 pt-0.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={approve.isPending}
+                  onClick={() => approve.mutate(r.id)}
+                >
+                  <Check className="h-3.5 w-3.5" /> Approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive gap-1.5"
+                  onClick={() => setRejectId(r.id)}
+                >
+                  <X className="h-3.5 w-3.5" /> Reject
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       />
       {pagination && pagination.total > PAGE_SIZE && (
         <Pagination

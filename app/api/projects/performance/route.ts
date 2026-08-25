@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { Prisma } from "@prisma/client"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
@@ -32,35 +33,8 @@ export const GET = withSession(
       const from = searchParams.get("from")
       const to = searchParams.get("to")
 
-      const dueRange =
-        from || to
-          ? {
-              dueDate: {
-                ...(from && { gte: new Date(`${from}T00:00:00.000Z`) }),
-                ...(to && { lte: new Date(`${to}T23:59:59.999Z`) }),
-              },
-            }
-          : {}
-
-      const where = {
-        AND: [scopeWhere, ...(projectId ? [{ projectId }] : []), dueRange].filter(
-          (c) => Object.keys(c).length > 0,
-        ),
-      }
-
-      const tasks = await db.projectTask.findMany({
-        where,
-        select: {
-          status: true,
-          dueDate: true,
-          completedAt: true,
-          assigneeId: true,
-          estimatedHours: true,
-          loggedHours: true,
-          assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
-          project: { select: { id: true, name: true, code: true } },
-        },
-      })
+      // (`from`/`to` are applied as SQL predicates on the aggregate below;
+      // there is no longer a Prisma `where` object to build them into.)
 
       const todayStart = new Date()
       todayStart.setUTCHours(0, 0, 0, 0)
@@ -72,7 +46,105 @@ export const GET = withSession(
       weekStart.setUTCDate(weekStart.getUTCDate() - ((now.getUTCDay() + 6) % 7))
       const weekEnd = new Date(weekStart)
       weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
-      const inWeek = (d: Date | null) => !!d && d >= weekStart && d < weekEnd
+
+      // ── Aggregate in the DATABASE, not in Node ──────────────────────────────
+      //
+      // This used to `findMany` every matching task and tally it in a JS loop.
+      // With no filters (and "All time" is a real preset on the page, not just a
+      // hand-crafted request) `where` collapsed to `{ AND: [] }` for an admin,
+      // so the whole project_tasks table streamed into Node on a page load.
+      //
+      // Truncating was not an option: this page is nothing but aggregates, and a
+      // clipped scan reports confidently WRONG totals. So the tally moved into
+      // one grouped query instead.
+      //
+      // Grouped by (assignee, project) rather than aggregated three times: every
+      // bucket is an additive count/sum, so summary, byEmployee and byProject are
+      // all cheap roll-ups of the same small result. That also preserves the
+      // original semantics exactly - summary counted every task, byEmployee only
+      // tasks WITH an assignee, byProject only tasks WITH a project - because the
+      // NULL groups simply drop out of the respective roll-up.
+      const scopeSql = isAdmin
+        ? Prisma.sql`TRUE`
+        : Prisma.sql`(tm.manager_id = ${session.user.id} OR p.owner_id = ${session.user.id} OR t.assignee_id = ${session.user.id})`
+      const projectSql = projectId ? Prisma.sql`t.project_id = ${projectId}` : Prisma.sql`TRUE`
+      const fromSql = from
+        ? Prisma.sql`t.due_date >= ${new Date(`${from}T00:00:00.000Z`)}`
+        : Prisma.sql`TRUE`
+      const toSql = to
+        ? Prisma.sql`t.due_date <= ${new Date(`${to}T23:59:59.999Z`)}`
+        : Prisma.sql`TRUE`
+
+      // `open` == still actionable: not done, not discarded, not on hold. Matches
+      // the original's if/else-if chain, where those three exited early.
+      const OPEN = Prisma.sql`t.status NOT IN ('DONE', 'DISCARDED', 'ON_HOLD')`
+      // The original compared completedAt against dueDate at 23:59:59.999 UTC.
+      // due_date is @db.Date, so it reads back as UTC midnight in both engines.
+      const DUE_END = Prisma.sql`(t.due_date + INTERVAL '1 day' - INTERVAL '1 millisecond')`
+      const LATE = Prisma.sql`(t.due_date IS NOT NULL AND t.due_date < ${todayStart})`
+
+      type GroupRow = {
+        assignee_id: string | null
+        project_id: string | null
+        assigned: bigint
+        completed: bigint
+        on_time: bigint
+        late: bigint
+        overdue: bigint
+        in_progress: bigint
+        on_hold: bigint
+        discarded: bigint
+        due_this_week: bigint
+        done_this_week: bigint
+        open_todo: bigint
+        open_progress: bigint
+        allocated_hours: number | null
+        spent_hours: number | null
+      }
+
+      const groups = await db.$queryRaw<GroupRow[]>`
+        SELECT
+          t.assignee_id,
+          t.project_id,
+          COUNT(*)                                                      AS assigned,
+          COUNT(*) FILTER (WHERE t.status = 'DONE')                     AS completed,
+          COUNT(*) FILTER (
+            WHERE t.status = 'DONE'
+              AND (t.due_date IS NULL OR t.completed_at IS NULL
+                   OR t.completed_at <= ${DUE_END})
+          )                                                             AS on_time,
+          COUNT(*) FILTER (
+            WHERE t.status = 'DONE'
+              AND t.due_date IS NOT NULL AND t.completed_at IS NOT NULL
+              AND t.completed_at > ${DUE_END}
+          )                                                             AS late,
+          COUNT(*) FILTER (WHERE ${OPEN} AND ${LATE})                   AS overdue,
+          COUNT(*) FILTER (WHERE t.status = 'IN_PROGRESS')              AS in_progress,
+          COUNT(*) FILTER (WHERE t.status = 'ON_HOLD')                  AS on_hold,
+          COUNT(*) FILTER (WHERE t.status = 'DISCARDED')                AS discarded,
+          COUNT(*) FILTER (
+            WHERE t.due_date >= ${weekStart} AND t.due_date < ${weekEnd}
+          )                                                             AS due_this_week,
+          COUNT(*) FILTER (
+            WHERE t.status = 'DONE'
+              AND t.completed_at >= ${weekStart} AND t.completed_at < ${weekEnd}
+          )                                                             AS done_this_week,
+          COUNT(*) FILTER (
+            WHERE ${OPEN} AND NOT ${LATE}
+              AND t.status NOT IN ('IN_PROGRESS', 'IN_REVIEW')
+          )                                                             AS open_todo,
+          COUNT(*) FILTER (
+            WHERE ${OPEN} AND NOT ${LATE}
+              AND t.status IN ('IN_PROGRESS', 'IN_REVIEW')
+          )                                                             AS open_progress,
+          COALESCE(SUM(t.estimated_hours), 0)                           AS allocated_hours,
+          COALESCE(SUM(t.logged_hours), 0)                              AS spent_hours
+        FROM project_tasks t
+        LEFT JOIN project_teams tm ON tm.id = t.team_id
+        LEFT JOIN projects      p  ON p.id  = t.project_id
+        WHERE ${scopeSql} AND ${projectSql} AND ${fromSql} AND ${toSql}
+        GROUP BY t.assignee_id, t.project_id
+      `
 
       type Bucket = {
         assigned: number
@@ -117,63 +189,62 @@ export const GET = withSession(
         spentHours: 0,
       })
 
+      // Every bucket is additive, so folding a group row into a bucket is just
+      // a sum. COUNT() comes back as BigInt over the wire; SUM() of a float
+      // column comes back as a number.
+      const add = (b: Bucket, g: GroupRow) => {
+        b.assigned += Number(g.assigned)
+        b.completed += Number(g.completed)
+        b.onTime += Number(g.on_time)
+        b.late += Number(g.late)
+        b.overdue += Number(g.overdue)
+        b.inProgress += Number(g.in_progress)
+        b.onHold += Number(g.on_hold)
+        b.discarded += Number(g.discarded)
+        b.dueThisWeek += Number(g.due_this_week)
+        b.doneThisWeek += Number(g.done_this_week)
+        b.openTodo += Number(g.open_todo)
+        b.openProgress += Number(g.open_progress)
+        b.allocatedHours += Number(g.allocated_hours ?? 0)
+        b.spentHours += Number(g.spent_hours ?? 0)
+      }
+
       const summary = zero()
-      const byEmp = new Map<
-        string,
-        { info: NonNullable<(typeof tasks)[number]["assignee"]>; b: Bucket }
-      >()
-      const byProj = new Map<string, { info: (typeof tasks)[number]["project"]; b: Bucket }>()
+      const byEmp = new Map<string, Bucket>()
+      const byProj = new Map<string, Bucket>()
 
-      const classify = (b: Bucket, t: (typeof tasks)[number]) => {
-        b.assigned++
-        b.allocatedHours += t.estimatedHours ?? 0
-        b.spentHours += t.loggedHours
-        if (inWeek(t.dueDate)) b.dueThisWeek++
-        const done = t.status === "DONE"
-        if (done) {
-          b.completed++
-          if (inWeek(t.completedAt)) b.doneThisWeek++
-          let onTime = true
-          if (t.dueDate && t.completedAt) {
-            const dueEnd = new Date(t.dueDate)
-            dueEnd.setUTCHours(23, 59, 59, 999)
-            onTime = t.completedAt <= dueEnd
-          }
-          if (onTime) b.onTime++
-          else b.late++
-        } else if (t.status === "DISCARDED") {
-          b.discarded++
-        } else if (t.status === "ON_HOLD") {
-          b.onHold++
-        } else {
-          if (t.status === "IN_PROGRESS") b.inProgress++
-          // Overdue = past its due day and STILL actionable. Work on hold or
-          // discarded never reaches here, so it is never counted late: that was
-          // a decision, not a slip.
-          const late = !!t.dueDate && new Date(t.dueDate) < todayStart
-          if (late) {
-            b.overdue++
-          } else if (t.status === "IN_PROGRESS" || t.status === "IN_REVIEW") {
-            b.openProgress++
-          } else {
-            b.openTodo++
-          }
+      for (const g of groups) {
+        add(summary, g)
+        if (g.assignee_id) {
+          const b = byEmp.get(g.assignee_id) ?? zero()
+          add(b, g)
+          byEmp.set(g.assignee_id, b)
+        }
+        if (g.project_id) {
+          const b = byProj.get(g.project_id) ?? zero()
+          add(b, g)
+          byProj.set(g.project_id, b)
         }
       }
 
-      for (const t of tasks) {
-        classify(summary, t)
-        if (t.assignee) {
-          const e = byEmp.get(t.assignee.id) ?? { info: t.assignee, b: zero() }
-          classify(e.b, t)
-          byEmp.set(t.assignee.id, e)
-        }
-        if (t.project) {
-          const p = byProj.get(t.project.id) ?? { info: t.project, b: zero() }
-          classify(p.b, t)
-          byProj.set(t.project.id, p)
-        }
-      }
+      // Display info for just the ids that actually appear - a couple of small
+      // keyed reads instead of joining these columns onto every task row.
+      const [empInfo, projInfo] = await Promise.all([
+        byEmp.size
+          ? db.employee.findMany({
+              where: { id: { in: [...byEmp.keys()] } },
+              select: { id: true, firstName: true, lastName: true, profilePhoto: true },
+            })
+          : Promise.resolve([]),
+        byProj.size
+          ? db.project.findMany({
+              where: { id: { in: [...byProj.keys()] } },
+              select: { id: true, name: true, code: true },
+            })
+          : Promise.resolve([]),
+      ])
+      const empById = new Map(empInfo.map((e) => [e.id, e]))
+      const projById = new Map(projInfo.map((p) => [p.id, p]))
 
       const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : null)
       const withRates = (b: Bucket) => ({
@@ -182,37 +253,42 @@ export const GET = withSession(
         onTimeRate: pct(b.onTime, b.completed),
       })
 
-      const byEmployee = [...byEmp.values()]
-        .map((e) => ({
-          id: e.info.id,
-          name: `${e.info.firstName} ${e.info.lastName}`.trim(),
-          profilePhoto: e.info.profilePhoto,
-          ...withRates(e.b),
-        }))
+      const byEmployee = [...byEmp.entries()]
+        .flatMap(([id, b]) => {
+          const info = empById.get(id)
+          return info
+            ? [
+                {
+                  id: info.id,
+                  name: `${info.firstName} ${info.lastName}`.trim(),
+                  profilePhoto: info.profilePhoto,
+                  ...withRates(b),
+                },
+              ]
+            : []
+        })
         .sort((a, b) => b.completed - a.completed || (b.onTimeRate ?? -1) - (a.onTimeRate ?? -1))
 
-      const byProject = [...byProj.values()]
-        .filter((p) => p.info)
-        .map((p) => ({
-          id: p.info!.id,
-          name: p.info!.name,
-          code: p.info!.code,
-          ...withRates(p.b),
-        }))
+      const byProject = [...byProj.entries()]
+        .flatMap(([id, b]) => {
+          const info = projById.get(id)
+          return info ? [{ id: info.id, name: info.name, code: info.code, ...withRates(b) }] : []
+        })
         .sort((a, b) => b.assigned - a.assigned)
 
       // The picker's option list must NOT follow the filters, or selecting a
       // project would leave it as the only option and there would be no way
       // back. Scope-filtered only.
-      const inScope = await db.projectTask.findMany({
-        where: scopeWhere,
-        select: { project: { select: { id: true, name: true, code: true } } },
-        distinct: ["projectId"],
-      })
-      const projects = inScope
-        .map((t) => t.project)
-        .filter((p): p is NonNullable<typeof p> => !!p)
-        .sort((a, b) => a.name.localeCompare(b.name))
+      //
+      // Queried off `projects` rather than `project_tasks` + distinct: the old
+      // shape read one row PER TASK just to recover the project list behind them
+      // - a second full scan of the same table the aggregate above already walked.
+      const projects = (
+        await db.project.findMany({
+          where: { tasks: { some: scopeWhere } },
+          select: { id: true, name: true, code: true },
+        })
+      ).sort((a, b) => a.name.localeCompare(b.name))
 
       return NextResponse.json({
         data: {

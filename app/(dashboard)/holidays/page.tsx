@@ -45,7 +45,7 @@ import {
   HolidayMonthCalendar,
 } from "@/features/attendance"
 import { useQuery } from "@tanstack/react-query"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { useUrlState, useUrlPage } from "@/hooks/use-url-state"
 import { HOLIDAY_TYPE_COLORS, HOLIDAY_TYPE_LABELS, PERMISSIONS } from "@/lib/constants"
 import { formatDate } from "@/lib/utils"

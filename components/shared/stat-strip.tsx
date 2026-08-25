@@ -59,10 +59,12 @@ export function StatStrip({ items, loading = false, className }: StatStripProps)
           {items.map((item) => {
             const Icon = item.icon
             return (
-              <div key={item.label} className="px-4 py-3">
-                <div className="flex items-center gap-1.5">
-                  {Icon && <Icon className="text-muted-foreground h-3 w-3" />}
-                  <p className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
+              <div key={item.label} className="min-w-0 px-4 py-3">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {Icon && <Icon className="text-muted-foreground h-3 w-3 shrink-0" />}
+                  {/* min-w-0 + truncate: a tracking-widest uppercase label in a
+                      2-up grid cell overflowed its column at 320px. */}
+                  <p className="text-muted-foreground min-w-0 truncate text-[10px] font-medium tracking-widest uppercase">
                     {item.label}
                   </p>
                 </div>

@@ -29,6 +29,76 @@ export function computeStatutoryDeductions(input: {
   return { pfEmployee: pf, pfEmployer: pf, esi, tds: monthlyTds(input.gross) }
 }
 
+// =============================================================================
+// The single payslip formula. DUP-01.
+//
+// This used to exist twice, and the two copies disagreed, so a payslip's total
+// CHANGED when someone edited it:
+//
+//   * the generator (POST /api/payroll/records) summed telephoneAllowance into
+//     gross and hard-zeroed PF/ESI/TDS, per the documented "<20 employees, no
+//     statutory deductions" policy;
+//   * the editor (PATCH /api/payroll/records/[id]) left telephoneAllowance OUT
+//     of gross and called computeStatutoryDeductions(), re-introducing the very
+//     deductions the generator had zeroed.
+//
+// So adjusting overtime on a DRAFT silently cut the employee's pay twice over.
+// Both paths now call computePayslip() and nothing else.
+// =============================================================================
+
+/**
+ * Whether statutory deductions apply. The company is under the 20-employee
+ * threshold, so PF/ESI are not applicable and salary is fully in-hand; TDS is
+ * handled outside HRMS. Flip this to re-enable the (already implemented and
+ * tested) computeStatutoryDeductions path - it is deliberately a named constant
+ * rather than a magic `= 0`, so the policy is visible and reversible in ONE place.
+ */
+export const STATUTORY_DEDUCTIONS_ENABLED = false
+
+export interface PayslipEarnings {
+  basicSalary: number
+  hra: number
+  conveyance: number
+  medicalAllowance: number
+  telephoneAllowance: number
+  otherAllowances: number
+  overtime: number
+}
+
+export interface PayslipTotals extends StatutoryDeductions {
+  grossSalary: number
+  totalDeductions: number
+  netSalary: number
+}
+
+/** The authoritative gross → deductions → net calculation for one payslip. */
+export function computePayslip(earnings: PayslipEarnings, otherDeductions = 0): PayslipTotals {
+  const grossSalary =
+    earnings.basicSalary +
+    earnings.hra +
+    earnings.conveyance +
+    earnings.medicalAllowance +
+    earnings.telephoneAllowance +
+    earnings.otherAllowances +
+    earnings.overtime
+
+  const statutory = STATUTORY_DEDUCTIONS_ENABLED
+    ? computeStatutoryDeductions({ basic: earnings.basicSalary, gross: grossSalary })
+    : { pfEmployee: 0, pfEmployer: 0, esi: 0, tds: 0 }
+
+  // pfEmployer is the COMPANY's contribution - it is not withheld from the
+  // employee, so it must never appear in totalDeductions.
+  const totalDeductions =
+    statutory.pfEmployee + statutory.esi + statutory.tds + Math.max(0, otherDeductions)
+
+  return {
+    ...statutory,
+    grossSalary,
+    totalDeductions,
+    netSalary: Math.max(0, grossSalary - totalDeductions),
+  }
+}
+
 /** Sum of all monthly earning components in a salary structure. */
 export function totalMonthlyEarnings(s: {
   basicSalary: number

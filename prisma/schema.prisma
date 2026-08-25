@@ -296,6 +296,9 @@ model AuditLog {
   // Composite: filter by module/actor AND sort by createdAt in one index scan.
   @@index([module, createdAt])
   @@index([actorId, createdAt])
+  // Task/entity history looks up by (entityType, entityId) - previously a full
+  // table scan, fanned out per task by the timeline builder.
+  @@index([entityType, entityId, createdAt])
   @@map("audit_logs")
 }
 
@@ -808,6 +811,15 @@ model HikvisionDevice {
   isActive     Boolean   @default(true) @map("is_active")
   lastSyncAt   DateTime? @map("last_sync_at")
 
+  /// When this terminal last PUSHED a punch to /api/attendance/hook.
+  ///
+  /// Separate from `lastSyncAt`, which both the pull sync and the push hook
+  /// stamp - so on its own it cannot tell you whether realtime is actually
+  /// working or whether a cron is just polling on a schedule. This one is only
+  /// ever written by the hook, so the Devices page can say truthfully whether
+  /// the device is reaching us live.
+  lastPushAt DateTime? @map("last_push_at")
+
   /// The device's OWN identity, read from it on first successful connect.
   ///
   /// `ipAddress` is only where it happened to be last time: these terminals are
@@ -931,6 +943,7 @@ model WfhRequest {
   @@index([employeeId])
   @@index([status])
   @@index([date])
+  @@index([status, createdAt])
   @@map("wfh_requests")
 }
 
@@ -1124,6 +1137,7 @@ model LeaveRequest {
   @@index([startDate, endDate])
   @@index([currentApproverId])
   @@index([approvalStage, status])
+  @@index([status, createdAt])
   @@map("leave_requests")
 }
 
@@ -1617,6 +1631,11 @@ model ProjectTask {
   // Serves the "is there already an open follow-up for this task?" lookup done
   // every time a task is put on hold.
   @@index([resumedFromId])
+  // Hot list/board shapes: "my tasks due soon", the project board, and the
+  // progress buckets. dueDate previously had no index of any kind.
+  @@index([assigneeId, dueDate])
+  @@index([projectId, dueDate])
+  @@index([projectId, status])
   @@map("project_tasks")
 }
 
@@ -1762,6 +1781,7 @@ model ProjectActivity {
 
   @@index([projectId])
   @@index([createdAt])
+  @@index([projectId, createdAt])
   @@map("project_activities")
 }
 
@@ -1996,6 +2016,7 @@ model Evaluation {
   manager    Employee? @relation("EvaluationManager", fields: [managerId], references: [id], onDelete: SetNull)
   controller Employee? @relation("EvaluationController", fields: [controllerId], references: [id], onDelete: SetNull)
 
+  @@unique([employeeId, periodLabel])
   @@index([employeeId])
   @@index([managerId])
   @@index([status])
@@ -2047,6 +2068,12 @@ model Applicant {
   lastName        String         @map("last_name")
   email           String         @map("email")
   phone           String?        @map("phone")
+  // The B2 object key for the CV (API-07). resumeUrl stores a SIGNED url, and
+  // B2 caps a signature at 7 days however long you ask for - so a stored link
+  // 403s a week later. The key is stable, so a fresh signed url is minted on
+  // read instead. It also lets the storage orphan-scan match CVs exactly rather
+  // than by `resumeUrl.includes(key)`.
+  resumeKey       String?        @map("resume_key")
   resumeUrl       String?        @map("resume_url")
   coverLetter     String?        @map("cover_letter") @db.Text
   stage           ApplicantStage @default(APPLIED) @map("stage")
@@ -3257,6 +3284,15 @@ model ProjectCampaignSend {
   status String    @default("PENDING") @map("status") // PENDING | SENT | FAILED
   error  String?   @map("error") @db.Text
   sentAt DateTime? @map("sent_at")
+
+  /// When this row was CLAIMED (moved PENDING -> SENDING). API-08.
+  ///
+  /// requeueStuckSends used to measure staleness from `createdAt`, but a bulk
+  /// campaign inserts every send row at once, so they all share one createdAt.
+  /// Thirty minutes into a long run every remaining row already looked "stuck",
+  /// and the requeue flipped rows that were actively SENDING back to PENDING -
+  /// sending those recipients the campaign twice.
+  claimedAt DateTime? @map("claimed_at")
 
   createdAt DateTime @default(now()) @map("created_at")
 

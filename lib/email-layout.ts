@@ -9,16 +9,23 @@ import { cleanLeaveTypeForLetter } from "@/lib/utils"
 
 export const BRAND_NAME = "Digitally Next"
 
+/** Wordmark for the email header (rendered 34px tall).
+ *  Falls back to a 68px PNG derivative, deliberately NOT logo_dark_bg.webp:
+ *  (a) that master is 4500px wide / 118 KB for a 34px slot, and (b) Outlook
+ *  desktop renders mail through Word, which cannot decode WebP at all - the
+ *  header logo was simply broken there. */
 export function logoUrl(): string {
   const base = (process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "")
-  return getConfigSync("EMAIL_LOGO_URL") || `${base}/logo_dark_bg.webp`
+  return getConfigSync("EMAIL_LOGO_URL") || `${base}/email-logo.png`
 }
 
-/** The signature uses the standalone brand mark (public/brand-mark.png), not the
- *  wordmark used in the email header. */
+/** The signature uses the standalone brand mark, not the wordmark used in the
+ *  email header. Points at the 104px derivative (2x the 52px render), NOT the
+ *  2505x2200 / 729 KB master: there is no image optimizer in front of a mail
+ *  client, so every recipient re-downloaded 729 KB per email opened. */
 export function signatureLogoUrl(): string {
   const base = (process.env.NEXTAUTH_URL ?? "").replace(/\/$/, "")
-  return `${base}/brand-mark.png`
+  return `${base}/brand-mark-104.png`
 }
 
 /** Hosted PNG icons for the signature (mail clients strip inline SVG, so the

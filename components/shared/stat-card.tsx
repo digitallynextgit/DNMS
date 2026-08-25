@@ -34,8 +34,8 @@ export function StatCard({
   return (
     <Card className={cn("border-border bg-card rounded-[2px] border", className)}>
       <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-2">
             <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
               {title}
             </p>
@@ -64,11 +64,16 @@ export function StatCard({
           {/* When a caller supplies iconBg, the icon gets a tinted tile; otherwise
               it stays a plain muted glyph. */}
           {iconBg ? (
-            <div className={cn("flex h-9 w-9 items-center justify-center rounded", iconBg)}>
+            <div
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-[2px]",
+                iconBg,
+              )}
+            >
               <Icon className={cn("h-4 w-4", iconColor ?? "text-muted-foreground")} />
             </div>
           ) : (
-            <Icon className={cn("h-4 w-4", iconColor ?? "text-muted-foreground")} />
+            <Icon className={cn("h-4 w-4 shrink-0", iconColor ?? "text-muted-foreground")} />
           )}
         </div>
       </CardContent>

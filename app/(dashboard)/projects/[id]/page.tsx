@@ -14,13 +14,16 @@ import { InfoRow } from "@/components/shared/info-row"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+// Concrete modules, never the feature barrel: a static barrel import lands the
+// WHOLE feature in this page's eager chunk, which silently defeats every
+// dynamic() below (they would resolve to already-loaded code).
 import {
   useProject,
   useProjectTeams,
   useUnreadMessageCount,
   useProjectRequirements,
-} from "@/features/projects"
-import { usePermissions } from "@/features/admin"
+} from "@/features/projects/hooks/use-projects"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import {
   PERMISSIONS,
   PROJECT_STATUS_LABELS,
@@ -48,24 +51,38 @@ import {
   Search,
   HelpCircle,
 } from "lucide-react"
-import { ProjectFormDialog, ProjectLogo, ProjectTabsBar } from "@/features/projects"
+import { ProjectFormDialog } from "@/features/projects/components/project-form-dialog"
+import { ProjectLogo } from "@/features/projects/components/project-logo"
+import { ProjectTabsBar } from "@/features/projects/components/project-tabs-bar"
 
 // The 7 tab bodies are ~4,000 lines combined, but Radix only RENDERS the active
 // one - so statically importing them made every visit download and parse all of
 // them up front. Each now loads on first activation.
 const tabFallback = () => <Skeleton className="mt-4 h-64 rounded" />
-const BrandTab = dynamic(() => import("@/features/projects").then((m) => m.BrandTab), {
-  loading: tabFallback,
-})
-const DriveTab = dynamic(() => import("@/features/projects").then((m) => m.DriveTab), {
-  loading: tabFallback,
-})
-const IntegrationTab = dynamic(() => import("@/features/projects").then((m) => m.IntegrationTab), {
-  loading: tabFallback,
-})
-const InsightsTab = dynamic(() => import("@/features/projects").then((m) => m.InsightsTab), {
-  loading: tabFallback,
-})
+const BrandTab = dynamic(
+  () => import("@/features/projects/components/brand-tab").then((m) => m.BrandTab),
+  {
+    loading: tabFallback,
+  },
+)
+const DriveTab = dynamic(
+  () => import("@/features/projects/components/drive-tab").then((m) => m.DriveTab),
+  {
+    loading: tabFallback,
+  },
+)
+const IntegrationTab = dynamic(
+  () => import("@/features/projects/components/integration-tab").then((m) => m.IntegrationTab),
+  {
+    loading: tabFallback,
+  },
+)
+const InsightsTab = dynamic(
+  () => import("@/features/projects/components/insights-tab").then((m) => m.InsightsTab),
+  {
+    loading: tabFallback,
+  },
+)
 // Recharts is heavy, so the Overview's summary loads on demand like the tabs do.
 const ProgressOverview = dynamic(
   () => import("@/features/projects").then((m) => m.ProgressOverview),
@@ -78,25 +95,40 @@ const SeoTab = dynamic(() => import("@/features/seo").then((m) => m.SeoTab), {
 const ProjectSitesCard = dynamic(() => import("@/features/seo").then((m) => m.ProjectSitesCard), {
   loading: () => null,
 })
-const TeamsTab = dynamic(() => import("@/features/projects").then((m) => m.TeamsTab), {
-  loading: tabFallback,
-})
-const TasksTab = dynamic(() => import("@/features/projects").then((m) => m.TasksTab), {
-  loading: tabFallback,
-})
+const TeamsTab = dynamic(
+  () => import("@/features/projects/components/teams-tab").then((m) => m.TeamsTab),
+  {
+    loading: tabFallback,
+  },
+)
+const TasksTab = dynamic(
+  () => import("@/features/projects/components/tasks-tab").then((m) => m.TasksTab),
+  {
+    loading: tabFallback,
+  },
+)
 const RequirementsTab = dynamic(
   () => import("@/features/projects").then((m) => m.RequirementsTab),
   { loading: tabFallback },
 )
-const ActivityTab = dynamic(() => import("@/features/projects").then((m) => m.ActivityTab), {
-  loading: tabFallback,
-})
-const MessagesTab = dynamic(() => import("@/features/projects").then((m) => m.MessagesTab), {
-  loading: tabFallback,
-})
-const PasswordsTab = dynamic(() => import("@/features/projects").then((m) => m.PasswordsTab), {
-  loading: tabFallback,
-})
+const ActivityTab = dynamic(
+  () => import("@/features/projects/components/activity-tab").then((m) => m.ActivityTab),
+  {
+    loading: tabFallback,
+  },
+)
+const MessagesTab = dynamic(
+  () => import("@/features/projects/components/messages-tab").then((m) => m.MessagesTab),
+  {
+    loading: tabFallback,
+  },
+)
+const PasswordsTab = dynamic(
+  () => import("@/features/projects/components/passwords-tab").then((m) => m.PasswordsTab),
+  {
+    loading: tabFallback,
+  },
+)
 const ProjectClientsTab = dynamic(
   () => import("@/features/client-portal").then((m) => m.ProjectClientsTab),
   { loading: tabFallback },

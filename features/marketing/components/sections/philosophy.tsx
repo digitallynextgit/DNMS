@@ -2,9 +2,7 @@ import { Quote } from "lucide-react"
 
 import { PHILOSOPHY } from "../../marketing.constants"
 import { DotBackdrop, Reveal } from "../fx"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 /** Centered pull-quote - the product philosophy. No CTAs. */
 export function Philosophy() {

@@ -1345,11 +1345,11 @@ async function main() {
   const createdEmployees: Array<{ id: string; employeeNo: string }> = []
 
   for (const emp of employeesData) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // Destructure-to-omit: these four are pulled out so they do NOT land in
+    // empFields. Covered by ignoreRestSiblings in eslint.config.mjs.
     const { role, managerEmployeeNo, department, designation, ...empFields } = emp
 
     const employee = await prisma.employee.create({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: {
         employeeNo: emp.employeeNo,
         firstName: emp.firstName,

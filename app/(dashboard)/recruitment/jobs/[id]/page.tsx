@@ -199,8 +199,12 @@ function ApplicantCard({
         {applicant.resumeUrl && (
           <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
             <FileText className="h-3 w-3 flex-shrink-0" />
+            {/* The stable API route, not the stored presigned url (API-07):
+                B2 caps a signature at 7 days, so linking to the stored value
+                meant every CV 403'd a week after upload. The route mints a
+                fresh signature per click and redirects. */}
             <a
-              href={applicant.resumeUrl}
+              href={`/api/recruitment/applicants/${applicant.id}/resume`}
               target="_blank"
               rel="noopener noreferrer"
               className="truncate hover:underline"

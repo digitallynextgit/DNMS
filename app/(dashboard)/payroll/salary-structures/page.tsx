@@ -16,7 +16,7 @@ import {
   useDeleteSalaryStructure,
   type SalaryStructure,
 } from "@/features/payroll"
-import { usePermissions } from "@/features/admin"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 
 function fmt(amount: number): string {

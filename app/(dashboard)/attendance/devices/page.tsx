@@ -2,7 +2,17 @@
 
 import { useState } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
-import { Plus, RefreshCw, Pencil, Trash2, Wifi, WifiOff, Zap, History } from "lucide-react"
+import {
+  Plus,
+  RefreshCw,
+  Pencil,
+  Trash2,
+  WifiOff,
+  Power,
+  PowerOff,
+  Zap,
+  History,
+} from "lucide-react"
 import { Spinner } from "@/components/shared/spinner"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
@@ -13,14 +23,18 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { useRowSelection } from "@/hooks/use-row-selection"
-import { DeviceFormDialog, EmployeeSyncPanel, SyncProgressBar } from "@/features/attendance"
+import {
+  DeviceFormDialog,
+  EmployeeSyncPanel,
+  RealtimePushPanel,
+  SyncProgressBar,
+} from "@/features/attendance"
 import { useSyncProgress } from "@/features/attendance"
 import { useDevices, useDeleteDevice, useTestDevice } from "@/features/attendance"
 import type { HikvisionDevice } from "@/features/attendance"
-import { usePermissions } from "@/features/admin"
-import { ACTIVE_STATUS_COLORS, ACTIVE_STATUS_LABELS, PERMISSIONS } from "@/lib/constants"
+import { usePermissions } from "@/features/admin/hooks/use-permissions"
+import { ACTIVE_STATUS_COLORS, PERMISSIONS } from "@/lib/constants"
 import { formatDateTime } from "@/lib/utils"
-import { cn } from "@/lib/utils"
 
 export default function DevicesPage() {
   const { can } = usePermissions()
@@ -121,13 +135,21 @@ export default function DevicesPage() {
       cell: (device) => device.location ?? "-",
     },
     {
-      header: "Status",
+      // "Enabled", not "Active", and a power glyph rather than a Wifi one.
+      //
+      // This is `isActive` - a stored flag meaning "DNMS should poll this
+      // device". It says nothing about whether the device is reachable right
+      // now. Rendering it as a green "Active" behind a Wifi icon read as live
+      // connectivity, so a device sitting on an unroutable network still looked
+      // online and a failing sync looked like a bug in the app. Reachability is
+      // what the Test button answers.
+      header: "Enabled",
       cell: (device) => (
         <StatusBadge
           status={device.isActive ? "ACTIVE" : "INACTIVE"}
           colorMap={ACTIVE_STATUS_COLORS}
-          labelMap={ACTIVE_STATUS_LABELS}
-          icon={device.isActive ? Wifi : WifiOff}
+          labelMap={{ ACTIVE: "Enabled", INACTIVE: "Disabled" }}
+          icon={device.isActive ? Power : PowerOff}
         />
       ),
     },
@@ -245,6 +267,8 @@ export default function DevicesPage() {
           it starts), elapsed timer and a measured ETA. Rendered above the table so it
           stays visible for the whole run, which can be minutes on a full backfill. */}
       <SyncProgressBar progress={progress} onCancel={cancelSync} />
+
+      {canWrite && <RealtimePushPanel />}
 
       {/* The table renders from the first paint: while `isLoading` it draws
           skeleton rows inside its own real <thead>, derived from `columns`, so

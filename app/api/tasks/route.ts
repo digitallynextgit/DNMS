@@ -95,6 +95,11 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
   }
 }
 
+// Hard ceiling on one task-list response. High enough that no real person's
+// list is clipped; low enough that a project admin on scope=all cannot pull the
+// whole table into Node. Overflow is reported via meta.truncated, never silent.
+const TASK_LIST_LIMIT = 2000
+
 // GET /api/tasks?mine=true[&scope=…] - the caller's task list.
 //
 //   scope=me            (default) just them
@@ -138,12 +143,26 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
       if (person) assigneeIds = [person.id]
     }
 
+    // Without `mine`, `where` collapsed to `{}` - the ENTIRE project_tasks table
+    // for anyone who could call this. Every in-app caller passes mine=true, so
+    // that path was only reachable by hand. It now falls back to the caller's
+    // own tasks, which is the same safe default the scope handling above uses
+    // for an unrecognised scope.
     const tasks = await db.projectTask.findMany({
       where: {
-        ...(mine && { assigneeId: { in: assigneeIds } }),
+        assigneeId: { in: assigneeIds },
         ...(status && { status: status as never }),
       },
       orderBy: [{ dueDate: "asc" }, { priority: "desc" }],
+      // A project admin on scope=all has `assigneeIds` = every active employee,
+      // so the assignee filter alone is not a real bound. Take one extra row to
+      // detect truncation and REPORT it (meta.truncated) rather than silently
+      // hiding someone's tasks.
+      take: TASK_LIST_LIMIT + 1,
+      // `description` is rendered by my-tasks, so it stays. `holdReason` and
+      // `discardReason` are @db.Text, read by no list consumer, and were
+      // shipping on every row via `include`.
+      omit: { holdReason: true, discardReason: true },
       include: {
         project: { select: { id: true, name: true, code: true, slug: true } },
         // managerId rides along so the client can apply the same edit/delete
@@ -166,9 +185,16 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
       },
     })
 
+    const truncated = tasks.length > TASK_LIST_LIMIT
+    if (truncated) tasks.length = TASK_LIST_LIMIT
+
     return NextResponse.json({
       data: tasks,
       meta: {
+        // True when the cap clipped the list, so the UI can say so instead of
+        // quietly presenting a partial task list as complete.
+        truncated,
+        limit: TASK_LIST_LIMIT,
         // The picker's options, minus the member id lists (the client never
         // needs them and they are only used to resolve the scope server-side).
         teams: managed.teams.map(({ id, name, projectName }) => ({ id, name, projectName })),
@@ -221,34 +247,43 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, session:
       )
     }
 
-    const task = await db.projectTask.create({
-      data: {
-        projectId: null,
-        teamId: null,
-        title,
-        description: body.description?.trim() || null,
-        status: "TODO",
-        priority: body.priority || "MEDIUM",
-        assigneeId,
-        creatorId: session.user.id,
-        dueDate: body.dueDate ? new Date(body.dueDate) : null,
-        estimatedHours: body.estimatedHours ? Number(body.estimatedHours) : null,
-        tags: Array.isArray(body.tags) ? body.tags : [],
-        approvalStatus: "APPROVED",
-        // Records who raised it, not who cleared it - nothing needs clearing.
-        isManagerCreated: !isSelf,
-      },
-      include: {
-        assignee: { select: { id: true, firstName: true, lastName: true, email: true } },
-        creator: { select: { id: true, firstName: true, lastName: true } },
-      },
-    })
+    // One transaction: a task and its first status period are a single fact.
+    // Created separately, a failure between them left a task with NO open
+    // period, breaking the "exactly one open period" invariant that
+    // task-status-periods.ts depends on - and nothing repairs it afterwards.
+    // The PATCH path already did this correctly; the two create paths did not.
+    const task = await db.$transaction(async (tx) => {
+      const created = await tx.projectTask.create({
+        data: {
+          projectId: null,
+          teamId: null,
+          title,
+          description: body.description?.trim() || null,
+          status: "TODO",
+          priority: body.priority || "MEDIUM",
+          assigneeId,
+          creatorId: session.user.id,
+          dueDate: body.dueDate ? new Date(body.dueDate) : null,
+          estimatedHours: body.estimatedHours ? Number(body.estimatedHours) : null,
+          tags: Array.isArray(body.tags) ? body.tags : [],
+          approvalStatus: "APPROVED",
+          // Records who raised it, not who cleared it - nothing needs clearing.
+          isManagerCreated: !isSelf,
+        },
+        include: {
+          assignee: { select: { id: true, firstName: true, lastName: true, email: true } },
+          creator: { select: { id: true, firstName: true, lastName: true } },
+        },
+      })
 
-    await openFirstStatusPeriod(db, {
-      taskId: task.id,
-      status: task.status,
-      actorId: session.user.id,
-      at: task.createdAt,
+      await openFirstStatusPeriod(tx, {
+        taskId: created.id,
+        status: created.status,
+        actorId: session.user.id,
+        at: created.createdAt,
+      })
+
+      return created
     })
 
     try {

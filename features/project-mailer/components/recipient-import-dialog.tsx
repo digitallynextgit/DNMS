@@ -294,7 +294,7 @@ export function RecipientImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto lg:max-w-3xl">
+      <DialogContent className="max-w-3xl lg:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="text-sm">Import recipients from a spreadsheet</DialogTitle>
           <DialogDescription className="text-xs">

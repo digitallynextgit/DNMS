@@ -953,19 +953,30 @@ export async function applyLeave(body: {
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return fail("Invalid date format")
     if (end < start) return fail("End date must be on or after start date")
 
-    const leaveType = await db.leaveType.findUnique({ where: { id: leaveTypeId } })
-    if (!leaveType || !leaveType.isActive) return fail("Leave type not found or inactive")
+    // These three are independent of each other, so they go together rather
+    // than as three sequential round trips at the head of every application.
+    // (An invalid leaveType now costs two extra reads that are thrown away -
+    // that is the error path, and it buys two fewer round trips on every
+    // successful apply.)
+    const [leaveType, employee, acceptedResignation] = await Promise.all([
+      db.leaveType.findUnique({ where: { id: leaveTypeId } }),
+      db.employee.findUnique({
+        where: { id: session.user.id },
+        select: {
+          onProbation: true,
+          probationMonths: true,
+          dateOfJoining: true,
+          confirmationDate: true,
+          gender: true,
+        },
+      }),
+      db.resignation.findFirst({
+        where: { employeeId: session.user.id, status: "APPROVED" },
+        select: { id: true },
+      }),
+    ])
 
-    const employee = await db.employee.findUnique({
-      where: { id: session.user.id },
-      select: {
-        onProbation: true,
-        probationMonths: true,
-        dateOfJoining: true,
-        confirmationDate: true,
-        gender: true,
-      },
-    })
+    if (!leaveType || !leaveType.isActive) return fail("Leave type not found or inactive")
 
     // Paid leave is blocked during probation; unpaid leave (e.g. LWP) is always
     // available - this is how interns/probationers can still take unpaid time off.
@@ -976,10 +987,6 @@ export async function applyLeave(body: {
 
     // No leave during the notice period (after an accepted resignation). Any
     // exception is at management's discretion, handled offline by HR.
-    const acceptedResignation = await db.resignation.findFirst({
-      where: { employeeId: session.user.id, status: "APPROVED" },
-      select: { id: true },
-    })
     if (acceptedResignation)
       return fail(
         "You can't apply for leave during your notice period. Any exception is at management's discretion - please contact HR.",
@@ -1055,8 +1062,13 @@ export async function applyLeave(body: {
     }
 
     if (leaveType.code === "CL") {
-      const monthStart = new Date(start.getUTCFullYear(), start.getUTCMonth(), 1)
-      const monthEnd = new Date(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)
+      // Date.UTC, matching the EL half-year window above and the WFH month
+      // bounds (API-09). `new Date(y, m, 1)` is LOCAL midnight, so on an IST
+      // server the window started at 18:30 UTC on the last day of the previous
+      // month - a request dated the 1st (stored as UTC midnight, @db.Date) fell
+      // outside this month's quota and into the previous one's.
+      const monthStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1))
+      const monthEnd = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0))
       const existing = await db.leaveRequest.findMany({
         where: {
           employeeId: session.user.id,
@@ -1073,8 +1085,13 @@ export async function applyLeave(body: {
     }
 
     if (leaveType.code === "SHORT") {
-      const monthStart = new Date(start.getUTCFullYear(), start.getUTCMonth(), 1)
-      const monthEnd = new Date(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)
+      // Date.UTC, matching the EL half-year window above and the WFH month
+      // bounds (API-09). `new Date(y, m, 1)` is LOCAL midnight, so on an IST
+      // server the window started at 18:30 UTC on the last day of the previous
+      // month - a request dated the 1st (stored as UTC midnight, @db.Date) fell
+      // outside this month's quota and into the previous one's.
+      const monthStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1))
+      const monthEnd = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0))
       const usedCount = await db.leaveRequest.count({
         where: {
           employeeId: session.user.id,

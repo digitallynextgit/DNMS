@@ -91,7 +91,7 @@ export function DocumentUploadDialog({
       submitDisabled={!(Boolean(file) && Boolean(title.trim()))}
       submitLabel={isSubmitting ? "Uploading..." : "Upload"}
       onSubmit={handleSubmit}
-      contentClassName="max-h-[90vh] overflow-y-auto sm:max-w-130"
+      contentClassName="sm:max-w-130"
     >
       <div className="flex flex-col gap-2">
         <Label htmlFor="doc-file">File</Label>

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
-import { Sun, Moon } from "lucide-react"
+import { Sun, Moon, Menu, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { siteConfig } from "@/config/site"
@@ -46,12 +46,13 @@ function ThemeToggle() {
 
 /**
  * Scroll-aware header: transparent over the hero, then gains a blurred
- * background + border once the page is scrolled. Logo left, links centered,
- * theme toggle + Login on the right.
+ * background + border once scrolled. Logo left, links centered (desktop),
+ * theme toggle + Login on the right; a hamburger menu on mobile.
  */
 export function MarketingHeader() {
   const ref = useRef<HTMLElement>(null)
   const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   // Already signed in? Send them straight to their app instead of the login page.
   const { data: session } = useSession()
@@ -69,18 +70,20 @@ export function MarketingHeader() {
     return () => scroller.removeEventListener("scroll", onScroll)
   }, [])
 
+  const solid = scrolled || menuOpen
+
   return (
     <header
       ref={ref}
       className={cn(
         // fixed (not sticky) so the hero sits BEHIND it and fills to the very top.
         "fixed inset-x-0 top-0 z-40 border-b transition-colors duration-300",
-        scrolled
+        solid
           ? "border-border/60 bg-background/80 supports-[backdrop-filter]:bg-background/55 backdrop-blur-xl"
           : "border-transparent bg-transparent",
       )}
     >
-      <div className="mx-auto grid h-16 max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center px-4 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4 sm:px-6 md:grid md:grid-cols-[1fr_auto_1fr]">
         {/* Left: logo */}
         <Link
           href="/"
@@ -88,16 +91,26 @@ export function MarketingHeader() {
           aria-label={siteConfig.name}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo_white_bg.png" alt={siteConfig.name} className="h-11 w-auto dark:hidden" />
+          <img
+            src="/logo_white_bg-96.png"
+            width={370}
+            height={96}
+            decoding="async"
+            alt={siteConfig.name}
+            className="h-9 w-auto sm:h-11 dark:hidden"
+          />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/logo_dark_bg.webp"
+            src="/logo_dark_bg-96.webp"
+            width={370}
+            height={96}
+            decoding="async"
             alt={siteConfig.name}
-            className="hidden h-11 w-auto dark:block"
+            className="hidden h-9 w-auto sm:h-11 dark:block"
           />
         </Link>
 
-        {/* Center: nav links */}
+        {/* Center: nav links (desktop) */}
         <nav className="hidden items-center gap-1 md:flex">
           {NAV.map((n) => (
             <a
@@ -110,14 +123,46 @@ export function MarketingHeader() {
           ))}
         </nav>
 
-        {/* Right: theme toggle + login */}
+        {/* Right: theme toggle + login (desktop) + hamburger (mobile) */}
         <div className="flex items-center gap-1.5 justify-self-end sm:gap-2">
           <ThemeToggle />
-          <Button asChild size="sm">
+          <Button asChild size="sm" className="hidden md:inline-flex">
             <Link href={authed ? appHref : "/login"}>{authed ? "Dashboard" : "Log in"}</Link>
           </Button>
+          <button
+            type="button"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((o) => !o)}
+            className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 flex h-9 w-9 items-center justify-center rounded-[6px] transition-colors md:hidden"
+          >
+            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile menu panel */}
+      {menuOpen && (
+        <div className="border-border/60 bg-background/95 supports-[backdrop-filter]:bg-background/85 border-t backdrop-blur-xl md:hidden">
+          <nav className="mx-auto flex max-w-[1600px] flex-col gap-0.5 px-4 py-3 sm:px-6">
+            {NAV.map((n) => (
+              <a
+                key={n.href}
+                href={n.href}
+                onClick={() => setMenuOpen(false)}
+                className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-[6px] px-3 py-2.5 text-sm font-medium transition-colors"
+              >
+                {n.label}
+              </a>
+            ))}
+            <Button asChild size="sm" className="mt-2 w-full">
+              <Link href={authed ? appHref : "/login"} onClick={() => setMenuOpen(false)}>
+                {authed ? "Dashboard" : "Log in"}
+              </Link>
+            </Button>
+          </nav>
+        </div>
+      )}
     </header>
   )
 }

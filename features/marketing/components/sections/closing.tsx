@@ -3,9 +3,7 @@ import { Sparkles } from "lucide-react"
 import { siteConfig } from "@/config/site"
 import { GridBackdrop, Reveal } from "../fx"
 import { NewsletterForm } from "../newsletter-form"
-
-// Brand red (matches the hero accent + the logo mark).
-const BRAND_RED = "#ef4444"
+import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
 /** Final full-bleed band: closing statement + newsletter sign-up. */
 export function Closing() {
