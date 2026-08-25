@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { inPublicApiTenant } from "@/server/public-api"
 import { timingSafeEqual } from "node:crypto"
 import { ZodError } from "zod"
 import { careersApplicationSchema } from "@/features/careers/schemas/application.schema"
@@ -97,7 +98,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await createCareerApplication(input)
+    // The verified key identifies the company this careers site belongs to.
+    const result = await inPublicApiTenant(() => createCareerApplication(input))
     // 200 on an idempotent replay, 201 on a newly stored application.
     return NextResponse.json(result, { status: result.duplicate ? 200 : 201 })
   } catch (error) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { inPublicApiTenant } from "@/server/public-api"
 import { db } from "@/server/db"
 import { getSignedUrl } from "@/lib/storage"
 
@@ -40,10 +41,21 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ assetId: s
 
   let objectKey = keyCache.get(assetId)
   if (!objectKey) {
-    const asset = await db.projectMailerAsset.findUnique({
-      where: { id: assetId },
-      select: { objectKey: true },
-    })
+    // This lookup used to sit OUTSIDE the try below, so anything it threw
+    // escaped the handler. It is a public endpoint - every mail client that
+    // renders the image hits it - so a throw here is a repeating fault.
+    let asset: { objectKey: string } | null
+    try {
+      asset = await inPublicApiTenant(() =>
+        db.projectMailerAsset.findUnique({
+          where: { id: assetId },
+          select: { objectKey: true },
+        }),
+      )
+    } catch (error) {
+      console.error("[MAILER_IMAGE] lookup failed", error)
+      return new NextResponse("Unavailable", { status: 500 })
+    }
     if (!asset) return new NextResponse("Not found", { status: 404 })
     objectKey = asset.objectKey
     if (keyCache.size >= KEY_CACHE_MAX) keyCache.clear()

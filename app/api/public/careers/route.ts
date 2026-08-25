@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPublishedCareers } from "@/features/careers/server/careers.service"
+import { inPublicApiTenant } from "@/server/public-api"
 import { verifyApiKey } from "@/lib/api-key"
 import { rateLimited, clientIp } from "@/lib/rate-limit"
 
@@ -50,12 +51,28 @@ export async function GET(req: NextRequest) {
     )
   }
   const mode = modeParam === "internship" ? "INTERNSHIP" : "FULL_TIME"
-  const groups = await getPublishedCareers(mode)
 
-  return NextResponse.json(groups, {
-    headers: {
-      ...CORS_HEADERS,
-      "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
-    },
-  })
+  try {
+    // The verified key identifies the company whose careers site this is, so the
+    // read runs inside that tenant. Without this the query has no tenant context
+    // at all - which under strict enforcement is refused, and the refusal used
+    // to escape this handler because there was nothing here to catch it.
+    const groups = await inPublicApiTenant(() => getPublishedCareers(mode))
+
+    return NextResponse.json(groups, {
+      headers: {
+        ...CORS_HEADERS,
+        "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+      },
+    })
+  } catch (error) {
+    // A public endpoint must fail as a response, never as an exception: this one
+    // is polled by the marketing site, so an unhandled throw here is a repeating
+    // fault, not a one-off.
+    console.error("[PUBLIC_CAREERS]", error)
+    return NextResponse.json(
+      { error: "Could not load careers" },
+      { status: 500, headers: CORS_HEADERS },
+    )
+  }
 }

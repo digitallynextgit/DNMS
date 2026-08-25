@@ -261,6 +261,40 @@ async function main() {
     }
   }
 
+  // ---- Public, key-authenticated APIs -------------------------------------
+  //
+  // These have NO session, so they establish tenant context from the API key
+  // (server/public-api.ts). Missing from this sweep originally, which is how
+  // /api/public/careers reached production querying with no tenant context at
+  // all - under strict enforcement the guard refused and the throw escaped the
+  // handler. Probed WITH the key, because without one every request stops at
+  // 401 before it ever reaches a query.
+  console.log("\n── Public APIs (key-authenticated, no session) ──")
+  const careersKey = process.env.CAREERS_API_KEY
+  if (!careersKey) {
+    console.log("  · CAREERS_API_KEY not set locally - skipped")
+  } else {
+    for (const [label, path] of [
+      ["careers full-time", "/api/public/careers?mode=full-time"],
+      ["careers internship", "/api/public/careers?mode=internship"],
+    ] as const) {
+      const res = await fetch(`${BASE}${path}`, { headers: { "x-api-key": careersKey } })
+      if (res.status !== 200) {
+        const body = await res.text()
+        bad(`${label} → ${res.status} ${body.slice(0, 120)}`)
+      } else {
+        console.log(`  ${label} → 200`)
+      }
+    }
+    // A wrong key must still be refused - the tenant wrapper must not have
+    // loosened the gate.
+    const denied = await fetch(`${BASE}/api/public/careers?mode=full-time`, {
+      headers: { "x-api-key": "definitely-not-the-key" },
+    })
+    if (denied.status !== 401) bad(`a bad API key returned ${denied.status}, expected 401`)
+    else console.log("  a wrong key → 401")
+  }
+
   console.log("═".repeat(78))
   console.log(problems === 0 ? "NO PROBLEMS FOUND.\n" : `${problems} problem(s) found.\n`)
   process.exitCode = problems === 0 ? 0 : 1
