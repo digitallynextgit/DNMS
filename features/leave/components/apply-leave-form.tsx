@@ -1,6 +1,7 @@
 "use client"
 import { useState, useMemo, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { useTenantPath } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -53,6 +54,7 @@ function countWorkingDays(start: Date, end: Date): number {
 
 export function ApplyLeaveForm() {
   const router = useRouter()
+  const tp = useTenantPath()
   const applyLeave = useApplyLeave()
   const { data: session } = useSession()
   const applicantName =
@@ -140,7 +142,7 @@ export function ApplyLeaveForm() {
       emailSubject: emailSubjectRef.current.trim() || undefined,
     })
 
-    router.push("/leave")
+    router.push(tp("/leave"))
   }
 
   // Record the current reason as a history checkpoint and set a new value.
@@ -447,7 +449,7 @@ export function ApplyLeaveForm() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push("/leave")}
+            onClick={() => router.push(tp("/leave"))}
             disabled={applyLeave.isPending}
           >
             Cancel

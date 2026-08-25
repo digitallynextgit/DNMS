@@ -1,4 +1,4 @@
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import Image from "next/image"
 import { redirect } from "next/navigation"
 import { auth } from "@/server/auth"

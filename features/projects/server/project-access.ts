@@ -27,7 +27,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export async function resolveProjectId(idOrSlug: string): Promise<string | null> {
   if (!idOrSlug) return null
   if (UUID_RE.test(idOrSlug)) return idOrSlug
-  const project = await db.project.findUnique({
+  const project = await db.project.findFirst({
     where: { slug: idOrSlug },
     select: { id: true },
   })

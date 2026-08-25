@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { tenantPath } from "@/server/tenant-request"
 import { auth } from "@/server/auth"
 import { AuthShell } from "@/features/auth"
 import { ClientSetPasswordForm } from "@/features/client-portal"
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 export default async function ClientSetPasswordPage() {
   const session = await auth()
   if (!session || session.user.kind !== "client") redirect("/client-login")
-  if (!session.user.mustChangePassword) redirect("/portal")
+  if (!session.user.mustChangePassword) redirect(await tenantPath("/portal"))
 
   return (
     <AuthShell>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { Package, Store, Boxes, ChevronDown, Mail, Activity } from "lucide-react"

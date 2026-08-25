@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
-import { assertCron } from "@/server/cron-auth"
+import { withCron } from "@/server/cron-auth"
 import { db } from "@/server/db"
 import { sendEmail } from "@/lib/mailer"
 import { getConfig } from "@/server/app-config"
@@ -9,10 +8,7 @@ import { getConfig } from "@/server/app-config"
 // Example cron: 0 9 * * * (runs at 9 AM every day)
 // Call: GET /api/cron/birthdays with header Authorization: Bearer <CRON_SECRET>
 
-export const GET = async (req: NextRequest) => {
-  const denied = assertCron(req)
-  if (denied) return denied
-
+export const GET = withCron("birthdays", async () => {
   try {
     const today = new Date()
     const month = today.getMonth() + 1 // 1-12
@@ -75,14 +71,15 @@ export const GET = async (req: NextRequest) => {
       }
     }
 
-    return NextResponse.json({
+    return {
       date: `${day}/${month}`,
       total: birthdayEmployees.length,
       sent,
       results,
-    })
+    }
   } catch (error) {
     console.error("[CRON_BIRTHDAYS]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    // Rethrown so forEachTenant records it against this tenant and continues.
+    throw error
   }
-}
+})

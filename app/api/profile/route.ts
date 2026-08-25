@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
+import { setPassword } from "@/server/identity"
 import { withSession } from "@/server/api-handler"
 import { encrypt } from "@/lib/crypto"
 import bcrypt from "bcryptjs"
@@ -63,6 +64,7 @@ export const PATCH = withSession(async (req: NextRequest, _ctx: unknown, session
     }
 
     // Password change
+    let newPassword: string | null = null
     if (body.currentPassword && body.newPassword) {
       const employee = await db.employee.findUnique({
         where: { id: session.user.id },
@@ -81,7 +83,10 @@ export const PATCH = withSession(async (req: NextRequest, _ctx: unknown, session
           { error: "Password must be at least 8 characters" },
           { status: 400 },
         )
-      data.passwordHash = await bcrypt.hash(body.newPassword, 12)
+      // Applied AFTER the profile update below, through the one function allowed
+      // to write a credential (M2): it updates `users` and the legacy employee
+      // column together, which a plain `data.passwordHash =` here would not.
+      newPassword = body.newPassword
     }
 
     const updated = await db.employee.update({
@@ -95,6 +100,10 @@ export const PATCH = withSession(async (req: NextRequest, _ctx: unknown, session
         // Expose only whether a password is set, never the value itself.
       },
     })
+
+    if (newPassword) {
+      await setPassword({ employeeId: session.user.id }, newPassword)
+    }
 
     // Tell the client whether they currently have an App Password on file.
     const hasGmailAppPassword = !!(

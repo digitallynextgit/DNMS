@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import { Link, useTenantPath } from "@/components/tenant-link"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
@@ -31,6 +31,7 @@ import { useUnreadChatCount } from "@/hooks/use-unread-chat"
 // resignations list so the panel updates without a reload.
 function ResignationCountBadge({ collapsed }: { collapsed: boolean }) {
   const router = useRouter()
+  const tp = useTenantPath()
   const qc = useQueryClient()
   const { data } = usePendingResignationCount()
   const prev = useRef<number | null>(null)
@@ -57,7 +58,7 @@ function ResignationCountBadge({ collapsed }: { collapsed: boolean }) {
         const delta = data - prev.current
         const msg = `${delta} new resignation request${delta > 1 ? "s" : ""} to review`
         toast.info(msg, {
-          action: { label: "View", onClick: () => router.push("/resignations") },
+          action: { label: "View", onClick: () => router.push(tp("/resignations")) },
         })
         if ("Notification" in window && Notification.permission === "granted") {
           const note = new Notification("New resignation request", {
@@ -66,7 +67,7 @@ function ResignationCountBadge({ collapsed }: { collapsed: boolean }) {
           })
           note.onclick = () => {
             window.focus()
-            router.push("/resignations")
+            router.push(tp("/resignations"))
           }
         }
       }

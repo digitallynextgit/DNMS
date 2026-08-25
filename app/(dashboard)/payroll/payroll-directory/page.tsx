@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
 import { useUpdateEffect } from "@/hooks/use-update-effect"
 import { useRouter } from "next/navigation"
+import { useTenantPath } from "@/components/tenant-link"
 import { useSession } from "next-auth/react"
 import { Users, TrendingUp, DollarSign, Play, Trash2, Eye, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -49,6 +50,7 @@ const PAGE_SIZE = 10
 
 export default function PayrollPage() {
   const router = useRouter()
+  const tp = useTenantPath()
   const { can } = usePermissions()
   const { status: sessionStatus } = useSession()
   const canWrite = can(PERMISSIONS.PAYROLL_WRITE)
@@ -56,7 +58,7 @@ export default function PayrollPage() {
   // Overview is the HR payroll-run console; employees use My Payslips.
   useEffect(() => {
     if (sessionStatus === "authenticated" && !canWrite) {
-      router.replace("/payroll/me")
+      router.replace(tp("/payroll/me"))
     }
   }, [sessionStatus, canWrite, router])
 

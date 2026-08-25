@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { redirect } from "next/navigation"
 
 import { auth } from "@/server/auth"

@@ -289,7 +289,7 @@ async function main() {
     ProjectKey,
     { code: string; name: string },
   ][]) {
-    const existing = await prisma.project.findUnique({ where: { code: meta.code } })
+    const existing = await prisma.project.findFirst({ where: { code: meta.code } })
     if (existing) {
       projectId[key] = existing.id
       continue

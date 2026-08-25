@@ -9,7 +9,7 @@
  */
 
 import * as React from "react"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Megaphone, Images, Cake, ArrowRight, PartyPopper } from "lucide-react"

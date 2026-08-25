@@ -1,6 +1,6 @@
 import "server-only"
 
-import { db } from "@/server/db"
+import { db, type DbTransaction } from "@/server/db"
 import { getTaskEditHistory, type TaskEdit } from "@/features/projects/server/task-audit"
 import type { Prisma, TaskStatus } from "@prisma/client"
 
@@ -13,7 +13,7 @@ import type { Prisma, TaskStatus } from "@prisma/client"
  * is a stored number rather than something reconstructed from an activity feed.
  */
 
-type Tx = Prisma.TransactionClient | typeof db
+type Tx = DbTransaction | typeof db
 
 /**
  * Record a status transition. Closes the currently open period and opens one for

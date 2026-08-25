@@ -80,7 +80,7 @@ export const PATCH = withAuth(
     if (name && !role.isSystem) {
       normalizedName = name.toLowerCase().replace(/\s+/g, "_")
       if (normalizedName !== role.name) {
-        const conflict = await db.role.findUnique({
+        const conflict = await db.role.findFirst({
           where: { name: normalizedName },
         })
         if (conflict) {

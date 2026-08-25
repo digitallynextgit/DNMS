@@ -1373,6 +1373,42 @@ async function main() {
       } as any,
     })
 
+    // Platform identity (M2). Written inline rather than through
+    // server/identity.ts because that module is `server-only` and bound to the
+    // app's Prisma client; the seed runs standalone on its own. Without this a
+    // freshly seeded database would have employees that cannot sign in - the
+    // login path reads `users`, not `employees`.
+    const seededUser = await prisma.user.upsert({
+      where: { email: employee.email.toLowerCase() },
+      update: {},
+      create: {
+        email: employee.email.toLowerCase(),
+        name: `${empFields.firstName} ${empFields.lastName}`,
+        passwordHash,
+        mustChangePassword: false,
+        isActive: emp.isActive,
+        emailVerified: emp.isActive ? new Date() : null,
+      },
+      select: { id: true },
+    })
+    await prisma.membership.upsert({
+      where: {
+        userId_tenantId_kind: {
+          userId: seededUser.id,
+          tenantId: employee.tenantId,
+          kind: "STAFF",
+        },
+      },
+      update: { isActive: emp.isActive },
+      create: {
+        userId: seededUser.id,
+        tenantId: employee.tenantId,
+        kind: "STAFF",
+        employeeId: employee.id,
+        isActive: emp.isActive,
+      },
+    })
+
     createdEmployees.push({ id: employee.id, employeeNo: employee.employeeNo })
     console.log(
       `  ✓ Created employee ${employee.employeeNo} - ${empFields.firstName} ${empFields.lastName}`,

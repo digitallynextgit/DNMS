@@ -16,6 +16,7 @@ import "server-only"
 import bcrypt from "bcryptjs"
 import { randomBytes } from "node:crypto"
 import { db } from "@/server/db"
+import { provisionIdentity, setPassword } from "@/server/identity"
 import { createAuditLog } from "@/lib/audit"
 import { addEmailJob } from "@/lib/queue"
 import { getConfig } from "@/server/app-config"
@@ -152,18 +153,33 @@ export async function addProjectClient(
       if (already) return fail("This client already has access to this project", undefined, 409)
     } else {
       issuedPassword = generatePassword()
+      const passwordHash = await bcrypt.hash(issuedPassword, 12)
       const created = await db.clientUser.create({
         data: {
           name: input.name,
           email: input.email,
           phone: input.phone || null,
-          passwordHash: await bcrypt.hash(issuedPassword, 12),
+          passwordHash,
           mustChangePassword: input.forcePasswordChange,
           createdById: session.user.id,
         },
-        select: { id: true },
+        select: { id: true, tenantId: true },
       })
       clientUserId = created.id
+
+      // Give the new portal account a platform identity (M2). If this address
+      // already belongs to somebody - a staff member being given client access -
+      // provisionIdentity keeps their existing credential and just adds the
+      // CLIENT membership, so they keep using the password they already have.
+      await provisionIdentity({
+        email: input.email,
+        name: input.name,
+        tenantId: created.tenantId,
+        kind: "CLIENT",
+        clientUserId: created.id,
+        passwordHash,
+        mustChangePassword: input.forcePasswordChange,
+      })
     }
 
     const access = await db.clientProjectAccess.create({
@@ -281,12 +297,8 @@ export async function resetProjectClientPassword(
     if (!access) return fail("Client access not found", undefined, 404)
 
     const password = generatePassword()
-    await db.clientUser.update({
-      where: { id: access.clientUser.id },
-      data: {
-        passwordHash: await bcrypt.hash(password, 12),
-        mustChangePassword: input.forcePasswordChange,
-      },
+    await setPassword({ clientUserId: access.clientUser.id }, password, {
+      mustChangePassword: input.forcePasswordChange,
     })
 
     await sendCredentials({

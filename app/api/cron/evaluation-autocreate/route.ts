@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
-import { assertCron } from "@/server/cron-auth"
+import { withCron } from "@/server/cron-auth"
 import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
 import { DEFAULT_SECTION_A_LABEL, DEFAULT_SECTION_B_LABEL } from "@/features/performance/evaluation"
@@ -11,10 +10,7 @@ import { HIDDEN_ROLES } from "@/lib/constants"
 // cron-job.org for the 1st and 16th. Idempotent: skips anyone who already has an
 // evaluation for the computed period, so re-running is safe.
 // Auth: Authorization: Bearer <CRON_SECRET>
-export async function GET(req: NextRequest) {
-  const denied = assertCron(req)
-  if (denied) return denied
-
+export const GET = withCron("evaluation-autocreate", async () => {
   try {
     const now = new Date()
     const day = now.getDate()
@@ -78,9 +74,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, periodLabel, created, skipped, total: employees.length })
+    return { periodLabel, created, skipped, total: employees.length }
   } catch (error) {
     console.error("[cron/evaluation-autocreate]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    // Rethrown so forEachTenant records it against this tenant and continues.
+    throw error
   }
-}
+})

@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
-import { assertCron } from "@/server/cron-auth"
+import { withCron } from "@/server/cron-auth"
 import { runReferralEligibility } from "@/features/referrals/server/referrals.service"
 
 // Tells a referrer their reward is payable once the person they referred has
@@ -16,13 +15,12 @@ import { runReferralEligibility } from "@/features/referrals/server/referrals.se
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-export async function GET(req: NextRequest) {
-  const denied = assertCron(req)
-  if (denied) return denied
+export const GET = withCron("referral-rewards", async () => {
   try {
-    return NextResponse.json({ data: await runReferralEligibility() })
+    return await runReferralEligibility()
   } catch (error) {
     console.error("[CRON_REFERRAL_REWARDS]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    // Rethrown so forEachTenant records it against this tenant and continues.
+    throw error
   }
-}
+})

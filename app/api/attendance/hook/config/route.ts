@@ -3,6 +3,7 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import { getConfig } from "@/server/app-config"
+import { FOUNDING_TENANT_ID } from "@/server/tenant-context"
 import type { Session } from "next-auth"
 
 /**
@@ -26,8 +27,20 @@ import type { Session } from "next-auth"
  */
 export const GET = withAuth(
   PERMISSIONS.ATTENDANCE_WRITE,
-  async (_req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
-    const secret = process.env.ATTENDANCE_HOOK_SECRET ?? ""
+  async (_req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
+    // This tenant's OWN secret (M4), falling back to the platform-wide
+    // environment variable for Digitally Next, whose terminal was configured
+    // with it before per-tenant secrets existed. A tenant with neither has no
+    // push set up, and the UI says so rather than showing a URL that cannot work.
+    const tenant = await db.tenant.findUnique({
+      where: { id: session.user.tenantId },
+      select: { hookSecret: true },
+    })
+    const secret =
+      tenant?.hookSecret ??
+      (session.user.tenantId === FOUNDING_TENANT_ID
+        ? (process.env.ATTENDANCE_HOOK_SECRET ?? "")
+        : "")
 
     // Same resolution order the email layer uses: an explicitly configured
     // APP_URL wins, otherwise the auth origin.

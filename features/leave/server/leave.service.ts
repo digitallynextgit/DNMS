@@ -1101,7 +1101,7 @@ export async function applyLeave(body: {
         },
       })
       if (usedCount >= 2) {
-        const lwpType = await db.leaveType.findUnique({ where: { code: "LWP" } })
+        const lwpType = await db.leaveType.findFirst({ where: { code: "LWP" } })
         if (lwpType)
           return fail(
             "You have already used 2 Short Leaves this month. A 3rd Short Leave will be treated as a half-day Leave Without Pay. Please apply for 0.5 days of Leave Without Pay instead.",
@@ -1110,7 +1110,7 @@ export async function applyLeave(body: {
     }
 
     if (leaveType.code === "CL" || leaveType.code === "SL") {
-      const elType = await db.leaveType.findUnique({ where: { code: "EL" } })
+      const elType = await db.leaveType.findFirst({ where: { code: "EL" } })
       if (elType) {
         const dayBefore = new Date(start)
         dayBefore.setDate(dayBefore.getDate() - 1)

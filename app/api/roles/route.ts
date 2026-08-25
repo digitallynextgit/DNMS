@@ -55,7 +55,7 @@ export const POST = withAuth(PERMISSIONS.ROLE_WRITE, async (req: NextRequest, _c
   const normalizedName = name.toLowerCase().replace(/\s+/g, "_")
 
   // Check for duplicate name
-  const existing = await db.role.findUnique({ where: { name: normalizedName } })
+  const existing = await db.role.findFirst({ where: { name: normalizedName } })
   if (existing) {
     return NextResponse.json(
       { error: `A role with name "${normalizedName}" already exists` },

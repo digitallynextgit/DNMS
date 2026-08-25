@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { Button } from "@/components/ui/button"

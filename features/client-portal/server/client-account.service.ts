@@ -10,6 +10,7 @@ import "server-only"
 
 import bcrypt from "bcryptjs"
 import { db } from "@/server/db"
+import { setPassword } from "@/server/identity"
 import { requireClientSession } from "@/server/client-guard"
 import { ok, fail, runAction, type ActionResult } from "@/server/action-result"
 import { clientPasswordSchema, type ClientPasswordInput } from "../schemas/client-portal.schema"
@@ -31,15 +32,10 @@ export async function changeClientPassword(
     const valid = await bcrypt.compare(input.currentPassword, user.passwordHash)
     if (!valid) return fail("Your current password is incorrect", undefined, 400)
 
-    await db.clientUser.update({
-      where: { id: session.user.id },
-      data: {
-        passwordHash: await bcrypt.hash(input.newPassword, 12),
-        // Clears the gate in proxy.ts. The client must refresh their session
-        // (session.update()) for the new flag to reach their token.
-        mustChangePassword: false,
-      },
-    })
+    // Writes the platform credential AND client_users.password_hash (M2 dual-write).
+    // Clearing mustChangePassword releases the gate in proxy.ts; the client must
+    // refresh their session (session.update()) for the new flag to reach their token.
+    await setPassword({ clientUserId: session.user.id }, input.newPassword)
 
     return ok({ changed: true })
   })

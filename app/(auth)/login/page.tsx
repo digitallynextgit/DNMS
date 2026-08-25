@@ -11,7 +11,9 @@ export const metadata: Metadata = {
 
 export default async function LoginPage() {
   const session = await auth()
-  if (session) redirect("/dashboard")
+  // Already signed in: send them to their own surface. A client holds a valid
+  // session too (this is the one login point since M2), and theirs is /portal.
+  if (session) redirect(session.user.kind === "client" ? "/portal" : "/dashboard")
 
   return (
     <AuthShell>

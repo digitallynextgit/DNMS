@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { signIn } from "next-auth/react"
+import { getSession, signIn } from "next-auth/react"
 import { Eye, EyeOff } from "lucide-react"
 import { Spinner } from "@/components/shared/spinner"
 import { toast } from "sonner"
@@ -83,7 +83,15 @@ export function LoginForm() {
 
     if (result?.ok) {
       toast.success("Signed in successfully")
-      router.push(callbackUrl)
+      // One login point serves both populations (M2), so where to land is
+      // decided by what the session turned out to be, not by which form was
+      // used. Without this a client signing in here would be sent to /dashboard
+      // and bounced to /portal by the proxy - it works, but it flashes a page
+      // they are not allowed to see.
+      const session = await getSession()
+      const isClient = session?.user?.kind === "client"
+      const destination = isClient && !callbackUrl.startsWith("/portal") ? "/portal" : callbackUrl
+      router.push(destination)
       router.refresh()
     }
   }

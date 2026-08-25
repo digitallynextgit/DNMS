@@ -77,10 +77,19 @@ export async function visiblePeople(
     return { memberIds: all.map((e) => e.id), scope: "all" }
   }
 
+  // ProjectTeamMember carries `projectId` as a denormalised column but has NO
+  // `project` relation (there is no foreign key on it either), so "projects I
+  // own" has to be resolved first and matched on the id.
+  const ownedProjects = await db.project.findMany({
+    where: { ownerId: me },
+    select: { id: true },
+  })
+  const ownedProjectIds = ownedProjects.map((p) => p.id)
+
   const [teamMates, reports] = await Promise.all([
     db.projectTeamMember.findMany({
       where: {
-        OR: [{ team: { managerId: me } }, { project: { ownerId: me } }],
+        OR: [{ team: { managerId: me } }, { projectId: { in: ownedProjectIds } }],
         employee: { isActive: true },
       },
       select: { employeeId: true },

@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
-import { assertCron } from "@/server/cron-auth"
+import { withCron } from "@/server/cron-auth"
 import { runSeoDailyJob } from "@/features/seo/server/seo.jobs"
 
 // The daily accident monitor (SEO plan step 9). Checks every active property's
@@ -13,13 +12,12 @@ import { runSeoDailyJob } from "@/features/seo/server/seo.jobs"
 export const runtime = "nodejs"
 export const maxDuration = 300
 
-export async function GET(req: NextRequest) {
-  const denied = assertCron(req)
-  if (denied) return denied
+export const GET = withCron("seo-daily", async () => {
   try {
-    return NextResponse.json({ success: true, ...(await runSeoDailyJob()) })
+    return await runSeoDailyJob()
   } catch (error) {
     console.error("[SEO_DAILY_CRON]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    // Rethrown so forEachTenant records it against this tenant and continues.
+    throw error
   }
-}
+})

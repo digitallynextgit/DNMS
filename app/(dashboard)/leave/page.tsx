@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
 import { useSession } from "next-auth/react"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"

@@ -13,7 +13,7 @@
  */
 
 import * as React from "react"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"

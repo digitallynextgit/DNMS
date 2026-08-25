@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useTenantPath } from "@/components/tenant-link"
 import { useSession } from "next-auth/react"
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils"
 
 export default function ApplyWfhPage() {
   const router = useRouter()
+  const tp = useTenantPath()
   const { data: eligibility, isLoading } = useWfhEligibility()
   const apply = useApplyWfh()
   const { data: session } = useSession()
@@ -77,7 +79,7 @@ export default function ApplyWfhPage() {
       emailBody: emailBodyRef.current.trim() || undefined,
       emailSubject: emailSubjectRef.current.trim() || undefined,
     })
-    router.push("/wfh")
+    router.push(tp("/wfh"))
   }
 
   return (
@@ -218,7 +220,7 @@ export default function ApplyWfhPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push("/wfh")}
+              onClick={() => router.push(tp("/wfh"))}
               disabled={apply.isPending}
             >
               Cancel

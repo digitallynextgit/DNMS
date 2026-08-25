@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { Plus, Trash2, Inbox, Sparkles, Search } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"

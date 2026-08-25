@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
 import { useRouter } from "next/navigation"
+import { useTenantPath } from "@/components/tenant-link"
 import { toast } from "sonner"
 import { Check, UserMinus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -47,6 +48,7 @@ function ResignationCardSkeleton() {
 
 export default function ResignationsPage() {
   const router = useRouter()
+  const tp = useTenantPath()
   const [page, setPage] = useUrlPage()
   const { data, isLoading } = useResignationsToReview({ page, limit: 10 })
   const reviewMut = useReviewResignation()
@@ -65,7 +67,7 @@ export default function ResignationsPage() {
     if (data && authorized === false) {
       toast.error("You don't have access to that page")
       if (window.history.length > 1) router.back()
-      else router.replace("/dashboard")
+      else router.replace(tp("/dashboard"))
     }
   }, [data, authorized, router])
 

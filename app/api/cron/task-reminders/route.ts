@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
-import { assertCron } from "@/server/cron-auth"
+import { withCron } from "@/server/cron-auth"
 import { runTaskReminders } from "@/features/notifications/server/task-reminder.service"
 
 // Warns assignees that the hours booked for a task they are working on right now
@@ -21,14 +20,12 @@ export const runtime = "nodejs"
 // old run's counts and silently stop sending.
 export const dynamic = "force-dynamic"
 
-export async function GET(req: NextRequest) {
-  const denied = assertCron(req)
-  if (denied) return denied
-
+export const GET = withCron("task-reminders", async () => {
   try {
-    return NextResponse.json({ data: await runTaskReminders() })
+    return await runTaskReminders()
   } catch (error) {
     console.error("[CRON_TASK_REMINDERS]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    // Rethrown so forEachTenant records it against this tenant and continues.
+    throw error
   }
-}
+})

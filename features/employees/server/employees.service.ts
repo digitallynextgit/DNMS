@@ -1,6 +1,8 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { provisionIdentity, setMembershipActive, syncIdentityProfile } from "@/server/identity"
+import { checkTenantHeadcount } from "@/features/tenants/server/plan-limits"
 import { PERMISSIONS, HIDDEN_ROLES } from "@/lib/constants"
 import {
   createEmployeeSchema,
@@ -277,7 +279,7 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
       // auto-generation only when blank. Provided codes must be unique.
       const providedNo = data.employeeNo?.trim()
       if (providedNo) {
-        const existing = await db.employee.findUnique({
+        const existing = await db.employee.findFirst({
           where: { employeeNo: providedNo },
           select: { id: true },
         })
@@ -286,6 +288,13 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
 
       const emailError = await checkEmailUniqueness(data.email, data.personalEmail)
       if (emailError) return fail(emailError)
+
+      // Plan headcount ceiling (M5). Checked here rather than in the UI because
+      // this is the only path that actually creates an employee - the import
+      // flow and any future API both come through it.
+      const planCheck = await checkTenantHeadcount()
+      if (!planCheck.allowed)
+        return fail(planCheck.message ?? "Employee limit reached", undefined, 402)
 
       const totalCount = await db.employee.count()
       const employeeNo = providedNo || generateEmployeeNo(totalCount + 1)
@@ -344,6 +353,23 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
           department: { select: { id: true, name: true } },
           designation: { select: { id: true, title: true } },
         },
+      })
+
+      // Give the new hire a platform identity (M2). Not best-effort: without a
+      // membership they cannot sign in at all, so a failure here has to fail the
+      // creation rather than leave a half-made employee behind.
+      //
+      // If the address already belongs to somebody on the platform - a client
+      // contact being hired, the same person at a second company - their
+      // existing credential is kept and only the STAFF membership is added.
+      await provisionIdentity({
+        email: data.email,
+        name: `${data.firstName} ${data.lastName}`,
+        tenantId: employee.tenantId,
+        kind: "STAFF",
+        employeeId: employee.id,
+        passwordHash,
+        mustChangePassword: data.mustChangePassword ?? false,
       })
 
       let roleToAssign: { id: string } | null = null
@@ -475,7 +501,7 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
     if (data.employeeNo !== undefined) {
       const nextNo = data.employeeNo.trim()
       if (nextNo && nextNo !== before.employeeNo) {
-        const dupe = await db.employee.findUnique({
+        const dupe = await db.employee.findFirst({
           where: { employeeNo: nextNo },
           select: { id: true },
         })
@@ -539,6 +565,21 @@ export async function updateEmployee(id: string, input: unknown): Promise<Action
           manager: { select: { id: true, firstName: true, lastName: true } },
         },
       })
+
+      // Keep the platform identity in step (M2). Not cosmetic: `users.email` is
+      // what the login form is matched against, so an employee whose work email
+      // is corrected here would otherwise still have to sign in with the old one.
+      if (data.email !== undefined || data.firstName !== undefined || data.lastName !== undefined) {
+        await syncIdentityProfile(
+          { employeeId: id },
+          {
+            ...(data.email !== undefined ? { email: employee.email } : {}),
+            ...(data.firstName !== undefined || data.lastName !== undefined
+              ? { name: `${employee.firstName} ${employee.lastName}` }
+              : {}),
+          },
+        )
+      }
 
       // Refresh this year's leave balances when something that drives accrual
       // changed (confirmation, joining date, employment type), so it takes effect
@@ -621,6 +662,10 @@ export async function deactivateEmployee(id: string): Promise<ActionResult<{ mes
     if (id === session.user.id) return fail("You can't deactivate your own account")
 
     await db.employee.update({ where: { id }, data: { isActive: false } })
+    // Mirror onto the membership (M2). Sign-in already checks employee.isActive,
+    // so this is not what locks them out - it keeps the membership flag honest
+    // for anything that reads it on its own.
+    await setMembershipActive({ employeeId: id }, false)
     const meta = await getAuditMeta()
     await createAuditLog(session, {
       action: "DEACTIVATE",
@@ -676,6 +721,7 @@ export async function activateEmployee(id: string): Promise<ActionResult<unknown
         designation: { select: { id: true, title: true } },
       },
     })
+    await setMembershipActive({ employeeId: id }, true)
     const meta = await getAuditMeta()
     await createAuditLog(session, {
       action: "ACTIVATE",
@@ -703,6 +749,10 @@ export async function bulkTerminateEmployees(
     const result = await db.employee.updateMany({
       where: { id: { in: targets } },
       data: { status: "TERMINATED", isActive: false, lastWorkingDate: new Date() },
+    })
+    await db.membership.updateMany({
+      where: { employeeId: { in: targets } },
+      data: { isActive: false },
     })
     const meta = await getAuditMeta()
     await createAuditLog(session, {

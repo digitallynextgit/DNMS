@@ -3,6 +3,13 @@ import "server-only"
 import { NextRequest, NextResponse } from "next/server"
 import { timingSafeEqual } from "crypto"
 import { db } from "@/server/db"
+import {
+  FOUNDING_TENANT_ID,
+  FOUNDING_TENANT_SLUG,
+  runUnscoped,
+  runWithTenant,
+  type TenantContext,
+} from "@/server/tenant-context"
 import { recordPunch } from "@/features/attendance/server/sync"
 
 // =============================================================================
@@ -31,31 +38,78 @@ function secretMatches(provided: string, expected: string): boolean {
 }
 
 /**
- * The device can authenticate with Basic auth, or nothing at all.
+ * Every place the device might have put the secret.
  *
- * Both are accepted, because the firmware caps the password at 16 characters and
- * some models drop the header entirely on retry - but one of them has to be
- * present. `?key=` in the URL is the fallback the device can always manage.
+ * Three, because the firmware is inconsistent: it caps the Basic password at 16
+ * characters, some models drop the Authorization header on retry, and some
+ * refuse to store a "?" in the URL field at all - which leaves only a path
+ * segment. All three are read; one of them has to match.
  */
-function authorised(req: NextRequest, pathSecret?: string): boolean {
-  const expected = process.env.ATTENDANCE_HOOK_SECRET
-  // Unset means the hook is off. It must never default to open: this endpoint
-  // writes attendance, and attendance is what people are paid on.
-  if (!expected) return false
+function presentedSecrets(req: NextRequest, pathSecret?: string): string[] {
+  const found: string[] = []
 
   const header = req.headers.get("authorization") ?? ""
   if (header.toLowerCase().startsWith("basic ")) {
     const decoded = Buffer.from(header.slice(6), "base64").toString("utf8")
-    const password = decoded.slice(decoded.indexOf(":") + 1)
-    if (secretMatches(password, expected)) return true
+    found.push(decoded.slice(decoded.indexOf(":") + 1))
   }
 
   const key = req.nextUrl.searchParams.get("key")
-  if (key && secretMatches(key, expected)) return true
+  if (key) found.push(key)
+  if (pathSecret) found.push(pathSecret)
 
-  // Last resort: the secret as a path segment. Some firmware refuses to store a
-  // "?" in its URL field at all, which leaves nowhere else to put it.
-  return !!pathSecret && secretMatches(pathSecret, expected)
+  return found.filter(Boolean)
+}
+
+/**
+ * WHICH TENANT is this terminal posting for? (M4)
+ *
+ * The secret does double duty: it authenticates the device AND identifies the
+ * company, because the device has no session and nothing else to go on. Before
+ * M4 there was one secret for the whole platform, which meant any customer's
+ * door reader could write punches into any other customer's attendance - and
+ * attendance is what payroll is computed from.
+ *
+ * Returns the tenant, or null when nothing matches. Null must mean rejected:
+ * this endpoint WRITES, so it can never fall open.
+ */
+async function resolveHookTenant(
+  req: NextRequest,
+  pathSecret?: string,
+): Promise<TenantContext | null> {
+  const presented = presentedSecrets(req, pathSecret)
+  if (presented.length === 0) return null
+
+  // Per-tenant secrets first. Compared in constant time against each configured
+  // tenant rather than looked up by equality, so the database's index cannot
+  // leak which prefix was close.
+  const configured = await runUnscoped("device hook: the secret identifies the tenant", () =>
+    db.tenant.findMany({
+      where: { hookSecret: { not: null }, status: "ACTIVE" },
+      select: { id: true, slug: true, hookSecret: true },
+    }),
+  )
+  for (const tenant of configured) {
+    for (const candidate of presented) {
+      if (secretMatches(candidate, tenant.hookSecret as string)) {
+        return { tenantId: tenant.id, slug: tenant.slug }
+      }
+    }
+  }
+
+  // TRANSITIONAL: the platform-wide environment secret, which resolves to the
+  // founding tenant. This is what the terminal already installed in the
+  // Digitally Next office uses. Remove it once that device has been moved onto a
+  // per-tenant secret; until then, removing it would silently stop attendance.
+  const envSecret = process.env.ATTENDANCE_HOOK_SECRET
+  // Unset means the hook is off. It must never default to open.
+  if (!envSecret) return null
+  for (const candidate of presented) {
+    if (secretMatches(candidate, envSecret)) {
+      return { tenantId: FOUNDING_TENANT_ID, slug: FOUNDING_TENANT_SLUG }
+    }
+  }
+  return null
 }
 
 interface AccessEvent {
@@ -151,12 +205,18 @@ export async function handlePunchPush(
   req: NextRequest,
   pathSecret?: string,
 ): Promise<NextResponse> {
-  if (!authorised(req, pathSecret)) {
+  const tenant = await resolveHookTenant(req, pathSecret)
+  if (!tenant) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
+  // Everything below writes attendance, so it runs inside the tenant the secret
+  // identified - the punch lands in that company's records and nowhere else.
+  return runWithTenant(tenant, () => recordPushedPunch(req, tenant))
+}
 
+async function recordPushedPunch(req: NextRequest, tenant: TenantContext): Promise<NextResponse> {
   console.info(
-    "[ATTENDANCE_HOOK] inbound",
+    `[ATTENDANCE_HOOK] inbound for ${tenant.slug}`,
     req.headers.get("content-type") ?? "(no content-type)",
     req.headers.get("user-agent") ?? "",
   )
@@ -228,9 +288,15 @@ export async function handlePunchPush(
 }
 
 /** Some firmware probes with GET before it will post. Answer it. */
-export function handlePunchProbe(req: NextRequest, pathSecret?: string): NextResponse {
-  if (!authorised(req, pathSecret)) {
+export async function handlePunchProbe(
+  req: NextRequest,
+  pathSecret?: string,
+): Promise<NextResponse> {
+  const tenant = await resolveHookTenant(req, pathSecret)
+  if (!tenant) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  return NextResponse.json({ ok: true, listening: true })
+  // Naming the tenant back confirms to whoever is configuring the device that
+  // the secret they typed belongs to the company they think it does.
+  return NextResponse.json({ ok: true, listening: true, workspace: tenant.slug })
 }

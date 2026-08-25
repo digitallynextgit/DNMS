@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
+import { tenantGuard } from "./tenant-guard"
 
 function getPool(): Pool {
   if (globalForPrisma.pgPool) return globalForPrisma.pgPool
@@ -36,10 +37,12 @@ function createClient() {
     // `findMany`/`include` without an explicit `select` can never leak them into an
     // API response. The three places that legitimately need them opt back in with
     // `omit: { <field>: false }`:
-    //   - server/auth.ts        (bcrypt.compare on login)
+    //   - server/identity.ts    (findLoginUser - bcrypt.compare on login)
     //   - app/api/profile/route.ts (verify current password; read app password)
     //   - lib/mailer.ts         (decrypt the Gmail app password to send as the user)
     omit: {
+      // The platform identity, where the credential now actually lives (M2).
+      user: { passwordHash: true },
       employee: { passwordHash: true, gmailAppPassword: true },
       // Same deny-by-default for external client accounts; only the client
       // credentials provider in server/auth.ts opts back in.
@@ -48,11 +51,28 @@ function createClient() {
   })
 }
 
+// The tenant guard (M4) is applied here, so there is exactly one client in the
+// app and no way to obtain an unscoped one by accident. Deliberately
+// cross-tenant work declares itself with runUnscoped() - see server/tenant-guard.ts.
+function createGuardedClient() {
+  return createClient().$extends(tenantGuard)
+}
+
 const globalForPrisma = globalThis as unknown as {
-  prisma?: ReturnType<typeof createClient>
+  prisma?: ReturnType<typeof createGuardedClient>
   pgPool?: Pool
 }
 
-export const db = globalForPrisma.prisma ?? createClient()
+export const db = globalForPrisma.prisma ?? createGuardedClient()
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db
+
+/**
+ * The client handed to a `db.$transaction(async (tx) => …)` callback.
+ *
+ * Use this instead of `Prisma.TransactionClient` for any helper that takes a
+ * `tx`. Extending the client changes its type, so the stock
+ * `Prisma.TransactionClient` no longer describes what `$transaction` actually
+ * passes - and a helper annotated with it silently stops accepting the real one.
+ */
+export type DbTransaction = Parameters<Parameters<typeof db.$transaction>[0]>[0]

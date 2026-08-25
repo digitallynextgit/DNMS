@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { signOut } from "next-auth/react"
 import { Session } from "next-auth"
 import { useTheme } from "next-themes"

@@ -18,9 +18,6 @@
 
 import "dotenv/config"
 import Module from "module"
-import { PrismaClient } from "@prisma/client"
-import { PrismaPg } from "@prisma/adapter-pg"
-import { Pool } from "pg"
 
 // The hold service is marked `server-only`, a guard meant for the React bundler.
 // A CLI script is server-side by definition, so stub the guard rather than
@@ -37,13 +34,15 @@ const resolve = (Module as unknown as { _resolveFilename: (r: string, ...a: unkn
   return resolve.call(this, request, ...args)
 }
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 1,
-  idleTimeoutMillis: 0,
-  keepAlive: true,
-})
-const prisma = new PrismaClient({ adapter: new PrismaPg(pool) })
+// The APP's client, not a bare one. It carries the tenant guard (M4), so this
+// backfill is subject to the same scoping rules as the live path it reuses -
+// and `upsertResumeTask` takes the extended transaction client, which a bare
+// PrismaClient no longer satisfies.
+//
+// Imported after the server-only stub above is installed.
+const { db: prisma } = (await import("../server/db")) as typeof import("../server/db")
+const { runUnscoped } =
+  (await import("../server/tenant-context")) as typeof import("../server/tenant-context")
 
 const DRY = process.argv.includes("--dry")
 
@@ -124,12 +123,13 @@ async function main() {
   console.log(`\n${DRY ? "would create" : "created"}: ${created}   skipped: ${skipped}`)
 }
 
-main()
+// A maintenance backfill has no session, so it has no tenant. Say so rather
+// than letting the guard log it as an accident on every query.
+runUnscoped("maintenance backfill: sweeps held tasks across every tenant", main)
   .catch((err) => {
     console.error(err)
     process.exitCode = 1
   })
   .finally(async () => {
     await prisma.$disconnect()
-    await pool.end()
   })

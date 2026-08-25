@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
+import { Link, useTenantPath } from "@/components/tenant-link"
 import { useSession } from "next-auth/react"
 import { Pencil, Users, UserCheck, UserX, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -34,11 +34,12 @@ export function AttendanceDirectoryClient() {
   const { can } = usePermissions()
   const { status: sessionStatus } = useSession()
   const router = useRouter()
+  const tp = useTenantPath()
   const canWrite = can(PERMISSIONS.ATTENDANCE_WRITE)
 
   // HR/admin-only; everyone else uses their own calendar.
   useEffect(() => {
-    if (sessionStatus === "authenticated" && !canWrite) router.replace("/attendance/me")
+    if (sessionStatus === "authenticated" && !canWrite) router.replace(tp("/attendance/me"))
   }, [sessionStatus, canWrite, router])
 
   const today = format(new Date(), "yyyy-MM-dd")

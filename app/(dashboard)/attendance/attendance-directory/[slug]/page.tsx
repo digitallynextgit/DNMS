@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Spinner } from "@/components/shared/spinner"
 import { useParams, useRouter } from "next/navigation"
-import Link from "next/link"
+import { Link, useTenantPath } from "@/components/tenant-link"
 import { useSession } from "next-auth/react"
 import { CheckCircle2, AlertTriangle, Clock, Timer, ChevronLeft } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
@@ -23,13 +23,14 @@ export default function EmployeeAttendancePage() {
   const params = useParams()
   const slug = params.slug as string
   const router = useRouter()
+  const tp = useTenantPath()
   const { status: sessionStatus } = useSession()
   const { can } = usePermissions()
   const canWrite = can(PERMISSIONS.ATTENDANCE_WRITE)
 
   // HR/admin-only, like the directory it's opened from.
   useEffect(() => {
-    if (sessionStatus === "authenticated" && !canWrite) router.replace("/attendance/me")
+    if (sessionStatus === "authenticated" && !canWrite) router.replace(tp("/attendance/me"))
   }, [sessionStatus, canWrite, router])
 
   const now = new Date()

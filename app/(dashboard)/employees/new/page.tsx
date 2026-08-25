@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { tenantPath } from "@/server/tenant-request"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmployeeForm } from "@/features/employees"
 import { getSession } from "@/server/api-handler"
@@ -13,7 +14,7 @@ export default async function NewEmployeePage() {
   }
 
   if (!hasPermission(session, PERMISSIONS.EMPLOYEE_WRITE)) {
-    redirect("/employees/employee-directory")
+    redirect(await tenantPath("/employees/employee-directory"))
   }
 
   return (

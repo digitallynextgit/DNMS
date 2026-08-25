@@ -1,7 +1,7 @@
 import "server-only"
 
 import type { Prisma, ProjectTask } from "@prisma/client"
-import { db } from "@/server/db"
+import { db, type DbTransaction } from "@/server/db"
 import { openFirstStatusPeriod } from "./task-status-periods"
 
 // =============================================================================
@@ -53,7 +53,7 @@ export interface ResumeTaskResult {
  * follow-up would have nowhere to sit.
  */
 export async function upsertResumeTask(
-  tx: Prisma.TransactionClient,
+  tx: DbTransaction,
   task: ProjectTask,
   actorId: string,
 ): Promise<ResumeTaskResult | null> {
@@ -129,7 +129,7 @@ export async function upsertResumeTask(
  * nothing was removed.
  */
 export async function removeResumeTaskIfPristine(
-  tx: Prisma.TransactionClient,
+  tx: DbTransaction,
   heldTaskId: string,
 ): Promise<{ id: string; dueDate: Date | null } | null> {
   const pristine = await tx.projectTask.findFirst({

@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { usePathname } from "next/navigation"
 import { Package, Store, Boxes, Mail, Activity } from "lucide-react"
 

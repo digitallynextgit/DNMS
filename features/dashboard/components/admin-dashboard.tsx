@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import dynamic from "next/dynamic"
 import { useQuery } from "@tanstack/react-query"
 import { Users, UserPlus, FileText, Bell, UserCircle, Upload, ClipboardList } from "lucide-react"

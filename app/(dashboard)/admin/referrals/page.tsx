@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { tenantPath } from "@/server/tenant-request"
 
 import { auth } from "@/server/auth"
 import { hasPermission } from "@/lib/permissions"
@@ -18,7 +19,8 @@ export const metadata = {
 export default async function AdminReferralsPage() {
   const session = await auth()
   if (!session) redirect("/login")
-  if (!hasPermission(session, PERMISSIONS.RECRUITMENT_WRITE)) redirect("/dashboard")
+  if (!hasPermission(session, PERMISSIONS.RECRUITMENT_WRITE))
+    redirect(await tenantPath("/dashboard"))
 
   return <ReferralsAdmin />
 }

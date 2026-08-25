@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
-import { assertCron } from "@/server/cron-auth"
+import { withCron } from "@/server/cron-auth"
 import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
 
@@ -8,10 +7,7 @@ import { createNotification } from "@/lib/notifications"
 //   - Company documents → notify whoever uploaded them.
 // Run daily. Auth: Authorization: Bearer <CRON_SECRET>
 
-export async function GET(req: NextRequest) {
-  const denied = assertCron(req)
-  if (denied) return denied
-
+export const GET = withCron("document-expiry", async () => {
   try {
     const now = new Date()
     const horizon = new Date(now)
@@ -51,14 +47,14 @@ export async function GET(req: NextRequest) {
       notified++
     }
 
-    return NextResponse.json({
-      success: true,
+    return {
       employeeDocs: employeeDocs.length,
       companyDocs: companyDocs.length,
       notified,
-    })
+    }
   } catch (error) {
     console.error("[DOCUMENT_EXPIRY_CRON]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    // Rethrown so forEachTenant records it against this tenant and continues.
+    throw error
   }
-}
+})

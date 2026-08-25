@@ -1,23 +1,11 @@
-import { NextRequest, NextResponse } from "next/server"
-import { assertCron } from "@/server/cron-auth"
+import { withCron } from "@/server/cron-auth"
 import { runMonthlyAccrual } from "@/features/leave/server/leave-accrual.service"
 
-// DEPRECATED endpoint kept for the existing scheduled job. EL is no longer a
-// special case: monthly accrual is now generalized for every leave type via the
-// policy matrix + accrual method (EL still gates on probation + 6 months inside
-// the accrual engine). This simply delegates to the unified monthly accrual.
-//   GET /api/cron/el-accrual  with header  Authorization: Bearer <CRON_SECRET>
+// DEPRECATED alias of /api/cron/leave-accrual, kept for schedules that still
+// point at the old path. Runs once per tenant (M4).
 export const dynamic = "force-dynamic"
 
-export async function GET(req: NextRequest) {
-  const denied = assertCron(req)
-  if (denied) return denied
-  try {
-    const year = new Date().getFullYear()
-    const result = await runMonthlyAccrual(year)
-    return NextResponse.json({ success: true, deprecated: true, year, ...result })
-  } catch (error) {
-    console.error("[EL_ACCRUAL_CRON]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
-}
+export const GET = withCron("el-accrual", async () => {
+  const year = new Date().getFullYear()
+  return { deprecated: true, year, ...(await runMonthlyAccrual(year)) }
+})

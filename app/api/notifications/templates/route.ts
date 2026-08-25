@@ -39,7 +39,7 @@ export const POST = withAuth(
       const data = result.data
 
       // Slug uniqueness check
-      const existing = await db.emailTemplate.findUnique({
+      const existing = await db.emailTemplate.findFirst({
         where: { slug: data.slug },
       })
       if (existing) {
@@ -100,7 +100,7 @@ export const PATCH = withAuth(
 
       // If slug is changing, ensure uniqueness
       if (data.slug && data.slug !== existing.slug) {
-        const conflict = await db.emailTemplate.findUnique({
+        const conflict = await db.emailTemplate.findFirst({
           where: { slug: data.slug },
         })
         if (conflict) {

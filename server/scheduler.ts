@@ -1,4 +1,5 @@
 import "server-only"
+import { forEachTenant } from "@/server/tenant-jobs"
 
 // =============================================================================
 // In-process scheduler.
@@ -139,16 +140,18 @@ async function uptimeTick(): Promise<void> {
   if (globalForScheduler.uptimeRunning) return
   globalForScheduler.uptimeRunning = true
   try {
-    const { runUptimeSweep } = await import("@/features/monitoring/server/uptime.service")
-    const r = await runUptimeSweep()
-    // Quiet unless something actually happened - a line every 5 minutes saying
-    // "all up" is how people learn to stop reading the logs.
-    if (r.opened || r.recovered || r.escalated) {
-      console.log(
-        `[scheduler] uptime: ${r.checked} checked, ${r.down} down, ` +
-          `${r.opened} new, ${r.recovered} recovered, ${r.escalated} escalated`,
-      )
-    }
+    await forEachTenant("uptime", async () => {
+      const { runUptimeSweep } = await import("@/features/monitoring/server/uptime.service")
+      const r = await runUptimeSweep()
+      // Quiet unless something actually happened - a line every 5 minutes saying
+      // "all up" is how people learn to stop reading the logs.
+      if (r.opened || r.recovered || r.escalated) {
+        console.log(
+          `[scheduler] uptime: ${r.checked} checked, ${r.down} down, ` +
+            `${r.opened} new, ${r.recovered} recovered, ${r.escalated} escalated`,
+        )
+      }
+    })
   } catch (err) {
     console.error("[scheduler] uptime sweep failed:", err)
   } finally {
@@ -187,14 +190,16 @@ async function renewalTick(): Promise<void> {
 
   globalForScheduler.renewalRunning = true
   try {
-    const { runRenewalSweep } = await import("@/features/monitoring/server/renewals.service")
-    const r = await runRenewalSweep()
-    if (r.notified > 0) {
-      console.log(
-        `[scheduler] renewals: ${r.scanned} scanned, ${r.notified} notified, ` +
-          `${r.overdue} overdue, ${r.escalated} escalated`,
-      )
-    }
+    await forEachTenant("renewals", async () => {
+      const { runRenewalSweep } = await import("@/features/monitoring/server/renewals.service")
+      const r = await runRenewalSweep()
+      if (r.notified > 0) {
+        console.log(
+          `[scheduler] renewals: ${r.scanned} scanned, ${r.notified} notified, ` +
+            `${r.overdue} overdue, ${r.escalated} escalated`,
+        )
+      }
+    })
   } catch (err) {
     console.error("[scheduler] renewal sweep failed:", err)
   } finally {
@@ -230,19 +235,21 @@ async function campaignTick(): Promise<void> {
   if (globalForScheduler.campaignRunning) return
   globalForScheduler.campaignRunning = true
   try {
-    const { runCampaignQueue, requeueStuckSends } =
-      await import("@/features/project-mailer/server/campaign-runner")
-    // Rows stuck in SENDING belong to a tick killed mid-flight (deploy, crash);
-    // put them back before draining, or they are stranded forever.
-    const requeued = await requeueStuckSends()
-    if (requeued > 0) console.log(`[scheduler] campaigns: re-queued ${requeued} stuck send(s)`)
+    await forEachTenant("campaigns", async () => {
+      const { runCampaignQueue, requeueStuckSends } =
+        await import("@/features/project-mailer/server/campaign-runner")
+      // Rows stuck in SENDING belong to a tick killed mid-flight (deploy, crash);
+      // put them back before draining, or they are stranded forever.
+      const requeued = await requeueStuckSends()
+      if (requeued > 0) console.log(`[scheduler] campaigns: re-queued ${requeued} stuck send(s)`)
 
-    const r = await runCampaignQueue()
-    if (r.sent || r.failed) {
-      console.log(
-        `[scheduler] campaigns: ${r.sent} sent, ${r.failed} failed across ${r.campaigns} campaign(s)`,
-      )
-    }
+      const r = await runCampaignQueue()
+      if (r.sent || r.failed) {
+        console.log(
+          `[scheduler] campaigns: ${r.sent} sent, ${r.failed} failed across ${r.campaigns} campaign(s)`,
+        )
+      }
+    })
   } catch (err) {
     console.error("[scheduler] campaign queue failed:", err)
   } finally {
@@ -256,16 +263,18 @@ async function tick(): Promise<void> {
   if (globalForScheduler.taskReminderRunning) return
   globalForScheduler.taskReminderRunning = true
   try {
-    // Imported lazily so a failure in the reminder module can never stop the
-    // server from booting - the scheduler is an enhancement, not a dependency.
-    const { runTaskReminders } =
-      await import("@/features/notifications/server/task-reminder.service")
-    const result = await runTaskReminders()
-    // Only log when something happened; a line a minute saying "0" is noise that
-    // buries the lines that matter.
-    if (result.sent > 0) {
-      console.log(`[scheduler] sent ${result.sent} task reminder(s) of ${result.scanned} running`)
-    }
+    await forEachTenant("task-reminders", async () => {
+      // Imported lazily so a failure in the reminder module can never stop the
+      // server from booting - the scheduler is an enhancement, not a dependency.
+      const { runTaskReminders } =
+        await import("@/features/notifications/server/task-reminder.service")
+      const result = await runTaskReminders()
+      // Only log when something happened; a line a minute saying "0" is noise that
+      // buries the lines that matter.
+      if (result.sent > 0) {
+        console.log(`[scheduler] sent ${result.sent} task reminder(s) of ${result.scanned} running`)
+      }
+    })
   } catch (err) {
     console.error("[scheduler] task reminders failed:", err)
   } finally {
@@ -305,49 +314,51 @@ async function seoTick(): Promise<void> {
   if (globalForScheduler.seoRunning) return
   globalForScheduler.seoRunning = true
   try {
-    const { db } = await import("@/server/db")
+    await forEachTenant("seo", async () => {
+      const { db } = await import("@/server/db")
 
-    // Nothing to do at all if no site is tracked - skip before importing the
-    // job module, which pulls in the crawler and the Google clients.
-    const tracked = await db.seoProperty.count({ where: { isActive: true } })
-    if (tracked === 0) return
+      // Nothing to do at all if no site is tracked - skip before importing the
+      // job module, which pulls in the crawler and the Google clients.
+      const tracked = await db.seoProperty.count({ where: { isActive: true } })
+      if (tracked === 0) return
 
-    // Local hour, because "don't crawl before 7am" is about the client's morning.
-    if (new Date().getHours() < SEO_EARLIEST_HOUR) return
+      // Local hour, because "don't crawl before 7am" is about the client's morning.
+      if (new Date().getHours() < SEO_EARLIEST_HOUR) return
 
-    const { runSeoDailyJob, runSeoWeeklyJob } = await import("@/features/seo/server/seo.jobs")
+      const { runSeoDailyJob, runSeoWeeklyJob } = await import("@/features/seo/server/seo.jobs")
 
-    // ── daily monitor: once per calendar day ────────────────────────────────
-    const startOfDay = new Date()
-    startOfDay.setHours(0, 0, 0, 0)
-    const ranToday = await db.seoMonitorRun.count({ where: { createdAt: { gte: startOfDay } } })
-    if (ranToday === 0) {
-      const r = await runSeoDailyJob()
-      console.log(
-        `[scheduler] seo monitor: ${r.checked} checked, ${r.withIssues} with issues, ${r.notified} notified`,
-      )
-    }
-
-    // ── weekly sync: when the stored history is behind Search Console ───────
-    const { lastCompleteWindow } = await import("@/lib/gsc")
-    const window = lastCompleteWindow()
-    const have = await db.seoSnapshot.count({
-      where: { periodEnd: new Date(`${window.end}T00:00:00.000Z`) },
-    })
-    // Compared against the number of tracked sites, not against zero: one site
-    // synced by hand would otherwise mark the whole sweep as done and leave
-    // every other property stale. The job itself re-syncs everything, and an
-    // already-current property just upserts the same row.
-    if (have < tracked) {
-      const r = await runSeoWeeklyJob()
-      if (r.skipped === "gsc") {
-        console.log("[scheduler] seo weekly skipped - Search Console not configured")
-      } else {
+      // ── daily monitor: once per calendar day ────────────────────────────────
+      const startOfDay = new Date()
+      startOfDay.setHours(0, 0, 0, 0)
+      const ranToday = await db.seoMonitorRun.count({ where: { createdAt: { gte: startOfDay } } })
+      if (ranToday === 0) {
+        const r = await runSeoDailyJob()
         console.log(
-          `[scheduler] seo weekly: ${r.synced} synced, ${r.failed} failed, ${r.notified} notified`,
+          `[scheduler] seo monitor: ${r.checked} checked, ${r.withIssues} with issues, ${r.notified} notified`,
         )
       }
-    }
+
+      // ── weekly sync: when the stored history is behind Search Console ───────
+      const { lastCompleteWindow } = await import("@/lib/gsc")
+      const window = lastCompleteWindow()
+      const have = await db.seoSnapshot.count({
+        where: { periodEnd: new Date(`${window.end}T00:00:00.000Z`) },
+      })
+      // Compared against the number of tracked sites, not against zero: one site
+      // synced by hand would otherwise mark the whole sweep as done and leave
+      // every other property stale. The job itself re-syncs everything, and an
+      // already-current property just upserts the same row.
+      if (have < tracked) {
+        const r = await runSeoWeeklyJob()
+        if (r.skipped === "gsc") {
+          console.log("[scheduler] seo weekly skipped - Search Console not configured")
+        } else {
+          console.log(
+            `[scheduler] seo weekly: ${r.synced} synced, ${r.failed} failed, ${r.notified} notified`,
+          )
+        }
+      }
+    })
   } catch (err) {
     console.error("[scheduler] seo sweep failed:", err)
   } finally {

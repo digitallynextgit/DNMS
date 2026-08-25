@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { AlertTriangle, ChevronDown, ChevronRight, Inbox, Lock, X } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"

@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
-import { assertCron } from "@/server/cron-auth"
+import { withCron } from "@/server/cron-auth"
 import { db } from "@/server/db"
 import { syncDeviceSmart } from "@/features/attendance/server/sync"
 import { resolveDevice } from "@/features/attendance/server/device-resolver"
@@ -16,10 +15,7 @@ import { resolveDevice } from "@/features/attendance/server/device-resolver"
 //   ?full=1          → force a complete re-backfill for the targeted employees
 export const dynamic = "force-dynamic"
 
-export async function GET(req: NextRequest) {
-  const denied = assertCron(req)
-  if (denied) return denied
-
+export const GET = withCron("attendance-sync", async (req) => {
   const onlyEmployeeNo = req.nextUrl.searchParams.get("employeeNo") ?? undefined
   const full = req.nextUrl.searchParams.get("full") === "1"
 
@@ -47,5 +43,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ranAt: new Date().toISOString(), devices: results })
-}
+  return { devices: results }
+})

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
 import { useUpdateEffect } from "@/hooks/use-update-effect"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { useQuery } from "@tanstack/react-query"
 import { Plus, FolderKanban, Calendar, Users, MoreHorizontal, Eye, Pencil } from "lucide-react"
 import { useSession } from "next-auth/react"

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { useSession } from "next-auth/react"
 import { Star, ChevronRight } from "lucide-react"
 

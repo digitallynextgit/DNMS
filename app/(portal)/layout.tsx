@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation"
-import { auth } from "@/server/auth"
 import { db } from "@/server/db"
+import { TenantProvider } from "@/components/tenant-link"
+import {
+  currentTenantSlugOrFounding,
+  tenantPath,
+  tenantScopedSession,
+} from "@/server/tenant-request"
 
 /**
  * Portal route group. proxy.ts already keeps staff out and signed-out visitors
@@ -9,9 +14,10 @@ import { db } from "@/server/db"
  * outlives an account being disabled.
  */
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth()
+  // Establishes the tenant context for everything this layout renders (M4).
+  const session = await tenantScopedSession()
   if (!session) redirect("/client-login")
-  if (session.user.kind !== "client") redirect("/dashboard")
+  if (session.user.kind !== "client") redirect(await tenantPath("/dashboard"))
 
   const account = await db.clientUser.findUnique({
     where: { id: session.user.id },
@@ -28,5 +34,12 @@ export default async function PortalLayout({ children }: { children: React.React
     )
   }
 
-  return <div className="bg-background min-h-dvh">{children}</div>
+  // The tenant for every <Link> in the portal (M3) - see the dashboard layout.
+  const tenantSlug = await currentTenantSlugOrFounding()
+
+  return (
+    <TenantProvider slug={tenantSlug}>
+      <div className="bg-background min-h-dvh">{children}</div>
+    </TenantProvider>
+  )
 }

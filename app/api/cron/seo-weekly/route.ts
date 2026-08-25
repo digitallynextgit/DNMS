@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
-import { assertCron } from "@/server/cron-auth"
+import { withCron } from "@/server/cron-auth"
 import { runSeoWeeklyJob } from "@/features/seo/server/seo.jobs"
 
 // Weekly Search Console pull for every active SEO property, then vitals, GA4,
@@ -12,17 +11,16 @@ import { runSeoWeeklyJob } from "@/features/seo/server/seo.jobs"
 export const runtime = "nodejs"
 export const maxDuration = 300
 
-export async function GET(req: NextRequest) {
-  const denied = assertCron(req)
-  if (denied) return denied
+export const GET = withCron("seo-weekly", async () => {
   try {
     const result = await runSeoWeeklyJob()
     if (result.skipped === "gsc") {
-      return NextResponse.json({ error: "Search Console is not configured" }, { status: 503 })
+      throw new Error("Search Console is not configured")
     }
-    return NextResponse.json({ success: true, ...result })
+    return result
   } catch (error) {
     console.error("[SEO_WEEKLY_CRON]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    // Rethrown so forEachTenant records it against this tenant and continues.
+    throw error
   }
-}
+})

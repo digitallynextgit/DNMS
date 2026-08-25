@@ -6,6 +6,7 @@
 // =============================================================================
 
 import "dotenv/config"
+import { FOUNDING_TENANT_ID } from "@/server/tenant-context"
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
@@ -60,7 +61,13 @@ async function main() {
 
   for (const group of groups) {
     const dbGroup = await prisma.careerGroup.upsert({
-      where: { mode_slug: { mode: group.mode, slug: group.slug } },
+      where: {
+        tenantId_mode_slug: {
+          tenantId: FOUNDING_TENANT_ID,
+          mode: group.mode,
+          slug: group.slug,
+        },
+      },
       update: {
         code: group.code,
         title: group.title,

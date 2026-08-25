@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
-import { assertCron } from "@/server/cron-auth"
+import { withCron } from "@/server/cron-auth"
 import { db } from "@/server/db"
 import { createNotification } from "@/lib/notifications"
 import { contentTaskTitle } from "@/features/projects/server/content-task.service"
@@ -20,10 +19,7 @@ function todayUtc(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
 }
 
-export async function GET(req: NextRequest) {
-  const denied = assertCron(req)
-  if (denied) return denied
-
+export const GET = withCron("content-reminders", async () => {
   try {
     const today = todayUtc()
 
@@ -92,15 +88,15 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    return NextResponse.json({
-      success: true,
+    return {
       considered: entries.length,
       dueToday,
       overdue,
       notified,
-    })
+    }
   } catch (error) {
     console.error("[CONTENT_REMINDERS_CRON]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    // Rethrown so forEachTenant records it against this tenant and continues.
+    throw error
   }
-}
+})

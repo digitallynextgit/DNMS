@@ -22,7 +22,7 @@ import { useEmployee } from "@/features/employees/hooks/use-employees"
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
 import { cn } from "@/lib/utils"
 import { ThemePicker } from "./theme-picker"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import Image from "next/image"
 
 export function Topbar({ session }: { session: Session }) {

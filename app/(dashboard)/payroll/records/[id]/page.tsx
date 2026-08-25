@@ -1,7 +1,7 @@
 "use client"
 
 import { use, useState } from "react"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { useMutation } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { ChevronLeft, Download } from "lucide-react"

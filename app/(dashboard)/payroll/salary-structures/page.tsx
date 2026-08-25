@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useUrlPage } from "@/hooks/use-url-state"
 import { useRouter } from "next/navigation"
+import { useTenantPath } from "@/components/tenant-link"
 import { useSession } from "next-auth/react"
 import { Plus, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -45,13 +46,14 @@ function grossOf(structure: SalaryStructure): number {
 export default function SalaryStructuresPage() {
   const { can } = usePermissions()
   const router = useRouter()
+  const tp = useTenantPath()
   const { status: sessionStatus } = useSession()
   const canWrite = can(PERMISSIONS.PAYROLL_WRITE)
 
   // HR-only page; employees use My Payslips.
   useEffect(() => {
     if (sessionStatus === "authenticated" && !canWrite) {
-      router.replace("/payroll/me")
+      router.replace(tp("/payroll/me"))
     }
   }, [sessionStatus, canWrite, router])
 

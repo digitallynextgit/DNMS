@@ -2,6 +2,8 @@ import "server-only"
 
 import { NextRequest, NextResponse } from "next/server"
 import { timingSafeEqual } from "node:crypto"
+import { forEachTenant } from "@/server/tenant-jobs"
+import type { TenantContext } from "@/server/tenant-context"
 
 // =============================================================================
 // The ONE cron authentication gate.
@@ -45,4 +47,40 @@ export function assertCron(req: NextRequest): NextResponse | null {
   if (!ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   return null
+}
+
+/**
+ * Authenticate a cron call AND run its work once per tenant (M4).
+ *
+ *   export const GET = withCron("leave-accrual", async (req) => {
+ *     const year = Number(req.nextUrl.searchParams.get("year")) || thisYear()
+ *     return await runMonthlyAccrual(year)   // returns DATA, not a Response
+ *   })
+ *
+ * The handler returns a plain value; the envelope is built here. Inside it, `db`
+ * is scoped to one tenant, so the job body reads exactly as it did when there
+ * was only ever one company - which is why adopting this required no changes to
+ * the services themselves.
+ *
+ * Before this, every cron job swept whole tables in a single pass. Harmless with
+ * one customer; with two it would have mailed Acme's reminders to Digitally
+ * Next's staff.
+ *
+ * The response shape changed from each job's own ad-hoc body to a per-tenant
+ * summary. Nothing in the app calls these endpoints - only the external
+ * scheduler, which needs a 2xx - so the shape is free to say something useful.
+ */
+export function withCron<T>(
+  job: string,
+  handler: (req: NextRequest, tenant: TenantContext) => Promise<T>,
+) {
+  return async (req: NextRequest): Promise<NextResponse> => {
+    const denied = assertCron(req)
+    if (denied) return denied
+    const summary = await forEachTenant(job, (tenant) => handler(req, tenant))
+    // 200 even when a tenant failed: the sweep itself ran, and `failed` says
+    // what did not. A 500 here would make the scheduler retry the whole thing,
+    // re-running it for every tenant that already succeeded.
+    return NextResponse.json({ ranAt: new Date().toISOString(), ...summary })
+  }
 }

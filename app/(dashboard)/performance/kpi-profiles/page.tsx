@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
+import { useTenantPath } from "@/components/tenant-link"
 import { useSession } from "next-auth/react"
 import {
   Plus,
@@ -380,6 +381,7 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
 export default function KpiProfilesPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const tp = useTenantPath()
   const { status: sessionStatus } = useSession()
   const { can } = usePermissions()
   const canReview = can(PERMISSIONS.PERFORMANCE_REVIEW)
@@ -389,7 +391,7 @@ export default function KpiProfilesPage() {
 
   // HR-only; everyone else uses their own performance page.
   useEffect(() => {
-    if (sessionStatus === "authenticated" && !canReview) router.replace("/performance/me")
+    if (sessionStatus === "authenticated" && !canReview) router.replace(tp("/performance/me"))
   }, [sessionStatus, canReview, router])
 
   // Deep-link support: /performance/kpi-profiles?employee=<id>

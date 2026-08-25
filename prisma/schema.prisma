@@ -10,6 +10,154 @@ datasource db {
   provider = "postgresql"
 }
 
+/// ============================================================================
+/// A customer company on the platform. Digitally Next is tenant #1.
+///
+/// Every tenant-scoped model carries `tenantId` as a plain scalar with a
+/// DB-level DEFAULT rather than a Prisma relation. Two deliberate reasons:
+///
+///   1. The DEFAULT is what makes the upgrade zero-downtime - a deployed build
+///      that predates tenancy inserts without the column and still lands in the
+///      founding tenant. It is dropped once every write path is tenant-aware.
+///   2. Modelling 105 relations here would put 105 back-relation fields on this
+///      model for no query benefit. The foreign key IS enforced, in the
+///      database, by the migration that created the column.
+/// ============================================================================
+model Tenant {
+  id     String @id @default(uuid()) @map("id")
+  /// URL segment: dnms.digitallynext.com/{slug}/...
+  slug   String @unique @map("slug")
+  name   String @map("name")
+  /// ACTIVE | SUSPENDED | READ_ONLY
+  status String @default("ACTIVE") @map("status")
+  /// TRIAL | STARTER | RED | ENTERPRISE
+  plan   String @default("ENTERPRISE") @map("plan")
+
+  trialEndsAt DateTime? @map("trial_ends_at")
+
+  /// Shared secret the biometric terminal posts with (M4).
+  ///
+  /// Per tenant, not global: with one secret for the whole platform, any
+  /// customer's door reader could write punches into any other customer's
+  /// attendance - and attendance is what people are paid on.
+  ///
+  /// Stored in the clear rather than hashed because the admin panel has to show
+  /// it: it is typed into a device's config screen by hand, so it must be
+  /// readable back. Null means this tenant has no push configured; for Digitally
+  /// Next it also falls back to ATTENDANCE_HOOK_SECRET (see punch-hook.ts).
+  hookSecret String? @unique @map("hook_secret")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  memberships Membership[]
+
+  @@map("tenants")
+}
+
+/// ============================================================================
+/// A HUMAN, at the platform level. One row per person, keyed by email.
+///
+/// Credentials live here rather than on Employee/ClientUser so that one
+/// email + password can belong to several companies, and to both a staff role
+/// and a client role, without duplicating the password anywhere.
+///
+/// NOT tenant-scoped, deliberately: a User exists before you know which tenant
+/// they are signing in to, and may belong to more than one. What binds a person
+/// to a company is a Membership, never this row.
+///
+/// TRANSITIONAL (M2 → M4): `employees.password_hash` and
+/// `client_users.password_hash` still exist and are still written, because the
+/// build currently deployed on the VPS authenticates against them. Every
+/// password write goes through `setPassword()` in features/auth, which updates
+/// this row AND the legacy column, so a rollback to the old build keeps working.
+/// The legacy columns are dropped in M4, after the new build has been live.
+/// ============================================================================
+model User {
+  id String @id @default(uuid()) @map("id")
+
+  /// ALWAYS lower-cased. Read and write it through `normalizeEmail()` - the
+  /// unique index here is case-sensitive, so the invariant is the app's to keep.
+  email String @unique @map("email")
+  name  String @map("name")
+
+  /// Null = invited but never activated, or a Google-only account.
+  passwordHash       String?   @map("password_hash")
+  mustChangePassword Boolean   @default(false) @map("must_change_password")
+  emailVerified      DateTime? @map("email_verified")
+  lastLoginAt        DateTime? @map("last_login_at")
+
+  /// Platform-level kill switch. Independent of any membership: this locks the
+  /// person out everywhere, a deactivated membership only locks one company.
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  memberships    Membership[]
+  passwordResets PasswordReset[]
+
+  @@index([isActive])
+  @@map("users")
+}
+
+enum MembershipKind {
+  STAFF
+  CLIENT
+}
+
+/// ============================================================================
+/// What binds a User to a Tenant, and in what capacity.
+///
+/// `kind` decides which profile row carries the person's data:
+///   STAFF  → employeeId points at the `employees` row (roles, permissions, HR)
+///   CLIENT → clientUserId points at the `client_users` row (project access)
+///
+/// Two database-level guarantees, both enforced by the migration:
+///
+///   1. A CHECK constraint: exactly one of employeeId/clientUserId is set, and
+///      it is the one matching `kind`. A STAFF membership pointing at a client
+///      row is not a bug that can happen.
+///   2. COMPOSITE foreign keys - (employee_id, tenant_id) → employees(id,
+///      tenant_id), and the same for client_users. This makes a membership whose
+///      tenant differs from its profile row's tenant impossible to insert. It is
+///      the strongest cross-tenant guarantee in the schema, and it costs one
+///      extra unique index on each profile table.
+/// ============================================================================
+model Membership {
+  id       String         @id @default(uuid()) @map("id")
+  userId   String         @map("user_id")
+  tenantId String         @map("tenant_id")
+  kind     MembershipKind @map("kind")
+
+  /// Set iff kind = STAFF.
+  employeeId   String? @map("employee_id")
+  /// Set iff kind = CLIENT.
+  clientUserId String? @map("client_user_id")
+
+  /// Revokes this person's access to THIS company only.
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employee   Employee?   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  clientUser ClientUser? @relation(fields: [clientUserId], references: [id], onDelete: Cascade)
+
+  /// One membership per person per company per capacity. A user may hold BOTH a
+  /// STAFF and a CLIENT membership in the same tenant - that is a real case (a
+  /// contractor who is also a client contact), which is why `kind` is in the key.
+  @@unique([userId, tenantId, kind])
+  /// A profile row belongs to exactly one membership.
+  @@unique([employeeId])
+  @@unique([clientUserId])
+  @@index([tenantId, isActive])
+  @@index([userId])
+  @@map("memberships")
+}
+
 // =============================================================================
 // ENUMS
 // =============================================================================
@@ -220,8 +368,10 @@ model VerificationToken {
 // =============================================================================
 
 model Role {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String   @id @default(uuid()) @map("id")
-  name        String   @unique @map("name")
+  name        String   @map("name")
   displayName String   @map("display_name")
   description String?  @map("description")
   isSystem    Boolean  @default(false) @map("is_system")
@@ -231,6 +381,8 @@ model Role {
   rolePermissions RolePermission[]
   employeeRoles   EmployeeRole[]
 
+  @@unique([tenantId, name])
+  @@index([tenantId])
   @@map("roles")
 }
 
@@ -248,6 +400,8 @@ model Permission {
 }
 
 model RolePermission {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   roleId       String @map("role_id")
   permissionId String @map("permission_id")
 
@@ -255,10 +409,13 @@ model RolePermission {
   permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
+  @@index([tenantId])
   @@map("role_permissions")
 }
 
 model EmployeeRole {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String  @id @default(uuid()) @map("id")
   employeeId String  @map("employee_id")
   roleId     String  @map("role_id")
@@ -269,6 +426,7 @@ model EmployeeRole {
   role     Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, roleId, scopeType, scopeId])
+  @@index([tenantId])
   @@map("employee_roles")
 }
 
@@ -277,6 +435,8 @@ model EmployeeRole {
 // =============================================================================
 
 model AuditLog {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String   @id @default(uuid()) @map("id")
   actorId    String?  @map("actor_id")
   action     String   @map("action")
@@ -299,6 +459,7 @@ model AuditLog {
   // Task/entity history looks up by (entityType, entityId) - previously a full
   // table scan, fanned out per task by the timeline builder.
   @@index([entityType, entityId, createdAt])
+  @@index([tenantId])
   @@map("audit_logs")
 }
 
@@ -307,9 +468,11 @@ model AuditLog {
 // =============================================================================
 
 model Department {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId         String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id               String   @id @default(uuid()) @map("id")
-  name             String   @unique @map("name")
-  code             String   @unique @map("code")
+  name             String   @map("name")
+  code             String   @map("code")
   description      String?  @map("description")
   headId           String?  @map("head_id")
   parentId         String?  @map("parent_id")
@@ -326,12 +489,17 @@ model Department {
   jobPostings JobPosting[]
   jobRoles    JobRole[]
 
+  @@unique([tenantId, name])
+  @@unique([tenantId, code])
+  @@index([tenantId])
   @@map("departments")
 }
 
 model Designation {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId         String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id               String   @id @default(uuid()) @map("id")
-  title            String   @unique @map("title")
+  title            String   @map("title")
   level            Int      @map("level") // 1-13 (L1-L13)
   code             String?  @map("code") // "L1", "L2", … "L13" (multiple titles can share a code, e.g. CCO + CHRO both L11)
   phase            String?  @map("phase") // FOUNDATION | ELEVATE | PINNACLE
@@ -342,6 +510,8 @@ model Designation {
 
   employees Employee[]
 
+  @@unique([tenantId, title])
+  @@index([tenantId])
   @@map("designations")
 }
 
@@ -349,6 +519,8 @@ model Designation {
 // Developer"). Distinct from Designation (the L1-L13 grade) and Department (the
 // team). Employees reference one optionally.
 model JobRole {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String   @id @default(uuid()) @map("id")
   name         String   @map("name")
   departmentId String   @map("department_id")
@@ -361,6 +533,7 @@ model JobRole {
 
   @@unique([departmentId, name])
   @@index([departmentId])
+  @@index([tenantId])
   @@map("job_roles")
 }
 
@@ -369,8 +542,10 @@ model JobRole {
 // =============================================================================
 
 model Employee {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String  @id @default(uuid()) @map("id")
-  employeeNo String  @unique @map("employee_no")
+  employeeNo String  @map("employee_no")
   deviceId   String? @map("device_id")
 
   // Identity
@@ -458,6 +633,10 @@ model Employee {
   // Next-Auth
   accounts Account[]
   sessions Session[]
+
+  /// The platform identity this employment record belongs to (M2). Optional in
+  /// Prisma only because the FK lives on `memberships`; every employee has one.
+  membership Membership?
 
   // PBAC
   employeeRoles EmployeeRole[]
@@ -575,6 +754,7 @@ model Employee {
   pollVotes             MessagePollVote[] @relation("PollVoter")
   sharedContacts        MessageContact[]  @relation("SharedContact")
 
+  @@unique([tenantId, employeeNo])
   // Employee had NO indexes at all. These serve the manager/team queues and the
   // status filters used by the directory, dashboard and accrual jobs.
   @@index([managerId])
@@ -584,6 +764,7 @@ model Employee {
   @@index([createdAt])
   @@index([departmentId])
   @@index([designationId])
+  @@index([tenantId])
   @@map("employees")
 }
 
@@ -592,6 +773,8 @@ model Employee {
 // =============================================================================
 
 model Document {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String           @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String           @id @default(uuid()) @map("id")
   title        String           @map("title")
   description  String?          @map("description")
@@ -613,6 +796,7 @@ model Document {
   @@index([employeeId])
   @@index([category])
   @@index([isCompanyDoc])
+  @@index([tenantId])
   @@map("documents")
 }
 
@@ -620,6 +804,8 @@ model Document {
 // captured during onboarding and over the lifecycle. Kept separate from the
 // general `Document` model so company-wide files and personal files don't mix.
 model EmployeeDocument {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String           @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String           @id @default(uuid()) @map("id")
   employeeId   String           @map("employee_id")
   title        String           @map("title")
@@ -637,11 +823,14 @@ model EmployeeDocument {
 
   @@index([employeeId])
   @@index([category])
+  @@index([tenantId])
   @@map("employee_documents")
 }
 
 // HR asks an employee to upload a specific document; fulfilled when they upload.
 model DocumentRequest {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId      String           @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id            String           @id @default(uuid()) @map("id")
   employeeId    String           @map("employee_id")
   requestedById String           @map("requested_by_id")
@@ -658,6 +847,7 @@ model DocumentRequest {
 
   @@index([employeeId])
   @@index([status])
+  @@index([tenantId])
   @@map("document_requests")
 }
 
@@ -666,8 +856,10 @@ model DocumentRequest {
 // =============================================================================
 
 model EmailTemplate {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String   @id @default(uuid()) @map("id")
-  slug        String   @unique @map("slug")
+  slug        String   @map("slug")
   name        String   @map("name")
   subject     String   @map("subject")
   bodyHtml    String   @map("body_html") @db.Text
@@ -680,10 +872,14 @@ model EmailTemplate {
 
   emailLogs EmailLog[]
 
+  @@unique([tenantId, slug])
+  @@index([tenantId])
   @@map("email_templates")
 }
 
 model EmailLog {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId       String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id             String    @id @default(uuid()) @map("id")
   templateId     String?   @map("template_id")
   recipientEmail String    @map("recipient_email")
@@ -697,6 +893,7 @@ model EmailLog {
 
   @@index([status])
   @@index([createdAt])
+  @@index([tenantId])
   @@map("email_logs")
 }
 
@@ -705,6 +902,8 @@ model EmailLog {
 // =============================================================================
 
 model Notification {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String    @id @default(uuid()) @map("id")
   employeeId String    @map("employee_id")
   title      String    @map("title")
@@ -726,6 +925,7 @@ model Notification {
   // employeeId): the [employeeId, isRead] index can't be used for a pure isRead
   // filter because employeeId is the leading column.
   @@index([isRead])
+  @@index([tenantId])
   @@map("notifications")
 }
 
@@ -733,6 +933,8 @@ model Notification {
 /// granted notification permission on, so alerts reach them even when no DNMS
 /// tab is open (SSE only works while a page is live).
 model PushSubscription {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String   @id @default(uuid()) @map("id")
   employeeId String   @map("employee_id")
   endpoint   String   @unique @map("endpoint")
@@ -744,6 +946,7 @@ model PushSubscription {
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([tenantId])
   @@map("push_subscriptions")
 }
 
@@ -751,6 +954,8 @@ model PushSubscription {
 /// is about to run out. One row per employee; a missing row means the defaults
 /// in features/notifications/constants.ts, so nobody has to opt in to be warned.
 model TaskReminderPreference {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String  @id @default(uuid()) @map("id")
   employeeId String  @unique @map("employee_id")
   enabled    Boolean @default(true) @map("enabled")
@@ -773,6 +978,7 @@ model TaskReminderPreference {
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@map("task_reminder_preferences")
 }
 
@@ -781,6 +987,8 @@ model TaskReminderPreference {
 /// Pausing and restarting a task therefore earns a fresh set of reminders, and a
 /// cron that runs twice - or catches up after an outage - cannot re-send one.
 model TaskReminderState {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String    @id @default(uuid()) @map("id")
   taskId       String    @map("task_id")
   runStartedAt DateTime  @map("run_started_at")
@@ -792,6 +1000,7 @@ model TaskReminderState {
 
   @@unique([taskId, runStartedAt])
   @@index([createdAt])
+  @@index([tenantId])
   @@map("task_reminder_states")
 }
 
@@ -800,6 +1009,8 @@ model TaskReminderState {
 // =============================================================================
 
 model HikvisionDevice {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String    @id @default(uuid()) @map("id")
   name         String    @map("name")
   deviceSerial String    @unique @map("device_serial")
@@ -833,10 +1044,13 @@ model HikvisionDevice {
 
   attendanceLogs AttendanceLog[]
 
+  @@index([tenantId])
   @@map("hikvision_devices")
 }
 
 model AttendanceLog {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId       String           @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id             String           @id @default(uuid()) @map("id")
   employeeId     String           @map("employee_id")
   deviceId       String?          @map("device_id")
@@ -865,11 +1079,14 @@ model AttendanceLog {
   @@unique([employeeId, date])
   @@index([date])
   @@index([employeeId])
+  @@index([tenantId])
   @@map("attendance_logs")
 }
 
 // Employee-submitted correction of a missed/wrong punch, approved by HR/manager.
 model AttendanceRegularization {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId          String      @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id                String      @id @default(uuid()) @map("id")
   employeeId        String      @map("employee_id")
   date              DateTime    @map("date") @db.Date
@@ -888,10 +1105,13 @@ model AttendanceRegularization {
 
   @@index([employeeId])
   @@index([status])
+  @@index([tenantId])
   @@map("attendance_regularizations")
 }
 
 model Holiday {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String   @id @default(uuid()) @map("id")
   name        String   @map("name")
   date        DateTime @map("date") @db.Date
@@ -901,7 +1121,8 @@ model Holiday {
 
   floatingSelections FloatingHolidaySelection[]
 
-  @@unique([date, name])
+  @@unique([tenantId, date, name])
+  @@index([tenantId])
   @@map("holidays")
 }
 
@@ -919,6 +1140,8 @@ model NewsletterSubscriber {
 // =============================================================================
 
 model WfhRequest {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId          String      @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id                String      @id @default(uuid()) @map("id")
   employeeId        String      @map("employee_id")
   date              DateTime    @map("date") @db.Date // single day WFH
@@ -944,6 +1167,7 @@ model WfhRequest {
   @@index([status])
   @@index([date])
   @@index([status, createdAt])
+  @@index([tenantId])
   @@map("wfh_requests")
 }
 
@@ -968,6 +1192,8 @@ model AppSetting {
 }
 
 model Resignation {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId                 String      @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id                       String      @id @default(uuid()) @map("id")
   employeeId               String      @map("employee_id")
   reason                   String?     @map("reason")
@@ -987,6 +1213,7 @@ model Resignation {
 
   @@index([employeeId])
   @@index([status])
+  @@index([tenantId])
   @@map("resignations")
 }
 
@@ -996,6 +1223,8 @@ model Resignation {
 // =============================================================================
 
 model FloatingHolidaySelection {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId          String      @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id                String      @id @default(uuid()) @map("id")
   employeeId        String      @map("employee_id")
   holidayId         String      @map("holiday_id")
@@ -1020,12 +1249,15 @@ model FloatingHolidaySelection {
   @@unique([employeeId, holidayId, year])
   @@index([employeeId, year])
   @@index([status])
+  @@index([tenantId])
   @@map("floating_holiday_selections")
 }
 
 model AttendancePolicy {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId        String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id              String   @id @default(uuid()) @map("id")
-  name            String   @unique @map("name")
+  name            String   @map("name")
   workHoursPerDay Float    @default(8) @map("work_hours_per_day")
   workDaysPerWeek Int      @default(5) @map("work_days_per_week")
   checkInTime     String   @default("09:00") @map("check_in_time")
@@ -1035,6 +1267,8 @@ model AttendancePolicy {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
+  @@unique([tenantId, name])
+  @@index([tenantId])
   @@map("attendance_policies")
 }
 
@@ -1043,9 +1277,11 @@ model AttendancePolicy {
 // =============================================================================
 
 model LeaveType {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId         String        @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id               String        @id @default(uuid()) @map("id")
-  name             String        @unique @map("name")
-  code             String        @unique @map("code")
+  name             String        @map("name")
+  code             String        @map("code")
   description      String?       @map("description")
   isPaid           Boolean       @default(true) @map("is_paid")
   maxDaysPerYear   Int           @default(0) @map("max_days_per_year")
@@ -1061,12 +1297,17 @@ model LeaveType {
   leaveRequests LeaveRequest[]
   leavePolicies LeavePolicy[]
 
+  @@unique([tenantId, name])
+  @@unique([tenantId, code])
+  @@index([tenantId])
   @@map("leave_types")
 }
 
 // Entitlement matrix: how many days of a leave type each employment type gets
 // per year. Falls back to LeaveType.maxDaysPerYear when no row exists.
 model LeavePolicy {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId       String         @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id             String         @id @default(uuid()) @map("id")
   employmentType EmploymentType @map("employment_type")
   leaveTypeId    String         @map("leave_type_id")
@@ -1077,10 +1318,13 @@ model LeavePolicy {
   leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
 
   @@unique([employmentType, leaveTypeId])
+  @@index([tenantId])
   @@map("leave_policies")
 }
 
 model LeaveBalance {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String @id @default(uuid()) @map("id")
   employeeId  String @map("employee_id")
   leaveTypeId String @map("leave_type_id")
@@ -1095,10 +1339,13 @@ model LeaveBalance {
   leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, leaveTypeId, year])
+  @@index([tenantId])
   @@map("leave_balances")
 }
 
 model LeaveRequest {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId             String              @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id                   String              @id @default(uuid()) @map("id")
   employeeId           String              @map("employee_id")
   leaveTypeId          String              @map("leave_type_id")
@@ -1138,6 +1385,7 @@ model LeaveRequest {
   @@index([currentApproverId])
   @@index([approvalStage, status])
   @@index([status, createdAt])
+  @@index([tenantId])
   @@map("leave_requests")
 }
 
@@ -1146,6 +1394,8 @@ model LeaveRequest {
 // =============================================================================
 
 model SalaryStructure {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId           String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id                 String   @id @default(uuid()) @map("id")
   employeeId         String   @unique @map("employee_id")
   basicSalary        Float    @map("basic_salary")
@@ -1165,10 +1415,13 @@ model SalaryStructure {
   employee       Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   payrollRecords PayrollRecord[]
 
+  @@index([tenantId])
   @@map("salary_structures")
 }
 
 model PayrollRecord {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId          String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id                String  @id @default(uuid()) @map("id")
   employeeId        String  @map("employee_id")
   salaryStructureId String? @map("salary_structure_id")
@@ -1212,6 +1465,7 @@ model PayrollRecord {
   @@unique([employeeId, month, year])
   @@index([month, year])
   @@index([status])
+  @@index([tenantId])
   @@map("payroll_records")
 }
 
@@ -1220,15 +1474,17 @@ model PayrollRecord {
 // =============================================================================
 
 model Project {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId       String        @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id             String        @id @default(uuid()) @map("id")
   name           String        @map("name")
   description    String?       @map("description") @db.Text
-  code           String        @unique @map("code")
+  code           String        @map("code")
   // URL identifier, derived from the name at creation ("RUDIONE / LEOCYM" ->
   // "rudione-leocym"). Nullable so pre-existing rows stay valid; every read path
   // falls back to the id, and /projects/[id] resolves either form. Deliberately
   // NOT regenerated on rename - a slug that moves breaks every link already shared.
-  slug           String?       @unique @map("slug")
+  slug           String?       @map("slug")
   status         ProjectStatus @default(PLANNING) @map("status")
   priority       TaskPriority  @default(MEDIUM) @map("priority")
   /// Stable serve URL (/api/projects/<id>/logo?v=<ts>), NOT a bucket URL - the
@@ -1285,14 +1541,19 @@ model Project {
   products            Product[]
   projectMailerAssets ProjectMailerAsset[]
 
+  @@unique([tenantId, code])
+  @@unique([tenantId, slug])
   @@index([status])
   @@index([ownerId])
+  @@index([tenantId])
   @@map("projects")
 }
 
 // Per-project ad-platform connection (currently Meta Ads). Secrets are stored
 // ENCRYPTED (lib/crypto) - the app decrypts them server-side only to call the API.
 model ProjectIntegration {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId        String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id              String    @id @default(uuid())
   projectId       String    @unique @map("project_id")
   provider        String    @default("META") @map("provider")
@@ -1308,11 +1569,14 @@ model ProjectIntegration {
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@map("project_integrations")
 }
 
 // A Meta ad campaign synced for a project.
 model MetaCampaign {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String   @id @default(uuid())
   projectId  String   @map("project_id")
   campaignId String   @map("campaign_id") // Meta's campaign id
@@ -1326,11 +1590,14 @@ model MetaCampaign {
 
   @@unique([projectId, campaignId])
   @@index([projectId])
+  @@index([tenantId])
   @@map("meta_campaigns")
 }
 
 // One row per campaign per day (Meta insights, time_increment=1).
 model MetaCampaignMetric {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId          String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id                String   @id @default(uuid())
   campaignId        String   @map("campaign_id") // FK -> MetaCampaign.id
   date              DateTime @map("date") @db.Date
@@ -1355,6 +1622,7 @@ model MetaCampaignMetric {
 
   @@unique([campaignId, date])
   @@index([date])
+  @@index([tenantId])
   @@map("meta_campaign_metrics")
 }
 
@@ -1381,6 +1649,8 @@ model ProjectPhase {
 // manifestation plan (4 themes), overview doc, and brand guidelines. The JSON
 // columns store the semi-structured parts (see features/projects/brand.ts).
 model ProjectBrand {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId      String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id            String   @id @default(uuid()) @map("id")
   projectId     String   @unique @map("project_id")
   brief         String?  @map("brief") @db.Text // brand brief (from client)
@@ -1393,11 +1663,14 @@ model ProjectBrand {
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@map("project_brands")
 }
 
 // Uploaded brand files (brief document, logo images) stored in B2.
 model BrandAsset {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String   @id @default(uuid()) @map("id")
   projectId    String   @map("project_id")
   kind         String   @map("kind") // "BRIEF" | "LOGO"
@@ -1412,11 +1685,14 @@ model BrandAsset {
   uploadedBy Employee? @relation("BrandAssetUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+  @@index([tenantId])
   @@map("brand_assets")
 }
 
 // A single scheduled content-calendar post for a project.
 model ContentCalendarEntry {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String    @id @default(uuid()) @map("id")
   projectId String    @map("project_id")
   date      DateTime? @map("date") @db.Date
@@ -1448,11 +1724,14 @@ model ContentCalendarEntry {
   @@index([projectId, date])
   @@index([assigneeId])
   @@index([date, status])
+  @@index([tenantId])
   @@map("content_calendar_entries")
 }
 
 // ─── V2: Project Teams ────────────────────────────────────────────────────────
 model ProjectTeam {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String   @id @default(uuid()) @map("id")
   projectId   String   @map("project_id")
   name        String   @map("name") // ad-hoc, e.g. "Web Development"
@@ -1470,10 +1749,13 @@ model ProjectTeam {
 
   @@unique([projectId, name])
   @@index([projectId])
+  @@index([tenantId])
   @@map("project_teams")
 }
 
 model ProjectTeamMember {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String   @id @default(uuid()) @map("id")
   teamId     String   @map("team_id")
   projectId  String   @map("project_id") // denormalised to enforce 1 team per project per employee
@@ -1487,6 +1769,7 @@ model ProjectTeamMember {
   @@unique([projectId, employeeId]) // one team per project per employee
   @@index([teamId])
   @@index([employeeId])
+  @@index([tenantId])
   @@map("project_team_members")
 }
 
@@ -1499,6 +1782,8 @@ enum ResourceCategory {
 }
 
 model ProjectResource {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String           @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String           @id @default(uuid()) @map("id")
   projectId    String           @map("project_id")
   teamId       String?          @map("team_id") // null = project-level
@@ -1518,6 +1803,7 @@ model ProjectResource {
   @@index([projectId])
   @@index([teamId])
   @@index([category])
+  @@index([tenantId])
   @@map("project_resources")
 }
 
@@ -1528,6 +1814,8 @@ enum TaskApprovalStatus {
 }
 
 model ProjectMember {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String     @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String     @id @default(uuid()) @map("id")
   projectId  String     @map("project_id")
   employeeId String     @map("employee_id")
@@ -1538,10 +1826,13 @@ model ProjectMember {
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, employeeId])
+  @@index([tenantId])
   @@map("project_members")
 }
 
 model ProjectTask {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId         String             @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id               String             @id @default(uuid()) @map("id")
   // Null = ADHOC: work that belongs to no client - meetings, interviews,
   // internal QC. It used to be a stand-in "ADHOC" project, which made it show
@@ -1636,10 +1927,13 @@ model ProjectTask {
   @@index([assigneeId, dueDate])
   @@index([projectId, dueDate])
   @@index([projectId, status])
+  @@index([tenantId])
   @@map("project_tasks")
 }
 
 model TaskComment {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String   @id @default(uuid()) @map("id")
   taskId    String   @map("task_id")
   authorId  String   @map("author_id")
@@ -1651,10 +1945,13 @@ model TaskComment {
   author Employee    @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
+  @@index([tenantId])
   @@map("task_comments")
 }
 
 model TaskChecklistItem {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String   @id @default(uuid()) @map("id")
   taskId       String   @map("task_id")
   text         String   @map("text")
@@ -1665,6 +1962,7 @@ model TaskChecklistItem {
   task ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
+  @@index([tenantId])
   @@map("task_checklist_items")
 }
 
@@ -1678,6 +1976,8 @@ model TaskChecklistItem {
  * tasks that existed before this table did.
  */
 model TaskStatusPeriod {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId        String     @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id              String     @id @default(uuid()) @map("id")
   taskId          String     @map("task_id")
   status          TaskStatus @map("status")
@@ -1705,6 +2005,7 @@ model TaskStatusPeriod {
   actor Employee?   @relation("TaskStatusActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([taskId, startedAt])
+  @@index([tenantId])
   @@map("task_status_periods")
 }
 
@@ -1734,6 +2035,8 @@ enum RequirementStatus {
 }
 
 model ProjectRequirement {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId        String            @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id              String            @id @default(uuid()) @map("id")
   projectId       String            @map("project_id")
   teamId          String?           @map("team_id") // the blocked team
@@ -1763,10 +2066,13 @@ model ProjectRequirement {
   @@index([projectId, status])
   @@index([requestedFromId, status])
   @@index([raisedById])
+  @@index([tenantId])
   @@map("project_requirements")
 }
 
 model ProjectActivity {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String   @id @default(uuid()) @map("id")
   projectId  String   @map("project_id")
   actorId    String   @map("actor_id")
@@ -1782,10 +2088,13 @@ model ProjectActivity {
   @@index([projectId])
   @@index([createdAt])
   @@index([projectId, createdAt])
+  @@index([tenantId])
   @@map("project_activities")
 }
 
 model ProjectMessage {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String   @id @default(uuid()) @map("id")
   projectId    String   @map("project_id")
   authorId     String   @map("author_id")
@@ -1804,11 +2113,14 @@ model ProjectMessage {
   reactions ProjectMessageReaction[]
 
   @@index([projectId])
+  @@index([tenantId])
   @@map("project_messages")
 }
 
 // A reply in a message thread - lets a single message hold an ongoing conversation.
 model ProjectMessageReply {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String   @id @default(uuid()) @map("id")
   messageId    String   @map("message_id")
   authorId     String   @map("author_id")
@@ -1837,6 +2149,7 @@ model ProjectMessageReply {
 
   @@index([messageId])
   @@index([replyToId])
+  @@index([tenantId])
   @@map("project_message_replies")
 }
 
@@ -1846,9 +2159,11 @@ model ProjectMessageReply {
 /// same thing on two surfaces, and one shared renderer draws both. Kept as its
 /// own table rather than columns on the reply because most replies have none.
 model ProjectMessageAttachment {
-  id      String             @id @default(uuid()) @map("id")
-  replyId String             @map("reply_id")
-  kind    ChatAttachmentKind @map("kind")
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String             @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id       String             @id @default(uuid()) @map("id")
+  replyId  String             @map("reply_id")
+  kind     ChatAttachmentKind @map("kind")
 
   objectKey   String @map("object_key")
   fileName    String @map("file_name")
@@ -1865,6 +2180,7 @@ model ProjectMessageAttachment {
   reply ProjectMessageReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
 
   @@index([replyId])
+  @@index([tenantId])
   @@map("project_message_attachments")
 }
 
@@ -1876,6 +2192,8 @@ model ProjectMessageAttachment {
 /// the same component, so splitting the storage would mean two of every query,
 /// endpoint and toggle for a row that differs only in which column is null.
 model ProjectMessageReaction {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String   @id @default(uuid()) @map("id")
   messageId  String?  @map("message_id")
   replyId    String?  @map("reply_id")
@@ -1891,10 +2209,13 @@ model ProjectMessageReaction {
   @@unique([replyId, employeeId, emoji])
   @@index([messageId])
   @@index([replyId])
+  @@index([tenantId])
   @@map("project_message_reactions")
 }
 
 model ProjectMessageRead {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String   @id @default(uuid()) @map("id")
   projectId  String   @map("project_id")
   employeeId String   @map("employee_id")
@@ -1904,10 +2225,13 @@ model ProjectMessageRead {
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, employeeId])
+  @@index([tenantId])
   @@map("project_message_reads")
 }
 
 model ProjectPasswordEntry {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String   @id @default(uuid()) @map("id")
   projectId   String   @map("project_id")
   label       String   @map("label")
@@ -1923,10 +2247,13 @@ model ProjectPasswordEntry {
   createdBy Employee @relation("PasswordCreator", fields: [createdById], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+  @@index([tenantId])
   @@map("project_password_entries")
 }
 
 model Timesheet {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String   @id @default(uuid()) @map("id")
   projectId  String   @map("project_id")
   taskId     String?  @map("task_id")
@@ -1943,6 +2270,7 @@ model Timesheet {
   @@index([projectId])
   @@index([employeeId])
   @@index([date])
+  @@index([tenantId])
   @@map("timesheets")
 }
 
@@ -1960,6 +2288,8 @@ model Timesheet {
 
 // Reusable per-employee KPI / parameter definition (the "profile").
 model PerfKpi {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String   @id @default(uuid()) @map("id")
   employeeId  String   @map("employee_id")
   evaluator   String   @map("evaluator") // "SELF" | "MANAGER"
@@ -1973,10 +2303,13 @@ model PerfKpi {
   employee Employee @relation("EmployeePerfKpis", fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([tenantId])
   @@map("perf_kpis")
 }
 
 model Evaluation {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId        String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id              String    @id @default(uuid()) @map("id")
   selfCriteria    Json      @map("self_criteria") // snapshot at creation time
   managerCriteria Json      @map("manager_criteria") // snapshot at creation time
@@ -2020,6 +2353,7 @@ model Evaluation {
   @@index([employeeId])
   @@index([managerId])
   @@index([status])
+  @@index([tenantId])
   @@map("evaluations")
 }
 
@@ -2028,6 +2362,8 @@ model Evaluation {
 // =============================================================================
 
 model JobPosting {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId         String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id               String    @id @default(uuid()) @map("id")
   title            String    @map("title")
   slug             String?   @map("slug")
@@ -2058,10 +2394,13 @@ model JobPosting {
 
   @@index([status])
   @@index([publishToCareers, status])
+  @@index([tenantId])
   @@map("job_postings")
 }
 
 model Applicant {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId        String         @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id              String         @id @default(uuid()) @map("id")
   jobPostingId    String         @map("job_posting_id")
   firstName       String         @map("first_name")
@@ -2090,10 +2429,13 @@ model Applicant {
 
   @@index([jobPostingId])
   @@index([stage])
+  @@index([tenantId])
   @@map("applicants")
 }
 
 model Interview {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId      String          @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id            String          @id @default(uuid()) @map("id")
   applicantId   String          @map("applicant_id")
   interviewerId String?         @map("interviewer_id")
@@ -2114,6 +2456,7 @@ model Interview {
 
   @@index([applicantId])
   @@index([scheduledAt])
+  @@index([tenantId])
   @@map("interviews")
 }
 
@@ -2127,7 +2470,13 @@ model Interview {
 
 model PasswordReset {
   id         String    @id @default(uuid()) @map("id")
-  employeeId String    @map("employee_id")
+  /// Who is resetting (M2). The reset targets the platform identity, so this
+  /// flow now works for a portal client too, not just an employee.
+  userId     String    @map("user_id")
+  /// TRANSITIONAL: kept and still written for staff resets so that the build
+  /// currently deployed on the VPS - which looks resets up by employee - keeps
+  /// working through the changeover. Null for a client reset. Dropped in M4.
+  employeeId String?   @map("employee_id")
   token      String    @unique @map("token")
   // bcrypt hash of the 6-digit OTP emailed to the employee. The plaintext OTP
   // is never stored. `token` is only handed to the client AFTER the OTP is
@@ -2139,8 +2488,10 @@ model PasswordReset {
   usedAt     DateTime? @map("used_at")
   createdAt  DateTime  @default(now()) @map("created_at")
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("password_resets")
 }
 
@@ -2161,6 +2512,8 @@ enum CareerStatus {
 }
 
 model CareerGroup {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String       @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String       @id @default(uuid()) @map("id")
   mode      CareerMode   @map("mode")
   code      String       @map("code")
@@ -2175,12 +2528,15 @@ model CareerGroup {
 
   subDepartments CareerSubDepartment[]
 
-  @@unique([mode, slug])
+  @@unique([tenantId, mode, slug])
   @@index([mode, status])
+  @@index([tenantId])
   @@map("career_groups")
 }
 
 model CareerSubDepartment {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String       @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String       @id @default(uuid()) @map("id")
   groupId   String       @map("group_id")
   title     String       @map("title")
@@ -2197,10 +2553,13 @@ model CareerSubDepartment {
 
   @@unique([groupId, slug])
   @@index([groupId])
+  @@index([tenantId])
   @@map("career_sub_departments")
 }
 
 model CareerRole {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId        String       @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id              String       @id @default(uuid()) @map("id")
   subDepartmentId String       @map("sub_department_id")
   title           String       @map("title")
@@ -2221,6 +2580,7 @@ model CareerRole {
 
   @@unique([subDepartmentId, slug])
   @@index([subDepartmentId])
+  @@index([tenantId])
   @@map("career_roles")
 }
 
@@ -2241,6 +2601,8 @@ enum CareerApplicationStatus {
 // `careerRoleId` then resolves to null but `roleTitle` still tells HR what the
 // person believed they applied to. We never drop the applicant.
 model CareerApplication {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId       String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id             String @id @map("id")
   idempotencyKey String @unique @map("idempotency_key")
 
@@ -2310,10 +2672,13 @@ model CareerApplication {
   // Serves "my referrals" and the eligibility sweep.
   @@index([referrerId])
   @@index([hiredEmployeeId])
+  @@index([tenantId])
   @@map("career_applications")
 }
 
 model CareerOpening {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String       @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String       @id @default(uuid()) @map("id")
   roleId    String       @map("role_id")
   label     String       @map("label")
@@ -2325,6 +2690,7 @@ model CareerOpening {
   role CareerRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@index([roleId])
+  @@index([tenantId])
   @@map("career_openings")
 }
 
@@ -2338,6 +2704,8 @@ model CareerOpening {
 // rather than a live API call.
 
 model SeoProperty {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String @id @default(uuid()) @map("id")
   // NOT unique: one client project can own many sites. KYG, for example, is a
   // single account with 13 subdomains - same team, same Drive folder, same
@@ -2387,10 +2755,13 @@ model SeoProperty {
   @@unique([projectId, domain])
   @@index([projectId])
   @@index([isActive])
+  @@index([tenantId])
   @@map("seo_properties")
 }
 
 model SeoSnapshot {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String @id @default(uuid()) @map("id")
   propertyId String @map("property_id")
 
@@ -2412,10 +2783,13 @@ model SeoSnapshot {
 
   @@unique([propertyId, periodStart, periodEnd])
   @@index([propertyId, periodEnd])
+  @@index([tenantId])
   @@map("seo_snapshots")
 }
 
 model SeoQueryStat {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String @id @default(uuid()) @map("id")
   snapshotId String @map("snapshot_id")
 
@@ -2429,10 +2803,13 @@ model SeoQueryStat {
 
   @@index([snapshotId])
   @@index([snapshotId, clicks])
+  @@index([tenantId])
   @@map("seo_query_stats")
 }
 
 model SeoPageStat {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String @id @default(uuid()) @map("id")
   snapshotId String @map("snapshot_id")
 
@@ -2446,6 +2823,7 @@ model SeoPageStat {
 
   @@index([snapshotId])
   @@index([snapshotId, clicks])
+  @@index([tenantId])
   @@map("seo_page_stats")
 }
 
@@ -2453,6 +2831,8 @@ model SeoPageStat {
 // signal) but only for URLs with enough traffic; PSI lab data always answers, so
 // we record which source a row came from rather than blending them.
 model SeoVitals {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String @id @default(uuid()) @map("id")
   propertyId String @map("property_id")
 
@@ -2474,12 +2854,15 @@ model SeoVitals {
   property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([propertyId, checkedAt])
+  @@index([tenantId])
   @@map("seo_vitals")
 }
 
 // Organic traffic + conversions from GA4 - the half of the scorecard Search
 // Console cannot answer ("clicks prove, conversions pay").
 model SeoTraffic {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String @id @default(uuid()) @map("id")
   propertyId String @map("property_id")
 
@@ -2500,6 +2883,7 @@ model SeoTraffic {
 
   @@unique([propertyId, periodStart, periodEnd])
   @@index([propertyId, periodEnd])
+  @@index([tenantId])
   @@map("seo_traffic")
 }
 
@@ -2507,6 +2891,8 @@ model SeoTraffic {
 // the 100 points could actually be measured, so a score built from Search
 // Console alone is never presented as if everything was checked.
 model SeoScorecard {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String @id @default(uuid()) @map("id")
   propertyId String @map("property_id")
 
@@ -2525,6 +2911,7 @@ model SeoScorecard {
 
   @@unique([propertyId, periodStart, periodEnd])
   @@index([propertyId, periodEnd])
+  @@index([tenantId])
   @@map("seo_scorecards")
 }
 
@@ -2533,6 +2920,8 @@ model SeoScorecard {
 // "critical crawl errors" metric. Issues are stored as JSON rather than a child
 // table because they are only ever read as a set alongside their parent audit.
 model SeoTechnicalAudit {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String @id @default(uuid()) @map("id")
   propertyId String @map("property_id")
 
@@ -2554,6 +2943,7 @@ model SeoTechnicalAudit {
   property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([propertyId, createdAt])
+  @@index([tenantId])
   @@map("seo_technical_audits")
 }
 
@@ -2562,6 +2952,8 @@ model SeoTechnicalAudit {
 // stored Search Console queries and then refined by a human (winnable? how
 // valuable?), so `score` is recomputed whenever the inputs change.
 model SeoKeyword {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String @id @default(uuid()) @map("id")
   propertyId String @map("property_id")
 
@@ -2606,6 +2998,7 @@ model SeoKeyword {
   @@index([propertyId, score])
   @@index([propertyId, status])
   @@index([propertyId, source])
+  @@index([tenantId])
   @@map("seo_keywords")
 }
 
@@ -2616,6 +3009,8 @@ model SeoKeyword {
 // material for the content backlog. Stored as JSON because a run is only ever
 // read as one whole report alongside its parent row.
 model SeoCompetitorAudit {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String @id @default(uuid()) @map("id")
   propertyId String @map("property_id")
 
@@ -2633,6 +3028,7 @@ model SeoCompetitorAudit {
   property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([propertyId, createdAt])
+  @@index([tenantId])
   @@map("seo_competitor_audits")
 }
 
@@ -2643,6 +3039,8 @@ model SeoCompetitorAudit {
 // position at publish vs 30 days later, so "did it work?" is answered by data,
 // not opinion. Auto-publish is deliberately NOT supported (spam risk).
 model SeoContentBrief {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String  @id @default(uuid()) @map("id")
   propertyId String  @map("property_id")
   keywordId  String? @map("keyword_id") // the backlog keyword this works, if any
@@ -2676,6 +3074,7 @@ model SeoContentBrief {
 
   @@index([propertyId, status])
   @@index([reviewAt])
+  @@index([tenantId])
   @@map("seo_content_briefs")
 }
 
@@ -2686,6 +3085,8 @@ model SeoContentBrief {
 // scorecard. Granularity is one row per linking page; referring-domain counts are
 // rolled up from `sourceDomain`.
 model SeoBacklink {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String @id @default(uuid()) @map("id")
   propertyId String @map("property_id")
 
@@ -2710,6 +3111,7 @@ model SeoBacklink {
   @@index([propertyId, status])
   @@index([propertyId, sourceDomain])
   @@index([propertyId, firstSeen])
+  @@index([tenantId])
   @@map("seo_backlinks")
 }
 
@@ -2718,6 +3120,8 @@ model SeoBacklink {
 // blocking. Kept as history so the cron can alert only on a CHANGE (page went
 // down / came back), not spam the same broken state every day.
 model SeoMonitorRun {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String @id @default(uuid()) @map("id")
   propertyId String @map("property_id")
 
@@ -2732,6 +3136,7 @@ model SeoMonitorRun {
   property SeoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([propertyId, createdAt])
+  @@index([tenantId])
   @@map("seo_monitor_runs")
 }
 
@@ -2757,6 +3162,8 @@ enum ClientAccessStatus {
 }
 
 model ClientUser {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String  @id @default(uuid()) @map("id")
   email        String  @unique @map("email")
   name         String  @map("name")
@@ -2779,12 +3186,16 @@ model ClientUser {
   access    ClientProjectAccess[]
   activity  ClientActivityLog[]
 
+  /// The platform identity this portal account belongs to (M2).
+  membership Membership?
+
   /// Things a client made on the shared mailer surface.
   campaigns    ProjectCampaign[]      @relation("CampaignClientAuthor")
   templates    ProjectEmailTemplate[] @relation("TemplateClientAuthor")
   mailerAssets ProjectMailerAsset[]   @relation("MailerAssetClientAuthor")
 
   @@index([isActive])
+  @@index([tenantId])
   @@map("client_users")
 }
 
@@ -2800,6 +3211,8 @@ model ClientUser {
 /// `summary` is written in plain language at the time of the action - a log
 /// nobody can read is a log nobody checks.
 model ClientActivityLog {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String  @id @default(uuid()) @map("id")
   clientUserId String  @map("client_user_id")
   /// Null for account-level actions (sign-in, password change) that belong to no
@@ -2824,6 +3237,7 @@ model ClientActivityLog {
   @@index([clientUserId, createdAt])
   @@index([projectId, createdAt])
   @@index([createdAt])
+  @@index([tenantId])
   @@map("client_activity_logs")
 }
 
@@ -2837,6 +3251,8 @@ model ClientActivityLog {
 /// client emails on the same project can be given different sections, and
 /// changing one client never moves anyone else.
 model ClientProjectAccess {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String             @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id           String             @id @default(uuid()) @map("id")
   clientUserId String             @map("client_user_id")
   projectId    String             @map("project_id")
@@ -2855,6 +3271,7 @@ model ClientProjectAccess {
 
   @@unique([clientUserId, projectId])
   @@index([projectId])
+  @@index([tenantId])
   @@map("client_project_access")
 }
 
@@ -2878,6 +3295,8 @@ enum MarketplaceProvider {
 }
 
 model MarketplaceChannel {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String              @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String              @id @default(uuid()) @map("id")
   projectId  String              @map("project_id")
   provider   MarketplaceProvider @map("provider")
@@ -2902,10 +3321,13 @@ model MarketplaceChannel {
 
   @@unique([projectId, provider, name])
   @@index([projectId])
+  @@index([tenantId])
   @@map("marketplace_channels")
 }
 
 model Product {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String  @id @default(uuid()) @map("id")
   projectId  String  @map("project_id")
   /// Null for a product entered manually rather than synced from a channel.
@@ -2942,6 +3364,7 @@ model Product {
   @@unique([channelId, externalId])
   @@index([projectId, status])
   @@index([projectId, title])
+  @@index([tenantId])
   @@map("products")
 }
 
@@ -2969,6 +3392,8 @@ enum MonitoredAssetKind {
 
 /// A thing that expires and will take the site down if it lapses.
 model ProjectAsset {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String             @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String             @id @default(uuid()) @map("id")
   projectId String             @map("project_id")
   kind      MonitoredAssetKind @default(DOMAIN) @map("kind")
@@ -3011,6 +3436,7 @@ model ProjectAsset {
 
   @@index([projectId])
   @@index([expiresAt])
+  @@index([tenantId])
   @@map("project_assets")
 }
 
@@ -3021,6 +3447,8 @@ enum UptimeState {
 }
 
 model UptimeMonitor {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String  @id @default(uuid()) @map("id")
   projectId String  @map("project_id")
   url       String  @map("url")
@@ -3048,12 +3476,15 @@ model UptimeMonitor {
 
   @@unique([projectId, url])
   @@index([isActive])
+  @@index([tenantId])
   @@map("uptime_monitors")
 }
 
 /// One outage, start to finish. Kept as history so "how long were we down" has
 /// an answer that isn't someone's memory.
 model UptimeIncident {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String    @id @default(uuid()) @map("id")
   monitorId  String    @map("monitor_id")
   startedAt  DateTime  @default(now()) @map("started_at")
@@ -3075,6 +3506,7 @@ model UptimeIncident {
 
   @@index([monitorId, startedAt])
   @@index([endedAt])
+  @@index([tenantId])
   @@map("uptime_incidents")
 }
 
@@ -3094,6 +3526,8 @@ model UptimeIncident {
 // =============================================================================
 
 model ProjectMailer {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String @id @default(uuid()) @map("id")
   projectId String @map("project_id")
   /// A project can hold SEVERAL sending accounts - transactional vs newsletter,
@@ -3129,10 +3563,13 @@ model ProjectMailer {
 
   @@unique([projectId, name])
   @@index([projectId])
+  @@index([tenantId])
   @@map("project_mailers")
 }
 
 model ProjectMailerAsset {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String @id @default(uuid()) @map("id")
   projectId   String @map("project_id")
   /// The B2 object. Served through a PUBLIC route: an email client fetches
@@ -3153,10 +3590,13 @@ model ProjectMailerAsset {
   createdByClient ClientUser? @relation("MailerAssetClientAuthor", fields: [createdByClientId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+  @@index([tenantId])
   @@map("project_mailer_assets")
 }
 
 model ProjectEmailTemplate {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String        @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String        @id @default(uuid()) @map("id")
   projectId String        @map("project_id")
   name      String        @map("name")
@@ -3180,10 +3620,13 @@ model ProjectEmailTemplate {
 
   @@unique([projectId, name])
   @@index([projectId])
+  @@index([tenantId])
   @@map("project_email_templates")
 }
 
 model ProjectRecipient {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String   @id @default(uuid()) @map("id")
   projectId String   @map("project_id")
   email     String   @map("email")
@@ -3209,6 +3652,7 @@ model ProjectRecipient {
 
   @@unique([projectId, email])
   @@index([projectId, isSubscribed])
+  @@index([tenantId])
   @@map("project_recipients")
 }
 
@@ -3229,6 +3673,8 @@ enum CampaignStatus {
 }
 
 model ProjectCampaign {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String         @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String         @id @default(uuid()) @map("id")
   projectId  String         @map("project_id")
   templateId String?        @map("template_id")
@@ -3267,6 +3713,7 @@ model ProjectCampaign {
 
   @@index([projectId, createdAt])
   @@index([status])
+  @@index([tenantId])
   @@map("project_campaigns")
 }
 
@@ -3274,6 +3721,8 @@ model ProjectCampaign {
 /// Being a real row is what makes a half-finished blast recoverable - the
 /// scheduler just picks up whatever is still PENDING.
 model ProjectCampaignSend {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String  @id @default(uuid()) @map("id")
   campaignId  String  @map("campaign_id")
   recipientId String? @map("recipient_id")
@@ -3301,6 +3750,7 @@ model ProjectCampaignSend {
 
   @@index([campaignId, status])
   @@index([status])
+  @@index([tenantId])
   @@map("project_campaign_sends")
 }
 
@@ -3317,6 +3767,8 @@ enum AnnouncementPriority {
 /// A company-wide notice. Visible to every signed-in employee; only
 /// `announcement:write` holders create them.
 model Announcement {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String               @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id       String               @id @default(uuid()) @map("id")
   title    String               @map("title")
   body     String               @map("body")
@@ -3340,16 +3792,19 @@ model Announcement {
 
   @@index([isPublished, publishedAt])
   @@index([category])
+  @@index([tenantId])
   @@map("announcements")
 }
 
 /// One event's worth of photos ("Diwali 2026").
 model PhotoAlbum {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String    @id @default(uuid()) @map("id")
   /// URL key: "Diwali 2026" -> "diwali-2026". Generated ONCE at creation -
   /// renaming an album deliberately leaves it alone, because a URL that moves
   /// silently breaks every link already shared. Same rule as Project.slug.
-  slug        String    @unique @map("slug")
+  slug        String    @map("slug")
   title       String    @map("title")
   description String?   @map("description")
   /// When the event happened, which is what people sort by - not upload date.
@@ -3362,13 +3817,17 @@ model PhotoAlbum {
   createdBy Employee? @relation("AlbumAuthor", fields: [createdById], references: [id], onDelete: SetNull)
   photos    Photo[]
 
+  @@unique([tenantId, slug])
   @@index([eventDate])
+  @@index([tenantId])
   @@map("photo_albums")
 }
 
 /// A single image in an album. The bytes live in B2; only the key is stored, and
 /// it is served through a signed-URL redirect so the bucket stays private.
 model Photo {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id          String  @id @default(uuid()) @map("id")
   albumId     String  @map("album_id")
   objectKey   String  @map("object_key")
@@ -3392,6 +3851,7 @@ model Photo {
   uploadedBy Employee?  @relation("PhotoUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@index([albumId, createdAt])
+  @@index([tenantId])
   @@map("photos")
 }
 
@@ -3411,8 +3871,10 @@ model Photo {
 /// notification rules and permissions, and is a different feature wearing the
 /// same name.
 model Conversation {
-  id      String @id @default(uuid()) @map("id")
-  pairKey String @unique @map("pair_key")
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id       String @id @default(uuid()) @map("id")
+  pairKey  String @unique @map("pair_key")
 
   /// Denormalised so the conversation list can sort without touching messages.
   lastMessageAt DateTime? @map("last_message_at")
@@ -3424,10 +3886,13 @@ model Conversation {
   messages     ChatMessage[]
 
   @@index([lastMessageAt])
+  @@index([tenantId])
   @@map("conversations")
 }
 
 model ConversationParticipant {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId       String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   conversationId String @map("conversation_id")
   employeeId     String @map("employee_id")
 
@@ -3447,10 +3912,13 @@ model ConversationParticipant {
 
   @@id([conversationId, employeeId])
   @@index([employeeId])
+  @@index([tenantId])
   @@map("conversation_participants")
 }
 
 model ChatMessage {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId       String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id             String @id @default(uuid()) @map("id")
   conversationId String @map("conversation_id")
   senderId       String @map("sender_id")
@@ -3490,6 +3958,7 @@ model ChatMessage {
   contact      MessageContact?
 
   @@index([conversationId, createdAt])
+  @@index([tenantId])
   @@map("chat_messages")
 }
 
@@ -3555,6 +4024,8 @@ enum ChatAttachmentKind {
 /// the same emoji twice a toggle rather than a second identical reaction, and it
 /// is enforced by the database instead of by whichever handler happens to run.
 model ChatMessageReaction {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id         String   @id @default(uuid()) @map("id")
   messageId  String   @map("message_id")
   employeeId String   @map("employee_id")
@@ -3566,10 +4037,13 @@ model ChatMessageReaction {
 
   @@unique([messageId, employeeId, emoji])
   @@index([messageId])
+  @@index([tenantId])
   @@map("chat_message_reactions")
 }
 
 model ChatAttachment {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String             @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id        String             @id @default(uuid()) @map("id")
   messageId String             @map("message_id")
   kind      ChatAttachmentKind @map("kind")
@@ -3594,6 +4068,7 @@ model ChatAttachment {
   message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
+  @@index([tenantId])
   @@map("chat_attachments")
 }
 
@@ -3601,7 +4076,9 @@ model ChatAttachment {
 /// set - the pair of nullable links is what lets both surfaces share one table,
 /// one API and one renderer instead of growing a parallel copy each.
 model MessagePoll {
-  id String @id @default(uuid()) @map("id")
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id       String @id @default(uuid()) @map("id")
 
   chatMessageId  String? @unique @map("chat_message_id")
   projectReplyId String? @unique @map("project_reply_id")
@@ -3616,10 +4093,13 @@ model MessagePoll {
   projectReply ProjectMessageReply? @relation(fields: [projectReplyId], references: [id], onDelete: Cascade)
   options      MessagePollOption[]
 
+  @@index([tenantId])
   @@map("message_polls")
 }
 
 model MessagePollOption {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id       String @id @default(uuid()) @map("id")
   pollId   String @map("poll_id")
   label    String @map("label")
@@ -3630,12 +4110,15 @@ model MessagePollOption {
   votes MessagePollVote[]
 
   @@index([pollId])
+  @@index([tenantId])
   @@map("message_poll_options")
 }
 
 /// One row per person per option. A table rather than a counter, because a
 /// counter cannot answer "did I already vote?" and cannot be un-voted safely.
 model MessagePollVote {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id       String   @id @default(uuid()) @map("id")
   optionId String   @map("option_id")
   voterId  String   @map("voter_id")
@@ -3647,12 +4130,15 @@ model MessagePollVote {
   /// The database, not the handler, is what makes double voting impossible.
   @@unique([optionId, voterId])
   @@index([voterId])
+  @@index([tenantId])
   @@map("message_poll_votes")
 }
 
 /// Something happening at a time, shared into a conversation.
 model MessageEvent {
-  id String @id @default(uuid()) @map("id")
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id       String @id @default(uuid()) @map("id")
 
   chatMessageId  String? @unique @map("chat_message_id")
   projectReplyId String? @unique @map("project_reply_id")
@@ -3668,6 +4154,7 @@ model MessageEvent {
   chatMessage  ChatMessage?         @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
   projectReply ProjectMessageReply? @relation(fields: [projectReplyId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@map("message_events")
 }
 
@@ -3677,7 +4164,9 @@ model MessageEvent {
 /// message about who someone was at the time, and it should not silently rewrite
 /// itself - or blank out - when that person changes role or leaves.
 model MessageContact {
-  id String @id @default(uuid()) @map("id")
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id       String @id @default(uuid()) @map("id")
 
   chatMessageId  String? @unique @map("chat_message_id")
   projectReplyId String? @unique @map("project_reply_id")
@@ -3696,5 +4185,6 @@ model MessageContact {
   projectReply ProjectMessageReply? @relation(fields: [projectReplyId], references: [id], onDelete: Cascade)
   employee     Employee?            @relation("SharedContact", fields: [employeeId], references: [id], onDelete: SetNull)
 
+  @@index([tenantId])
   @@map("message_contacts")
 }

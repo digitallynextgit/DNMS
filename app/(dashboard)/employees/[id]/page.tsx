@@ -15,7 +15,7 @@ import {
   Upload,
   Pencil,
 } from "lucide-react"
-import Link from "next/link"
+import { Link } from "@/components/tenant-link"
 import { EmployeeLeaveTab } from "@/features/employees"
 import { EmployeeSalaryTab } from "@/features/employees"
 import { EmployeeTaskAccess } from "@/features/employees"

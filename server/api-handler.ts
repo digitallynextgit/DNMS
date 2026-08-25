@@ -15,13 +15,31 @@ import { NextRequest, NextResponse } from "next/server"
 import { ZodError } from "zod"
 import type { Session } from "next-auth"
 import { auth } from "@/server/auth"
+import { enterTenant } from "@/server/tenant-context"
 import { isAdmin_ } from "@/lib/permissions"
 import { AppError, UnauthorizedError, ForbiddenError } from "@/lib/errors"
 import { fail, ok } from "@/lib/api-response"
 import type { ActionResult } from "@/server/action-result"
 
+/**
+ * The session, AND the point where the tenant context is established (M4).
+ *
+ * Every API route wrapper below calls this, and so does `requireSession()` in
+ * server/action-guard.ts, which every server action goes through - so one line
+ * here covers both families. `enterTenant` rather than `runWithTenant` because
+ * this function returns a session and the caller carries on; there is no
+ * continuation to wrap.
+ *
+ * From this point on `db` only sees the caller's own company. Server components
+ * do not come through here - they use `tenantScopedSession()` in
+ * server/tenant-request.ts, which does the same thing.
+ */
 export async function getSession(): Promise<Session | null> {
-  return auth() as Promise<Session | null>
+  const session = (await auth()) as Session | null
+  if (session?.user?.tenantId && session.user.tenantSlug) {
+    enterTenant({ tenantId: session.user.tenantId, slug: session.user.tenantSlug })
+  }
+  return session
 }
 
 /**
@@ -137,6 +155,11 @@ async function normalize(res: Response): Promise<Response> {
 
 type AuthedHandler = (
   req: NextRequest,
+  // Next's per-route `params` shape varies by route, so it is genuinely unknown
+  // here - same reason as PlainHandler below, which already carried this
+  // comment. The disable sits on this line because AuthedHandler spans several
+  // and `eslint-disable-next-line` only reaches the one after it.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   context: { params: any },
   session: Session,
 ) => Promise<Response> | Response

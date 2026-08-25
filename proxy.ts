@@ -23,7 +23,52 @@
  */
 import { auth } from "@/server/auth"
 import { NextResponse } from "next/server"
+import { isTenantScoped, splitTenant, withTenant } from "@/lib/tenant-url"
 import type { NextRequest } from "next/server"
+
+// ---------------------------------------------------------------------------
+// The tenant URL space (M3).
+//
+// Pages live under /{tenant}/..., APIs stay at /api/... and carry their tenant
+// in the token. This file is the ONLY place a slug in a URL turns into a fact:
+// everything downstream reads `x-tenant-slug`, which is set here and only here,
+// after the slug has been checked against the session.
+//
+// Three cases, in the order they are handled below:
+//
+//   /digitallynext/projects   slug matches the session  → rewrite to /projects
+//                             slug is somebody else's   → /select-workspace
+//                             not signed in             → /login?callbackUrl=…
+//
+//   /projects                 signed in                 → redirect to the
+//                             (a legacy or missed link)   canonical prefixed URL
+//
+//   /login, /api/..., /       never touched.
+//
+// The legacy redirect is what makes the migration safe: an old bookmark, an
+// email link, or an internal <Link> that has not been converted yet still lands
+// in the right place, just one hop later.
+//
+// EDGE RUNTIME. No database here - the check is a string comparison against
+// `tenantSlug`, which M2 put in the token for exactly this reason.
+// ---------------------------------------------------------------------------
+
+/** Set by this file after verification. Never trusted from the client. */
+const TENANT_HEADER = "x-tenant-slug"
+
+/**
+ * The tenant's ID, alongside its slug.
+ *
+ * The slug is for building URLs; this is what the data layer scopes on. Server
+ * COMPONENTS render outside every route wrapper - and, as it turns out, outside
+ * their own layout's async context too - so the tenant guard reads this header
+ * when it finds no ambient context. Sending the id rather than making the guard
+ * resolve the slug means it never has to trust a name it did not verify itself.
+ */
+const TENANT_ID_HEADER = "x-tenant-id"
+
+/** Marks a request this file already rewrote, so the second pass does not undo it. */
+const REWRITE_MARKER = "x-tenant-rewritten"
 
 // Paths that are accessible without a session. The /api/cron and /api/public
 // endpoints do their own token-based auth, so the session guard must let them
@@ -37,6 +82,10 @@ const PUBLIC_PREFIXES = [
   // External client portal sign-in. Its own page so a client never lands on the
   // staff login (and never sees the Google button, which is employees-only).
   "/client-login",
+  // Self-service signup (M5). Public by definition - the person creating a
+  // company does not have an account yet, so the session guard would bounce
+  // them to /login and there would be no way to become a customer.
+  "/signup",
   "/forgot-password",
   // The forgot-password flow is used while signed OUT, so its three endpoints
   // must bypass the session guard. Each is self-protected: `forgot` only emails
@@ -57,6 +106,12 @@ const PUBLIC_PREFIXES = [
   "/_next",
   "/favicon.ico",
   "/public",
+  // Crawler files. Served by app/robots.ts and app/sitemap.ts at the root, and
+  // NOT covered by PUBLIC_FILE below - .txt and .xml are deliberately absent
+  // from that list, so without these two entries a signed-out crawler was being
+  // 307'd to /login and the site had, in effect, no robots.txt and no sitemap.
+  "/robots.txt",
+  "/sitemap.xml",
 ]
 
 // Static assets in /public are served at the root (e.g. /logo_dark_bg.webp), so
@@ -188,11 +243,75 @@ function isAuthorized(
 }
 
 export default auth((req: NextRequest & { auth: unknown }) => {
-  const { pathname } = req.nextUrl
+  // The URL as typed, before the tenant prefix is stripped. Used for redirects
+  // and callbackUrls so the user comes back to the address they asked for.
+  const requestedPath = req.nextUrl.pathname
 
-  // Always allow public paths through.
-  if (isPublic(pathname)) {
-    return NextResponse.next()
+  // Split off a claimed tenant slug. Nothing is believed yet - `claimedSlug` is
+  // whatever the URL says, and is checked against the session further down.
+  const { slug: claimedSlug, rest } = splitTenant(requestedPath)
+
+  // Next.js runs this file again on the path it was rewritten TO. Without a way
+  // to tell that apart from a genuine un-prefixed request, the canonical
+  // redirect below would bounce /dashboard back to /{tenant}/dashboard, which
+  // rewrites to /dashboard, which bounces... The marker is set on the rewritten
+  // request so the second pass knows to leave the path alone.
+  const alreadyRewritten = req.headers.get(REWRITE_MARKER) === "1"
+  // Every guard below reasons about the app path, not the prefixed one, so the
+  // existing rules keep working unchanged.
+  const pathname = claimedSlug ? rest : requestedPath
+
+  /**
+   * Build an absolute URL on the origin the request ACTUALLY arrived on.
+   *
+   * Not `req.nextUrl.clone()`, and not `new URL(path, req.url)`. Auth.js rebuilds
+   * the request from `NEXTAUTH_URL`, so inside this file both of those carry
+   * that value rather than the real host. For a redirect that is merely wrong;
+   * for a REWRITE it is fatal - Next compares the destination's origin with the
+   * request's, sees a different one, and proxies the request out to that other
+   * host instead of serving the route internally. The symptom is a 404 on every
+   * /{tenant}/… page, or worse, a silent round trip through the public URL.
+   *
+   * The Host header is what the client actually asked for and is the one thing
+   * Auth.js does not touch. x-forwarded-* is preferred so this stays correct
+   * behind nginx on the VPS.
+   */
+  const onThisOrigin = (path: string, search = ""): URL => {
+    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host")
+    if (!host) {
+      const fallback = req.nextUrl.clone()
+      fallback.pathname = path
+      fallback.search = search
+      return fallback
+    }
+    const proto =
+      req.headers.get("x-forwarded-proto") ?? (req.nextUrl.protocol === "https:" ? "https" : "http")
+    return new URL(`${path}${search}`, `${proto}://${host}`)
+  }
+
+  // `x-tenant-slug` is an INBOUND header a client can forge. Drop it here, on
+  // every single request including the public ones, and re-add it only from the
+  // session further down. Anything downstream that reads it is then reading
+  // something this file wrote.
+  const headers = new Headers(req.headers)
+  headers.delete(TENANT_HEADER)
+  headers.delete(TENANT_ID_HEADER)
+  headers.delete(REWRITE_MARKER)
+  const passThrough = () => NextResponse.next({ request: { headers } })
+
+  // Un-prefixed public paths: the marketing page, sign-in, static assets, the
+  // self-authenticating API families. Unchanged behaviour.
+  if (!claimedSlug && isPublic(requestedPath)) {
+    return passThrough()
+  }
+
+  // A prefix in front of something global - /{tenant}/login, /{tenant}/logo.webp.
+  // Nothing generates these, but a hand-typed one should land somewhere sensible
+  // instead of 404ing, and a global route must never be served from two
+  // addresses. Bare /{tenant} is excluded: that is the tenant's front door, and
+  // it needs the session below to know where to send them.
+  if (claimedSlug && pathname !== "/" && isPublic(pathname)) {
+    return NextResponse.redirect(onThisOrigin(pathname, req.nextUrl.search))
   }
 
   // For protected paths, check the session embedded by the auth() wrapper.
@@ -204,6 +323,8 @@ export default auth((req: NextRequest & { auth: unknown }) => {
           mustChangePassword?: boolean
           roles?: string[]
           permissions?: string[]
+          tenantSlug?: string
+          tenantId?: string
         }
       } | null
     }
@@ -220,21 +341,61 @@ export default auth((req: NextRequest & { auth: unknown }) => {
     // A signed-out visitor to the portal belongs on the CLIENT login page, not
     // the staff one.
     if (isPortalPath) {
-      const clientLogin = new URL("/client-login", req.url)
-      clientLogin.search = `callbackUrl=${req.nextUrl.pathname}`
-      return NextResponse.redirect(clientLogin)
+      return NextResponse.redirect(onThisOrigin("/client-login", `?callbackUrl=${requestedPath}`))
     }
 
     // Page routes: redirect to the login page, preserving the original URL as
     // a `callbackUrl` query parameter so the user is sent back after login.
-    const loginUrl = new URL("/login", req.url)
+    const loginUrl = onThisOrigin("/login")
     // Assign `.search` directly so the callback stays human-readable
     // (?callbackUrl=/dashboard) instead of percent-encoding the slash the way
-    // searchParams.set would (?callbackUrl=%2Fdashboard). pathname is already a
-    // safe, server-derived relative path, so it needs no extra encoding.
-    loginUrl.search = `callbackUrl=${req.nextUrl.pathname}`
+    // searchParams.set would (?callbackUrl=%2Fdashboard). requestedPath is
+    // already a safe, server-derived relative path, so it needs no extra
+    // encoding - and it keeps the tenant prefix, so they land where they meant to.
+    loginUrl.search = `callbackUrl=${requestedPath}`
     return NextResponse.redirect(loginUrl)
   }
+
+  // -------------------------------------------------------------------------
+  // Tenant resolution. Everything above this point ran on the stripped path;
+  // here is where the prefix itself is judged.
+  // -------------------------------------------------------------------------
+  const sessionSlug = session.user.tenantSlug
+
+  if (claimedSlug) {
+    // A slug that is not the one the session is signed in to. Never serve it:
+    // send them to the workspace switcher, which runs on Node, can look up what
+    // they actually belong to, and can switch the active membership.
+    if (!sessionSlug || claimedSlug !== sessionSlug) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+      return NextResponse.redirect(onThisOrigin("/select-workspace", `?next=${requestedPath}`))
+    }
+    // Bare /{tenant} is the tenant's front door.
+    if (pathname === "/") {
+      return NextResponse.redirect(onThisOrigin(`/${claimedSlug}/dashboard`))
+    }
+  } else if (
+    sessionSlug &&
+    !alreadyRewritten &&
+    isTenantScoped(pathname) &&
+    !pathname.startsWith("/api/")
+  ) {
+    // An un-prefixed app path from a signed-in user: a bookmark, an emailed
+    // link, or an internal link not yet converted. Send them to the canonical
+    // URL rather than serving a second address for the same page.
+    return NextResponse.redirect(
+      onThisOrigin(withTenant(pathname, sessionSlug), req.nextUrl.search),
+    )
+  }
+
+  /**
+   * Build an in-app redirect target that keeps the caller inside their tenant.
+   * Every redirect below goes through this, so bouncing someone never silently
+   * drops them out of the prefixed URL space.
+   */
+  const appUrl = (path: string) => withTenant(path, sessionSlug)
 
   // -------------------------------------------------------------------------
   // Population split. A client session and a staff session must never reach one
@@ -262,7 +423,7 @@ export default auth((req: NextRequest & { auth: unknown }) => {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
     // /change-password is staff-only; the portal has its own flow.
-    return NextResponse.redirect(new URL("/portal", req.url))
+    return NextResponse.redirect(onThisOrigin(appUrl("/portal")))
   }
 
   if (!isClient && (isPortalPath || isPortalApi)) {
@@ -271,7 +432,7 @@ export default auth((req: NextRequest & { auth: unknown }) => {
     }
     // Staff manage client access from a project's Clients tab, not by browsing
     // the portal with a session that holds no grant.
-    return NextResponse.redirect(new URL("/projects", req.url))
+    return NextResponse.redirect(onThisOrigin(appUrl("/projects")))
   }
 
   // Force-password-change gate: a flagged user is funneled to /change-password
@@ -292,7 +453,7 @@ export default auth((req: NextRequest & { auth: unknown }) => {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json({ error: "Password change required" }, { status: 403 })
       }
-      return NextResponse.redirect(new URL(changePath, req.url))
+      return NextResponse.redirect(onThisOrigin(appUrl(changePath)))
     }
   }
 
@@ -303,11 +464,31 @@ export default auth((req: NextRequest & { auth: unknown }) => {
   if (!pathname.startsWith("/api/")) {
     const perm = requiredPermFor(pathname)
     if (!isAuthorized(perm, session.user.roles ?? [], session.user.permissions ?? [])) {
-      return NextResponse.redirect(new URL("/dashboard", req.url))
+      return NextResponse.redirect(onThisOrigin(appUrl("/dashboard")))
     }
   }
 
-  return NextResponse.next()
+  // -------------------------------------------------------------------------
+  // Hand the request on, carrying the VERIFIED tenant.
+  //
+  // The slug comes from the SESSION, never from the URL - by this point the two
+  // have been proven equal, but taking it from the session is what makes that
+  // true by construction rather than by reading the code above.
+  //
+  // When the URL carried a prefix the request is also REWRITTEN to the app path,
+  // so `app/(dashboard)/projects/page.tsx` serves /{tenant}/projects with no
+  // change to the route tree. The browser keeps showing the prefixed URL.
+  // -------------------------------------------------------------------------
+  if (sessionSlug) headers.set(TENANT_HEADER, sessionSlug)
+  if (session.user.tenantId) headers.set(TENANT_ID_HEADER, session.user.tenantId)
+
+  if (claimedSlug) {
+    headers.set(REWRITE_MARKER, "1")
+    return NextResponse.rewrite(onThisOrigin(pathname, req.nextUrl.search), {
+      request: { headers },
+    })
+  }
+  return passThrough()
 })
 
 export const config = {

@@ -19,6 +19,7 @@ import "dotenv/config"
 // (PrismaPg) that server/db.ts sets up - a bare `new PrismaClient()` throws.
 import { db as prisma } from "@/server/db"
 import { PERMISSION_DEFINITIONS } from "@/lib/constants"
+import { forEachTenant } from "@/server/tenant-jobs"
 
 /** Extra scopes a named role should hold (beyond what it already has). */
 const ROLE_GRANTS: Record<string, string[]> = {
@@ -45,45 +46,54 @@ async function main() {
   const allPerms = await prisma.permission.findMany({ select: { id: true, scope: true } })
   console.log(`Catalogue synced: ${allPerms.length} permissions present.`)
 
-  // 2. admin = ALL. Link any permission it is missing.
-  const admin = await prisma.role.findUnique({ where: { name: "admin" }, select: { id: true } })
-  if (admin) {
-    let linked = 0
-    for (const p of allPerms) {
-      const res = await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: admin.id, permissionId: p.id } },
-        update: {},
-        create: { roleId: admin.id, permissionId: p.id },
-      })
-      if (res) linked++
-    }
-    console.log(`admin: ensured ${linked} permission links.`)
-  }
+  // Steps 2 and 3 run ONCE PER TENANT. Permissions are platform-level, but roles
+  // and role_permissions belong to a company, so a catalogue change has to reach
+  // every company's copy of them - not just whichever one happened to be first.
+  const summary = await forEachTenant("sync-permissions", async (tenant) => {
+    console.log(`\n-- ${tenant.slug} --`)
 
-  // 3. Targeted role grants (idempotent).
-  const byScope = new Map(allPerms.map((p) => [p.scope, p.id]))
-  for (const [roleName, scopes] of Object.entries(ROLE_GRANTS)) {
-    const role = await prisma.role.findUnique({ where: { name: roleName }, select: { id: true } })
-    if (!role) {
-      console.warn(`  (role "${roleName}" not found - skipped)`)
-      continue
+    // 2. admin = ALL. Link any permission it is missing.
+    const admin = await prisma.role.findFirst({ where: { name: "admin" }, select: { id: true } })
+    if (admin) {
+      let linked = 0
+      for (const p of allPerms) {
+        const res = await prisma.rolePermission.upsert({
+          where: { roleId_permissionId: { roleId: admin.id, permissionId: p.id } },
+          update: {},
+          create: { roleId: admin.id, permissionId: p.id },
+        })
+        if (res) linked++
+      }
+      console.log(`admin: ensured ${linked} permission links.`)
     }
-    for (const scope of scopes) {
-      const pid = byScope.get(scope)
-      if (!pid) {
-        console.warn(`  (scope "${scope}" not in catalogue - skipped)`)
+
+    // 3. Targeted role grants (idempotent).
+    const byScope = new Map(allPerms.map((p) => [p.scope, p.id]))
+    for (const [roleName, scopes] of Object.entries(ROLE_GRANTS)) {
+      const role = await prisma.role.findFirst({ where: { name: roleName }, select: { id: true } })
+      if (!role) {
+        console.warn(`  (role "${roleName}" not found - skipped)`)
         continue
       }
-      await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: role.id, permissionId: pid } },
-        update: {},
-        create: { roleId: role.id, permissionId: pid },
-      })
-      console.log(`  ${roleName} += ${scope}`)
+      for (const scope of scopes) {
+        const pid = byScope.get(scope)
+        if (!pid) {
+          console.warn(`  (scope "${scope}" not in catalogue - skipped)`)
+          continue
+        }
+        await prisma.rolePermission.upsert({
+          where: { roleId_permissionId: { roleId: role.id, permissionId: pid } },
+          update: {},
+          create: { roleId: role.id, permissionId: pid },
+        })
+        console.log(`  ${roleName} += ${scope}`)
+      }
     }
-  }
+  })
 
-  console.log("Done. No rows were deleted.")
+  console.log(
+    `\nDone across ${summary.succeeded}/${summary.tenants} tenant(s). No rows were deleted.`,
+  )
 }
 
 main()

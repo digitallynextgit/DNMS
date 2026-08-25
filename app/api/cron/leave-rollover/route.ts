@@ -1,24 +1,12 @@
-import { NextRequest, NextResponse } from "next/server"
-import { assertCron } from "@/server/cron-auth"
+import { NextRequest } from "next/server"
+import { withCron } from "@/server/cron-auth"
 import { rolloverYear } from "@/features/leave/server/leave-accrual.service"
 
-// Annual leave rollover. Seeds the new year's balances from the policy matrix
-// (employment-type entitlements) and carries forward leftover days, capped per
-// leave type (maxCarryDays). Everything else lapses. Schedule on Jan 1:
-//   GET /api/cron/leave-rollover  with header  Authorization: Bearer <CRON_SECRET>
-// ?year=YYYY optional (the year to roll INTO; defaults to the current year).
+// Year-end leave rollover. Runs once per tenant (M4).
 export const dynamic = "force-dynamic"
 
-export async function GET(req: NextRequest) {
-  const denied = assertCron(req)
-  if (denied) return denied
-  try {
-    const yearParam = new URL(req.url).searchParams.get("year")
-    const toYear = yearParam ? Number(yearParam) : new Date().getFullYear()
-    const result = await rolloverYear(toYear)
-    return NextResponse.json({ success: true, year: toYear, ...result })
-  } catch (error) {
-    console.error("[LEAVE_ROLLOVER_CRON]", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
-}
+export const GET = withCron("leave-rollover", async (req: NextRequest) => {
+  const yearParam = req.nextUrl.searchParams.get("year")
+  const toYear = yearParam ? Number(yearParam) : new Date().getFullYear()
+  return { year: toYear, ...(await rolloverYear(toYear)) }
+})

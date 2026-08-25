@@ -9,6 +9,7 @@ import "server-only"
 import bcrypt from "bcryptjs"
 import { randomUUID, randomInt } from "crypto"
 import { db } from "@/server/db"
+import { normalizeEmail, setPassword, userIdForEmployee } from "@/server/identity"
 import { sendEmail } from "@/lib/mailer"
 import { renderPasswordResetOtpEmail } from "@/features/auth/emails/password-reset-otp"
 import {
@@ -34,15 +35,21 @@ export async function requestPasswordOtp(email: string): Promise<ActionResult<{ 
     const parsed = forgotPasswordSchema.safeParse({ email })
     if (!parsed.success) return fail("Please enter a valid email address.")
 
-    const normalized = parsed.data.email.toLowerCase().trim()
+    const normalized = normalizeEmail(parsed.data.email)
     const employee = await db.employee.findUnique({ where: { email: normalized } })
 
     if (!employee || !employee.isActive) {
       return fail("No active employee account was found for this email.")
     }
 
-    // One live code per employee - drop any previous ones first.
-    await db.passwordReset.deleteMany({ where: { employeeId: employee.id } })
+    // The reset now targets the platform identity (M2). `employeeId` is still
+    // written so the pre-M2 build deployed on the VPS can complete a reset it
+    // started; it comes off with the column in M4.
+    const userId = await userIdForEmployee(employee.id)
+    if (!userId) return fail("No active employee account was found for this email.")
+
+    // One live code per person - drop any previous ones first.
+    await db.passwordReset.deleteMany({ where: { userId } })
 
     const otp = String(randomInt(0, 1_000_000)).padStart(6, "0")
     const otpHash = await bcrypt.hash(otp, 10)
@@ -50,7 +57,7 @@ export async function requestPasswordOtp(email: string): Promise<ActionResult<{ 
     const expiresAt = new Date(Date.now() + OTP_TTL_MS)
 
     await db.passwordReset.create({
-      data: { employeeId: employee.id, token, otpHash, expiresAt },
+      data: { userId, employeeId: employee.id, token, otpHash, expiresAt },
     })
 
     const { subject, html, text } = renderPasswordResetOtpEmail({
@@ -74,12 +81,15 @@ export async function verifyPasswordOtp(
     const parsed = verifyOtpSchema.safeParse({ email, otp })
     if (!parsed.success) return fail("Enter the 6-digit code.")
 
-    const normalized = parsed.data.email.toLowerCase().trim()
+    const normalized = normalizeEmail(parsed.data.email)
     const employee = await db.employee.findUnique({ where: { email: normalized } })
     if (!employee || !employee.isActive) return fail(INVALID_CODE)
 
+    const userId = await userIdForEmployee(employee.id)
+    if (!userId) return fail(INVALID_CODE)
+
     const reset = await db.passwordReset.findFirst({
-      where: { employeeId: employee.id, usedAt: null },
+      where: { userId, usedAt: null },
       orderBy: { createdAt: "desc" },
     })
 
@@ -134,15 +144,11 @@ export async function resetPasswordWithToken(
       return fail("Invalid or expired reset session. Please start over.")
     }
 
-    const hashed = await bcrypt.hash(parsed.data.password, 12)
-    await db.$transaction([
-      db.employee.update({
-        where: { id: reset.employeeId },
-        // Clearing the OTP-reset path also satisfies any "must change" requirement.
-        data: { passwordHash: hashed, mustChangePassword: false },
-      }),
-      db.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
-    ])
+    // setPassword writes the platform credential AND the legacy profile column,
+    // so a rollback to the pre-M2 build still honours the new password.
+    // Completing the OTP flow also satisfies any "must change" requirement.
+    await setPassword({ userId: reset.userId }, parsed.data.password)
+    await db.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } })
 
     return ok({ reset: true as const })
   })
@@ -158,11 +164,9 @@ export async function setOwnPassword(newPassword: string): Promise<ActionResult<
     if (typeof newPassword !== "string" || newPassword.length < 8) {
       return fail("Password must be at least 8 characters")
     }
-    const hashed = await bcrypt.hash(newPassword, 12)
-    await db.employee.update({
-      where: { id: session.user.id },
-      data: { passwordHash: hashed, mustChangePassword: false },
-    })
+    // session.user.id is the EMPLOYEE id (unchanged by M2); setPassword resolves
+    // the platform identity from it and writes both.
+    await setPassword({ employeeId: session.user.id }, newPassword)
     return ok({ ok: true as const })
   })
 }
