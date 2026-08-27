@@ -916,29 +916,47 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <FormField label="First Name" required error={errors.firstName?.message}>
-              <Input {...register("firstName")} placeholder="Diwakar" />
+              <Input {...register("firstName")} placeholder="Diwakar" aria-label="Diwakar" />
             </FormField>
 
             <FormField label="Last Name" required error={errors.lastName?.message}>
-              <Input {...register("lastName")} placeholder="Doe" />
+              <Input {...register("lastName")} placeholder="Doe" aria-label="Doe" />
             </FormField>
 
             <FormField label="Work Email" required error={errors.email?.message}>
-              <Input {...register("email")} type="email" placeholder="Diwakar.doe@company.com" />
+              <Input
+                {...register("email")}
+                type="email"
+                placeholder="Diwakar.doe@company.com"
+                aria-label="Diwakar.doe@company.com"
+              />
               {!errors.email && <EmailStatusHint status={emailStatus} />}
             </FormField>
 
             <FormField label="Personal Email" required error={errors.personalEmail?.message}>
-              <Input {...register("personalEmail")} type="email" placeholder="Diwakar@gmail.com" />
+              <Input
+                {...register("personalEmail")}
+                type="email"
+                placeholder="Diwakar@gmail.com"
+                aria-label="Diwakar@gmail.com"
+              />
               {!errors.personalEmail && <EmailStatusHint status={personalEmailStatus} />}
             </FormField>
 
             <FormField label="Work Phone" required error={errors.phone?.message}>
-              <Input {...register("phone")} placeholder="+91 98765 43210" />
+              <Input
+                {...register("phone")}
+                placeholder="+91 98765 43210"
+                aria-label="+91 98765 43210"
+              />
             </FormField>
 
             <FormField label="Personal Phone" required error={errors.personalPhone?.message}>
-              <Input {...register("personalPhone")} placeholder="+91 98765 43210" />
+              <Input
+                {...register("personalPhone")}
+                placeholder="+91 98765 43210"
+                aria-label="+91 98765 43210"
+              />
             </FormField>
 
             <FormField label="Date of Birth" required error={errors.dateOfBirth?.message}>
@@ -1075,6 +1093,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                 <Input
                   {...register("employeeNo")}
                   placeholder="e.g. 132"
+                  aria-label="e.g. 132"
                   autoComplete="off"
                   className="flex-1"
                 />
@@ -1254,6 +1273,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               <Input
                 {...register("deviceId")}
                 placeholder="Hikvision Employee ID (for attendance import)"
+                aria-label="Hikvision Employee ID (for attendance import)"
                 autoComplete="off"
               />
             </FormField>
@@ -1269,6 +1289,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                         {...register("password")}
                         type={showPassword ? "text" : "password"}
                         placeholder="At least 8 characters"
+                        aria-label="At least 8 characters"
                         autoComplete="off"
                         className="pr-10 font-mono"
                       />
@@ -1357,6 +1378,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     {...register("gmailAppPassword")}
                     type="password"
                     placeholder="abcd efgh ijkl mnop"
+                    aria-label="abcd efgh ijkl mnop"
                     autoComplete="off"
                   />
                   <p className="text-muted-foreground mt-1 text-xs">
@@ -1509,6 +1531,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                             value={doc.title}
                             onChange={(e) => updatePendingDoc(doc.uid, { title: e.target.value })}
                             placeholder="e.g. PAN Card"
+                            aria-label="e.g. PAN Card"
                           />
                         </FormField>
                         <FormField label="Category">
@@ -1574,12 +1597,20 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                   required={mode === "create"}
                   error={errors.currentLine1?.message}
                 >
-                  <Input {...register("currentLine1")} placeholder="Street address, building" />
+                  <Input
+                    {...register("currentLine1")}
+                    placeholder="Street address, building"
+                    aria-label="Street address, building"
+                  />
                 </FormField>
               </div>
               <div className="sm:col-span-2">
                 <FormField label="Address Line 2">
-                  <Input {...register("currentLine2")} placeholder="Apartment, suite, unit" />
+                  <Input
+                    {...register("currentLine2")}
+                    placeholder="Apartment, suite, unit"
+                    aria-label="Apartment, suite, unit"
+                  />
                 </FormField>
               </div>
               <FormField
@@ -1587,21 +1618,25 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                 required={mode === "create"}
                 error={errors.currentCity?.message}
               >
-                <Input {...register("currentCity")} placeholder="Mumbai" />
+                <Input {...register("currentCity")} placeholder="Mumbai" aria-label="Mumbai" />
               </FormField>
               <FormField
                 label="State"
                 required={mode === "create"}
                 error={errors.currentState?.message}
               >
-                <Input {...register("currentState")} placeholder="Maharashtra" />
+                <Input
+                  {...register("currentState")}
+                  placeholder="Maharashtra"
+                  aria-label="Maharashtra"
+                />
               </FormField>
               <FormField
                 label="ZIP / Postal Code"
                 required={mode === "create"}
                 error={errors.currentZip?.message}
               >
-                <Input {...register("currentZip")} placeholder="400001" />
+                <Input {...register("currentZip")} placeholder="400001" aria-label="400001" />
               </FormField>
             </CardContent>
           </Card>
@@ -1627,12 +1662,20 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     required={mode === "create"}
                     error={errors.permanentLine1?.message}
                   >
-                    <Input {...register("permanentLine1")} placeholder="Street address, building" />
+                    <Input
+                      {...register("permanentLine1")}
+                      placeholder="Street address, building"
+                      aria-label="Street address, building"
+                    />
                   </FormField>
                 </div>
                 <div className="sm:col-span-2">
                   <FormField label="Address Line 2">
-                    <Input {...register("permanentLine2")} placeholder="Apartment, suite, unit" />
+                    <Input
+                      {...register("permanentLine2")}
+                      placeholder="Apartment, suite, unit"
+                      aria-label="Apartment, suite, unit"
+                    />
                   </FormField>
                 </div>
                 <FormField
@@ -1640,21 +1683,25 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                   required={mode === "create"}
                   error={errors.permanentCity?.message}
                 >
-                  <Input {...register("permanentCity")} placeholder="Pune" />
+                  <Input {...register("permanentCity")} placeholder="Pune" aria-label="Pune" />
                 </FormField>
                 <FormField
                   label="State"
                   required={mode === "create"}
                   error={errors.permanentState?.message}
                 >
-                  <Input {...register("permanentState")} placeholder="Maharashtra" />
+                  <Input
+                    {...register("permanentState")}
+                    placeholder="Maharashtra"
+                    aria-label="Maharashtra"
+                  />
                 </FormField>
                 <FormField
                   label="ZIP / Postal Code"
                   required={mode === "create"}
                   error={errors.permanentZip?.message}
                 >
-                  <Input {...register("permanentZip")} placeholder="411001" />
+                  <Input {...register("permanentZip")} placeholder="411001" aria-label="411001" />
                 </FormField>
               </CardContent>
             )}
@@ -1666,13 +1713,25 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <FormField label="Contact Name">
-                <Input {...register("emergencyName")} placeholder="Jane Doe" />
+                <Input
+                  {...register("emergencyName")}
+                  placeholder="Jane Doe"
+                  aria-label="Jane Doe"
+                />
               </FormField>
               <FormField label="Relation">
-                <Input {...register("emergencyRelation")} placeholder="Spouse, Parent, etc." />
+                <Input
+                  {...register("emergencyRelation")}
+                  placeholder="Spouse, Parent, etc."
+                  aria-label="Spouse, Parent, etc"
+                />
               </FormField>
               <FormField label="Phone Number">
-                <Input {...register("emergencyPhone")} placeholder="+91 98765 43210" />
+                <Input
+                  {...register("emergencyPhone")}
+                  placeholder="+91 98765 43210"
+                  aria-label="+91 98765 43210"
+                />
               </FormField>
             </CardContent>
           </Card>

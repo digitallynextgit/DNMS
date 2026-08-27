@@ -232,6 +232,7 @@ export function ChatView() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search chats and messages"
+                aria-label="Search chats and messages"
                 className="h-9 rounded-sm pl-8 text-sm"
               />
             </div>
@@ -797,6 +798,7 @@ function Thread({
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
             placeholder="Search in this conversation"
+            aria-label="Search in this conversation"
             autoFocus
             className="h-9 text-sm"
           />
@@ -1334,6 +1336,7 @@ function ContactPicker({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search colleagues"
+            aria-label="Search colleagues"
             className="h-9 pl-8 text-sm"
           />
         </div>

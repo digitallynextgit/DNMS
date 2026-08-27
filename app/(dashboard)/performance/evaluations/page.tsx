@@ -176,6 +176,7 @@ function NewEvaluationDialog() {
             <Label>Period label *</Label>
             <Input
               placeholder="e.g. May end '26"
+              aria-label="e.g. May end '26"
               value={periodLabel}
               onChange={(e) => setPeriodLabel(e.target.value)}
             />
@@ -306,6 +307,7 @@ export default function EvaluationsPage() {
               value={q}
               onChange={(e) => onFilter(setQ)(e.target.value)}
               placeholder="Search employee…"
+              aria-label="Search employee"
               className="pl-8"
             />
           </div>

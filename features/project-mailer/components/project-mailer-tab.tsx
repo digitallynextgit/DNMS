@@ -490,6 +490,7 @@ function AccountsSection({
               value={testTo}
               onChange={(e) => setTestTo(e.target.value)}
               placeholder="you@digitallynext.com"
+              aria-label="you@digitallynext.com"
               className="h-9 text-sm"
             />
           </FormRow>
@@ -619,6 +620,7 @@ function AccountDialog({
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
               placeholder="Newsletter"
+              aria-label="Newsletter"
               className="h-9 text-sm"
             />
           </FormRow>
@@ -629,6 +631,7 @@ function AccountDialog({
                 value={form.fromName}
                 onChange={(e) => set("fromName", e.target.value)}
                 placeholder="Acme Marketing"
+                aria-label="Acme Marketing"
                 className="h-9 text-sm"
               />
             </FormRow>
@@ -638,6 +641,7 @@ function AccountDialog({
                 value={form.fromEmail}
                 onChange={(e) => set("fromEmail", e.target.value)}
                 placeholder="hello@acme.com"
+                aria-label="hello@acme.com"
                 className="h-9 text-sm"
               />
             </FormRow>
@@ -658,6 +662,7 @@ function AccountDialog({
                 value={form.host}
                 onChange={(e) => set("host", e.target.value)}
                 placeholder="smtp.gmail.com"
+                aria-label="smtp.gmail.com"
                 className="h-9 text-sm"
               />
             </FormRow>
@@ -933,6 +938,7 @@ function TemplateDialog({
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               placeholder="August newsletter"
+              aria-label="August newsletter"
               className="h-9 max-w-sm text-sm"
             />
           </FormRow>
@@ -1140,6 +1146,7 @@ function RecipientsSection({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name or email"
+          aria-label="Search name or email"
           className="h-9 max-w-xs text-sm"
         />
       )}
@@ -1350,6 +1357,7 @@ function ImportDialog({
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 placeholder="newsletter, vip"
+                aria-label="newsletter, vip"
                 className="h-9 text-sm"
               />
               {/* The tags this project already uses. Typing one by hand risks a

@@ -53,6 +53,7 @@ export function PayrollFilters({
       <Input
         type="number"
         placeholder="Year"
+        aria-label="Year"
         value={year}
         min={2020}
         max={2099}

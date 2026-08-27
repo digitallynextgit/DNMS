@@ -103,6 +103,19 @@ export const GLOBAL_SEGMENTS: ReadonlySet<string> = new Set([
   "manifest",
 ])
 
+/**
+ * Digitally Next - the founding tenant.
+ *
+ * Declared HERE, not in server/tenant-context.ts, because that file is
+ * server-only and client components need the same answer: the topbar has to
+ * decide whether to offer the platform console. tenant-context.ts re-exports
+ * these, so every existing `from "@/server/tenant-context"` import still works.
+ *
+ * Matches the DB default set in migration 20260825000000_tenant_spine.
+ */
+export const FOUNDING_TENANT_ID = "0197d1ab-0000-7000-8000-000000000001"
+export const FOUNDING_TENANT_SLUG = "digitallynext"
+
 /** 3-32 chars: lowercase letters, digits and hyphens, not starting or ending with one. */
 export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])$/
 

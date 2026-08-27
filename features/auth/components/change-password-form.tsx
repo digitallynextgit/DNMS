@@ -78,6 +78,7 @@ export function ChangePasswordForm() {
                   <Input
                     type={showPassword ? "text" : "password"}
                     placeholder="At least 8 characters"
+                    aria-label="At least 8 characters"
                     autoComplete="new-password"
                     disabled={isSubmitting}
                     className="h-11 pr-10"
@@ -109,6 +110,7 @@ export function ChangePasswordForm() {
                 <Input
                   type={showPassword ? "text" : "password"}
                   placeholder="Re-enter your new password"
+                  aria-label="Re-enter your new password"
                   autoComplete="new-password"
                   disabled={isSubmitting}
                   className="h-11"

@@ -107,6 +107,7 @@ export function ReferDialog({
               value={form.fullName}
               onChange={(e) => set("fullName", e.target.value)}
               placeholder="Priya Sharma"
+              aria-label="Priya Sharma"
             />
           </Field>
 
@@ -117,6 +118,7 @@ export function ReferDialog({
                 value={form.email}
                 onChange={(e) => set("email", e.target.value)}
                 placeholder="priya@example.com"
+                aria-label="priya@example.com"
               />
             </Field>
             <Field label="Phone" error={errors.phone}>
@@ -124,6 +126,7 @@ export function ReferDialog({
                 value={form.phone}
                 onChange={(e) => set("phone", e.target.value)}
                 placeholder="Optional"
+                aria-label="Optional"
               />
             </Field>
           </div>
@@ -144,6 +147,7 @@ export function ReferDialog({
               value={form.resumeUrl}
               onChange={(e) => set("resumeUrl", e.target.value)}
               placeholder="https://drive.google.com/..."
+              aria-label="https://drive.google.com/"
             />
           </Field>
 
@@ -152,6 +156,7 @@ export function ReferDialog({
               value={form.linkedIn}
               onChange={(e) => set("linkedIn", e.target.value)}
               placeholder="Optional"
+              aria-label="Optional"
             />
           </Field>
 
@@ -161,6 +166,7 @@ export function ReferDialog({
               value={form.note}
               onChange={(e) => set("note", e.target.value)}
               placeholder="Anything HR should know - how you know them, what they are good at."
+              aria-label="Anything HR should know - how you know them, what they are good at"
             />
           </Field>
         </div>

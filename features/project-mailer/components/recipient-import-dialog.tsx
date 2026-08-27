@@ -415,6 +415,7 @@ export function RecipientImportDialog({
                   // becomes a chip and what you see matches what is sent.
                   onBlur={() => addTag(newTag)}
                   placeholder="Type a tag"
+                  aria-label="Type a tag"
                   className="h-8 max-w-[200px] text-xs"
                 />
                 {unusedTags.slice(0, 8).map((t) => (

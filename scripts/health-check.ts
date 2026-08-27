@@ -16,7 +16,7 @@ import { readdirSync } from "node:fs"
 import { join } from "node:path"
 import { encode } from "next-auth/jwt"
 import { db } from "@/server/db"
-import { runUnscoped } from "@/server/tenant-context"
+import { FOUNDING_TENANT_ID, runUnscoped } from "@/server/tenant-context"
 import { loadActiveMemberships } from "@/server/identity"
 import { GLOBAL_SEGMENTS } from "@/lib/tenant-url"
 import { LEGAL_INDEX } from "@/features/marketing/legal.content"
@@ -213,8 +213,16 @@ async function main() {
   // bouncing to /dashboard and reporting a false green.
   const employee =
     (await db.employee.findFirst({
+      // PINNED TO THE FOUNDING TENANT, and that matters.
+      //
+      // An unscoped findFirst() for "an active admin" returned whichever row
+      // came first - and once a second company signed up, that was THEIR admin.
+      // Every check then ran against a one-employee workspace with no projects,
+      // no payroll and no attendance: pages returned 200 because they render
+      // fine when empty, so the sweep stayed green while testing almost nothing.
       where: {
         isActive: true,
+        tenantId: FOUNDING_TENANT_ID,
         employeeRoles: { some: { role: { name: "admin" } } },
       },
       select: {
@@ -226,7 +234,7 @@ async function main() {
       },
     })) ??
     (await db.employee.findFirst({
-      where: { isActive: true },
+      where: { isActive: true, tenantId: FOUNDING_TENANT_ID },
       select: {
         id: true,
         employeeNo: true,

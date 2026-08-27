@@ -258,6 +258,7 @@ function AccountDialog({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="Backblaze B2 · main"
+              aria-label="Backblaze B2 · main"
               className="h-9 text-sm"
             />
           </div>

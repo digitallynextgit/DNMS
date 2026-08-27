@@ -309,6 +309,7 @@ function ComposeDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Office closed on 15 August"
+              aria-label="Office closed on 15 August"
               className="h-9 text-sm"
             />
           </div>
@@ -322,6 +323,7 @@ function ComposeDialog({
               onChange={(e) => setBody(e.target.value)}
               rows={8}
               placeholder="Write the announcement…"
+              aria-label="Write the announcement"
               className="text-sm"
             />
           </div>

@@ -111,14 +111,14 @@ function SeoMock() {
         </div>
         <svg viewBox="0 0 120 56" className="h-16 w-full" preserveAspectRatio="none" aria-hidden>
           <defs>
-            <linearGradient id="seo-fill" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="bento-seo-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="currentColor" stopOpacity="0.35" />
               <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
             </linearGradient>
           </defs>
           <path
             d="M0 46 L20 40 L40 42 L60 28 L80 30 L100 16 L120 10 L120 56 L0 56 Z"
-            fill="url(#seo-fill)"
+            fill="url(#bento-seo-fill)"
             className="text-primary"
           />
           <path

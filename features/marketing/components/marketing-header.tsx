@@ -3,8 +3,7 @@
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { useSession } from "next-auth/react"
-import { useTheme } from "next-themes"
-import { Sun, Moon, Menu, X } from "lucide-react"
+import { Menu, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { siteConfig } from "@/config/site"
@@ -26,31 +25,9 @@ const NAV = [
 ]
 
 /** Dark/light only, wired to next-themes (the app's theme system). */
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
-  const isDark = resolvedTheme === "dark"
-  return (
-    <button
-      type="button"
-      aria-label="Toggle dark mode"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 flex h-9 w-9 items-center justify-center rounded-[6px] transition-colors"
-    >
-      {/* Render nothing theme-specific until mounted to avoid hydration mismatch. */}
-      {mounted ? (
-        isDark ? (
-          <Sun className="h-[1.05rem] w-[1.05rem]" />
-        ) : (
-          <Moon className="h-[1.05rem] w-[1.05rem]" />
-        )
-      ) : (
-        <span className="h-[1.05rem] w-[1.05rem]" />
-      )}
-    </button>
-  )
-}
+// NOTE: the theme toggle used to live here. The marketing site is dark-only
+// now - Providers pins forcedTheme="dark" for these routes - so a control that
+// appeared to do nothing has been removed rather than left to confuse people.
 
 /**
  * Scroll-aware header: transparent over the hero, then gains a blurred
@@ -133,7 +110,6 @@ export function MarketingHeader() {
 
         {/* Right: theme toggle + login (desktop) + hamburger (mobile) */}
         <div className="flex items-center gap-1.5 justify-self-end sm:gap-2">
-          <ThemeToggle />
           {authed ? (
             <Button asChild size="sm" className="hidden md:inline-flex">
               <Link href={appHref}>Dashboard</Link>

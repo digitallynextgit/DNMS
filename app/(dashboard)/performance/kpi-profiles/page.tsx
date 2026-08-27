@@ -211,6 +211,7 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
                           <Input
                             value={d.description}
                             placeholder="Description (optional)"
+                            aria-label="Description (optional)"
                             className="text-muted-foreground h-7 text-xs"
                             onChange={(e) => updateRow(idx, { description: e.target.value })}
                           />
@@ -340,6 +341,7 @@ function EmployeeList({ onSelect }: { onSelect: (row: PerfKpiProfileRow) => void
         <Search className="text-muted-foreground absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
         <Input
           placeholder="Search employee…"
+          aria-label="Search employee"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value)

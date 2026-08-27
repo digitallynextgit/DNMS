@@ -118,6 +118,7 @@ export function SignupForm() {
               <FormControl>
                 <Input
                   placeholder="Acme Media"
+                  aria-label="Acme Media"
                   autoComplete="organization"
                   disabled={isSubmitting}
                   className="h-11 rounded-[6px]"
@@ -218,6 +219,7 @@ export function SignupForm() {
                 <Input
                   type="email"
                   placeholder="you@yourcompany.com"
+                  aria-label="you@yourcompany.com"
                   autoComplete="email"
                   disabled={isSubmitting}
                   className="h-11 rounded-[6px]"
@@ -240,6 +242,7 @@ export function SignupForm() {
                   <Input
                     type={showPassword ? "text" : "password"}
                     placeholder="At least 8 characters"
+                    aria-label="At least 8 characters"
                     autoComplete="new-password"
                     disabled={isSubmitting}
                     className="h-11 rounded-[6px] pr-10"

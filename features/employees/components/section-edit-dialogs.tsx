@@ -400,6 +400,7 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
               value={form.employeeNo}
               onChange={(e) => setForm((f) => ({ ...f, employeeNo: e.target.value }))}
               placeholder="e.g. 132"
+              aria-label="e.g. 132"
             />
           </Field>
           <Field label="Department" required>

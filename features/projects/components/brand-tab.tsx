@@ -256,6 +256,7 @@ function StrategySection({ projectId, canManage }: Props) {
         <Input
           className="h-9"
           placeholder="e.g. Followers"
+          aria-label="e.g. Followers"
           value={o.metric}
           disabled={!canManage}
           onChange={(e) => updateObj(setObjectives, o.id, { metric: e.target.value })}
@@ -269,6 +270,7 @@ function StrategySection({ projectId, canManage }: Props) {
         <Input
           className="h-9"
           placeholder="0"
+          aria-label="0"
           value={o.current}
           disabled={!canManage}
           onChange={(e) => updateObj(setObjectives, o.id, { current: e.target.value })}
@@ -282,6 +284,7 @@ function StrategySection({ projectId, canManage }: Props) {
         <Input
           className="h-9"
           placeholder="0"
+          aria-label="0"
           value={o.target}
           disabled={!canManage}
           onChange={(e) => updateObj(setObjectives, o.id, { target: e.target.value })}
@@ -340,6 +343,7 @@ function StrategySection({ projectId, canManage }: Props) {
           disabled={!canManage}
           rows={5}
           placeholder="Paste or write the client's brand brief…"
+          aria-label="Paste or write the client's brand brief"
         />
         <AssetRow
           label="Brief documents"
@@ -420,6 +424,7 @@ function StrategySection({ projectId, canManage }: Props) {
                     className="bg-background mt-1"
                     disabled={!canManage}
                     placeholder="Themes, content pillars, post types…"
+                    aria-label="Themes, content pillars, post types"
                     value={manifestation[t.key]?.social ?? ""}
                     onChange={(e) =>
                       setManifestation((m) => ({
@@ -439,6 +444,7 @@ function StrategySection({ projectId, canManage }: Props) {
                     className="bg-background mt-1"
                     disabled={!canManage}
                     placeholder="Pages, sections, campaigns…"
+                    aria-label="Pages, sections, campaigns"
                     value={manifestation[t.key]?.website ?? ""}
                     onChange={(e) =>
                       setManifestation((m) => ({
@@ -475,6 +481,7 @@ function StrategySection({ projectId, canManage }: Props) {
           disabled={!canManage}
           rows={7}
           placeholder="Positioning, competitor landscape, market research, key takeaways…"
+          aria-label="Positioning, competitor landscape, market research, key takeaways"
         />
       </SectionCard>
 
@@ -510,6 +517,7 @@ function StrategySection({ projectId, canManage }: Props) {
                     <Input
                       className="h-6 w-24 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
                       placeholder="Name"
+                      aria-label="Name"
                       value={c.name}
                       disabled={!canManage}
                       onChange={(e) => updateColor(setGuidelines, i, { name: e.target.value })}
@@ -555,6 +563,7 @@ function StrategySection({ projectId, canManage }: Props) {
                 value={guidelines.fonts}
                 disabled={!canManage}
                 placeholder="e.g. Inter, Poppins"
+                aria-label="e.g. Inter, Poppins"
                 onChange={(e) => setGuidelines((g) => ({ ...g, fonts: e.target.value }))}
               />
             </div>
@@ -564,6 +573,7 @@ function StrategySection({ projectId, canManage }: Props) {
                 value={guidelines.uiux}
                 disabled={!canManage}
                 placeholder="Tone, layout, imagery style…"
+                aria-label="Tone, layout, imagery style"
                 onChange={(e) => setGuidelines((g) => ({ ...g, uiux: e.target.value }))}
               />
             </div>
@@ -576,6 +586,7 @@ function StrategySection({ projectId, canManage }: Props) {
               value={guidelines.logoNotes}
               disabled={!canManage}
               placeholder="Logo usage, clear space, do's & don'ts…"
+              aria-label="Logo usage, clear space, do's & don'ts"
               onChange={(e) => setGuidelines((g) => ({ ...g, logoNotes: e.target.value }))}
             />
           </div>
@@ -1064,6 +1075,7 @@ function EntryDialog({
             <Input
               value={form.theme ?? ""}
               placeholder="e.g. Republic Day"
+              aria-label="e.g. Republic Day"
               onChange={(e) => set({ theme: e.target.value || null })}
             />
           </div>
@@ -1087,6 +1099,7 @@ function EntryDialog({
             <Textarea
               rows={2}
               placeholder="The scroll-stopping opening line…"
+              aria-label="The scroll-stopping opening line"
               value={form.hook ?? ""}
               onChange={(e) => set({ hook: e.target.value || null })}
             />
@@ -1096,6 +1109,7 @@ function EntryDialog({
             <Textarea
               rows={5}
               placeholder="Caption / slides / script…"
+              aria-label="Caption / slides / script"
               value={form.content ?? ""}
               onChange={(e) => set({ content: e.target.value || null })}
             />
@@ -1142,6 +1156,7 @@ function EntryDialog({
             <Label>Link</Label>
             <Input
               placeholder="https://…"
+              aria-label="https://"
               value={form.link ?? ""}
               onChange={(e) => set({ link: e.target.value || null })}
             />

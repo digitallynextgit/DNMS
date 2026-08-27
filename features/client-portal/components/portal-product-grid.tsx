@@ -97,6 +97,7 @@ export function PortalProductGrid({ projectRef }: { projectRef: string }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search products or SKU"
+            aria-label="Search products or SKU"
             className="h-9 pl-9 text-sm"
           />
         </div>

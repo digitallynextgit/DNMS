@@ -77,6 +77,7 @@ export function ContentBriefPanel({
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder="Target query for a new page, e.g. “best crm for startups”"
+              aria-label="Target query for a new page, e.g. “best crm for startups”"
               className="h-9 min-w-[240px] flex-1"
             />
             <Button size="sm" onClick={submit} disabled={create.isPending || !query.trim()}>
@@ -256,6 +257,7 @@ function BriefCard({
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     placeholder="https://…/published-page"
+                    aria-label="https://…/published-page"
                     className="h-8 min-w-[220px] flex-1 text-xs"
                   />
                   <Button

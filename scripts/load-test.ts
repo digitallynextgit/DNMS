@@ -23,7 +23,7 @@
 import "dotenv/config"
 import { encode } from "next-auth/jwt"
 import { db } from "@/server/db"
-import { runUnscoped } from "@/server/tenant-context"
+import { FOUNDING_TENANT_ID, runUnscoped } from "@/server/tenant-context"
 import { loadActiveMemberships } from "@/server/identity"
 
 const BASE = process.env.BASE ?? "http://localhost:3111"
@@ -67,7 +67,18 @@ function percentile(sorted: number[], p: number): number {
 async function mintAdminCookie(): Promise<{ cookie: string; slug: string; who: string }> {
   const employee = await runUnscoped("load-test", () =>
     db.employee.findFirst({
-      where: { isActive: true, employeeRoles: { some: { role: { name: "admin" } } } },
+      // PINNED TO THE FOUNDING TENANT, and that matters.
+      //
+      // An unscoped findFirst() for "an active admin" returned whichever row
+      // came first - and once a second company signed up, that was THEIR admin.
+      // Every check then ran against a one-employee workspace with no projects,
+      // no payroll and no attendance: pages returned 200 because they render
+      // fine when empty, so the sweep stayed green while testing almost nothing.
+      where: {
+        isActive: true,
+        tenantId: FOUNDING_TENANT_ID,
+        employeeRoles: { some: { role: { name: "admin" } } },
+      },
       select: {
         id: true,
         employeeNo: true,

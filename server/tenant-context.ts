@@ -24,10 +24,11 @@ import { AsyncLocalStorage } from "node:async_hooks"
 // paths do not have one.
 // =============================================================================
 
-/** Digitally Next - the founding tenant. Matches the DB default set in
- *  migration 20260825000000_tenant_spine and the schema's dbgenerated default. */
-export const FOUNDING_TENANT_ID = "0197d1ab-0000-7000-8000-000000000001"
-export const FOUNDING_TENANT_SLUG = "digitallynext"
+// Re-exported from lib/tenant-url.ts, which is framework-agnostic so client
+// components can read the same constants. Kept here so the many existing
+// `from "@/server/tenant-context"` imports do not all have to move.
+import { FOUNDING_TENANT_ID, FOUNDING_TENANT_SLUG } from "@/lib/tenant-url"
+export { FOUNDING_TENANT_ID, FOUNDING_TENANT_SLUG }
 
 export interface TenantContext {
   tenantId: string

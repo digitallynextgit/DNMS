@@ -191,6 +191,7 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search chats…"
+                aria-label="Search chats"
                 className="h-9 pl-8"
               />
             </div>
@@ -855,6 +856,7 @@ function ChatView({
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
             placeholder="Search in this chat"
+            aria-label="Search in this chat"
             autoFocus
             className="h-9 text-sm"
           />
@@ -1652,6 +1654,7 @@ function NewChatDialog({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g. Weekly status, Launch plan…"
+          aria-label="e.g. Weekly status, Launch plan"
           autoFocus
         />
       </div>

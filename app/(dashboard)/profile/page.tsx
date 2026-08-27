@@ -440,6 +440,7 @@ export default function ProfilePage() {
                     value={pwForm.currentPassword}
                     onChange={(e) => setPwForm((f) => ({ ...f, currentPassword: e.target.value }))}
                     placeholder="••••••••"
+                    aria-label="••••••••"
                   />
                   <button
                     type="button"
@@ -457,6 +458,7 @@ export default function ProfilePage() {
                   value={pwForm.newPassword}
                   onChange={(e) => setPwForm((f) => ({ ...f, newPassword: e.target.value }))}
                   placeholder="Min. 8 characters"
+                  aria-label="Min. 8 characters"
                 />
               </div>
               <div className="space-y-2">
@@ -466,6 +468,7 @@ export default function ProfilePage() {
                   value={pwForm.confirmPassword}
                   onChange={(e) => setPwForm((f) => ({ ...f, confirmPassword: e.target.value }))}
                   placeholder="Repeat new password"
+                  aria-label="Repeat new password"
                 />
                 {pwForm.confirmPassword && pwForm.newPassword !== pwForm.confirmPassword && (
                   <p className="text-destructive text-xs">Passwords do not match</p>
@@ -535,6 +538,7 @@ export default function ProfilePage() {
                         value={gmailPw}
                         onChange={(e) => setGmailPw(e.target.value)}
                         placeholder="abcd efgh ijkl mnop"
+                        aria-label="abcd efgh ijkl mnop"
                         autoComplete="off"
                       />
                       <button

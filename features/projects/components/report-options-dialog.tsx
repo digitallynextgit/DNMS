@@ -110,6 +110,7 @@ function MultiPicker({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search…"
+                aria-label="Search"
                 className="h-9 rounded-none border-0 pl-7 text-xs focus-visible:ring-0"
               />
             </div>

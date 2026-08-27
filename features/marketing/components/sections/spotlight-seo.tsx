@@ -30,13 +30,13 @@ function SeoVisual() {
         </div>
         <svg viewBox="0 0 300 90" className="h-24 w-full" preserveAspectRatio="none" aria-hidden>
           <defs>
-            <linearGradient id="seo-fill" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="spotlight-seo-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.28" />
               <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
             </linearGradient>
           </defs>
           <polygon
-            fill="url(#seo-fill)"
+            fill="url(#spotlight-seo-fill)"
             points="0,70 30,64 60,66 90,52 120,55 150,42 180,38 210,44 240,28 270,22 300,12 300,90 0,90"
           />
           <polyline

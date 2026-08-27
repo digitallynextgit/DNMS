@@ -1,9 +1,8 @@
 "use client"
 
 import { useEffect } from "react"
-import { Link } from "@/components/tenant-link"
+import { Link, useAppPathname } from "@/components/tenant-link"
 import Image from "next/image"
-import { usePathname } from "next/navigation"
 import { Package, Store, Boxes, ChevronDown, Mail, Activity } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -50,7 +49,9 @@ export function PortalSidebar({
   projects: PortalProject[]
   current: PortalProject
 }) {
-  const pathname = usePathname()
+  // NOT usePathname(): that returns the tenant-prefixed URL on the client and
+  // the rewritten one on the server, so nav highlighting broke on hydration.
+  const pathname = useAppPathname()
   const { isCollapsed, toggle } = useSidebarStore()
   const modules = CLIENT_MODULES.filter((m) => current.modules.includes(m.key))
 

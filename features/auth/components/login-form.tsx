@@ -120,6 +120,7 @@ export function LoginForm() {
                   <Input
                     type="email"
                     placeholder="username@company.com"
+                    aria-label="username@company.com"
                     autoComplete="email"
                     disabled={isSubmitting}
                     className="h-11 rounded-[6px]"
@@ -142,6 +143,7 @@ export function LoginForm() {
                     <Input
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
+                      aria-label="••••••••"
                       autoComplete="current-password"
                       disabled={isSubmitting}
                       className="h-11 rounded-[6px] pr-10"

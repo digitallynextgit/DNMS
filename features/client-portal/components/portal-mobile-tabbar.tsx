@@ -1,7 +1,6 @@
 "use client"
 
-import { Link } from "@/components/tenant-link"
-import { usePathname } from "next/navigation"
+import { Link, useAppPathname } from "@/components/tenant-link"
 import { Package, Store, Boxes, Mail, Activity } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -28,7 +27,9 @@ export function PortalMobileTabbar({
   projectRef: string
   modules: ClientModuleKey[]
 }) {
-  const pathname = usePathname()
+  // NOT usePathname(): that returns the tenant-prefixed URL on the client and
+  // the rewritten one on the server, so nav highlighting broke on hydration.
+  const pathname = useAppPathname()
   const items = CLIENT_MODULES.filter((m) => modules.includes(m.key))
   if (items.length === 0) return null
 

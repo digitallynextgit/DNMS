@@ -1939,6 +1939,7 @@ function ActualCell({
                 }}
                 className="ring-primary min-w-0 flex-1 resize-none overflow-hidden bg-transparent text-xs leading-relaxed ring-2 outline-none"
                 placeholder="What actually happened…"
+                aria-label="What actually happened"
               />
             ) : (
               <span

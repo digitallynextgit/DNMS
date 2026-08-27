@@ -494,6 +494,7 @@ export default function JobPipelinePage() {
                 value={form.source}
                 onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}
                 placeholder="LinkedIn, Referral..."
+                aria-label="LinkedIn, Referral"
               />
             </div>
           </div>
@@ -503,6 +504,7 @@ export default function JobPipelinePage() {
               value={form.resumeUrl}
               onChange={(e) => setForm((f) => ({ ...f, resumeUrl: e.target.value }))}
               placeholder="https://drive.google.com/..."
+              aria-label="https://drive.google.com/"
             />
           </div>
           <div className="space-y-2">

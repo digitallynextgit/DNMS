@@ -249,6 +249,7 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
         <div className="flex gap-2">
           <Input
             placeholder="field_name (press Enter to add)"
+            aria-label="field_name (press Enter to add)"
             value={newField}
             onChange={(e) => setNewField(e.target.value.replace(/\s+/g, "_"))}
             onKeyDown={handleNewFieldKeyDown}

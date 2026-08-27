@@ -13,8 +13,9 @@
  *   3. SAFETY: no route segment may be claimable as a company slug, or that
  *      company would shadow the route for everybody.
  */
-import { readdirSync, statSync } from "node:fs"
+import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
+import { MARKETING_PREFIXES } from "../lib/marketing-routes"
 import {
   GLOBAL_SEGMENTS,
   TENANT_SCOPED_SEGMENTS,
@@ -150,6 +151,38 @@ console.log("\n== drift: every public/ directory is declared global ==")
     const split = splitTenant(probe)
     if (split.slug !== null) {
       bad(`${probe} is split as tenant "${split.slug}" - the file will not be served`)
+    }
+  }
+}
+
+console.log("\n== marketing routes: theme-boot.js agrees with the module ==")
+{
+  // public/theme-boot.js runs before React and decides whether to paint the
+  // dashboard's custom palette. It cannot import lib/marketing-routes.ts - it is
+  // a plain static script served straight to the browser - so it carries a copy
+  // of the prefix list. If the two drift, a new marketing page silently gets the
+  // dashboard's palette flashed onto it on every hard load, and that is
+  // invisible unless the person looking happens to have a palette set.
+  const boot = readFileSync(join(process.cwd(), "public", "theme-boot.js"), "utf8")
+  const match = boot.match(/var MARKETING_PREFIXES = \[([^\]]*)\]/)
+  if (!match) {
+    bad("theme-boot.js no longer declares MARKETING_PREFIXES - the drift check cannot run")
+  } else {
+    const inBoot = match[1]!
+      .split(",")
+      .map((x) => x.trim().replace(/^"|"$/g, ""))
+      .filter(Boolean)
+    const expected = [...MARKETING_PREFIXES]
+    const missing = expected.filter((x) => !inBoot.includes(x))
+    const extra = inBoot.filter((x) => !expected.includes(x))
+    if (missing.length === 0 && extra.length === 0) {
+      ok(`theme-boot.js matches lib/marketing-routes.ts (${expected.join(", ")})`)
+    } else {
+      bad(
+        `theme-boot.js is out of step with lib/marketing-routes.ts.\n` +
+          `      missing from theme-boot.js: ${missing.join(", ") || "none"}\n` +
+          `      only in theme-boot.js:      ${extra.join(", ") || "none"}`,
+      )
     }
   }
 }

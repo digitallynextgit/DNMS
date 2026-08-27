@@ -160,6 +160,7 @@ export function PollComposer({
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="What are we deciding?"
+              aria-label="What are we deciding?"
               autoFocus
               className="h-9 text-sm"
             />
@@ -422,6 +423,7 @@ export function EventComposer({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Design review"
+              aria-label="Design review"
               autoFocus
               className="h-9 text-sm"
             />
@@ -460,6 +462,7 @@ export function EventComposer({
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Meeting room / link"
+              aria-label="Meeting room / link"
               className="h-9 text-sm"
             />
           </div>
@@ -636,6 +639,7 @@ export function ContactComposer({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search colleagues"
+            aria-label="Search colleagues"
             className="h-9 pl-8 text-sm"
           />
         </div>

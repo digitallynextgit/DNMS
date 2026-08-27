@@ -405,11 +405,12 @@ export default function RecruitmentPage() {
                     Closes {formatDate(job.closingDate)}
                   </p>
                 )}
-                <Link href={`/recruitment/jobs/${job.id}`}>
-                  <Button variant="outline" size="sm" className="h-7 w-full gap-2 text-xs">
+                {/* asChild: <Link><Button> renders <a><button>, which is invalid. */}
+                <Button asChild variant="outline" size="sm" className="h-7 w-full gap-2 text-xs">
+                  <Link href={`/recruitment/jobs/${job.id}`}>
                     <ExternalLink className="h-3.5 w-3.5" /> View Pipeline
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
                 {canWrite && (
                   <div className="flex items-center gap-2">
                     <Button
@@ -468,6 +469,7 @@ export default function RecruitmentPage() {
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             placeholder="e.g. Senior Software Engineer"
+            aria-label="e.g. Senior Software Engineer"
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -548,6 +550,7 @@ export default function RecruitmentPage() {
                   value={deptJobsLabel}
                   onChange={(e) => setDeptJobsLabel(e.target.value)}
                   placeholder="Explore Open Roles"
+                  aria-label="Explore Open Roles"
                 />
               </div>
             </div>
@@ -560,6 +563,7 @@ export default function RecruitmentPage() {
             value={form.location}
             onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
             placeholder="e.g. Mumbai, Remote"
+            aria-label="e.g. Mumbai, Remote"
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -570,6 +574,7 @@ export default function RecruitmentPage() {
               value={form.salaryMin}
               onChange={(e) => setForm((f) => ({ ...f, salaryMin: e.target.value }))}
               placeholder="500000"
+              aria-label="500000"
             />
           </div>
           <div className="space-y-2">
@@ -579,6 +584,7 @@ export default function RecruitmentPage() {
               value={form.salaryMax}
               onChange={(e) => setForm((f) => ({ ...f, salaryMax: e.target.value }))}
               placeholder="1200000"
+              aria-label="1200000"
             />
           </div>
         </div>
@@ -614,6 +620,7 @@ export default function RecruitmentPage() {
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             placeholder="Job description, requirements..."
+            aria-label="Job description, requirements"
           />
         </div>
 
@@ -662,6 +669,7 @@ export default function RecruitmentPage() {
                 value={form.meta}
                 onChange={(e) => setForm((f) => ({ ...f, meta: e.target.value }))}
                 placeholder="e.g. Mumbai · 3 to 5 yrs"
+                aria-label="e.g. Mumbai · 3 to 5 yrs"
               />
             </div>
             <div className="space-y-2">
@@ -670,6 +678,7 @@ export default function RecruitmentPage() {
                 value={form.summary}
                 onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))}
                 placeholder="One-line pitch"
+                aria-label="One-line pitch"
               />
             </div>
           </div>
@@ -681,6 +690,7 @@ export default function RecruitmentPage() {
               value={form.intro}
               onChange={(e) => setForm((f) => ({ ...f, intro: e.target.value }))}
               placeholder="Opening paragraph shown on the careers detail page."
+              aria-label="Opening paragraph shown on the careers detail page"
             />
           </div>
 
@@ -691,6 +701,7 @@ export default function RecruitmentPage() {
               value={form.jobEssence}
               onChange={(e) => setForm((f) => ({ ...f, jobEssence: e.target.value }))}
               placeholder="The gist - what success in this role looks like."
+              aria-label="The gist - what success in this role looks like"
             />
           </div>
 

@@ -3,7 +3,16 @@
 import { Session } from "next-auth"
 import { signOut } from "next-auth/react"
 import { useTheme } from "next-themes"
-import { Bell, LogOut, User, ChevronDown, PanelLeft, PanelLeftClose, Sparkles } from "lucide-react"
+import {
+  Bell,
+  LogOut,
+  User,
+  ChevronDown,
+  PanelLeft,
+  PanelLeftClose,
+  Sparkles,
+  Building2,
+} from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,12 +30,27 @@ import { useAiAssistantStore } from "@/stores/ai-assistant-store"
 import { useEmployee } from "@/features/employees/hooks/use-employees"
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
 import { cn } from "@/lib/utils"
+import { FOUNDING_TENANT_ID } from "@/lib/tenant-url"
 import { ThemePicker } from "./theme-picker"
 import { Link } from "@/components/tenant-link"
 import Image from "next/image"
 
 export function Topbar({ session }: { session: Session }) {
   const { id, firstName, lastName, email, profilePhoto: sessionPhoto } = session.user
+
+  // DNMS staff only. Mirrors isPlatformAdmin() in server/platform-admin.ts, and
+  // is COSMETIC: it decides whether to offer the link, never whether the page
+  // opens. /platform re-checks server-side and answers notFound() to anyone
+  // else, so a stale token here leaks a menu item, not data.
+  //
+  // The env-list half of that check is deliberately not mirrored - the list is
+  // a bootstrap for when the role table is wrong, and the session cannot read
+  // server env anyway. Someone on the list without the role reaches the console
+  // by URL; granting them `admin_` is what puts it in their menu.
+  const isPlatformStaff =
+    session.user.kind !== "client" &&
+    session.user.tenantId === FOUNDING_TENANT_ID &&
+    (session.user.roles ?? []).includes("admin_")
   // Live photo: shares the same ["employee", id] cache as the profile page, so a
   // photo upload/removal (which invalidates ["employee"]) refreshes the avatar
   // here too - without waiting for the session JWT to be reissued at next login.
@@ -124,21 +148,23 @@ export function Topbar({ session }: { session: Session }) {
         <ThemePicker />
 
         {/* Notifications */}
-        <Link href="/notifications">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground hover:text-foreground relative h-10 w-10 md:h-8 md:w-8"
-            aria-label="Notifications"
-          >
+        {/* asChild, not <Link><Button>: the latter renders <a><button>, which is
+            invalid HTML and leaves the anchor with no accessible name. */}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          asChild
+          className="text-muted-foreground hover:text-foreground relative h-10 w-10 md:h-8 md:w-8"
+        >
+          <Link href="/notifications" aria-label="Notifications">
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
               <span className="bg-destructive absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-[2px] px-1 text-[9px] leading-none font-semibold text-white">
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
-          </Button>
-        </Link>
+          </Link>
+        </Button>
 
         <div className="bg-border mx-1 h-4 w-px" />
 
@@ -183,6 +209,19 @@ export function Topbar({ session }: { session: Session }) {
                 <User className="h-3.5 w-3.5" /> My Profile
               </Link>
             </DropdownMenuItem>
+            {isPlatformStaff && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  {/* NOT tenant-prefixed: the console spans every company, so it
+                      lives at the root. "platform" is in GLOBAL_SEGMENTS, which
+                      is what stops the proxy reading it as a company slug. */}
+                  <Link href="/platform" className="cursor-pointer gap-2 text-sm">
+                    <Building2 className="h-3.5 w-3.5" /> DNMS Platform
+                  </Link>
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive cursor-pointer gap-2 text-sm"

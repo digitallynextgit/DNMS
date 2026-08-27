@@ -209,6 +209,7 @@ export default function CareerApplicationsPage() {
               setPage(1)
             }}
             placeholder="Search name, email or role…"
+            aria-label="Search name, email or role"
             className="pl-8"
           />
         </div>
@@ -404,6 +405,7 @@ function ApplicationSheet({
               onChange={(e) => setNotes(e.target.value)}
               rows={4}
               placeholder="Notes for the hiring team…"
+              aria-label="Notes for the hiring team"
             />
             <Button
               size="sm"

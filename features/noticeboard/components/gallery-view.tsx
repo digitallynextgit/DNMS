@@ -399,6 +399,7 @@ function AlbumDialog({ onClose, onDone }: { onClose: () => void; onDone: () => v
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Diwali 2026"
+              aria-label="Diwali 2026"
               className="h-9 text-sm"
             />
           </div>

@@ -1,5 +1,6 @@
 "use client"
 
+import { usePathname } from "next/navigation"
 import { SessionProvider } from "next-auth/react"
 import type { Session } from "next-auth"
 import { ThemeProvider } from "next-themes"
@@ -7,6 +8,7 @@ import { QueryProvider } from "./query-provider"
 import { CustomThemeApplier } from "./custom-theme-applier"
 import { ExtensionHydrationFilter } from "./extension-hydration-filter"
 import { Toaster } from "sonner"
+import { isMarketingPath } from "@/lib/marketing-routes"
 
 export function Providers({
   children,
@@ -22,6 +24,12 @@ export function Providers({
    */
   session: Session | null
 }) {
+  const pathname = usePathname()
+  // The public marketing site is dark-only. `forcedTheme` pins the class for
+  // these routes without writing to storage, so the user's own dashboard
+  // preference survives a trip to the homepage and back.
+  const forcedTheme = isMarketingPath(pathname) ? "dark" : undefined
+
   return (
     <SessionProvider session={session}>
       {/* Dev-only: drops hydration warnings caused by browser extensions
@@ -32,6 +40,7 @@ export function Providers({
         defaultTheme="dark"
         enableSystem
         disableTransitionOnChange={false}
+        forcedTheme={forcedTheme}
       >
         <CustomThemeApplier />
         <QueryProvider>

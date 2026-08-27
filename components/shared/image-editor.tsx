@@ -492,6 +492,7 @@ export function ImageEditor({
                     value={label}
                     onChange={(e) => setLabel(e.target.value)}
                     placeholder="Type, then tap the image to place it"
+                    aria-label="Type, then tap the image to place it"
                     className="h-8 min-w-0 flex-1 text-sm"
                   />
                 </>

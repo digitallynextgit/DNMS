@@ -369,6 +369,7 @@ function PasswordFormDialog({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="e.g. Production DB, AWS Root, Figma Team"
+          aria-label="e.g. Production DB, AWS Root, Figma Team"
           autoFocus
         />
       </div>
@@ -379,6 +380,7 @@ function PasswordFormDialog({
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="admin@example.com"
+            aria-label="admin@example.com"
           />
         </div>
         <div className="space-y-2">
@@ -407,6 +409,7 @@ function PasswordFormDialog({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://example.com"
+          aria-label="https://example.com"
         />
       </div>
       <div className="space-y-2">
@@ -416,6 +419,7 @@ function PasswordFormDialog({
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
           placeholder="Optional notes…"
+          aria-label="Optional notes"
         />
       </div>
     </FormDialog>

@@ -38,10 +38,39 @@ function allowList(): Set<string> {
   )
 }
 
+/**
+ * The role that means "DNMS staff", as opposed to "an admin of some company".
+ *
+ * `admin_` and `admin` carry the SAME 39 scopes and always have - both are full
+ * administrators OF A TENANT. What separates them is this file: `admin_` is
+ * additionally allowed to administer the platform itself (tenants, plans,
+ * subscriptions), and `admin` never is.
+ *
+ * Until now that distinction lived only in an environment variable, so the two
+ * roles were indistinguishable in the database and the difference was invisible
+ * to anyone reading the code. The role is now the primary signal.
+ */
+const PLATFORM_ROLE = "admin_"
+
 export function isPlatformAdmin(session: Session | null): boolean {
   if (!session?.user?.email) return false
+  // A portal client is never platform staff, whatever else is true.
   if (session.user.kind === "client") return false
+  // Platform staff are employees OF Digitally Next. A tenant's own admin holds
+  // the same scopes inside their own workspace and must never reach this.
   if (session.user.tenantId !== FOUNDING_TENANT_ID) return false
+
+  // EITHER signal grants access, and both are deliberate:
+  //
+  //   the role  - the durable one. Granting platform access is now an ordinary
+  //               role assignment, visible in the admin UI and in the audit log.
+  //   the list  - the bootstrap and the escape hatch. It works when the role
+  //               table is wrong, which is exactly when you need it, and it is
+  //               how the first platform admin exists before anyone can grant
+  //               the role.
+  const roles = session.user.roles ?? []
+  if (roles.includes(PLATFORM_ROLE)) return true
+
   const list = allowList()
   if (list.size === 0) return false
   return list.has(normalizeEmail(session.user.email))

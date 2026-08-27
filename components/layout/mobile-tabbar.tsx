@@ -1,7 +1,6 @@
 "use client"
 
-import { Link } from "@/components/tenant-link"
-import { usePathname } from "next/navigation"
+import { Link, useAppPathname } from "@/components/tenant-link"
 import { LayoutDashboard, Clock, ListChecks, MessageSquare, LayoutGrid } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -41,7 +40,9 @@ function ChatBadge() {
 }
 
 export function MobileTabbar() {
-  const pathname = usePathname()
+  // NOT usePathname(): that returns the tenant-prefixed URL on the client and
+  // the rewritten one on the server, so nav highlighting broke on hydration.
+  const pathname = useAppPathname()
 
   function isActive(tab: Tab): boolean {
     if (pathname === tab.href) return true

@@ -625,6 +625,7 @@ function AddMembersDialog({
           autoFocus
           className="pl-9"
           placeholder="Search by name, employee no. or designation…"
+          aria-label="Search by name, employee no. or designation"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />

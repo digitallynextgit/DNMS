@@ -313,6 +313,7 @@ export function TaskCreateDialog({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="What needs doing?"
+            aria-label="What needs doing?"
           />
         </div>
 
@@ -323,6 +324,7 @@ export function TaskCreateDialog({
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
             placeholder="Details, context, links…"
+            aria-label="Details, context, links"
           />
         </div>
 

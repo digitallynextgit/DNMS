@@ -1,17 +1,25 @@
 "use client"
 
 import { useEffect } from "react"
+import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import { useThemeStore } from "@/stores/theme-store"
 import { findTheme, PALETTE_KEYS } from "@/lib/themes"
+import { isMarketingPath } from "@/lib/marketing-routes"
 
 export function CustomThemeApplier() {
   const { paletteId } = useThemeStore()
   const { setTheme, resolvedTheme } = useTheme()
+  const pathname = usePathname()
 
   useEffect(() => {
     const root = document.documentElement
-    const theme = findTheme(paletteId)
+    // Marketing pages get no custom palette. This component lives in the ROOT
+    // layout, so without the check it painted the dashboard's chosen colours
+    // onto the public site - which is not themeable and hardcodes the brand red.
+    // Treated exactly like "no palette selected": the variables are removed
+    // rather than overridden, so nothing is left behind for the next page.
+    const theme = isMarketingPath(pathname) ? null : findTheme(paletteId)
 
     // Multi-colour treatment: [data-multicolor] switches on the gradient
     // primary controls + two-hue ambient background in globals.css.
@@ -43,7 +51,7 @@ export function CustomThemeApplier() {
     } else {
       clearGradient()
     }
-  }, [paletteId, resolvedTheme, setTheme])
+  }, [paletteId, resolvedTheme, setTheme, pathname])
 
   return null
 }

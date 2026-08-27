@@ -171,6 +171,7 @@ export function AiAssistant() {
                 }}
                 rows={1}
                 placeholder="Ask anything…"
+                aria-label="Ask anything"
                 style={{ outline: "none", boxShadow: "none" }}
                 className="text-foreground max-h-28 min-h-9 flex-1 resize-none rounded-[2px] border bg-transparent px-3 py-2 text-sm"
               />

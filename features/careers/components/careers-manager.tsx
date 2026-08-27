@@ -298,6 +298,7 @@ function GroupDialog({
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="SMG"
+            aria-label="SMG"
             required
           />
         </div>
@@ -307,6 +308,7 @@ function GroupDialog({
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             placeholder="auto from title"
+            aria-label="auto from title"
           />
         </div>
       </div>
@@ -387,6 +389,7 @@ function SubDeptDialog({
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
           placeholder="auto from title"
+          aria-label="auto from title"
         />
       </div>
       <div>
@@ -473,6 +476,7 @@ function RoleDialog({
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             placeholder="auto from title"
+            aria-label="auto from title"
           />
         </div>
       </div>
@@ -535,6 +539,7 @@ function RoleDialog({
               value={newOpening}
               onChange={(e) => setNewOpening(e.target.value)}
               placeholder="e.g. Junior SEO Executive (1-2 Years Exp)"
+              aria-label="e.g. Junior SEO Executive (1-2 Years Exp)"
               className="h-8"
             />
             <Button

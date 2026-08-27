@@ -239,6 +239,7 @@ export default function AuditLogPage() {
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
           <Input
             placeholder="Filter by action…"
+            aria-label="Filter by action"
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}

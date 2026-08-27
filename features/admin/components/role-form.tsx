@@ -254,6 +254,7 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
                     handleNameInput(e)
                   }}
                   placeholder="e.g. hr_manager"
+                  aria-label="e.g. hr_manager"
                   disabled={isSubmitting || (isEditing && role?.isSystem === true)}
                 />
               </FormControl>
@@ -274,7 +275,12 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
             <FormItem>
               <FormLabel>Display name</FormLabel>
               <FormControl>
-                <Input {...field} placeholder="e.g. HR Manager" disabled={isSubmitting} />
+                <Input
+                  {...field}
+                  placeholder="e.g. HR Manager"
+                  aria-label="e.g. HR Manager"
+                  disabled={isSubmitting}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -292,6 +298,7 @@ export function RoleForm({ role, onSuccess, onCancel }: RoleFormProps) {
                 <Textarea
                   {...field}
                   placeholder="Optional description of this role's purpose…"
+                  aria-label="Optional description of this role's purpose"
                   disabled={isSubmitting}
                   rows={3}
                 />

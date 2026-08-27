@@ -1,8 +1,8 @@
 "use client"
 
-import { Link, useTenantPath } from "@/components/tenant-link"
+import { Link, useTenantPath, useAppPathname } from "@/components/tenant-link"
 import Image from "next/image"
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -130,7 +130,9 @@ interface SidebarNavItemProps {
 }
 
 function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavItemProps) {
-  const pathname = usePathname()
+  // NOT usePathname(): that returns the tenant-prefixed URL on the client and
+  // the rewritten one on the server, so nav highlighting broke on hydration.
+  const pathname = useAppPathname()
   const [open, setOpen] = useState(
     () => item.children?.some((c) => pathname.startsWith(c.href)) ?? false,
   )

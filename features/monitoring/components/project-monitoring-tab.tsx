@@ -686,7 +686,12 @@ function MonitorDialog({
                 <FormItem>
                   <FormLabel className="text-xs">URL</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://example.com" className="h-9 text-sm" {...field} />
+                    <Input
+                      placeholder="https://example.com"
+                      aria-label="https://example.com"
+                      className="h-9 text-sm"
+                      {...field}
+                    />
                   </FormControl>
                   <FormDescription className="text-[11px]">
                     Include https://. Any 2xx or 3xx counts as up.
@@ -703,7 +708,12 @@ function MonitorDialog({
                 <FormItem>
                   <FormLabel className="text-xs">Label</FormLabel>
                   <FormControl>
-                    <Input placeholder="Storefront" className="h-9 text-sm" {...field} />
+                    <Input
+                      placeholder="Storefront"
+                      aria-label="Storefront"
+                      className="h-9 text-sm"
+                      {...field}
+                    />
                   </FormControl>
                   <FormDescription className="text-[11px]">Shown in alerts.</FormDescription>
                   <FormMessage className="text-xs" />
@@ -898,7 +908,12 @@ function AssetDialog({
                   <FormItem>
                     <FormLabel className="text-xs">Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="digitallynext.com" className="h-9 text-sm" {...field} />
+                      <Input
+                        placeholder="digitallynext.com"
+                        aria-label="digitallynext.com"
+                        className="h-9 text-sm"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage className="text-xs" />
                   </FormItem>
@@ -914,7 +929,12 @@ function AssetDialog({
                   <FormItem>
                     <FormLabel className="text-xs">Provider</FormLabel>
                     <FormControl>
-                      <Input placeholder="GoDaddy" className="h-9 text-sm" {...field} />
+                      <Input
+                        placeholder="GoDaddy"
+                        aria-label="GoDaddy"
+                        className="h-9 text-sm"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage className="text-xs" />
                   </FormItem>
@@ -985,7 +1005,12 @@ function AssetDialog({
                   <FormItem>
                     <FormLabel className="text-xs">Paid by</FormLabel>
                     <FormControl>
-                      <Input placeholder="HDFC ••4321" className="h-9 text-sm" {...field} />
+                      <Input
+                        placeholder="HDFC ••4321"
+                        aria-label="HDFC ••4321"
+                        className="h-9 text-sm"
+                        {...field}
+                      />
                     </FormControl>
                     <FormDescription className="text-[11px]">Which card / account.</FormDescription>
                     <FormMessage className="text-xs" />

@@ -184,6 +184,7 @@ export function CampaignHistoryDialog({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search"
+              aria-label="Search"
               className="h-8 w-40 pl-7 text-xs"
             />
           </div>

@@ -93,6 +93,7 @@ export function BodyComposer({
           value={subject}
           onChange={(e) => onSubjectChange(e.target.value)}
           placeholder="Hi {{first_name|there}}, a quick update"
+          aria-label="Hi {{first_name|there}}, a quick update"
           className="h-9 text-sm"
         />
         <p className="text-muted-foreground text-[11px]">

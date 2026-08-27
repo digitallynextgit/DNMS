@@ -206,6 +206,7 @@ export function SiteFieldDialog({
                     value={domain}
                     onChange={(e) => setDomain(e.target.value)}
                     placeholder="blog.example.com"
+                    aria-label="blog.example.com"
                   />
                 </Field>
               </>
@@ -308,6 +309,7 @@ export function SiteFieldDialog({
                   value={gaPropertyId}
                   onChange={(e) => setGaPropertyId(e.target.value)}
                   placeholder="123456789"
+                  aria-label="123456789"
                   inputMode="numeric"
                   autoFocus
                 />
@@ -326,6 +328,7 @@ export function SiteFieldDialog({
                     value={targetClicks}
                     onChange={(e) => setTargetClicks(e.target.value)}
                     placeholder="1000"
+                    aria-label="1000"
                     autoFocus
                   />
                 </Field>
@@ -341,6 +344,7 @@ export function SiteFieldDialog({
                     value={targetPosition}
                     onChange={(e) => setTargetPosition(e.target.value)}
                     placeholder="10"
+                    aria-label="10"
                   />
                 </Field>
               </>

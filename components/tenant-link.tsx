@@ -1,8 +1,9 @@
 "use client"
 
 import NextLink from "next/link"
+import { usePathname } from "next/navigation"
 import { createContext, forwardRef, useContext, useMemo } from "react"
-import { withTenant } from "@/lib/tenant-url"
+import { splitTenant, withTenant } from "@/lib/tenant-url"
 import type { ComponentProps, ReactNode } from "react"
 
 // =============================================================================
@@ -61,6 +62,31 @@ export function useTenantSlug(): string | null {
 export function useTenantPath(): (path: string) => string {
   const slug = useContext(TenantContext)
   return useMemo(() => (path: string) => withTenant(path, slug), [slug])
+}
+
+/**
+ * The pathname WITHOUT the tenant prefix - the inverse of useTenantPath().
+ *
+ * Use this, never bare usePathname(), to decide which nav item is active.
+ *
+ * ── THE BUG THIS EXISTS TO PREVENT ───────────────────────────────────────────
+ * The same rewrite described above cuts the other way. `usePathname()` returns
+ * the path the SERVER rendered ("/dashboard") but the browser's own URL after
+ * hydration ("/digitallynext/dashboard"). Nav items are declared un-prefixed, so
+ * a comparison against usePathname() matched on the server and then stopped
+ * matching on the client: every sidebar item highlighted correctly in the HTML
+ * and went dark the instant React took over. It looked like the highlight had
+ * never worked at all.
+ *
+ * Stripping the slug gives "/dashboard" on both halves - stable across
+ * hydration, and comparable with the hrefs as written.
+ *
+ * Safe outside a tenant: splitTenant() only removes a leading segment that could
+ * be a slug, so /login and / are returned unchanged.
+ */
+export function useAppPathname(): string {
+  const pathname = usePathname()
+  return useMemo(() => splitTenant(pathname ?? "/").rest, [pathname])
 }
 
 type NextLinkProps = ComponentProps<typeof NextLink>

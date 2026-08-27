@@ -511,6 +511,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
               disabled={!canEdit}
               rows={3}
               placeholder="Optional notes…"
+              aria-label="Optional notes"
             />
             {canEdit ? (
               <div className="flex items-center justify-end gap-3">
