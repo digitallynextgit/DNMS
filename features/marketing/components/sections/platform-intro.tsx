@@ -103,7 +103,7 @@ function ConnectedNodes() {
 }
 
 /**
- * The manifesto section: one database under people, work, money and clients —
+ * The manifesto section: one database under people, work, money and clients,
  * not ten disconnected tabs.
  */
 export function PlatformIntro() {

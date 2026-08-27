@@ -50,12 +50,26 @@ async function main() {
     "client count mismatch",
   )
 
-  const [tenantCheck] = await prisma.$queryRaw<{ wrong: bigint }[]>`
-    SELECT COUNT(*)::bigint AS wrong FROM memberships WHERE tenant_id <> ${FOUNDING_TENANT_ID}`
+  // Was "all memberships sit in the founding tenant" - true only while one
+  // company existed, and a false alarm from the first real signup onwards. What
+  // has to hold permanently is that a membership points at a tenant that
+  // exists; a membership attributed to a missing tenant strands the account,
+  // because sign-in resolves the workspace through exactly this row.
+  const [tenantCheck] = await prisma.$queryRaw<{ wrong: bigint; outside: bigint }[]>`
+    SELECT COUNT(*) FILTER (
+             WHERE NOT EXISTS (SELECT 1 FROM tenants t WHERE t.id = m.tenant_id)
+           )::bigint AS wrong,
+           COUNT(*) FILTER (WHERE m.tenant_id <> ${FOUNDING_TENANT_ID})::bigint AS outside
+      FROM memberships m`
+  if (Number(tenantCheck?.outside ?? 0) > 0) {
+    console.log(
+      `  · ${tenantCheck?.outside} membership(s) belong to tenants other than the founding one - expected once other companies sign up`,
+    )
+  }
   check(
     Number(tenantCheck?.wrong ?? 0) === 0,
-    "all memberships sit in the founding tenant",
-    `${tenantCheck?.wrong} membership(s) in another tenant`,
+    "every membership points at a tenant that exists",
+    `${tenantCheck?.wrong} membership(s) reference a missing tenant`,
   )
 
   console.log("\n== 2. Credentials carried across intact ==")

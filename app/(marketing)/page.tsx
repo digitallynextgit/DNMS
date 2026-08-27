@@ -22,6 +22,7 @@ import {
   SecuritySection,
   Philosophy,
   Faq,
+  SignupCta,
   Closing,
   StructuredData,
 } from "@/features/marketing"
@@ -56,6 +57,7 @@ export default function HomePage() {
       <SecuritySection />
       <Philosophy />
       <Faq />
+      <SignupCta />
       <Closing />
     </>
   )

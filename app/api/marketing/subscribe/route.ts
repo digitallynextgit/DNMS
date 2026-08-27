@@ -5,7 +5,7 @@ import { subscribeToNewsletter } from "@/features/marketing/server/newsletter.se
 export const dynamic = "force-dynamic"
 
 // POST /api/marketing/subscribe  { email }
-// PUBLIC — newsletter sign-up from the homepage.
+// PUBLIC: newsletter sign-up from the homepage.
 export const POST = withErrorHandler(async (req) => {
   const body = await req.json().catch(() => ({}))
   return ok(await subscribeToNewsletter(body))

@@ -63,7 +63,7 @@ export function WhyDnms() {
         </div>
 
         <div className="mt-14 grid items-stretch gap-6 lg:grid-cols-2">
-          {/* The usual patchwork — red / error */}
+          {/* The usual patchwork: red / error */}
           <Reveal>
             <div className="h-full rounded-[6px] border border-red-500/25 bg-red-500/[0.03] p-7">
               <h3 className="text-muted-foreground text-lg font-semibold tracking-tight">
@@ -85,7 +85,7 @@ export function WhyDnms() {
             </div>
           </Reveal>
 
-          {/* With DNMS — green / ok */}
+          {/* With DNMS: green / ok */}
           <Reveal delay={120}>
             <div className="h-full rounded-[6px] border border-emerald-500/30 bg-emerald-500/[0.03] p-7 shadow-xl ring-1 ring-emerald-500/10">
               <h3 className="text-lg font-semibold tracking-tight">

@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { siteConfig } from "@/config/site"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
+import { LEGAL_INDEX } from "@/features/marketing/legal.content"
 
 interface FooterLinkItem {
   href: string
@@ -12,28 +13,32 @@ interface FooterColumn {
   links: FooterLinkItem[]
 }
 
+// "Explore" is deliberately absent: Platform / Modules / Benefits are in-page
+// anchors that only resolve on the homepage, and the header nav already carries
+// them.
 const COLUMNS: FooterColumn[] = [
-  {
-    title: "Explore",
-    links: [
-      { href: "#platform", label: "Platform" },
-      { href: "#modules", label: "Modules" },
-      { href: "#benefits", label: "Benefits" },
-    ],
-  },
-  {
-    title: "Trust & help",
-    links: [
-      { href: "#security", label: "Security" },
-      { href: "#faq", label: "FAQ" },
-    ],
-  },
   {
     title: "Company",
     links: [
+      { href: "/about", label: "About us" },
+      { href: "/faq", label: "FAQ" },
+      { href: "/pricing", label: "Pricing" },
+      { href: "/contact", label: "Contact us" },
       { href: "https://digitallynext.com", label: "Digitally Next" },
-      { href: `mailto:${siteConfig.contactEmail}`, label: "Contact" },
+    ],
+  },
+  {
+    title: "Legal",
+    // Sourced from LEGAL_INDEX so a new document appears here automatically
+    // rather than existing at a URL nothing links to.
+    links: LEGAL_INDEX.map((d) => ({ href: `/legal/${d.slug}`, label: d.title })),
+  },
+  {
+    title: "Get started",
+    links: [
+      { href: "/signup", label: "Start free" },
       { href: "/login", label: "Log in" },
+      { href: `mailto:${siteConfig.contactEmail}`, label: "Book a demo" },
     ],
   },
 ]
@@ -123,8 +128,13 @@ export function MarketingFooter() {
         </div>
       </div>
 
+      {/* Copyright only, centred. The legal documents are listed once, in the
+          "Legal" column above - repeating them down here made the bar busy and
+          told nobody anything new. */}
       <div className="border-border/60 text-muted-foreground border-t py-5 text-center text-xs">
-        © {new Date().getFullYear()} {siteConfig.company}. All rights reserved.
+        <p>
+          © {new Date().getFullYear()} {siteConfig.legal.entity}. All rights reserved.
+        </p>
       </div>
     </footer>
   )

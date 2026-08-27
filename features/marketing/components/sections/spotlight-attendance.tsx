@@ -31,7 +31,7 @@ const DEMO_ROWS: Row[] = [
   { name: "Vikram Rao", time: "09:26", status: "Late" },
   { name: "Priya Nair", time: "09:03", status: "Present" },
   { name: "Kabir Mehta", time: "13:20", status: "Half-day" },
-  { name: "Meera Reddy", time: "—", status: "Absent" },
+  { name: "Meera Reddy", time: "-", status: "Absent" },
 ]
 
 const TONE: Record<string, string> = {

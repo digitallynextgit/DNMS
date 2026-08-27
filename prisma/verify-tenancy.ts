@@ -116,26 +116,49 @@ async function main() {
   )
 
   console.log("\n== 3. Row attribution ==")
+  //
+  // WHAT THIS ASSERTS CHANGED WHEN THE SECOND TENANT SIGNED UP.
+  //
+  // It used to require every row to carry the FOUNDING tenant id, which was the
+  // right invariant for exactly as long as one company existed - it proved the
+  // M1 backfill had reached everything. The first real signup made it fail on a
+  // perfectly healthy database, reporting genuine isolation as corruption.
+  //
+  // The invariant that actually matters, and keeps mattering: every tenant_id
+  // points at a tenant that EXISTS. A row attributed to a deleted or invented
+  // tenant is unreachable by any session and invisible to the guard, which is
+  // the real corruption this check is for.
+  const [{ n: tenantCount }] = await prisma.$queryRaw<{ n: bigint }[]>`
+    SELECT COUNT(*)::bigint AS n FROM tenants`
   let totalRows = 0
   let populated = 0
+  let foundingRows = 0
   const orphans: string[] = []
   for (const { table_name } of cols) {
-    const [row] = await prisma.$queryRawUnsafe<{ n: bigint; bad: bigint }[]>(
+    const [row] = await prisma.$queryRawUnsafe<{ n: bigint; founding: bigint; bad: bigint }[]>(
       `SELECT COUNT(*)::bigint AS n,
-              COUNT(*) FILTER (WHERE tenant_id <> $1)::bigint AS bad
-         FROM "${table_name}"`,
+              COUNT(*) FILTER (WHERE t.tenant_id = $1)::bigint AS founding,
+              COUNT(*) FILTER (WHERE NOT EXISTS (
+                SELECT 1 FROM tenants x WHERE x.id = t.tenant_id
+              ))::bigint AS bad
+         FROM "${table_name}" t`,
       FOUNDING_TENANT_ID,
     )
     const n = Number(row?.n ?? 0)
     totalRows += n
+    foundingRows += Number(row?.founding ?? 0)
     if (n > 0) populated++
     if (Number(row?.bad ?? 0) > 0) orphans.push(`${table_name} (${row?.bad})`)
   }
-  console.log(`  ${totalRows.toLocaleString()} rows across ${populated} populated tables`)
+  console.log(
+    `  ${totalRows.toLocaleString()} rows across ${populated} populated tables` +
+      ` · ${foundingRows.toLocaleString()} in the founding tenant` +
+      ` · ${Number(tenantCount)} tenant(s) total`,
+  )
   check(
     orphans.length === 0,
-    "every existing row belongs to Digitally Next",
-    `rows outside the founding tenant: ${orphans.join(", ")}`,
+    "every row is attributed to a tenant that exists",
+    `rows pointing at a non-existent tenant: ${orphans.join(", ")}`,
   )
 
   console.log("\n== 4. The deployed build's INSERT still works (rolled back) ==")

@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { ChevronDown, Sparkles } from "lucide-react"
+import Link from "next/link"
+import { ArrowRight, ChevronDown, Sparkles } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { FAQS } from "../../marketing.constants"
+import { FEATURED_FAQS, ALL_FAQS } from "../../faq.content"
 import { Reveal } from "../fx"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
@@ -46,7 +47,7 @@ export function Faq() {
         </div>
 
         <div className="mt-12 space-y-3">
-          {FAQS.map((item, i) => {
+          {FEATURED_FAQS.map((item, i) => {
             const isOpen = open === i
             const panelId = `faq-panel-${i}`
             const btnId = `faq-btn-${i}`
@@ -89,6 +90,26 @@ export function Faq() {
             )
           })}
         </div>
+
+        {/* The homepage carries a selection, not the whole set. Saying how many
+            are left is what makes this a route rather than a dead end. */}
+        <Reveal delay={FEATURED_FAQS.length * 80}>
+          <div className="mt-10 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link
+              href="/faq"
+              className="text-foreground inline-flex items-center gap-1.5 text-sm font-medium underline underline-offset-4"
+            >
+              See all {ALL_FAQS.length} questions
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <span className="text-muted-foreground text-sm">
+              or{" "}
+              <Link href="/contact" className="text-foreground underline underline-offset-4">
+                ask us yours
+              </Link>
+            </span>
+          </div>
+        </Reveal>
       </div>
     </section>
   )

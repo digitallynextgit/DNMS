@@ -16,6 +16,16 @@
 
 export type PlanKey = "TRIAL" | "STARTER" | "RED" | "ENTERPRISE"
 
+/**
+ * GST applied on top of every listed price.
+ *
+ * Prices in PLANS are EXCLUSIVE of tax - that is the number a buyer compares
+ * against a competitor, and the number an invoice line carries before tax is
+ * added. Anything that shows a price to a customer must show this too, or the
+ * figure on the page and the figure on the invoice disagree.
+ */
+export const GST_RATE = 0.18
+
 export interface Plan {
   key: PlanKey
   name: string
@@ -36,17 +46,17 @@ export const PLANS: Record<PlanKey, Plan> = {
     key: "TRIAL",
     name: "Trial",
     pricePerEmployee: 0,
-    maxEmployees: 25,
+    maxEmployees: 5,
     durationDays: 21,
     blurb: "Three weeks, every module, your own data. No card.",
-    includes: ["Everything in Red", "Up to 25 employees", "Email support"],
+    includes: ["Everything in Red", "Up to 5 employees", "Email support"],
     excludes: [],
   },
   STARTER: {
     key: "STARTER",
     name: "Starter",
-    pricePerEmployee: 49,
-    maxEmployees: 25,
+    pricePerEmployee: 599,
+    maxEmployees: 20,
     durationDays: null,
     blurb: "The HR core for a small team.",
     includes: [
@@ -54,15 +64,15 @@ export const PLANS: Record<PlanKey, Plan> = {
       "Attendance & leave",
       "Holiday calendar",
       "Payslips",
-      "Up to 25 employees",
+      "Up to 20 employees",
     ],
     excludes: ["Projects & tasks", "Client portal", "Performance reviews", "SEO & monitoring"],
   },
   RED: {
     key: "RED",
     name: "Red",
-    pricePerEmployee: 99,
-    maxEmployees: 200,
+    pricePerEmployee: 999,
+    maxEmployees: 50,
     durationDays: null,
     blurb: "The whole system. What Digitally Next runs on.",
     includes: [
@@ -73,7 +83,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       "Recruitment & referrals",
       "SEO & uptime monitoring",
       "Biometric attendance push",
-      "Up to 200 employees",
+      "Up to 50 employees",
     ],
     excludes: [],
   },

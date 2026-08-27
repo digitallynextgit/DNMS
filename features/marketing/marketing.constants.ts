@@ -343,37 +343,9 @@ export const HOW_STEPS: FlowStep[] = [
   },
 ]
 
-export interface Faq {
-  q: string
-  a: string
-}
-
-export const FAQS: Faq[] = [
-  {
-    q: "What is DNMS?",
-    a: "DNMS (Digitally Next Management System) is an all-in-one company management platform. It brings HR, attendance, leave, payroll, performance, projects, recruitment, a client portal, team chat and SEO tools into one secure, permission-controlled system.",
-  },
-  {
-    q: "Who is DNMS for?",
-    a: "DNMS is for companies and agencies tired of stitching together separate HR apps, spreadsheets and chat threads. In DNMS, HR, finance, project managers, leadership and even clients each get exactly the view they need.",
-  },
-  {
-    q: "Does DNMS work with our biometric devices?",
-    a: "Yes. DNMS syncs attendance directly from Hikvision face, card and fingerprint terminals over ISAPI, with a live webhook plus scheduled sync and full history backfill, and no extra hardware bridge.",
-  },
-  {
-    q: "How does DNMS protect our data?",
-    a: "In DNMS, access is permission-based and enforced on every API route, every action is written to a tamper-evident audit trail, and secrets are encrypted at rest with AES-256-GCM and never leave the server.",
-  },
-  {
-    q: "Can we give clients access in DNMS?",
-    a: "Yes. DNMS lets you invite clients into a per-project portal that shows exactly the products, inventory, channels and updates you choose, and nothing internal.",
-  },
-  {
-    q: "Is DNMS genuinely connected, or just many tools in one login?",
-    a: "DNMS is genuinely connected. Attendance flows into leave, into payroll, into performance as one chain over a single database, so your headcount, hours and pay always reconcile.",
-  },
-]
+// NOTE: the FAQ list used to live here. It moved to faq.content.ts when /faq
+// shipped, so the homepage teaser and the full page read one source instead of
+// two that would drift.
 
 export const PHILOSOPHY = {
   quote: "Software should remove the busywork between the work, not add one more tool to manage.",

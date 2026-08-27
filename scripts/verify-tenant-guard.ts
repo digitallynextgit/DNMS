@@ -50,14 +50,25 @@ async function main() {
   }
 
   // A baseline taken with the guard deliberately out of the way.
+  //
+  // Counted PER TENANT, not globally. The first version compared the founding
+  // tenant's scoped count against the count across every tenant, which is the
+  // same number only while exactly one tenant exists. The moment a second
+  // company signed up it reported "saw 17, expected 18" - flagging correct
+  // isolation as a leak, which is the worst way for a safety check to be wrong.
   const real = await runUnscoped("verification baseline", async () => ({
-    employees: await db.employee.count(),
+    employees: await db.employee.count({ where: { tenantId: FOUNDING.tenantId } }),
+    projects: await db.project.count({ where: { tenantId: FOUNDING.tenantId } }),
     users: await db.user.count(),
-    projects: await db.project.count(),
-    someEmployeeId: (await db.employee.findFirst({ select: { id: true } }))!.id,
+    everyTenantEmployees: await db.employee.count(),
+    someEmployeeId: (await db.employee.findFirst({
+      where: { tenantId: FOUNDING.tenantId },
+      select: { id: true },
+    }))!.id,
   }))
   console.log(
-    `  baseline: ${real.employees} employees · ${real.projects} projects · ${real.users} users`,
+    `  baseline: ${real.employees} employees · ${real.projects} projects in ${FOUNDING.slug}` +
+      ` (${real.everyTenantEmployees} employees across all tenants · ${real.users} users)`,
   )
 
   // ---- Reads are scoped --------------------------------------------------
@@ -176,10 +187,13 @@ async function main() {
   await runWithTenant(GHOST, async () => {
     const inside = await db.employee.count()
     const escaped = await runUnscoped("verification", () => db.employee.count())
+    // Compared against the ACROSS-ALL-TENANTS count: the whole point of the
+    // hatch is that it sees past every tenant, so the founding tenant's own
+    // total is the wrong yardstick the moment a second company exists.
     check(
-      inside === 0 && escaped === real.employees,
-      `scoped sees 0, runUnscoped() sees all ${escaped} - the hatch is explicit and works`,
-      `scoped=${inside} unscoped=${escaped}`,
+      inside === 0 && escaped === real.everyTenantEmployees,
+      `scoped sees 0, runUnscoped() sees all ${escaped} across every tenant - the hatch is explicit and works`,
+      `scoped=${inside} unscoped=${escaped}, expected ${real.everyTenantEmployees}`,
     )
   })
 

@@ -116,15 +116,31 @@ export function Hero() {
               animate="show"
               className="mt-8 flex flex-wrap gap-3"
             >
-              <Button asChild size="lg" variant="outline">
-                <a href="#modules">Browse modules</a>
-              </Button>
-              <Button asChild size="lg">
-                <Link href={authed ? appHref : "/login"}>
-                  {authed ? "Go to dashboard" : "Log in"}
-                  <ArrowRight className="ml-1 h-4 w-4" />
-                </Link>
-              </Button>
+              {authed ? (
+                <>
+                  <Button asChild size="lg" variant="outline">
+                    <a href="#modules">Browse modules</a>
+                  </Button>
+                  <Button asChild size="lg">
+                    <Link href={appHref}>
+                      Go to dashboard
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button asChild size="lg">
+                    <Link href="/signup">
+                      Start free
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button asChild size="lg" variant="outline">
+                    <a href="#modules">Browse modules</a>
+                  </Button>
+                </>
+              )}
             </motion.div>
           </div>
 

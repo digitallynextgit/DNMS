@@ -231,6 +231,42 @@ async function main() {
     }
   }
 
+  // ---- Behind a reverse proxy --------------------------------------------
+  //
+  // THE check this file was missing, and it cost a production outage.
+  //
+  // Every probe above talks to the app directly, so the Host is the same
+  // host:port the server listens on. Behind nginx it is not: the browser asks
+  // for https://dnms.digitallynext.com and nginx forwards to 127.0.0.1:3000 over
+  // plain http. That difference decides whether Next serves a rewrite INTERNALLY
+  // or proxies it out to the public URL - and when it proxied, every
+  // /{tenant}/… page looped back through nginx until it gave up with a 502.
+  //
+  // `fetch` refuses to set the Host header (it is forbidden), so this is done
+  // with the header nginx actually adds and cannot be faked away.
+  console.log("\n── Rewrites stay internal behind a reverse proxy ──")
+  // Only X-Forwarded-Proto is simulated. Faking X-Forwarded-Host to a name the
+  // server is not actually serving breaks cookie and URL assumptions in ways
+  // production never does, so it tests the harness rather than the app.
+  {
+    const res = await fetch(`${BASE}/${slug}/dashboard`, {
+      headers: { cookie, "x-forwarded-proto": "https" },
+      redirect: "manual",
+    })
+    const rewrite = res.headers.get("x-middleware-rewrite")
+    // An EXTERNAL rewrite is the failure: Next hands the whole URL back out
+    // instead of serving the route, and behind a real proxy that loops until
+    // nginx returns 502. A relative value means it was served internally.
+    if (res.status !== 200) {
+      bad(`behind a proxy → ${res.status} (expected 200)`)
+    } else if (rewrite && rewrite.startsWith("/")) {
+      ok(`behind a proxy → served internally (${rewrite})`)
+    } else if (!rewrite) {
+      ok("behind a proxy → served internally")
+    } else {
+      bad(`behind a proxy → EXTERNAL rewrite ${rewrite} - this is the 502 loop`)
+    }
+  }
   // ---- Header spoofing ---------------------------------------------------
   //
   // `x-tenant-slug` decides which tenant server code builds URLs for. A client

@@ -50,16 +50,27 @@ async function main() {
     }
   })
 
-  const before = await runUnscoped("baseline", async () => ({
+  // THE FOUNDING COUNT IS TAKEN OUTSIDE runUnscoped, AND THAT IS LOAD-BEARING.
+  //
+  // The guard checks `unscopedReason()` BEFORE `currentTenant()` (see
+  // server/tenant-guard.ts), so a runWithTenant nested inside a runUnscoped does
+  // not re-scope - the hatch is already open and wins. Written the other way,
+  // this baseline counted employees across every tenant while the comparison
+  // further down counted only Digitally Next's. That read as "17, was 18" the
+  // moment a second company existed: correct isolation reported as a leak.
+  const unscopedFacts = await runUnscoped("baseline", async () => ({
     tenants: await db.tenant.count(),
-    dnEmployees: await runWithTenant({ tenantId: FOUNDING_TENANT_ID, slug: "digitallynext" }, () =>
-      db.employee.count(),
-    ),
     dnEmployeeId: (await db.employee.findFirst({
       where: { tenantId: FOUNDING_TENANT_ID },
       select: { id: true },
     }))!.id,
   }))
+  const before = {
+    ...unscopedFacts,
+    dnEmployees: await runWithTenant({ tenantId: FOUNDING_TENANT_ID, slug: "digitallynext" }, () =>
+      db.employee.count(),
+    ),
+  }
   console.log(`  baseline: ${before.tenants} tenant(s), ${before.dnEmployees} DN employees`)
 
   try {
@@ -205,14 +216,18 @@ async function main() {
       bad(`could not deprovision: ${(err as Error).message}`)
     }
 
-    const after = await runUnscoped("final check", async () => ({
+    // Scoped OUTSIDE runUnscoped, for the same reason as the baseline above.
+    const afterUnscoped = await runUnscoped("final check", async () => ({
       tenants: await db.tenant.count(),
+      orphanUser: await db.user.findUnique({ where: { email: ADMIN_EMAIL }, select: { id: true } }),
+    }))
+    const after = {
+      ...afterUnscoped,
       dnEmployees: await runWithTenant(
         { tenantId: FOUNDING_TENANT_ID, slug: "digitallynext" },
         () => db.employee.count(),
       ),
-      orphanUser: await db.user.findUnique({ where: { email: ADMIN_EMAIL }, select: { id: true } }),
-    }))
+    }
     check(
       after.tenants === before.tenants,
       `tenant count back to ${after.tenants}`,

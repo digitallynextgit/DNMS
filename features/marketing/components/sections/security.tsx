@@ -32,7 +32,7 @@ export function SecuritySection() {
       <GridBackdrop className="opacity-50" />
 
       <div className="relative mx-auto grid max-w-[1600px] items-stretch gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:gap-16">
-        {/* Left — narrative */}
+        {/* Left: narrative */}
         <Reveal>
           {pill}
           <h2 className="mt-6 text-4xl font-bold tracking-tight text-balance sm:text-5xl">
@@ -54,7 +54,7 @@ export function SecuritySection() {
           </ul>
         </Reveal>
 
-        {/* Right — control cards, aligned to the title and filling the height */}
+        {/* Right: control cards, aligned to the title and filling the height */}
         <Reveal delay={120} className="lg:h-full">
           <div className="flex h-full flex-col">
             {/* invisible pill-height spacer (desktop) */}

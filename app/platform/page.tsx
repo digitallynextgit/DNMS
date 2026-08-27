@@ -126,7 +126,7 @@ export default async function PlatformPage() {
 
       <p className="text-muted-foreground mt-6 text-xs">
         Read-only. Suspending a company, changing a plan and extending a trial are edits to
-        `tenants` — they are done in the database until this page grows the controls for them.
+        `tenants`: they are done in the database until this page grows the controls for them.
       </p>
     </div>
   )

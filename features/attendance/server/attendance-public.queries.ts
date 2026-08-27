@@ -11,7 +11,7 @@ import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
  */
 export interface AttendanceSnapshotRow {
   name: string
-  time: string // "HH:MM" (IST) or "—"
+  time: string // "HH:MM" (IST) or "-" when there is no punch
   status: string // display label, e.g. "Present"
 }
 
@@ -83,7 +83,7 @@ export async function getPublicAttendanceSnapshot(limit = 7): Promise<Attendance
 
   const rows: AttendanceSnapshotRow[] = logs.map((log) => ({
     name: displayName(log.employee.firstName, log.employee.lastName),
-    time: log.checkIn ? timeFmt.format(log.checkIn) : "—",
+    time: log.checkIn ? timeFmt.format(log.checkIn) : "-",
     status: STATUS_LABEL[log.status] ?? log.status,
   }))
 

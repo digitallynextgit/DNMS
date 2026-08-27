@@ -12,10 +12,14 @@
  * Read-only: every request is a GET.
  */
 import "dotenv/config"
+import { readdirSync } from "node:fs"
+import { join } from "node:path"
 import { encode } from "next-auth/jwt"
 import { db } from "@/server/db"
 import { runUnscoped } from "@/server/tenant-context"
 import { loadActiveMemberships } from "@/server/identity"
+import { GLOBAL_SEGMENTS } from "@/lib/tenant-url"
+import { LEGAL_INDEX } from "@/features/marketing/legal.content"
 
 const BASE = process.env.BASE ?? "http://localhost:3111"
 const COOKIE_NAME = "authjs.session-token"
@@ -64,7 +68,95 @@ const PAGES = [
   "/admin/roles",
   "/admin/permissions",
   "/admin/audit-log",
+  // Admin-only sections. These were missing for a long time and the omission was
+  // invisible: the sweep reported 42/42 green while 25 real routes - nearly all
+  // of them reachable only from an admin's sidebar - were never requested once.
+  // A blind spot shaped exactly like "works as an employee, breaks as an admin".
+  "/admin/careers",
+  "/admin/email-templates",
+  "/admin/integrations",
+  "/admin/referrals",
+  "/admin/storage",
+  "/attendance/devices",
+  "/attendance/floating-holidays",
+  "/employees/departments",
+  "/employees/designations",
+  "/employees/job-roles",
+  "/employees/new",
+  "/leave/policy",
+  "/leave/team",
+  "/performance/kpi-profiles",
+  "/wfh/team",
+  "/platform",
+  "/docs",
+  "/select-workspace",
 ]
+
+/**
+ * Fail if a page route exists on disk but nobody added it to PAGES.
+ *
+ * Hand-maintained lists rot silently, and this one did: every route added after
+ * the list was written stayed unswept, so a green sweep meant "the routes I
+ * remembered still work", not "the app works". Reading the routes back off the
+ * filesystem turns that from a thing you have to remember into a thing that
+ * breaks the check.
+ *
+ * Dynamic segments are excluded - they need a real id to request - as are the
+ * unauthenticated entry points, which are covered by their own probes below.
+ */
+function assertNoUnsweptRoutes(): void {
+  const roots = ["app"]
+  const found: string[] = []
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) walk(full)
+      else if (entry.name === "page.tsx") {
+        const route =
+          "/" +
+          full
+            .replace(/\\/g, "/") // Windows separators first, so one regex set works
+            .replace(/^app\//, "")
+            .replace(/(^|\/)page\.tsx$/, "")
+            .replace(/\([^)]*\)\/?/g, "") // route groups do not appear in the URL
+            .replace(/\/+$/, "")
+        found.push(route)
+      }
+    }
+  }
+  for (const r of roots) walk(r)
+
+  const exempt = new Set([
+    "/", // marketing home, requested directly below
+    "/login",
+    "/client-login",
+    "/forgot-password",
+    "/signup",
+    "/change-password",
+    "/portal",
+    "/portal/set-password",
+    // Public marketing pages. Swept by their own signed-OUT probe below, which
+    // is the state that matters for them - a visitor reading the privacy policy
+    // has no session, and checking them with an admin cookie would miss exactly
+    // the failure that matters.
+    "/about",
+    "/contact",
+    "/pricing",
+    "/faq",
+    ...LEGAL_INDEX.map((d) => `/legal/${d.slug}`),
+  ])
+  const unswept = found
+    .filter((r) => !r.includes("[") && !exempt.has(r) && !PAGES.includes(r))
+    .sort()
+
+  if (unswept.length > 0) {
+    console.log("\n── Unswept routes ──")
+    for (const r of unswept) console.log(`  ✗ ${r} exists but is not in PAGES`)
+    console.log(`\n  ${unswept.length} route(s) would never be health-checked.`)
+    console.log("  Add them to PAGES in scripts/health-check.ts.")
+    process.exitCode = 1
+  }
+}
 
 const APIS = [
   "/api/profile",
@@ -113,6 +205,9 @@ async function probe(path: string, cookie?: string) {
 async function main() {
   console.log(`\nHEALTH SWEEP - ${BASE}`)
   console.log("═".repeat(78))
+
+  // Before anything is requested: is the list of things to request complete?
+  assertNoUnsweptRoutes()
 
   // Pick an admin so permission-gated pages are actually exercised rather than
   // bouncing to /dashboard and reporting a false green.
@@ -239,14 +334,31 @@ async function main() {
     console.log(`  ${denied.length} permission-denied (expected): ${denied.join(", ")}`)
 
   // ---- Pages, legacy un-prefixed → must all canonicalise ------------------
+  //
+  // GLOBAL routes are the exception and must NOT canonicalise: /platform
+  // administers every tenant and /select-workspace is where you choose one, so
+  // neither can sit behind a single tenant's prefix. The exception is read from
+  // the same GLOBAL_SEGMENTS the proxy routes on, so the two cannot disagree -
+  // spelling the list out again here is how a check ends up asserting the
+  // opposite of what the app is supposed to do.
   console.log("\n── Legacy un-prefixed pages redirect to the canonical URL ──")
   let canonical = 0
+  let globalPages = 0
   for (const page of PAGES) {
+    const first = page.split("/")[1] ?? ""
     const r = await probe(page, cookie)
+    if (GLOBAL_SEGMENTS.has(first)) {
+      globalPages++
+      if (r.status === 200) canonical++
+      else bad(`${page} → ${r.status} (a global route must serve un-prefixed)`)
+      continue
+    }
     if (r.status === 307 && r.location === `/${slug}${page}`) canonical++
     else bad(`${page} → ${r.status} ${r.location ?? ""} (expected 307 /${slug}${page})`)
   }
-  console.log(`  ${canonical}/${PAGES.length} canonicalise`)
+  console.log(
+    `  ${canonical}/${PAGES.length} canonicalise (${globalPages} global, correctly un-prefixed)`,
+  )
 
   // ---- APIs ---------------------------------------------------------------
   console.log("\n── API routes (must never redirect) ──")
@@ -269,6 +381,60 @@ async function main() {
   // all - under strict enforcement the guard refused and the throw escaped the
   // handler. Probed WITH the key, because without one every request stops at
   // 401 before it ever reaches a query.
+  // ---- Public marketing pages, signed OUT --------------------------------
+  //
+  // The state that actually matters for these. Every one of them must render
+  // for a visitor with no cookie: they are linked from the footer, indexed in
+  // the sitemap, and a legal page that bounces to /login is worse than absent.
+  //
+  // They are also the exact shape of the /avatars bug - a top-level segment
+  // with no dot reads as a tenant slug unless GLOBAL_SEGMENTS says otherwise,
+  // so a 307 here means the proxy stripped it and served the wrong route.
+  console.log("\n── Public marketing pages (no session) ──")
+  {
+    const publicPages = [
+      "/about",
+      "/contact",
+      "/pricing",
+      "/faq",
+      ...LEGAL_INDEX.map((d) => `/legal/${d.slug}`),
+      "/signup",
+    ]
+    let served = 0
+    for (const path of publicPages) {
+      const r = await probe(path) // no cookie: a real visitor
+      if (r.status === 200) served++
+      else bad(`${path} → ${r.status} ${r.location ?? ""} (must render signed out)`)
+    }
+    console.log(`  ${served}/${publicPages.length} render for a signed-out visitor`)
+
+    // The contact form posts from one of those pages, so its endpoint has to be
+    // reachable without a session too. An empty body is a 422 from validation -
+    // proof it reached the handler. A 401 means the proxy blocked it, which is
+    // how the newsletter endpoint was failing silently for every visitor.
+    const contact = await fetch(`${BASE}/api/public/contact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })
+    if (contact.status === 401 || contact.status === 307) {
+      bad(`contact form endpoint → ${contact.status} (not public - check PUBLIC_PREFIXES)`)
+    } else {
+      console.log(`  contact form endpoint reachable signed out → ${contact.status}`)
+    }
+
+    const news = await fetch(`${BASE}/api/marketing/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })
+    if (news.status === 401 || news.status === 307) {
+      bad(`newsletter endpoint → ${news.status} (not public - check PUBLIC_PREFIXES)`)
+    } else {
+      console.log(`  newsletter endpoint reachable signed out → ${news.status}`)
+    }
+  }
+
   console.log("\n── Public APIs (key-authenticated, no session) ──")
   const careersKey = process.env.CAREERS_API_KEY
   if (!careersKey) {

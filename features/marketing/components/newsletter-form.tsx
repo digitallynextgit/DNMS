@@ -40,7 +40,7 @@ export function NewsletterForm({ className }: { className?: string }) {
         className={cn("flex items-center gap-2 text-sm font-medium text-emerald-500", className)}
       >
         <Check className="h-4 w-4 shrink-0" />
-        Thanks — you&rsquo;re on the list.
+        Thanks, you&rsquo;re on the list.
       </div>
     )
   }

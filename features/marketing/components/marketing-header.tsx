@@ -10,11 +10,19 @@ import { cn } from "@/lib/utils"
 import { siteConfig } from "@/config/site"
 import { Button } from "@/components/ui/button"
 
+// Real pages, not in-page anchors.
+//
+// The old nav was four homepage anchors, which silently stopped working the
+// moment there were other pages: "#faq" from /about scrolls to nothing. Every
+// entry is now a real page, so none of them depend on where you happen to be.
 const NAV = [
-  { href: "#platform", label: "Platform" },
-  { href: "#modules", label: "Modules" },
-  { href: "#security", label: "Security" },
-  { href: "#faq", label: "FAQ" },
+  { href: "/about", label: "About us" },
+  { href: "/contact", label: "Contact us" },
+  // Temporarily hidden from the nav. The /pricing page itself is still live
+  // and still linked from the footer and the sitemap - this only takes it out
+  // of the header. Uncomment to put it back.
+  // { href: "/pricing", label: "Pricing" },
+  { href: "/faq", label: "FAQ" },
 ]
 
 /** Dark/light only, wired to next-themes (the app's theme system). */
@@ -126,9 +134,22 @@ export function MarketingHeader() {
         {/* Right: theme toggle + login (desktop) + hamburger (mobile) */}
         <div className="flex items-center gap-1.5 justify-self-end sm:gap-2">
           <ThemeToggle />
-          <Button asChild size="sm" className="hidden md:inline-flex">
-            <Link href={authed ? appHref : "/login"}>{authed ? "Dashboard" : "Log in"}</Link>
-          </Button>
+          {authed ? (
+            <Button asChild size="sm" className="hidden md:inline-flex">
+              <Link href={appHref}>Dashboard</Link>
+            </Button>
+          ) : (
+            <>
+              {/* Log in is the quieter of the two: most people arriving on the
+                  marketing page do not have an account yet. */}
+              <Button asChild size="sm" variant="ghost" className="hidden md:inline-flex">
+                <Link href="/login">Log in</Link>
+              </Button>
+              <Button asChild size="sm" className="hidden md:inline-flex">
+                <Link href="/signup">Start free</Link>
+              </Button>
+            </>
+          )}
           <button
             type="button"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -155,11 +176,26 @@ export function MarketingHeader() {
                 {n.label}
               </a>
             ))}
-            <Button asChild size="sm" className="mt-2 w-full">
-              <Link href={authed ? appHref : "/login"} onClick={() => setMenuOpen(false)}>
-                {authed ? "Dashboard" : "Log in"}
-              </Link>
-            </Button>
+            {authed ? (
+              <Button asChild size="sm" className="mt-2 w-full">
+                <Link href={appHref} onClick={() => setMenuOpen(false)}>
+                  Dashboard
+                </Link>
+              </Button>
+            ) : (
+              <>
+                <Button asChild size="sm" className="mt-2 w-full">
+                  <Link href="/signup" onClick={() => setMenuOpen(false)}>
+                    Start free
+                  </Link>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="mt-1.5 w-full">
+                  <Link href="/login" onClick={() => setMenuOpen(false)}>
+                    Log in
+                  </Link>
+                </Button>
+              </>
+            )}
           </nav>
         </div>
       )}

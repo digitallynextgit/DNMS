@@ -87,6 +87,19 @@ const PUBLIC_PREFIXES = [
   // them to /login and there would be no way to become a customer.
   "/signup",
   "/forgot-password",
+  // Public marketing pages. Each is also listed in GLOBAL_SEGMENTS
+  // (lib/tenant-url.ts) - without that, `looksLikeSlug` reads "about" as a
+  // company name and the proxy strips it, exactly as it once did to /avatars.
+  "/about",
+  "/contact",
+  "/pricing",
+  "/faq",
+  "/legal",
+  // The homepage newsletter and the contact form both post from a signed-OUT
+  // page, so their endpoints must bypass the session guard or the form answers
+  // 401 to every visitor. /api/marketing was missing here and the newsletter
+  // had been failing silently for anyone not already logged in.
+  "/api/marketing",
   // The forgot-password flow is used while signed OUT, so its three endpoints
   // must bypass the session guard. Each is self-protected: `forgot` only emails
   // a code, `verify-otp` needs that code, and `reset` needs the short-lived
@@ -484,9 +497,46 @@ export default auth((req: NextRequest & { auth: unknown }) => {
 
   if (claimedSlug) {
     headers.set(REWRITE_MARKER, "1")
-    return NextResponse.rewrite(onThisOrigin(pathname, req.nextUrl.search), {
-      request: { headers },
-    })
+    // ── THE REWRITE DESTINATION'S ORIGIN DECIDES INTERNAL vs EXTERNAL ───────
+    //
+    // Next decides whether a rewrite is INTERNAL (serve this route here) or
+    // EXTERNAL (go and fetch that URL over the network) by comparing the
+    // destination's origin with the request's. Get it wrong and Next proxies
+    // every page out to the public URL - back through nginx, into Next,
+    // rewritten again, looping until nginx answers 502. Only /{tenant}/… paths
+    // are rewritten, so /api/… would keep working while every page failed.
+    //
+    // The origin Next compares against is built from the request AS IT ARRIVED:
+    // `x-forwarded-proto` when a proxy set one, plain http otherwise. It is
+    // NOT `nextUrl` - Auth.js rebuilds that from NEXTAUTH_URL, so inside this
+    // file `nextUrl` says https://dnms.digitallynext.com even when the hop from
+    // nginx into Next is plain http on 127.0.0.1:3000. Deriving the scheme from
+    // `nextUrl` therefore composes an origin Next may not recognise as its own.
+    //
+    // Measured on a real reverse-proxy setup, destination scheme vs. accepted:
+    //             direct            behind nginx
+    //   http      200, relative     matches when no x-forwarded-proto
+    //   https     500               matches when x-forwarded-proto: https
+    //
+    // A relative path in the header is not an option: Next parses the value
+    // with `new URL()` and throws ERR_INVALID_URL.
+    //
+    // NOTE: a correctly configured nginx always sends x-forwarded-proto, so the
+    // http fallback below is for the direct-to-Node case (dev, health checks,
+    // container probes). If a deployment ever fronts this with a proxy that
+    // omits the header, Next canonicalises http->https and answers 301 instead
+    // of serving - the fix is on the proxy, which must send it.
+    const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim()
+    const scheme = forwardedProto || "http"
+    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host")
+    const destination = host
+      ? new URL(`${pathname}${req.nextUrl.search}`, `${scheme}://${host}`)
+      : (() => {
+          const fallback = req.nextUrl.clone()
+          fallback.pathname = pathname
+          return fallback
+        })()
+    return NextResponse.rewrite(destination, { request: { headers } })
   }
   return passThrough()
 })

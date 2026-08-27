@@ -73,6 +73,14 @@ export const GLOBAL_SEGMENTS: ReadonlySet<string> = new Set([
   "change-password",
   "select-workspace",
   "platform",
+  // Public marketing pages. A company is never called "about" or "contact", and
+  // these must resolve to the marketing route rather than being read as a tenant
+  // slug and stripped. Mirrored in PUBLIC_PREFIXES in proxy.ts.
+  "about",
+  "contact",
+  "pricing",
+  "faq",
+  "legal",
   "_next",
   "public",
   // Top-level DIRECTORIES in public/. These matter more than they look: a

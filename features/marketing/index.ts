@@ -4,6 +4,14 @@ export { MarketingFooter } from "./components/marketing-footer"
 export { StructuredData } from "./components/structured-data"
 export { SpotlightCursor } from "./components/fx"
 
+// Standalone public pages
+export { LegalPage } from "./components/legal-page"
+export { ContactForm } from "./components/contact-form"
+export { AboutContent } from "./components/sections/about-content"
+export { ContactContent } from "./components/sections/contact-content"
+export { PricingContent } from "./components/sections/pricing-content"
+export { FaqContent } from "./components/sections/faq-content"
+
 // Sections (in page order)
 export { Hero } from "./components/sections/hero"
 export { MarqueeStrip } from "./components/sections/marquee-strip"
@@ -25,4 +33,5 @@ export { WhyDnms } from "./components/sections/why-dnms"
 export { SecuritySection } from "./components/sections/security"
 export { Philosophy } from "./components/sections/philosophy"
 export { Faq } from "./components/sections/faq"
+export { SignupCta } from "./components/sections/signup-cta"
 export { Closing } from "./components/sections/closing"
