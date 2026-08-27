@@ -50,10 +50,14 @@ import {
   BarChart3,
   Search,
   HelpCircle,
+  Target,
 } from "lucide-react"
 import { ProjectFormDialog } from "@/features/projects/components/project-form-dialog"
 import { ProjectLogo } from "@/features/projects/components/project-logo"
-import { ProjectTabsBar } from "@/features/projects/components/project-tabs-bar"
+import {
+  ProjectTabsBar,
+  type ProjectTabItem,
+} from "@/features/projects/components/project-tabs-bar"
 
 // The 7 tab bodies are ~4,000 lines combined, but Radix only RENDERS the active
 // one - so statically importing them made every visit download and parse all of
@@ -83,11 +87,9 @@ const InsightsTab = dynamic(
     loading: tabFallback,
   },
 )
-// Recharts is heavy, so the Overview's summary loads on demand like the tabs do.
-const ProgressOverview = dynamic(
-  () => import("@/features/projects").then((m) => m.ProgressOverview),
-  { loading: () => <Skeleton className="h-64 rounded" /> },
-)
+const GoalsTab = dynamic(() => import("@/features/projects").then((m) => m.GoalsTab), {
+  loading: tabFallback,
+})
 const SeoTab = dynamic(() => import("@/features/seo").then((m) => m.SeoTab), {
   loading: tabFallback,
 })
@@ -142,8 +144,17 @@ const ProjectMonitoringTab = dynamic(
   { loading: tabFallback },
 )
 
+/**
+ * Every valid ?tab= value.
+ *
+ * This is the URL whitelist AND the type the tab bar is checked against, so a
+ * tab rendered without an entry here is a compile error rather than a tab that
+ * silently bounces the user back to Overview. It did exactly that when "goals"
+ * was added to the bar and not to this list.
+ */
 const PROJECT_TABS = [
   "overview",
+  "goals",
   "brand",
   "drive",
   "integration",
@@ -332,39 +343,54 @@ export default function ProjectDetailPage() {
             where the bar runs out of room, and renders whatever doesn't fit on a
             second strip. Order here is the order on screen. */}
         <ProjectTabsBar
-          items={[
-            { value: "overview", label: "Overview", icon: Layers },
-            { value: "brand", label: "Brand", icon: Sparkles },
-            { value: "drive", label: "Files", icon: HardDrive },
-            { value: "integration", label: "Integration", icon: Plug },
-            { value: "insights", label: "Insights", icon: BarChart3 },
-            { value: "seo", label: "SEO", icon: Search },
-            { value: "teams", label: "Teams", icon: Users },
-            { value: "tasks", label: "Tasks", icon: FolderKanban },
-            {
-              value: "requirements",
-              label: "Requirements",
-              icon: HelpCircle,
-              badge: openRequirements,
-              badgeClassName: "bg-amber-500",
-            },
-            {
-              value: "messages",
-              label: "Messages",
-              icon: MessageSquare,
-              badge: unreadMessages,
-            },
-            { value: "activity", label: "Activity", icon: Activity },
-            { value: "passwords", label: "Passwords", icon: KeyRound },
-            // Open to the whole project team. The people who need to know a site
-            // is down, or who write the campaigns, are the ones working on it -
-            // not only whoever happens to own the project.
-            { value: "monitoring", label: "Monitoring", icon: Activity },
-            { value: "mailer", label: "Mailer", icon: Mail },
-            // Clients STAYS manage-only: it mints portal logins and resets their
-            // passwords, which is account administration rather than project work.
-            ...(canManage ? [{ value: "clients", label: "Clients", icon: UserCog }] : []),
-          ]}
+          items={
+            [
+              { value: "overview", label: "Overview", icon: Layers },
+              { value: "goals", label: "Goals", icon: Target },
+              { value: "brand", label: "Brand", icon: Sparkles },
+              { value: "drive", label: "Files", icon: HardDrive },
+              { value: "integration", label: "Integration", icon: Plug },
+              { value: "insights", label: "Insights", icon: BarChart3 },
+              { value: "seo", label: "SEO", icon: Search },
+              { value: "teams", label: "Teams", icon: Users },
+              { value: "tasks", label: "Tasks", icon: FolderKanban },
+              {
+                value: "requirements",
+                label: "Requirements",
+                icon: HelpCircle,
+                badge: openRequirements,
+                badgeClassName: "bg-amber-500",
+              },
+              {
+                value: "messages",
+                label: "Messages",
+                icon: MessageSquare,
+                badge: unreadMessages,
+              },
+              { value: "activity", label: "Activity", icon: Activity },
+              { value: "passwords", label: "Passwords", icon: KeyRound },
+              // Open to the whole project team. The people who need to know a site
+              // is down, or who write the campaigns, are the ones working on it -
+              // not only whoever happens to own the project.
+              { value: "monitoring", label: "Monitoring", icon: Activity },
+              { value: "mailer", label: "Mailer", icon: Mail },
+              // Clients STAYS manage-only: it mints portal logins and resets their
+              // passwords, which is account administration rather than project work.
+              // as const: inside a conditional spread the literal widens to
+              // string, which defeats the check below.
+              ...(canManage
+                ? [{ value: "clients" as const, label: "Clients", icon: UserCog }]
+                : []),
+              // Typed against PROJECT_TABS: adding a tab here without adding its
+              // value there stops the build instead of shipping a dead tab.
+            ] satisfies {
+              value: (typeof PROJECT_TABS)[number]
+              label: string
+              icon: unknown
+              badge?: number
+              badgeClassName?: string
+            }[] as ProjectTabItem[]
+          }
         />
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -421,13 +447,12 @@ export default function ProjectDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Managers get the whole project; everyone else gets their own slice,
-              because "the project is 60% done" is not actionable to someone who
-              wants to know what they still owe. */}
-          <ProgressOverview projectId={projectRef} currentUserId={userId} isAdmin={canManage} />
-
           {/* Renders only when the project actually tracks sites. */}
           <ProjectSitesCard projectId={projectRef} onOpenSeo={() => handleTabChange("seo")} />
+        </TabsContent>
+
+        <TabsContent value="goals" className="mt-4">
+          <GoalsTab projectId={projectRef} canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="brand">

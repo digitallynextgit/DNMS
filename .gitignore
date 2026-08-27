@@ -50,3 +50,7 @@ completed_tasks.txt
 /secrets
 *-sa.json
 *.iam.gserviceaccount.json
+
+# Throwaway build dir for verification runs (see distDir in next.config.mjs),
+# kept out of .next so it cannot corrupt a running dev server.
+.next-verify

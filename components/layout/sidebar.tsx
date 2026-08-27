@@ -351,18 +351,20 @@ export function Sidebar({ session }: { session: Session }) {
         <div className={cn("flex items-center overflow-hidden", isCollapsed ? "w-9" : "w-auto")}>
           {/* Light mode → black-text logo */}
           <Image
-            src="/logo_white_bg.png"
+            src="/logo_white_bg-96.png"
             alt="Digitally Next"
             width={370}
             height={96}
+            priority
             className="h-10 w-auto max-w-none dark:hidden"
           />
           {/* Dark / custom themes → white-text logo */}
           <Image
-            src="/logo_dark_bg.webp"
+            src="/logo_dark_bg-96.webp"
             alt="Digitally Next"
             width={370}
             height={96}
+            priority
             className="hidden h-10 w-auto max-w-none dark:block"
           />
         </div>

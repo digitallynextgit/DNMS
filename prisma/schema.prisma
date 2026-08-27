@@ -754,6 +754,11 @@ model Employee {
   pollVotes             MessagePollVote[] @relation("PollVoter")
   sharedContacts        MessageContact[]  @relation("SharedContact")
 
+  /// Goals this person created. SetNull on delete: a goal outlives whoever
+  /// happened to write it down.
+  goalsCreated ProjectGoal[]      @relation("GoalCreator")
+  goalEvents   ProjectGoalEvent[] @relation("GoalEventActor")
+
   @@unique([tenantId, employeeNo])
   // Employee had NO indexes at all. These serve the manager/team queues and the
   // status filters used by the directory, dashboard and accrual jobs.
@@ -1540,6 +1545,7 @@ model Project {
   marketplaceChannels MarketplaceChannel[]
   products            Product[]
   projectMailerAssets ProjectMailerAsset[]
+  projectGoals        ProjectGoal[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, slug])
@@ -4187,4 +4193,106 @@ model MessageContact {
 
   @@index([tenantId])
   @@map("message_contacts")
+}
+
+/// What a goal is currently doing. AT_RISK is deliberately a status rather than
+/// a derived "overdue" flag: a goal can be behind while its target date is still
+/// in the future, and that is exactly when someone needs to see it.
+enum GoalStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  AT_RISK
+  DONE
+  /// Abandoned on purpose, with a reason. Kept visible - a goal that was
+  /// dropped and why is part of the project's record.
+  DISCARDED
+}
+
+/// A goal on a project, and its sub-goals.
+///
+/// ONE LEVEL of nesting, by design: a goal has sub-goals, and a sub-goal has
+/// none. Arbitrary depth reads well in a schema and badly on a screen - nobody
+/// wants to expand four levels to find out whether the project is on track. The
+/// API enforces this; `parentId` alone would allow more.
+///
+/// PROGRESS IS DERIVED FOR PARENTS. A goal with sub-goals reports the average of
+/// its children and its own `progress` column is ignored; a leaf carries its own
+/// number. Storing a parent percentage that could disagree with its children is
+/// how a dashboard ends up lying.
+model ProjectGoal {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId      String     @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id            String     @id @default(uuid()) @map("id")
+  projectId     String     @map("project_id")
+  /// Null = a main goal. Set = a sub-goal of that main goal.
+  parentId      String?    @map("parent_id")
+  title         String     @map("title")
+  description   String?    @map("description") @db.Text
+  status        GoalStatus @default(NOT_STARTED) @map("status")
+  /// 0-100. Authoritative for a leaf; ignored for a goal that has sub-goals.
+  progress      Int        @default(0) @map("progress")
+  /// The date this is meant to be met by. Null = no date set yet.
+  targetDate    DateTime?  @map("target_date") @db.Date
+  /// Manual ordering within a parent (or within the project, for main goals).
+  sortOrder     Int        @default(0) @map("sort_order")
+  /// Soft delete. A deactivated goal is hidden from the board and counts for
+  /// nothing in the progress maths, but its history survives - which is the
+  /// difference between "we stopped tracking this" and "this never happened".
+  isActive      Boolean    @default(true) @map("is_active")
+  deactivatedAt DateTime?  @map("deactivated_at")
+  /// Why it is AT_RISK or DISCARDED right now. The full trail is in events;
+  /// this is the copy the board shows without a second query.
+  statusReason  String?    @map("status_reason") @db.Text
+  createdById   String?    @map("created_by_id")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    ProjectGoal?       @relation("GoalHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children  ProjectGoal[]      @relation("GoalHierarchy")
+  createdBy Employee?          @relation("GoalCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  events    ProjectGoalEvent[]
+
+  @@index([projectId])
+  @@index([parentId])
+  @@index([projectId, sortOrder])
+  @@map("project_goals")
+}
+
+/// What happened to a goal. Append-only.
+enum GoalEventType {
+  CREATED
+  STATUS_CHANGED
+  DEACTIVATED
+  REACTIVATED
+  EDITED
+}
+
+/// The history of one goal.
+///
+/// Append-only and never edited: "when did this slip, and what did they say at
+/// the time" is a question the current row cannot answer, and the answer is
+/// worth more than the row once anyone asks why a date moved.
+///
+/// Deleted WITH the goal when a goal is permanently removed - keeping orphaned
+/// history for a goal nobody can see is a privacy liability, not an audit trail.
+/// Soft-deactivating keeps both.
+model ProjectGoalEvent {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String        @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id         String        @id @default(uuid()) @map("id")
+  goalId     String        @map("goal_id")
+  type       GoalEventType @map("type")
+  fromStatus GoalStatus?   @map("from_status")
+  toStatus   GoalStatus?   @map("to_status")
+  /// Required for AT_RISK and DISCARDED, optional otherwise.
+  reason     String?       @map("reason") @db.Text
+  actorId    String?       @map("actor_id")
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  goal  ProjectGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  actor Employee?   @relation("GoalEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([goalId, createdAt])
+  @@map("project_goal_events")
 }

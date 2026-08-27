@@ -83,14 +83,14 @@ export function Topbar({ session }: { session: Session }) {
             instead of the toggle. */}
         <Link href="/dashboard" aria-label="DNMS" className="flex items-center md:hidden">
           <Image
-            src="/logo_white_bg.png"
+            src="/logo_white_bg-96.png"
             alt="Digitally Next"
             width={370}
             height={96}
             className="h-8 w-auto max-w-none dark:hidden"
           />
           <Image
-            src="/logo_dark_bg.webp"
+            src="/logo_dark_bg-96.webp"
             alt="Digitally Next"
             width={370}
             height={96}

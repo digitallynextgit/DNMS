@@ -35,7 +35,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         <div className="relative z-10 w-full max-w-xl">
           <Link href="/" aria-label="Digitally Next home" className="inline-block">
             <Image
-              src="/logo_dark_bg.webp"
+              src="/logo_dark_bg-96.webp"
               alt="Digitally Next"
               width={370}
               height={96}
@@ -103,14 +103,14 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           <div className="mb-8 flex justify-center lg:hidden">
             <Link href="/" aria-label="Digitally Next home" className="inline-flex">
               <Image
-                src="/logo_white_bg.png"
+                src="/logo_white_bg-96.png"
                 alt="Digitally Next"
                 width={370}
                 height={96}
                 className="h-9 w-auto dark:hidden"
               />
               <Image
-                src="/logo_dark_bg.webp"
+                src="/logo_dark_bg-96.webp"
                 alt="Digitally Next"
                 width={370}
                 height={96}

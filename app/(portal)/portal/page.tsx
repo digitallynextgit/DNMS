@@ -29,14 +29,14 @@ export default async function PortalHomePage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">
       <Image
-        src="/logo_white_bg.png"
+        src="/logo_white_bg-96.png"
         alt="Digitally Next"
         width={370}
         height={96}
         className="mb-10 h-9 w-auto dark:hidden"
       />
       <Image
-        src="/logo_dark_bg.webp"
+        src="/logo_dark_bg-96.webp"
         alt="Digitally Next"
         width={370}
         height={96}

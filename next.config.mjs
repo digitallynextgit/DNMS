@@ -1,5 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // ── WHY THIS IS CONFIGURABLE ────────────────────────────────────────────────
+  // `next dev` and `next build` both write to .next, and Turbopack's dev cache
+  // does not survive another process writing underneath it. Running a
+  // verification build while a dev server is up corrupted the cache outright:
+  //
+  //   ENOENT ... .nextdevserverapp...uild-manifest.json
+  //   Compaction failed: Another write batch or compaction is already active
+  //
+  // Recovery is "stop everything, delete .next, start again", which costs the
+  // dev server's warm cache. Pointing a throwaway build at its own directory
+  // avoids the collision entirely:
+  //
+  //   NEXT_DIST_DIR=.next-verify pnpm build
+  //
+  // Unset, this is exactly the default, so nothing changes for a normal build.
+  distDir: process.env.NEXT_DIST_DIR ?? ".next",
   reactStrictMode: true,
   allowedDevOrigins: ["187.127.159.101", "digitallynext.tech", "dnms.digitallynext.com"],
   serverExternalPackages: ["exceljs", "sharp"],

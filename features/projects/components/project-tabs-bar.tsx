@@ -135,13 +135,19 @@ export function ProjectTabsBar({ items }: { items: ProjectTabItem[] }) {
         })}
       </div>
 
-      <TabsList className="h-auto min-h-10 w-full justify-start gap-1">
+      {/* sm:justify-start looks redundant beside justify-start, and is not: the
+          base TabsList sets `sm:justify-center`, and tailwind-merge keeps a
+          breakpoint variant and its unprefixed form as SEPARATE classes. Without
+          the variant here these strips were left-aligned on a phone and centred
+          on every larger screen, which showed as a half-empty second row
+          floating in the middle. */}
+      <TabsList className="h-auto min-h-10 w-full justify-start gap-1 sm:justify-start">
         {primary.map(renderTrigger)}
       </TabsList>
 
       {/* Second strip appears ONLY when something actually overflows. */}
       {overflow.length > 0 && (
-        <TabsList className="h-auto min-h-10 w-full justify-start gap-1">
+        <TabsList className="h-auto min-h-10 w-full justify-start gap-1 sm:justify-start">
           {overflow.map(renderTrigger)}
         </TabsList>
       )}
