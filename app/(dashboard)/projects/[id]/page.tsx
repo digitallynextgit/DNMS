@@ -90,6 +90,12 @@ const InsightsTab = dynamic(
 const GoalsTab = dynamic(() => import("@/features/projects").then((m) => m.GoalsTab), {
   loading: tabFallback,
 })
+// On Overview, but dynamic all the same: it pulls in recharts, which is far too
+// heavy to sit in this page's eager chunk for the sake of one donut.
+const GoalsOverviewCard = dynamic(
+  () => import("@/features/projects").then((m) => m.GoalsOverviewCard),
+  { loading: () => <Skeleton className="h-56 rounded" /> },
+)
 const SeoTab = dynamic(() => import("@/features/seo").then((m) => m.SeoTab), {
   loading: tabFallback,
 })
@@ -446,6 +452,10 @@ export default function ProjectDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Goals, summarised. Shares its query with the Goals tab, so this
+              costs one request for both. */}
+          <GoalsOverviewCard projectId={projectRef} onOpen={() => handleTabChange("goals")} />
 
           {/* Renders only when the project actually tracks sites. */}
           <ProjectSitesCard projectId={projectRef} onOpenSeo={() => handleTabChange("seo")} />

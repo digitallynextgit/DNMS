@@ -32,6 +32,7 @@ export * from "./hooks/use-integration"
 export * from "./brand"
 
 export { GoalsTab } from "./components/goals-tab"
+export { GoalsOverviewCard } from "./components/goals-overview-card"
 export { formatHours } from "./lib/format-hours"
 export { projectHref } from "./lib/project-href"
 export * from "./lib/report-options"

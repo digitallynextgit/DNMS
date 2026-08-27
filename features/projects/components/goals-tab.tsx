@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Plus,
   Target,
@@ -11,7 +11,6 @@ import {
   History,
   RotateCcw,
   EyeOff,
-  ChevronDown,
 } from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
@@ -38,113 +37,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Mirrors ProjectGoalsSummary in features/projects/server/goals.service.ts.
-// ─────────────────────────────────────────────────────────────────────────────
-type Status = "NOT_STARTED" | "IN_PROGRESS" | "AT_RISK" | "DONE" | "DISCARDED"
-
-interface GoalEvent {
-  id: string
-  type: "CREATED" | "STATUS_CHANGED" | "DEACTIVATED" | "REACTIVATED" | "EDITED"
-  fromStatus: Status | null
-  toStatus: Status | null
-  reason: string | null
-  actorName: string | null
-  at: string
-}
-
-interface GoalNode {
-  id: string
-  title: string
-  status: Status
-  statusReason: string | null
-  progress: number
-  targetDate: string | null
-  isActive: boolean
-  createdByName: string | null
-  children: GoalNode[]
-  progressIsDerived: boolean
-  countableChildren: number
-  overdue: boolean
-  events: GoalEvent[]
-}
-
-interface GoalsSummary {
-  goals: GoalNode[]
-  overallProgress: number
-  totalGoals: number
-  doneGoals: number
-  discardedGoals: number
-  inactiveGoals: number
-  overdueGoals: number
-  nextTargetDate: string | null
-}
-
-const STATUS_LABEL: Record<Status, string> = {
-  NOT_STARTED: "Not started",
-  IN_PROGRESS: "In progress",
-  AT_RISK: "At risk",
-  DONE: "Done",
-  DISCARDED: "Discarded",
-}
-
-/** Semantic, and separate from the brand accent: "at risk" must read as a warning. */
-const STATUS_CLASS: Record<Status, string> = {
-  NOT_STARTED: "bg-muted text-muted-foreground",
-  IN_PROGRESS: "bg-blue-500/12 text-blue-500",
-  AT_RISK: "bg-amber-500/12 text-amber-500",
-  DONE: "bg-emerald-500/12 text-emerald-500",
-  DISCARDED: "bg-muted text-muted-foreground",
-}
-
-const STATUS_ORDER: Status[] = ["NOT_STARTED", "IN_PROGRESS", "AT_RISK", "DONE", "DISCARDED"]
-
-/** Statuses the server will refuse without a reason. Kept in step deliberately. */
-const NEEDS_REASON: ReadonlySet<Status> = new Set<Status>(["AT_RISK", "DISCARDED"])
-
-function fmtDate(iso: string | null): string {
-  if (!iso) return "No date"
-  return new Date(`${iso}T00:00:00.000Z`).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  })
-}
-
-function fmtWhen(iso: string): string {
-  return new Date(iso).toLocaleString("en-GB", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
-function StatusBadge({ status }: { status: Status }) {
-  return (
-    <span
-      className={cn(
-        "shrink-0 rounded-[3px] px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
-        STATUS_CLASS[status],
-      )}
-    >
-      {STATUS_LABEL[status]}
-    </span>
-  )
-}
-
-function ProgressBar({ value, className }: { value: number; className?: string }) {
-  return (
-    <div className={cn("bg-muted h-1.5 w-full overflow-hidden rounded-full", className)}>
-      <div
-        className="bg-primary h-full rounded-full transition-[width]"
-        style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
-      />
-    </div>
-  )
-}
+import { useProjectGoals } from "../hooks/use-goals"
+import {
+  EMPTY_SUMMARY,
+  NEEDS_REASON,
+  ProgressBar,
+  STATUS_LABEL,
+  STATUS_ORDER,
+  STATUS_STYLE,
+  StatusBadge,
+  fmtDate,
+  fmtWhen,
+  type GoalEvent,
+  type GoalNode,
+  type GoalsSummary,
+  type Status,
+} from "./goal-status"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Dialogs
@@ -289,6 +197,38 @@ function DeleteDialog({
   )
 }
 
+/**
+ * One goal's audit trail, in a dialog.
+ *
+ * A dialog rather than an inline panel: expanding history in place pushed every
+ * goal below it down the page, so reading why ONE goal slipped rearranged the
+ * board you were reading it against. A modal keeps the board still and gives the
+ * trail room to be legible.
+ */
+function HistoryDialog({ goal, onClose }: { goal: GoalNode | null; onClose: () => void }) {
+  return (
+    <Dialog open={Boolean(goal)} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            <History className="text-muted-foreground h-4 w-4 shrink-0" />
+            <span className="min-w-0 truncate">{goal?.title}</span>
+            {goal && <StatusBadge status={goal.status} />}
+          </DialogTitle>
+          <DialogDescription>
+            Every status change, edit and removal, with the reason given at the time.
+          </DialogDescription>
+        </DialogHeader>
+        {/* Capped and scrollable: a long-running goal can accumulate a lot, and
+            a dialog that grows past the viewport cannot be dismissed. */}
+        <div className="max-h-[55vh] overflow-y-auto pr-1">
+          <HistoryPanel events={goal?.events ?? []} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 /** One goal's audit trail, including the reason attached to each change. */
 function HistoryPanel({ events }: { events: GoalEvent[] }) {
   if (events.length === 0) {
@@ -300,16 +240,28 @@ function HistoryPanel({ events }: { events: GoalEvent[] }) {
         <li key={e.id} className="flex gap-2.5 text-xs">
           <span
             aria-hidden
-            className="bg-muted-foreground/40 mt-1.5 h-1 w-1 shrink-0 rounded-full"
+            className={cn(
+              "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
+              e.toStatus ? STATUS_STYLE[e.toStatus].dot : "bg-muted-foreground/40",
+            )}
           />
           <div className="min-w-0">
             <p>
               {e.type === "CREATED" && "Goal created"}
               {e.type === "STATUS_CHANGED" && (
                 <>
-                  {e.fromStatus ? STATUS_LABEL[e.fromStatus] : "?"}
-                  {" → "}
-                  <span className="font-medium">{e.toStatus ? STATUS_LABEL[e.toStatus] : "?"}</span>
+                  <span className={e.fromStatus ? STATUS_STYLE[e.fromStatus].text : undefined}>
+                    {e.fromStatus ? STATUS_LABEL[e.fromStatus] : "?"}
+                  </span>
+                  <span className="text-muted-foreground"> → </span>
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      e.toStatus ? STATUS_STYLE[e.toStatus].text : undefined,
+                    )}
+                  >
+                    {e.toStatus ? STATUS_LABEL[e.toStatus] : "?"}
+                  </span>
                 </>
               )}
               {e.type === "DEACTIVATED" && "Deactivated"}
@@ -346,15 +298,7 @@ function HistoryPanel({ events }: { events: GoalEvent[] }) {
 export function GoalsTab({ projectId, canManage }: { projectId: string; canManage: boolean }) {
   const qc = useQueryClient()
   const [showInactive, setShowInactive] = React.useState(false)
-  const key = ["project-goals", projectId, showInactive]
-
-  const { data, isLoading } = useQuery({
-    queryKey: key,
-    queryFn: () =>
-      apiFetch<GoalsSummary>(
-        `/api/projects/${projectId}/goals${showInactive ? "?includeInactive=1" : ""}`,
-      ),
-  })
+  const { data, isLoading } = useProjectGoals(projectId, showInactive)
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["project-goals", projectId] })
   const json = { "Content-Type": "application/json" }
@@ -395,7 +339,7 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
   const [subFor, setSubFor] = React.useState<string | null>(null)
   const [subTitle, setSubTitle] = React.useState("")
   const [subDate, setSubDate] = React.useState("")
-  const [openHistory, setOpenHistory] = React.useState<Set<string>>(new Set())
+  const [historyFor, setHistoryFor] = React.useState<GoalNode | null>(null)
   const [deleting, setDeleting] = React.useState<GoalNode | null>(null)
   const [reasonFor, setReasonFor] = React.useState<{
     id: string
@@ -405,16 +349,7 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
 
   if (isLoading) return <Skeleton className="h-64 rounded" />
 
-  const summary: GoalsSummary = data ?? {
-    goals: [],
-    overallProgress: 0,
-    totalGoals: 0,
-    doneGoals: 0,
-    discardedGoals: 0,
-    inactiveGoals: 0,
-    overdueGoals: 0,
-    nextTargetDate: null,
-  }
+  const summary: GoalsSummary = data ?? EMPTY_SUMMARY
 
   const addMain = () => {
     if (!newGoal.trim()) return
@@ -439,19 +374,13 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
     update.mutate({ id: goal.id, status })
   }
 
-  const toggleHistory = (id: string) =>
-    setOpenHistory((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-
   const statusControl = (goal: GoalNode) =>
     canManage && goal.isActive ? (
       <Select value={goal.status} onValueChange={(v) => changeStatus(goal, v as Status)}>
+        {/* The control carries its own state's colour, so a row reads as
+            "at risk" without anyone parsing the words in it. */}
         <SelectTrigger
-          className="h-8 w-36 shrink-0 text-xs"
+          className={cn("h-8 w-36 shrink-0 text-xs font-medium", STATUS_STYLE[goal.status].trigger)}
           aria-label={`Status for ${goal.title}`}
         >
           <SelectValue />
@@ -459,7 +388,10 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
         <SelectContent>
           {STATUS_ORDER.map((s) => (
             <SelectItem key={s} value={s} className="text-xs">
-              {STATUS_LABEL[s]}
+              <span className="flex items-center gap-2">
+                <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", STATUS_STYLE[s].dot)} />
+                {STATUS_LABEL[s]}
+              </span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -475,8 +407,8 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
         size="icon-sm"
         aria-label={`History for ${goal.title}`}
         title="History"
-        onClick={() => toggleHistory(goal.id)}
-        className={cn("text-muted-foreground", openHistory.has(goal.id) && "text-foreground")}
+        onClick={() => setHistoryFor(goal)}
+        className="text-muted-foreground hover:text-foreground"
       >
         <History className="h-3.5 w-3.5" />
       </Button>
@@ -610,7 +542,7 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                       <h4
                         className={cn(
                           "leading-tight font-semibold",
-                          goal.status === "DISCARDED" && "text-muted-foreground line-through",
+                          STATUS_STYLE[goal.status].title,
                         )}
                       >
                         {goal.title}
@@ -665,15 +597,6 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                   {rowActions(goal)}
                 </div>
 
-                {openHistory.has(goal.id) && (
-                  <div className="border-border/60 bg-muted/20 border-t px-4 py-3 sm:px-5">
-                    <p className="text-muted-foreground mb-2 flex items-center gap-1.5 text-[10px] font-semibold tracking-widest uppercase">
-                      <ChevronDown className="h-3 w-3" /> History
-                    </p>
-                    <HistoryPanel events={goal.events} />
-                  </div>
-                )}
-
                 {goal.children.length > 0 && (
                   <div className="border-border/60 bg-muted/30 divide-border/60 divide-y border-t">
                     {goal.children.map((sub) => (
@@ -683,17 +606,11 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                             aria-hidden
                             className={cn(
                               "h-1.5 w-1.5 shrink-0 rounded-full",
-                              sub.status === "DONE" ? "bg-emerald-500" : "bg-muted-foreground/40",
+                              STATUS_STYLE[sub.status].dot,
                             )}
                           />
                           <div className="min-w-36 flex-1">
-                            <p
-                              className={cn(
-                                "text-sm",
-                                (sub.status === "DONE" || sub.status === "DISCARDED") &&
-                                  "text-muted-foreground line-through",
-                              )}
-                            >
+                            <p className={cn("text-sm", STATUS_STYLE[sub.status].title)}>
                               {sub.title}
                             </p>
                             <p className="text-muted-foreground mt-0.5 flex items-center gap-2 text-[11px]">
@@ -712,11 +629,6 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                           {statusControl(sub)}
                           {rowActions(sub)}
                         </div>
-                        {openHistory.has(sub.id) && (
-                          <div className="border-border/60 border-t px-4 py-3 pl-6 sm:pl-8">
-                            <HistoryPanel events={sub.events} />
-                          </div>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -780,6 +692,7 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
           setDeleting(null)
         }}
       />
+      <HistoryDialog goal={historyFor} onClose={() => setHistoryFor(null)} />
       <ReasonDialog
         open={Boolean(reasonFor)}
         status={reasonFor?.status ?? null}
