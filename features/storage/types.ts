@@ -32,6 +32,7 @@ export interface StorageFile {
     | "project-resource"
     | "project-logo"
     | "gallery-photo"
+    | "gallery-thumb"
     | "mailer-image"
     | "chat-attachment"
     | "project-message-attachment"

@@ -135,7 +135,17 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
     // read as orphaned, and 'Clean up orphans' would cheerfully delete every
     // team photo and every image already embedded in a sent campaign.
     db.photo.findMany({
-      select: { objectKey: true, fileName: true, album: { select: { title: true } } },
+      select: {
+        objectKey: true,
+        // The SMALL variant is a second live object on the same row. Selecting
+        // only objectKey left every thumbnail reading as unreferenced, and
+        // "Clean up orphans" would have deleted the lot - leaving 15 rows whose
+        // thumbKey pointed at nothing, which is worse than never having had one
+        // (the grid falls back to the master only when thumbKey is NULL).
+        thumbKey: true,
+        fileName: true,
+        album: { select: { title: true } },
+      },
     }),
     db.projectMailerAsset.findMany({
       select: { objectKey: true, fileName: true, project: { select: { name: true } } },
@@ -214,12 +224,21 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
       })
   // Owner is the ALBUM, not the uploader: "Diwali 2026" is what tells you
   // whether a photo still belongs somewhere; who happened to upload it does not.
-  for (const g of galleryPhotos)
+  for (const g of galleryPhotos) {
     refs.set(g.objectKey, {
       owner: g.album?.title ?? "Photo Gallery",
       refType: "gallery-photo",
       name: g.fileName,
     })
+    // Same owner, distinct refType: the pair is one photo, but the row has to
+    // say WHICH file it is or the Storage screen shows two identical entries.
+    if (g.thumbKey)
+      refs.set(g.thumbKey, {
+        owner: g.album?.title ?? "Photo Gallery",
+        refType: "gallery-thumb",
+        name: g.fileName + " (thumbnail)",
+      })
+  }
   for (const m of mailerImages)
     refs.set(m.objectKey, {
       owner: m.project?.name ?? "Campaign",

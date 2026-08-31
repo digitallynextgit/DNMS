@@ -1,5 +1,7 @@
 "use client"
 
+import type { DocTag } from "../lib/doc-tag"
+
 import type { ReactionGroup } from "@/components/shared/message-reactions"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type { Attachment } from "@/components/shared/message-attachments"
@@ -212,6 +214,8 @@ export interface ProjectResource {
   projectId: string
   teamId: string | null
   category: "BRIEFS" | "ASSETS" | "DELIVERABLES" | "REFERENCES" | "OTHER"
+  /** Document kind. Null on rows uploaded before tagging existed. */
+  tag: DocTag | null
   fileName: string
   fileSize: number
   mimeType: string
@@ -658,11 +662,39 @@ export function useDeleteResource(projectId: string) {
   )
 }
 
-export async function getResourceDownloadUrl(projectId: string, fileId: string): Promise<string> {
+/**
+ * A short-lived signed URL for a stored file.
+ *
+ * `download` asks the server to sign it with an attachment disposition so the
+ * browser SAVES it. Without that flag the same object opens inline, which is
+ * the difference between the View and the Download action in the Files tab.
+ */
+export async function getResourceDownloadUrl(
+  projectId: string,
+  fileId: string,
+  opts?: { download?: boolean },
+): Promise<string> {
   const res = await apiFetch<{ data: { signedUrl: string } }>(
-    `/api/projects/${projectId}/resources/${fileId}`,
+    `/api/projects/${projectId}/resources/${fileId}${opts?.download ? "?download=1" : ""}`,
   )
   return res.data.signedUrl
+}
+
+/** Retag a stored file. The tag is a guess on upload, so it has to be fixable. */
+export function useUpdateResourceTag(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: ({ fileId, tag }: { fileId: string; tag: DocTag | null }) =>
+        apiFetch(`/api/projects/${projectId}/resources/${fileId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tag }),
+        }),
+      invalidate: [["project-resources", projectId]],
+      success: "Tag updated",
+    }),
+  )
 }
 
 // All tasks for a project (used by Kanban)

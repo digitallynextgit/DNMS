@@ -11,6 +11,7 @@ import { hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
 import { uploadFile, getObjectKey, ensureBucket } from "@/lib/storage"
+import { classifyDoc, isDocTag } from "@/features/projects/lib/doc-tag"
 import type { Session } from "next-auth"
 
 const MAX_SIZE_BYTES = 250 * 1024 * 1024 // 250 MB
@@ -109,12 +110,18 @@ export const POST = withSession(
       const teamIdRaw = formData.get("teamId")
       const categoryRaw = formData.get("category")
       const descriptionRaw = formData.get("description")
+      const tagRaw = formData.get("tag")
 
       // Normalise form values (FormData entries are FormDataEntryValue)
       const teamId =
         typeof teamIdRaw === "string" && teamIdRaw && teamIdRaw !== "null" ? teamIdRaw : null
       const category = typeof categoryRaw === "string" && categoryRaw ? categoryRaw : "OTHER"
       const description = typeof descriptionRaw === "string" ? descriptionRaw : null
+      // An explicit tag wins; otherwise it is guessed from the file below, once
+      // the name and MIME type are known. Never left null on a new upload - an
+      // unclassified row is invisible to the tag filter, and the whole point of
+      // guessing is that the filter covers everything.
+      const explicitTag = isDocTag(tagRaw) ? tagRaw : null
 
       // 4. Validate file
       if (!fileEntry || typeof fileEntry === "string") {
@@ -192,6 +199,7 @@ export const POST = withSession(
           projectId,
           teamId,
           category: category as Category,
+          tag: explicitTag ?? classifyDoc({ name: fileName, mimeType: file.type }),
           fileName,
           fileSize: file.size,
           mimeType: file.type || "application/octet-stream",
@@ -211,7 +219,7 @@ export const POST = withSession(
         module: "project",
         entityType: "ProjectResource",
         entityId: resource.id,
-        changes: { fileName, fileSize: file.size, category, teamId } as object,
+        changes: { fileName, fileSize: file.size, category, teamId, tag: resource.tag } as object,
       })
 
       return NextResponse.json({ data: resource }, { status: 201 })

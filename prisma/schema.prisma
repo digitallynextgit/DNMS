@@ -1787,6 +1787,23 @@ enum ResourceCategory {
   OTHER
 }
 
+/// What KIND of document a project file is, as opposed to where it sits in the
+/// delivery pipeline (that is ResourceCategory). Derived on upload by
+/// features/projects/lib/doc-tag.ts and editable afterwards; nullable because
+/// every row that predates the column has no guess behind it.
+enum DocTag {
+  BRAND
+  STRATEGY
+  RESEARCH
+  JOURNEY
+  REPORT
+  CREATIVE
+  VIDEO
+  PRODUCT
+  LEGAL
+  OTHER
+}
+
 model ProjectResource {
   /// Owning tenant. See the Tenant model for why this carries a DB default.
   tenantId     String           @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
@@ -1794,6 +1811,7 @@ model ProjectResource {
   projectId    String           @map("project_id")
   teamId       String?          @map("team_id") // null = project-level
   category     ResourceCategory @default(OTHER) @map("category")
+  tag          DocTag?          @map("tag")
   fileName     String           @map("file_name")
   fileSize     Int              @map("file_size")
   mimeType     String           @map("mime_type")
@@ -1809,6 +1827,7 @@ model ProjectResource {
   @@index([projectId])
   @@index([teamId])
   @@index([category])
+  @@index([tag])
   @@index([tenantId])
   @@map("project_resources")
 }
