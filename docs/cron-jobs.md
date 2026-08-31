@@ -15,7 +15,6 @@ crontab below is what turns all of this on.
 | `task-reminders`        | every minute        | Warns an assignee their booked time is nearly up | Yes                 |
 | `attendance-sync`       | every 30 min        | Polls Hikvision devices for punches              | Yes                 |
 | `birthdays`             | 09:00 daily         | Birthday notifications                           | Yes                 |
-| `content-reminders`     | 09:00 daily         | Nudges on content-calendar posts                 | Yes                 |
 | `document-expiry`       | 09:10 daily         | Warns on expiring documents                      | Yes                 |
 | `requirement-reminders` | 09:30 daily         | Chases requirements due/overdue                  | Yes                 |
 | `seo-daily`             | 07:00 daily         | SEO accident monitor                             | Yes                 |
@@ -76,7 +75,6 @@ DNMS=https://dnms.digitallynext.com/api/cron
 # Daily (times in UTC; IST = UTC + 5:30)
 30    1  *  *  *  curl -sS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" $DNMS/seo-daily
 30    3  *  *  *  curl -sS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" $DNMS/birthdays
-35    3  *  *  *  curl -sS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" $DNMS/content-reminders
 40    3  *  *  *  curl -sS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" $DNMS/document-expiry
 0     4  *  *  *  curl -sS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" $DNMS/requirement-reminders
 # Weekly
@@ -88,7 +86,6 @@ DNMS=https://dnms.digitallynext.com/api/cron
 ```
 
 IST equivalents for the daily/weekly lines above: seo-daily 07:00, birthdays 09:00,
-content-reminders 09:05, document-expiry 09:10, requirement-reminders 09:30, seo-weekly Mon 06:00,
 evaluation-autocreate 06:00 on the 1st and 16th, leave-accrual 08:00 on the 1st, leave-rollover
 09:00 on 1 Jan.
 

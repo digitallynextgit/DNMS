@@ -677,6 +677,9 @@ model Employee {
   createdTasks       ProjectTask[]          @relation("TaskCreator")
   taskStatusChanges  TaskStatusPeriod[]     @relation("TaskStatusActor")
   contentEntries     ContentCalendarEntry[] @relation("ContentAssignee")
+  sheetsCreated      ProjectSheet[]         @relation("SheetAuthor")
+  sheetRowsCreated   ProjectSheetRow[]      @relation("SheetRowAuthor")
+  sheetEvents        ProjectSheetEvent[]    @relation("SheetEventActor")
   timesheets         Timesheet[]
   ownedProjects      Project[]              @relation("ProjectOwner")
   brandAssets        BrandAsset[]           @relation("BrandAssetUploader")
@@ -1524,6 +1527,7 @@ model Project {
   brand           ProjectBrand?
   brandAssets     BrandAsset[]
   contentCalendar ContentCalendarEntry[]
+  sheets          ProjectSheet[]
   integration     ProjectIntegration?
   metaCampaigns   MetaCampaign[]
   seoProperties   SeoProperty[]
@@ -1732,6 +1736,150 @@ model ContentCalendarEntry {
   @@index([date, status])
   @@index([tenantId])
   @@map("content_calendar_entries")
+}
+
+/// What a sheet column holds. The type drives the editor shown in the cell and
+/// how the value is stored inside ProjectSheetRow.cells.
+enum SheetColumnType {
+  TEXT
+  LONG_TEXT
+  NUMBER
+  DATE
+  SELECT
+  CHECKBOX
+  URL
+  PERSON
+}
+
+/// A spreadsheet a project team builds for itself - a content calendar, a
+/// campaign plan, a tracker. Columns are DEFINED BY THE TEAM rather than by
+/// this schema, which is the whole point: the old content calendar had nine
+/// fixed fields and no project used all nine or only those nine.
+///
+/// A project can hold several, the way a workbook holds tabs.
+model ProjectSheet {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String   @id @default(uuid()) @map("id")
+  projectId   String   @map("project_id")
+  name        String   @map("name")
+  description String?  @map("description")
+  /// Tab order, left to right.
+  position    Int      @default(0) @map("position")
+  /// Row heights in px, keyed by row POSITION: { "0": 56, "12": 90 }.
+  ///
+  /// Held on the SHEET rather than on each row because a row only exists once
+  /// something is typed into it, and dragging row 700 taller has to work
+  /// before that. Positions are stable, so the map stays correct when a row
+  /// is deleted. Absent = the default height.
+  rowHeights  Json?    @map("row_heights")
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy Employee?           @relation("SheetAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  columns   ProjectSheetColumn[]
+  rows      ProjectSheetRow[]
+  events    ProjectSheetEvent[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@index([tenantId])
+  @@map("project_sheets")
+}
+
+model ProjectSheetColumn {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId  String          @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id        String          @id @default(uuid()) @map("id")
+  sheetId   String          @map("sheet_id")
+  name      String          @map("name")
+  type      SheetColumnType @default(TEXT) @map("type")
+  /// Column order, left to right.
+  position  Int             @default(0) @map("position")
+  /// Rendered width in px. Null lets the grid size it.
+  width     Int?            @map("width")
+  /// SELECT choices, as a JSON array of strings. Null for every other type.
+  options   Json?           @map("options")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  sheet ProjectSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  @@index([sheetId, position])
+  @@index([tenantId])
+  @@map("project_sheet_columns")
+}
+
+model ProjectSheetRow {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String   @id @default(uuid()) @map("id")
+  sheetId     String   @map("sheet_id")
+  /// Row order, top to bottom.
+  position    Int      @default(0) @map("position")
+  /// Cell values keyed by COLUMN ID, e.g. { "<uuid>": "Reel" }.
+  ///
+  /// A JSON blob rather than a row per cell: a sheet is always read whole, so
+  /// one row is one query instead of one per populated cell, and adding a
+  /// column costs nothing. Per-cell history lives in ProjectSheetEvent, which
+  /// is what a cell table would otherwise have been for.
+  cells       Json     @default("{}") @map("cells")
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  sheet     ProjectSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  createdBy Employee?    @relation("SheetRowAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([sheetId, position])
+  @@index([tenantId])
+  @@map("project_sheet_rows")
+}
+
+enum SheetEventType {
+  SHEET_CREATED
+  SHEET_RENAMED
+  COLUMN_ADDED
+  COLUMN_UPDATED
+  COLUMN_DELETED
+  ROW_ADDED
+  CELL_UPDATED
+  ROW_DELETED
+}
+
+/// Append-only change log for a sheet.
+///
+/// Anyone on the project may edit a cell, so "who changed this, and what was
+/// it before" is the only thing that makes shared editing safe. Nothing in the
+/// app updates or deletes a row here except the cascade when the sheet goes.
+///
+/// rowId and columnId are DELIBERATELY NOT foreign keys: the most important
+/// event to keep is the one recording a deletion, and an FK would cascade it
+/// away with the thing it describes. `label` stores the name as it read at the
+/// time for the same reason.
+model ProjectSheetEvent {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String         @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id       String         @id @default(uuid()) @map("id")
+  sheetId  String         @map("sheet_id")
+  rowId    String?        @map("row_id")
+  columnId String?        @map("column_id")
+  type     SheetEventType @map("type")
+  /// What the row or column was called when this happened.
+  label    String?        @map("label")
+  before   Json?          @map("before")
+  after    Json?          @map("after")
+  actorId  String?        @map("actor_id")
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  sheet ProjectSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  actor Employee?    @relation("SheetEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([sheetId, createdAt])
+  @@index([tenantId])
+  @@map("project_sheet_events")
 }
 
 // ─── V2: Project Teams ────────────────────────────────────────────────────────

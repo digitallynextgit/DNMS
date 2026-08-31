@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Spinner } from "@/components/shared/spinner"
+// Concrete module, not the feature barrel: brand-tab is itself lazily loaded,
+// and a barrel import would drag the whole feature into its chunk.
+import { ProjectSheetSection } from "./project-sheet"
 import {
   Save,
   Plus,
@@ -16,6 +19,7 @@ import {
   Sparkles,
   ClipboardList,
   CalendarDays,
+  Table2,
   Pencil,
   ImageIcon,
   FileDown,
@@ -48,24 +52,16 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { CONTENT_CALENDAR_STATUS_COLORS, CONTENT_CALENDAR_STATUS_LABELS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import {
   useProjectBrand,
   useSaveProjectBrand,
   useUploadBrandAsset,
   useDeleteBrandAsset,
-  useContentCalendar,
-  useCreateEntry,
-  useUpdateEntry,
-  useDeleteEntry,
-  useImportCalendar,
 } from "@/features/projects/hooks/use-brand"
 import { useAssignableEmployees } from "@/features/projects/hooks/use-projects"
 import {
   PLATFORMS,
-  CONTENT_FORMATS,
-  CALENDAR_STATUSES,
   MANIFESTATION_THEMES,
   EMPTY_GUIDELINES,
   emptyManifestation,
@@ -73,7 +69,6 @@ import {
   type BrandGuidelines,
   type Manifestation,
   type ProjectBrandData,
-  type ContentEntry,
 } from "@/features/projects/brand"
 
 const uid = () =>
@@ -93,14 +88,16 @@ export function BrandTab({ projectId, canManage }: Props) {
           <Sparkles className="h-3.5 w-3.5" /> Strategy
         </TabsTrigger>
         <TabsTrigger value="calendar" className="gap-1.5">
-          <CalendarDays className="h-3.5 w-3.5" /> Content Calendar
+          <Table2 className="h-3.5 w-3.5" /> Content Calendar
         </TabsTrigger>
       </TabsList>
       <TabsContent value="strategy">
         <StrategySection projectId={projectId} canManage={canManage} />
       </TabsContent>
       <TabsContent value="calendar">
-        <ContentCalendarSection projectId={projectId} canManage={canManage} />
+        {/* The calendar is a SHEET now, not a form. Its columns belong to the
+            team rather than to this file - see project-sheet.tsx. */}
+        <ProjectSheetSection projectId={projectId} canManage={canManage} />
       </TabsContent>
     </Tabs>
   )
@@ -724,453 +721,5 @@ function AssetRow({
         )}
       </div>
     </div>
-  )
-}
-
-// ─── Content Calendar ─────────────────────────────────────────────────────────
-
-const emptyEntry = (): Omit<ContentEntry, "id"> => ({
-  date: null,
-  platform: null,
-  theme: null,
-  format: null,
-  hook: null,
-  content: null,
-  status: "PLANNED",
-  link: null,
-  assigneeId: null,
-})
-
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-]
-
-function ContentCalendarSection({ projectId, canManage }: Props) {
-  const thisYear = new Date().getFullYear()
-  const [monthNum, setMonthNum] = useState("ALL") // "ALL" | "01".."12"
-  const [year, setYear] = useState(String(thisYear))
-  const [platform, setPlatform] = useState("")
-  const month = monthNum === "ALL" ? "" : `${year}-${monthNum}`
-
-  const { data, isLoading } = useContentCalendar(projectId, {
-    month: month || undefined,
-    platform: platform || undefined,
-  })
-  const create = useCreateEntry(projectId)
-  const update = useUpdateEntry(projectId)
-  const del = useDeleteEntry(projectId)
-  const importXlsx = useImportCalendar(projectId)
-  const importRef = useRef<HTMLInputElement>(null)
-  const { data: rosterRes } = useAssignableEmployees(projectId, canManage)
-  const people = rosterRes?.data ?? []
-
-  const [editing, setEditing] = useState<ContentEntry | null>(null)
-  const [creating, setCreating] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<ContentEntry | null>(null)
-
-  const rows = data?.data ?? []
-  const posted = rows.filter((r) => r.status === "POSTED").length
-
-  const columns: DataTableColumn<ContentEntry>[] = [
-    { header: "Date", className: "whitespace-nowrap tabular-nums", cell: (r) => r.date ?? "-" },
-    {
-      header: "Platform",
-      cell: (r) =>
-        r.platform ? (
-          <span className="bg-muted rounded-[2px] px-1.5 py-0.5 text-xs font-medium">
-            {r.platform}
-          </span>
-        ) : (
-          "-"
-        ),
-    },
-    { header: "Theme", cell: (r) => <span className="line-clamp-1">{r.theme ?? "-"}</span> },
-    { header: "Format", cell: (r) => r.format ?? "-" },
-    {
-      header: "Assigned to",
-      cell: (r) =>
-        r.assignee ? (
-          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-            {r.assignee.firstName} {r.assignee.lastName}
-            {/* A linked task means it's on their board and they'll be reminded. */}
-            {r.taskId && <CheckSquare className="text-muted-foreground h-3.5 w-3.5" />}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">Unassigned</span>
-        ),
-    },
-    {
-      header: "Hook",
-      cell: (r) => (
-        <span className="text-muted-foreground line-clamp-1 max-w-xs text-xs">{r.hook ?? "-"}</span>
-      ),
-    },
-    {
-      header: "Status",
-      cell: (r) => (
-        <StatusBadge
-          status={r.status in CONTENT_CALENDAR_STATUS_LABELS ? r.status : "PLANNED"}
-          colorMap={CONTENT_CALENDAR_STATUS_COLORS}
-          labelMap={CONTENT_CALENDAR_STATUS_LABELS}
-        />
-      ),
-    },
-    {
-      header: "",
-      align: "right",
-      cell: (r) =>
-        canManage ? (
-          <div className="flex items-center justify-end gap-1">
-            <Button variant="ghost" size="icon-sm" onClick={() => setEditing(r)}>
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-destructive"
-              onClick={() => setDeleteTarget(r)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        ) : null,
-    },
-  ]
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="space-y-1">
-            <Label className="text-muted-foreground text-[11px]">Month</Label>
-            <Select value={monthNum} onValueChange={setMonthNum}>
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All months</SelectItem>
-                {MONTH_NAMES.map((m, i) => (
-                  <SelectItem key={m} value={String(i + 1).padStart(2, "0")}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {monthNum !== "ALL" && (
-            <div className="space-y-1">
-              <Label className="text-muted-foreground text-[11px]">Year</Label>
-              <Select value={year} onValueChange={setYear}>
-                <SelectTrigger className="w-28">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 5 }, (_, i) => thisYear - 2 + i).map((y) => (
-                    <SelectItem key={y} value={String(y)}>
-                      {y}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <div className="space-y-1">
-            <Label className="text-muted-foreground text-[11px]">Platform</Label>
-            <Select
-              value={platform || "ALL"}
-              onValueChange={(v) => setPlatform(v === "ALL" ? "" : v)}
-            >
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All platforms</SelectItem>
-                {PLATFORMS.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {(monthNum !== "ALL" || platform) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9"
-              onClick={() => {
-                setMonthNum("ALL")
-                setPlatform("")
-              }}
-            >
-              Clear
-            </Button>
-          )}
-        </div>
-        {canManage && (
-          <div className="flex items-center gap-2">
-            <input
-              ref={importRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) importXlsx.mutate(file)
-                e.target.value = ""
-              }}
-            />
-            <Button variant="outline" size="sm" className="h-9 gap-1.5" asChild>
-              <a href={`/api/projects/${projectId}/content-calendar/template`}>
-                <FileDown className="h-4 w-4" /> Template
-              </a>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 gap-1.5"
-              disabled={importXlsx.isPending}
-              onClick={() => importRef.current?.click()}
-            >
-              {importXlsx.isPending ? <Spinner /> : <Upload className="h-4 w-4" />}
-              Import xlsx
-            </Button>
-            <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreating(true)}>
-              <Plus className="h-4 w-4" /> Add post
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {rows.length > 0 && (
-        <p className="text-muted-foreground text-xs">
-          <span className="text-foreground font-semibold">{rows.length}</span> post
-          {rows.length === 1 ? "" : "s"} ·{" "}
-          <span className="text-foreground font-semibold">{posted}</span> posted
-        </p>
-      )}
-
-      {isLoading ? (
-        <ListSkeleton rows={6} height="h-12" />
-      ) : rows.length === 0 ? (
-        <EmptyState
-          icon={CalendarDays}
-          variant="card"
-          title="No content posts yet."
-          description={
-            canManage ? "Add a post, or import your content-calendar spreadsheet." : undefined
-          }
-        />
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={rows}
-          rowKey={(r) => r.id}
-          showSerial
-          onRowClick={canManage ? (r) => setEditing(r) : undefined}
-          minWidth="min-w-[880px]"
-        />
-      )}
-
-      <EntryDialog
-        open={creating || !!editing}
-        onOpenChange={(o) => {
-          if (!o) {
-            setCreating(false)
-            setEditing(null)
-          }
-        }}
-        initial={editing}
-        people={people}
-        pending={create.isPending || update.isPending}
-        onSubmit={(body) => {
-          if (editing)
-            update.mutate({ id: editing.id, ...body }, { onSuccess: () => setEditing(null) })
-          else create.mutate(body, { onSuccess: () => setCreating(false) })
-        }}
-      />
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="Delete post?"
-        description="This content-calendar post will be permanently removed."
-        confirmLabel="Delete"
-        variant="destructive"
-        isLoading={del.isPending}
-        onConfirm={() =>
-          deleteTarget && del.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })
-        }
-      />
-    </div>
-  )
-}
-
-function EntryDialog({
-  open,
-  onOpenChange,
-  initial,
-  pending,
-  onSubmit,
-  people,
-}: {
-  open: boolean
-  onOpenChange: (o: boolean) => void
-  initial: ContentEntry | null
-  pending: boolean
-  onSubmit: (body: Omit<ContentEntry, "id">) => void
-  people: { id: string; firstName: string; lastName: string }[]
-}) {
-  const [form, setForm] = useState<Omit<ContentEntry, "id">>(emptyEntry())
-
-  useEffect(() => {
-    if (open) setForm(initial ? { ...initial } : emptyEntry())
-  }, [open, initial])
-
-  const set = (patch: Partial<Omit<ContentEntry, "id">>) => setForm((f) => ({ ...f, ...patch }))
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{initial ? "Edit post" : "Add post"}</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-3 py-1 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Date</Label>
-            <DateField
-              value={form.date ?? ""}
-              placeholder="Pick a date"
-              onChange={(v) => set({ date: v || null })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Platform</Label>
-            <Select value={form.platform ?? undefined} onValueChange={(v) => set({ platform: v })}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select…" />
-              </SelectTrigger>
-              <SelectContent>
-                {PLATFORMS.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Theme / occasion</Label>
-            <Input
-              value={form.theme ?? ""}
-              placeholder="e.g. Republic Day"
-              aria-label="e.g. Republic Day"
-              onChange={(e) => set({ theme: e.target.value || null })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Format</Label>
-            <Select value={form.format ?? undefined} onValueChange={(v) => set({ format: v })}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select…" />
-              </SelectTrigger>
-              <SelectContent>
-                {CONTENT_FORMATS.map((f) => (
-                  <SelectItem key={f} value={f}>
-                    {f}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Hook</Label>
-            <Textarea
-              rows={2}
-              placeholder="The scroll-stopping opening line…"
-              aria-label="The scroll-stopping opening line"
-              value={form.hook ?? ""}
-              onChange={(e) => set({ hook: e.target.value || null })}
-            />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Content</Label>
-            <Textarea
-              rows={5}
-              placeholder="Caption / slides / script…"
-              aria-label="Caption / slides / script"
-              value={form.content ?? ""}
-              onChange={(e) => set({ content: e.target.value || null })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Assigned to</Label>
-            <Select
-              value={form.assigneeId ?? "NONE"}
-              onValueChange={(v) => set({ assigneeId: v === "NONE" ? null : v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Nobody" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="NONE">Nobody</SelectItem>
-                {people.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.firstName} {p.lastName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-[11px]">
-              Assigning creates a task on their board, due on the publish date, and reminds them
-              that morning.
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Status</Label>
-            <Select value={form.status} onValueChange={(v) => set({ status: v })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CALENDAR_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {CONTENT_CALENDAR_STATUS_LABELS[s] ?? s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Link</Label>
-            <Input
-              placeholder="https://…"
-              aria-label="https://"
-              value={form.link ?? ""}
-              onChange={(e) => set({ link: e.target.value || null })}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
-            Cancel
-          </Button>
-          <Button onClick={() => onSubmit(form)} disabled={pending}>
-            {pending ? "Saving…" : initial ? "Save changes" : "Add post"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }

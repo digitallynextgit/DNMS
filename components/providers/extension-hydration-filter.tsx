@@ -27,6 +27,9 @@
 // Filter /> line in providers.tsx - nothing else depends on it.
 // =============================================================================
 
+/** URL schemes a browser extension's own code is served from. */
+const EXTENSION_SCHEMES = ["chrome-extension://", "moz-extension://", "safari-web-extension://"]
+
 /** Attributes injected by extensions. Matching one of these is what makes a
  *  hydration warning "not our bug". */
 const EXTENSION_ATTRIBUTES = [
@@ -70,6 +73,28 @@ function isExtensionHydrationNoise(args: unknown[]): boolean {
   return EXTENSION_ATTRIBUTES.some((attr) => blob.includes(attr))
 }
 
+/**
+ * Is this rejection ENTIRELY an extension's fault?
+ *
+ * The test is deliberately two-sided, because "mentions an extension" is not
+ * enough - our own code can throw while an extension sits somewhere up the
+ * stack, and that IS our bug:
+ *
+ *   1. some frame is served from an extension scheme, AND
+ *   2. NO frame is served from this origin.
+ *
+ * An error thrown by our code always names a file on this origin, so it fails
+ * (2) and is reported in full. One thrown inside an extension's own bundle
+ * names only extension frames, and there is nothing we could do about it
+ * anyway - it is not our script, not our stack, and not fixable from here.
+ */
+function isExtensionOnlyStack(reason: unknown): boolean {
+  const stack = reason instanceof Error ? `${reason.message} ${reason.stack ?? ""}` : toText(reason)
+  if (!stack) return false
+  if (!EXTENSION_SCHEMES.some((scheme) => stack.includes(scheme))) return false
+  return !stack.includes(window.location.origin)
+}
+
 // Installed at MODULE scope, not in an effect: this has to be in place before
 // React hydrates, and effects run after.
 //
@@ -96,6 +121,27 @@ if (
   }
   filtered[INSTALLED] = true
   console.error = filtered
+
+  // ── Unhandled rejections thrown inside an extension ────────────────────────
+  //
+  // Same problem, different channel: an extension rejects a promise on our
+  // page, and because the rejection is unhandled it reaches window, where
+  // Next's dev overlay turns it into a full-screen error for a script we do not
+  // ship and cannot fix.
+  //
+  // CAPTURE PHASE and stopImmediatePropagation, not just preventDefault: the
+  // overlay listens on window too, and preventDefault only cancels the
+  // browser's own reporting - it would still render. Being first and stopping
+  // the chain is what actually keeps it off the screen.
+  window.addEventListener(
+    "unhandledrejection",
+    (event) => {
+      if (!isExtensionOnlyStack(event.reason)) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+    },
+    true,
+  )
 }
 
 /**

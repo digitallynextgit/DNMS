@@ -4,7 +4,6 @@ import { withSession } from "@/server/api-handler"
 import { hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
 import { logActivity } from "@/features/projects/server/activity"
-import { syncTaskToEntry } from "@/features/projects/server/content-task.service"
 import { recordStatusChange } from "@/features/projects/server/task-status-periods"
 import {
   upsertResumeTask,
@@ -323,10 +322,6 @@ export const PATCH = withSession(
       // feed to write to and no project page to link a notification at.
       const projectId = auth.task.team?.projectId ?? auth.task.projectId
       if (status !== undefined && status !== prevStatus) {
-        // If this task mirrors a content-calendar post, move the plan with it -
-        // ticking the task off is how a writer marks the post published.
-        await syncTaskToEntry(task.id, task.status)
-
         if (projectId) {
           await logActivity({
             projectId,
