@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
 import { notifyApprovers } from "@/lib/notifications"
-import { SYSTEM_ROLES, HIDDEN_ROLES } from "@/lib/constants"
+import { sendFloatingHolidayRequestLetter } from "@/features/attendance/server/floating-holiday-mail"
+import { SYSTEM_ROLES, HIDDEN_ROLES, FLOATING_HOLIDAY_LIMIT } from "@/lib/constants"
 import type { Session } from "next-auth"
-
-// Each employee may avail this many floating (optional) holidays per year.
-export const FLOATING_HOLIDAY_LIMIT = 3
 
 // Statuses that count against an employee's yearly allowance.
 const ACTIVE = ["PENDING", "APPROVED"] as const
@@ -92,6 +90,47 @@ export const GET = withSession(
 )
 
 /**
+ * Announce a freshly-submitted (or re-submitted) floating-holiday request:
+ * the in-app notification + push to every approver, plus the application letter
+ * emailed to the manager with HR and the applicant on Cc.
+ *
+ * The mail is fire-and-forget inside sendFloatingHolidayRequestLetter, so a
+ * mailbox problem can never fail the application itself.
+ */
+async function notifyAndMail(
+  applicantId: string,
+  selectionId: string,
+  holiday: { name: string; date: Date },
+  reason: string | null,
+  usedCount: number,
+  year: number,
+): Promise<void> {
+  const applicant = await db.employee.findUnique({
+    where: { id: applicantId },
+    select: { firstName: true, lastName: true },
+  })
+  const applicantName = `${applicant?.firstName ?? ""} ${applicant?.lastName ?? ""}`.trim()
+
+  await notifyApprovers({
+    requesterId: applicantId,
+    title: "Floating holiday request",
+    message: `${applicantName} requested ${holiday.name} (${new Date(holiday.date).toDateString()}) as a floating holiday.`,
+    link: "/holiday-calendar?tab=requests",
+  })
+
+  await sendFloatingHolidayRequestLetter({
+    applicantId,
+    selectionId,
+    holidayName: holiday.name,
+    holidayDate: new Date(holiday.date),
+    reason,
+    usedCount,
+    limit: FLOATING_HOLIDAY_LIMIT,
+    year,
+  })
+}
+
+/**
  * POST /api/attendance/floating-holidays   body: { holidayId, reason? }
  * Applies for a floating holiday. Creates a PENDING request and notifies the
  * employee's manager + HR. It only counts once HR approves.
@@ -147,6 +186,17 @@ export const POST = withSession(
               reviewedAt: null,
             },
           })
+          const usedAfter = await db.floatingHolidaySelection.count({
+            where: { employeeId: session.user.id, year, status: { in: [...ACTIVE] } },
+          })
+          await notifyAndMail(
+            session.user.id,
+            reopened.id,
+            holiday,
+            reopened.reason,
+            usedAfter,
+            year,
+          )
           return NextResponse.json({ data: reopened }, { status: 200 })
         }
         return NextResponse.json(
@@ -178,12 +228,14 @@ export const POST = withSession(
         include: { employee: { select: { firstName: true, lastName: true } } },
       })
 
-      await notifyApprovers({
-        requesterId: session.user.id,
-        title: "Floating holiday request",
-        message: `${selection.employee.firstName} ${selection.employee.lastName} requested ${holiday.name} (${new Date(holiday.date).toDateString()}) as a floating holiday.`,
-        link: "/holiday-calendar?tab=requests",
-      })
+      await notifyAndMail(
+        session.user.id,
+        selection.id,
+        holiday,
+        selection.reason,
+        activeCount + 1,
+        year,
+      )
 
       return NextResponse.json({ data: selection }, { status: 201 })
     } catch (error) {

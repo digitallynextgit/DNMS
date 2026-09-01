@@ -902,3 +902,126 @@ Approve or decline in ${BRAND_NAME}: ${reviewUrl}`
 
   return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
 }
+
+/**
+ * The floating-holiday application, written AS THE EMPLOYEE and addressed to
+ * their reporting manager (HR is Cc'd) - the same letter shape as leave and WFH,
+ * so all three requests land in an approver's mailbox looking alike.
+ *
+ * Floating holidays differ from leave in two ways the letter has to carry:
+ *  - it is drawn from a fixed yearly allowance, so the balance is stated; and
+ *  - the manager's approval is only the first step, HR makes the final call.
+ */
+export function renderFloatingHolidayRequestEmail(input: {
+  /** First name of the approver the letter is addressed to. */
+  approverFirstName: string
+  applicantName: string
+  employeeNo?: string | null
+  designation?: string | null
+  department?: string | null
+  /** For the signature block. */
+  applicantEmail?: string | null
+  applicantPhone?: string | null
+  /** The optional holiday being claimed, e.g. "Diwali". */
+  holidayName: string
+  /** "yyyy-MM-dd" - a floating holiday is always a single day. */
+  date: string
+  reason?: string | null
+  /** Yearly allowance context: this is the Nth of `limit` for `year`. */
+  usedCount: number
+  limit: number
+  year: number
+  reviewUrl?: string
+}): { subject: string; html: string; text: string } {
+  const {
+    approverFirstName,
+    applicantName,
+    employeeNo,
+    designation,
+    department,
+    applicantEmail,
+    applicantPhone,
+    holidayName,
+    date,
+    reason,
+    usedCount,
+    limit,
+    year,
+    reviewUrl,
+  } = input
+
+  const day = formatEmailDate(date) ?? date
+  const holiday = escapeHtml(holidayName)
+  const subject = `Floating Holiday request - ${applicantName} - ${holidayName}, ${day}`
+
+  const ordinal = (n: number) => {
+    const teen = n % 100 >= 11 && n % 100 <= 13
+    return `${n}${teen ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`
+  }
+  // Stated in prose - the letter deliberately has no details card.
+  const balanceSentence = `This would be my ${ordinal(usedCount)} floating holiday of ${limit} for ${year}.`
+
+  const reasonTrimmed = reason?.trim() || ""
+  const reasonHtml = reasonTrimmed ? escapeHtml(reasonTrimmed).replace(/\n/g, "<br />") : ""
+  const para = "margin:0 0 16px; font-size:15px; line-height:1.7; color:#374151;"
+
+  // Signature block: "Designation · EMP-01 · Department" (only what exists).
+  const sigParts = [designation, employeeNo, department].filter(Boolean) as string[]
+
+  const body = `
+    <p style="margin:0 0 18px; font-size:15px; color:#111827;">Dear ${escapeHtml(approverFirstName)},</p>
+
+    <p style="${para}">
+      I would like to apply for a <strong style="color:#111827;">floating (optional) holiday</strong> on
+      <strong style="color:#111827;">${day}</strong> for <strong style="color:#111827;">${holiday}</strong>.
+    </p>
+
+    ${reasonHtml ? `<p style="${para}">${reasonHtml}</p>` : ""}
+
+    <p style="${para}">
+      ${balanceSentence} I will plan my work around the day so that nothing pending is affected,
+      and I will hand over anything time-sensitive before I am away.
+    </p>
+
+    <p style="${para}">
+      This request goes to you first and is then confirmed by HR. Kindly approve it at your convenience.
+    </p>
+
+    <p style="${para}">Thank you for your consideration.</p>
+
+    <p style="margin:24px 0 0; font-size:15px; color:#111827;">Best Regards,</p>
+    ${renderSignature({
+      name: applicantName,
+      designation,
+      email: applicantEmail,
+      phone: applicantPhone,
+    })}
+
+    ${
+      reviewUrl
+        ? `<p style="margin:24px 0 0; padding-top:16px; border-top:1px solid #f0f0f0; font-size:12px; color:#9ca3af;">
+             Approve or decline in <a href="${reviewUrl}" style="color:#2563eb;">${BRAND_NAME}</a>. HR is copied on this email.
+           </p>`
+        : ""
+    }`
+
+  const text = [
+    `Dear ${approverFirstName},`,
+    ``,
+    `I would like to apply for a floating (optional) holiday on ${day} for ${holidayName}.`,
+    ...(reasonTrimmed ? [``, reasonTrimmed] : []),
+    ``,
+    `${balanceSentence} I will plan my work around the day so that nothing pending is affected, and I will hand over anything time-sensitive before I am away.`,
+    ``,
+    `This request goes to you first and is then confirmed by HR. Kindly approve it at your convenience.`,
+    ``,
+    `Thank you for your consideration.`,
+    ``,
+    `Best Regards,`,
+    applicantName,
+    sigParts.join(" · "),
+    ...(reviewUrl ? [``, `Approve or decline in ${BRAND_NAME}: ${reviewUrl}`] : []),
+  ].join("\n")
+
+  return { subject, html: wrapEmail({ title: subject, bodyHtml: body }), text }
+}

@@ -690,6 +690,9 @@ export const HOLIDAY_TYPE_COLORS: Record<string, string> = {
   FLOATING: TONE.amber,
 }
 
+/** How many floating (optional) holidays an employee may avail per year. */
+export const FLOATING_HOLIDAY_LIMIT = 3
+
 /**
  * Status of an employee's floating-holiday request.
  * CANCELLED is deliberately absent: a withdrawn request shows no pill at all
