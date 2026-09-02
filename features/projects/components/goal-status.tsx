@@ -29,6 +29,7 @@ export interface GoalEvent {
 export interface GoalNode {
   id: string
   title: string
+  /** As stored on a leaf; rolled up from its sub-goals on a parent. */
   status: Status
   statusReason: string | null
   progress: number
@@ -45,8 +46,11 @@ export interface GoalNode {
 export interface GoalsSummary {
   goals: GoalNode[]
   overallProgress: number
+  /** Countable MAIN goals. Sub-goals belong to their parent and are not added. */
   totalGoals: number
+  /** Of `totalGoals`, how many are done. */
   doneGoals: number
+  /** Flat, sub-goals included: these describe rows on the board, not goals. */
   discardedGoals: number
   inactiveGoals: number
   overdueGoals: number
@@ -226,54 +230,40 @@ export function ProgressBar({ value, className }: { value: number; className?: s
  * The numbers the Overview card shows, worked out from the tree the API already
  * returns rather than added to the summary server-side.
  *
- * `totalGoals` on the wire is the FLAT count - mains and sub-goals together -
- * which is the right denominator for progress and the wrong one for a stat tile
- * labelled "Goals". Splitting the two here keeps the server contract as it is.
+ * MAIN GOALS ONLY. A sub-goal is a part of its parent, not a goal beside it:
+ * "Launch the storefront" with three sub-goals is one goal, not four, and a
+ * donut that counted all four would show three-quarters of a project's goals
+ * living inside the other quarter. Nothing is lost by leaving them out - the
+ * server rolls each parent's status up from its sub-goals, so the parent's
+ * slice already says how its parts are going.
  *
  * DISCARDED IS COUNTED HERE, unlike in the progress denominator. A chart of
  * states that silently omits one of the five states is a chart that does not
  * add up: the reader counts the slices, counts the goals, and finds the card
- * lying to them. So the tiles and the slices share one population - every goal
- * that exists - and "discarded goals do not count toward progress" is said in
- * words next to the progress figure, where it actually applies.
+ * lying to them. So the tiles and the slices share one population - every main
+ * goal that exists - and "discarded goals do not count toward progress" is said
+ * in words next to the progress figure, where it actually applies.
  *
  * Deactivated goals are absent entirely: the card fetches without
  * `includeInactive`, so the tree never contains them.
  */
 export interface GoalBreakdown {
-  /** Top-level goals. */
-  mains: number
-  /** Sub-goals, at any depth. */
-  subs: number
-  /** Goals in each state, in STATUS_ORDER. Zero-count states included. */
+  /** Main goals in each state, in STATUS_ORDER. Zero-count states included. */
   byStatus: { status: Status; count: number }[]
   /** Slices with a count, for the donut. Empty when there are no goals. */
   slices: { status: Status; count: number }[]
-  /** mains + subs, and the sum of every slice. */
+  /** Main goals, and the sum of every slice. */
   total: number
 }
 
 export function breakdown(summary: GoalsSummary): GoalBreakdown {
-  let mains = 0
-  let subs = 0
   const tally = new Map<Status, number>(STATUS_ORDER.map((s) => [s, 0]))
-
-  const walk = (nodes: GoalNode[], depth: number) => {
-    for (const n of nodes) {
-      if (depth === 0) mains++
-      else subs++
-      tally.set(n.status, (tally.get(n.status) ?? 0) + 1)
-      walk(n.children, depth + 1)
-    }
-  }
-  walk(summary.goals, 0)
+  for (const g of summary.goals) tally.set(g.status, (tally.get(g.status) ?? 0) + 1)
 
   const byStatus = STATUS_ORDER.map((status) => ({ status, count: tally.get(status) ?? 0 }))
   return {
-    mains,
-    subs,
     byStatus,
     slices: byStatus.filter((s) => s.count > 0),
-    total: mains + subs,
+    total: summary.goals.length,
   }
 }

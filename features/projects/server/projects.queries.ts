@@ -5,6 +5,7 @@ import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
+import { resolveProjectId, canAccessProject } from "./project-access"
 
 export interface ListProjectsOptions {
   status?: string
@@ -80,4 +81,22 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
     data: decorated,
     pagination: paginationMeta(total, page, limit),
   }
+}
+
+/**
+ * A project's name, for the browser tab.
+ *
+ * Feeds `generateMetadata` in app/(dashboard)/projects/[id]/layout.tsx. The
+ * route takes a slug or a uuid, so the same resolver the API routes use turns
+ * it into an id first. Access is checked the way the page's own data is: a
+ * project the reader cannot open should not put its name in their tab either.
+ *
+ * Null when there is no such project or no access, so the caller can fall back
+ * to a generic title rather than 404 a layout that only wanted a label.
+ */
+export async function getProjectTitle(idOrSlug: string, session: Session): Promise<string | null> {
+  const id = await resolveProjectId(idOrSlug)
+  if (!id || !(await canAccessProject(session, id))) return null
+  const project = await db.project.findUnique({ where: { id }, select: { name: true } })
+  return project?.name ?? null
 }

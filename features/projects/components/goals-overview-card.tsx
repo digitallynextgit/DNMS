@@ -28,6 +28,10 @@ import {
 // done, how the goals are spread across the five states, and what is due next.
 // Everything that edits anything lives one click away, behind "Open goals".
 //
+// MAIN GOALS ONLY. A sub-goal is part of its parent, and the parent's state
+// already reflects it (the server rolls status and progress up), so the card
+// neither counts nor lists sub-goals. They are the tab's business.
+//
 // It shares its query with the tab (see use-goals.ts), so opening Overview and
 // then Goals is one request, and marking a goal done on the tab updates this
 // card without a refetch.
@@ -207,10 +211,9 @@ export function GoalsOverviewCard({
           </div>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Tile label="Total goals" value={b.total} hint={`${b.mains} main + ${b.subs} sub`} />
-              <Tile label="Main goals" value={b.mains} />
-              <Tile label="Sub-goals" value={b.subs} />
+            <div className="grid grid-cols-3 gap-2">
+              <Tile label="Goals" value={b.total} />
+              <Tile label="Done" value={summary.doneGoals} />
               <Tile
                 label="Progress"
                 value={`${summary.overallProgress}%`}

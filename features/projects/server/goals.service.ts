@@ -27,6 +27,16 @@ import { ValidationError, NotFoundError } from "@/lib/errors"
 // A parent whose sub-goals are all discarded or deactivated has nothing left to
 // measure, so it reports 0 rather than dividing by zero.
 //
+// A parent's STATUS is derived the same way (see parentStatus). A goal with
+// sub-goals has no status control of its own - the sub-goals are its status -
+// so the stored value would otherwise freeze at whatever it was when the first
+// sub-goal was added.
+//
+// ── A SUB-GOAL IS PART OF ITS PARENT, NOT A GOAL BESIDE IT ───────────────────
+// totalGoals and doneGoals count MAIN goals only. "Launch the storefront" with
+// three sub-goals is one goal, not four, and a summary that said "1 of 4 done"
+// would be counting the same work twice.
+//
 // ── HISTORY IS APPEND-ONLY ───────────────────────────────────────────────────
 // Every status change, deactivation and edit writes a ProjectGoalEvent. The
 // current row cannot answer "when did this slip, and what did they say at the
@@ -59,6 +69,7 @@ export interface GoalNode {
   id: string
   title: string
   description: string | null
+  /** As stored on a leaf; rolled up from countable children on a parent. */
   status: GoalStatusValue
   statusReason: string | null
   /** 0-100. Derived from countable children when there are any. */
@@ -78,11 +89,15 @@ export interface GoalNode {
 export interface ProjectGoalsSummary {
   goals: GoalNode[]
   overallProgress: number
+  /** Countable MAIN goals. Sub-goals belong to their parent and are not added. */
   totalGoals: number
+  /** Of `totalGoals`, how many are DONE. */
   doneGoals: number
+  /** Flat, sub-goals included: these describe rows on the board, not goals. */
   discardedGoals: number
   inactiveGoals: number
   overdueGoals: number
+  /** Earliest upcoming target across every countable goal, sub-goals included. */
   nextTargetDate: string | null
 }
 
@@ -96,6 +111,25 @@ function todayUtc(): Date {
 /** Does this goal count towards its parent's progress? */
 const counts = (g: { isActive: boolean; status: GoalStatusValue }): boolean =>
   g.isActive && !NOT_COUNTABLE.has(g.status)
+
+/**
+ * A parent's status, read off its countable sub-goals.
+ *
+ * Keeps the badge on the tab, the donut on the Overview and "N of M done" all
+ * telling the same story as the progress bar beside them.
+ *
+ * DISCARDED is left alone: a parent dropped on purpose, with a reason, stays
+ * dropped however its sub-goals move. AT_RISK set on the parent itself is kept
+ * too, unless every sub-goal is done - a goal whose parts are all delivered is
+ * delivered, and the risk has passed.
+ */
+function parentStatus(stored: GoalStatusValue, countable: GoalNode[]): GoalStatusValue {
+  if (stored === "DISCARDED" || countable.length === 0) return stored
+  if (countable.every((k) => k.status === "DONE")) return "DONE"
+  if (stored === "AT_RISK" || countable.some((k) => k.status === "AT_RISK")) return "AT_RISK"
+  if (countable.some((k) => k.status !== "NOT_STARTED")) return "IN_PROGRESS"
+  return "NOT_STARTED"
+}
 
 /**
  * Every goal on a project, nested, with progress rolled up and history attached.
@@ -154,11 +188,14 @@ export async function getProjectGoals(
     const kids = (byParent.get(r.id) ?? []).map(toNode)
     const countable = kids.filter(counts)
     const derived = kids.length > 0
+    const status = derived
+      ? parentStatus(r.status as GoalStatusValue, countable)
+      : (r.status as GoalStatusValue)
     const progress = derived
       ? countable.length === 0
         ? 0
         : Math.round((countable.filter((k) => k.status === "DONE").length / countable.length) * 100)
-      : r.status === "DONE"
+      : status === "DONE"
         ? 100
         : 0
 
@@ -166,7 +203,7 @@ export async function getProjectGoals(
       id: r.id,
       title: r.title,
       description: r.description,
-      status: r.status as GoalStatusValue,
+      status,
       statusReason: r.statusReason,
       progress,
       targetDate: ymd(r.targetDate),
@@ -180,8 +217,8 @@ export async function getProjectGoals(
       overdue: Boolean(
         r.targetDate &&
         r.targetDate < today &&
-        r.status !== "DONE" &&
-        counts({ isActive: r.isActive, status: r.status as GoalStatusValue }),
+        status !== "DONE" &&
+        counts({ isActive: r.isActive, status }),
       ),
       events: r.events.map((e) => ({
         id: e.id,
@@ -218,8 +255,8 @@ export async function getProjectGoals(
       countableMains.length === 0
         ? 0
         : Math.round(countableMains.reduce((s, g) => s + g.progress, 0) / countableMains.length),
-    totalGoals: flat.filter(counts).length,
-    doneGoals: flat.filter((g) => counts(g) && g.status === "DONE").length,
+    totalGoals: countableMains.length,
+    doneGoals: countableMains.filter((g) => g.status === "DONE").length,
     discardedGoals: flat.filter((g) => g.isActive && g.status === "DISCARDED").length,
     inactiveGoals: flat.filter((g) => !g.isActive).length,
     overdueGoals: flat.filter((g) => g.overdue).length,
