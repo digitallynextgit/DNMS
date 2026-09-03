@@ -119,7 +119,7 @@ export type Drill =
     }
   | { kind: "goals"; projectId?: string }
 
-/** "due 31 Aug – 6 Sep" or "all time". */
+/** "due 31 Aug - 6 Sep" or "all time". */
 export function rangeLabel(r?: DrillRange): string {
   if (!r?.from) return "all time"
   return `due ${formatDate(r.from, "d MMM")}${r.to ? ` - ${formatDate(r.to, "d MMM")}` : ""}`
@@ -685,7 +685,20 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
   // Memoised so the derived bucket and chip counts below only recompute when
   // the response changes, not on every render of a filter chip.
   const tasks = React.useMemo(() => data?.data ?? [], [data])
-  const b = React.useMemo(() => bucketOf(tasks), [tasks])
+
+  // ── Stats come from the SERVER AGGREGATE, not from the rows on screen ──────
+  // The list is paged (150 at a time). Deriving the donut and the tiles from it
+  // meant that the moment somebody crossed a page - and the busiest person here
+  // is already at 136 - their completion rate would quietly be computed from a
+  // slice of their work, with nothing on screen saying so. The performance
+  // endpoint aggregates in SQL over the whole scope and is already in cache
+  // from the page behind this popup, so this is both correct and free.
+  const perf = usePerformance(d.projectId, d.range)
+  const aggregate = perf.data?.byEmployee.find((e) => e.id === d.person.id)
+  const derived = React.useMemo(() => bucketOf(tasks), [tasks])
+  const b = aggregate ?? derived
+  // Chip counts describe the rows actually loaded, so they always match what
+  // clicking the chip will show.
   const counts = React.useMemo(() => {
     const c: Partial<Record<TaskState, number>> = { all: tasks.length }
     for (const chip of STATE_CHIPS) {
@@ -693,6 +706,7 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
     }
     return c
   }, [tasks])
+  const truncated = Boolean(data?.truncated)
 
   if (isLoading) return <Skeleton className="m-5 h-64 rounded-sm" />
 
@@ -748,6 +762,14 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
         <div className="space-y-3">
           <StateChips value={state} onChange={setState} counts={counts} />
           <div className="border-border/60 overflow-hidden rounded-sm border">
+            {/* Says so rather than quietly showing a slice. The tiles above are
+                unaffected - they come from the server aggregate. */}
+            {truncated && (
+              <p className="text-muted-foreground border-border/60 border-b px-4 py-2 text-[11px]">
+                Listing the first {tasks.length} of {data?.total} tasks. The figures above cover all
+                of them.
+              </p>
+            )}
             <TaskRows
               tasks={tasks.filter((t) => matchesState(t, state))}
               groupBy={d.projectId ? "none" : "project"}

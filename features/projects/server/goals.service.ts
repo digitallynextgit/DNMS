@@ -263,6 +263,20 @@ export const GOAL_SELECT = {
 
 export type GoalRow = Prisma.ProjectGoalGetPayload<{ select: typeof GOAL_SELECT }>
 
+/**
+ * GOAL_SELECT without the history.
+ *
+ * The portfolio roll-up (Progress page) shows trees, never event trails, and
+ * the events relation is `take: 25` PER GOAL - so asking for it there shipped
+ * ~64 rows across the portfolio that nothing on the page renders, growing with
+ * every status change anyone ever makes. Only the Goals tab reads history, and
+ * it fetches one project at a time.
+ */
+export const GOAL_SELECT_LITE = (({ events: _events, ...rest }) => rest)(GOAL_SELECT)
+
+/** A goal row with or without its history attached. */
+export type GoalRowLite = Omit<GoalRow, "events"> & { events?: GoalRow["events"] }
+
 /** The order a board reads in. Shared for the same reason GOAL_SELECT is. */
 export const GOAL_ORDER = [
   { sortOrder: "asc" },
@@ -300,7 +314,7 @@ export async function getProjectGoals(
  * PURE. It takes rows and returns a summary; `today` is a parameter so a caller
  * summarising many projects cannot have the date move underneath it mid-loop.
  */
-export function summariseGoalRows(rows: GoalRow[], today = todayUtc()): ProjectGoalsSummary {
+export function summariseGoalRows(rows: GoalRowLite[], today = todayUtc()): ProjectGoalsSummary {
   const byParent = new Map<string | null, typeof rows>()
   for (const r of rows) {
     if (!byParent.has(r.parentId)) byParent.set(r.parentId, [])
@@ -348,7 +362,8 @@ export function summariseGoalRows(rows: GoalRow[], today = todayUtc()): ProjectG
         status !== "DONE" &&
         counts({ isActive: r.isActive, status }),
       ),
-      events: r.events.map((e) => ({
+      // Absent when the caller selected without history (GOAL_SELECT_LITE).
+      events: (r.events ?? []).map((e) => ({
         id: e.id,
         type: e.type,
         fromStatus: (e.fromStatus as GoalStatusValue) ?? null,

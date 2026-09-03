@@ -6,10 +6,10 @@ import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import {
   GOAL_ORDER,
-  GOAL_SELECT,
+  GOAL_SELECT_LITE,
   summariseGoalRows,
   type GoalNode,
-  type GoalRow,
+  type GoalRowLite,
 } from "./goals.service"
 
 // =============================================================================
@@ -129,10 +129,12 @@ export async function getGoalsPortfolio(
   const rows = await db.projectGoal.findMany({
     where: { projectId: { in: projects.map((p) => p.id) }, isActive: true },
     orderBy: GOAL_ORDER,
-    select: { ...GOAL_SELECT, projectId: true },
+    // LITE: no event history. Nothing on the Progress page renders it, and it
+    // is `take: 25` per goal - the largest thing in this payload by far.
+    select: { ...GOAL_SELECT_LITE, projectId: true },
   })
 
-  const byProject = new Map<string, GoalRow[]>()
+  const byProject = new Map<string, GoalRowLite[]>()
   for (const r of rows) {
     const list = byProject.get(r.projectId)
     if (list) list.push(r)
