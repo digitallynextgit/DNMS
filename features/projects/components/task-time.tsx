@@ -116,7 +116,7 @@ export function TaskTime({
           <Timer className={cn("h-3.5 w-3.5 shrink-0", running && "animate-pulse text-blue-500")} />
           Spent {formatHours(spent)}
           {running && (
-            <span className="rounded-[2px] bg-blue-500/10 px-1 text-[10px] text-blue-500">
+            <span className="rounded-sm bg-blue-500/10 px-1 text-[10px] text-blue-500">
               running
             </span>
           )}

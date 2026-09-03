@@ -7,18 +7,18 @@ export default function Loading() {
     <div className="space-y-6">
       {/* Header */}
       <div className="space-y-2 py-4">
-        <Skeleton className="bg-muted h-8 w-40 animate-pulse rounded" />
+        <Skeleton className="bg-muted h-8 w-40 animate-pulse rounded-sm" />
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-2">
             <Skeleton className="bg-muted h-5 w-64 animate-pulse" />
             <Skeleton className="bg-muted h-4 w-56 animate-pulse" />
           </div>
-          <Skeleton className="bg-muted h-9 w-36 animate-pulse rounded" />
+          <Skeleton className="bg-muted h-9 w-36 animate-pulse rounded-sm" />
         </div>
       </div>
 
       {/* Status / final score summary */}
-      <div className="border-border bg-card rounded-[2px] border">
+      <div className="border-border bg-card rounded-sm border">
         <div className="flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex items-center gap-6">
             <div className="space-y-1.5">
@@ -50,7 +50,7 @@ export default function Loading() {
  *  five 7x7 rating buttons and a score cell. */
 function SidePanelSkeleton() {
   return (
-    <div className="border-border bg-card overflow-hidden rounded-[2px] border">
+    <div className="border-border bg-card overflow-hidden rounded-sm border">
       <div className="bg-muted/40 flex items-center justify-between border-b px-5 py-3">
         <Skeleton className="bg-muted h-4 w-36 animate-pulse" />
         <Skeleton className="bg-muted h-4 w-20 animate-pulse" />
@@ -70,7 +70,7 @@ function SidePanelSkeleton() {
                 </div>
                 <div className="flex gap-1">
                   {Array.from({ length: 5 }).map((_, n) => (
-                    <Skeleton key={n} className="bg-muted h-7 w-7 animate-pulse rounded" />
+                    <Skeleton key={n} className="bg-muted h-7 w-7 animate-pulse rounded-sm" />
                   ))}
                 </div>
                 <Skeleton className="bg-muted h-4 w-6 animate-pulse" />

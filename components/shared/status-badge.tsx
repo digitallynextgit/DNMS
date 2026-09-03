@@ -44,10 +44,10 @@ export function StatusBadge({
       className={cn(
         "inline-flex w-fit items-center gap-1 font-medium",
         size === "button"
-          ? "h-8 rounded-[2px] border border-current/20 px-3 text-sm"
+          ? "h-8 rounded-sm border border-current/20 px-3 text-sm"
           : size === "xs"
-            ? "rounded-[2px] px-2 py-0.5 text-[10px]"
-            : "rounded-[2px] px-2.5 py-0.5 text-xs",
+            ? "rounded-sm px-2 py-0.5 text-[10px]"
+            : "rounded-sm px-2.5 py-0.5 text-xs",
         color,
         className,
       )}

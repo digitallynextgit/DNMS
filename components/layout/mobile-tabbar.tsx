@@ -33,7 +33,7 @@ function ChatBadge() {
   const { data: count = 0 } = useUnreadChatCount()
   if (count <= 0) return null
   return (
-    <span className="bg-destructive absolute -top-1 -right-2 flex h-4 min-w-4 items-center justify-center rounded-[2px] px-1 text-[9px] leading-none font-semibold text-white">
+    <span className="bg-destructive absolute -top-1 -right-2 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-[9px] leading-none font-semibold text-white">
       {count > 99 ? "99+" : count}
     </span>
   )
@@ -64,7 +64,7 @@ export function MobileTabbar() {
             href={tab.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-1 rounded-[2px] py-1.5 transition-colors",
+              "flex flex-1 flex-col items-center justify-center gap-1 rounded-sm py-1.5 transition-colors",
               active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >

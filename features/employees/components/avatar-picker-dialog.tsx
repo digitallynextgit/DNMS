@@ -111,7 +111,7 @@ export function AvatarPickerDialog({
                       aria-label={`${role.label} avatar ${id.slice(-2)}`}
                       onClick={() => setSelected(id)}
                       className={cn(
-                        "group relative aspect-square w-full overflow-hidden rounded-[2px] border-2 transition-all duration-150",
+                        "group relative aspect-square w-full overflow-hidden rounded-sm border-2 transition-all duration-150",
                         "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
                         // Handling the things, not reading a list.
                         "hover:-translate-y-0.5 hover:shadow-md",
@@ -130,7 +130,7 @@ export function AvatarPickerDialog({
                         className="block h-full w-full object-cover"
                       />
                       {isSelected && (
-                        <span className="bg-primary text-primary-foreground absolute right-1 bottom-1 flex size-4 items-center justify-center rounded-[2px] shadow">
+                        <span className="bg-primary text-primary-foreground absolute right-1 bottom-1 flex size-4 items-center justify-center rounded-sm shadow">
                           <Check className="size-3" />
                         </span>
                       )}
@@ -150,7 +150,7 @@ export function AvatarPickerDialog({
             </Button>
             {selected && (
               <span className="text-muted-foreground hidden items-center gap-2 text-xs sm:flex">
-                <img src={avatarPath(selected)} alt="" className="size-6 rounded" />
+                <img src={avatarPath(selected)} alt="" className="size-6 rounded-sm" />
                 {selectedRole?.label}
               </span>
             )}

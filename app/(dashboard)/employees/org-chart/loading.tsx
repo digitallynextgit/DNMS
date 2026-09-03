@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 /** A single org node card placeholder (matches the real w-36 node card). */
 function OrgCardSkeleton() {
   return (
-    <div className="bg-card border-border flex w-36 flex-col items-center gap-1.5 rounded-[2px] border px-3 py-2.5 shadow-sm">
+    <div className="bg-card border-border flex w-36 flex-col items-center gap-1.5 rounded-sm border px-3 py-2.5 shadow-sm">
       <Skeleton className="bg-muted h-9 w-9 animate-pulse rounded-full" />
       <Skeleton className="bg-muted h-3 w-20 animate-pulse" />
       <Skeleton className="bg-muted h-2.5 w-24 animate-pulse" />
@@ -18,7 +18,7 @@ export default function OrgChartLoading() {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton />
-      <div className="bg-muted/20 min-h-[400px] rounded-[2px] border">
+      <div className="bg-muted/20 min-h-[400px] rounded-sm border">
         <div className="flex flex-col items-center gap-6 p-8">
           <OrgCardSkeleton />
           <div className="bg-muted h-6 w-0.5 animate-pulse" />

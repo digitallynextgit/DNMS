@@ -507,7 +507,7 @@ export default function ProfilePage() {
               {hasGmail && !editingGmail ? (
                 /* Password already set → status + Change / Delete actions. */
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 rounded-[2px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
+                  <div className="flex items-center gap-2 rounded-sm border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     <span>App Password is set.</span>
                   </div>

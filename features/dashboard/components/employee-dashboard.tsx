@@ -125,7 +125,7 @@ export function EmployeeDashboard() {
   return (
     <>
       {isError && (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-[2px] border px-4 py-3 text-sm">
+        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-sm border px-4 py-3 text-sm">
           {error?.message ?? "Something went wrong loading your dashboard."}
         </div>
       )}
@@ -275,9 +275,9 @@ export function EmployeeDashboard() {
                   </span>
                 </div>
                 {/* A meter, not a chart: one ratio against a limit. */}
-                <div className="bg-muted h-2 w-full overflow-hidden rounded-[2px]">
+                <div className="bg-muted h-2 w-full overflow-hidden rounded-sm">
                   <div
-                    className="h-full rounded-[2px]"
+                    className="h-full rounded-sm"
                     style={{
                       width: `${pct(work.week.spent, work.week.allocated)}%`,
                       background:
@@ -321,7 +321,7 @@ export function EmployeeDashboard() {
             {work.projects.map((p) => (
               <div
                 key={p.id}
-                className="flex items-center justify-between gap-2 rounded-[2px] border px-3 py-2"
+                className="flex items-center justify-between gap-2 rounded-sm border px-3 py-2"
               >
                 <div className="min-w-0">
                   {p.slug ? (
@@ -338,7 +338,7 @@ export function EmployeeDashboard() {
                 </div>
                 {p.overdue > 0 && (
                   <span
-                    className="shrink-0 rounded-[2px] px-1.5 py-0.5 text-[10px] font-medium text-white"
+                    className="shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium text-white"
                     style={{ background: "var(--state-overdue)" }}
                   >
                     {p.overdue} late
@@ -366,7 +366,7 @@ export function EmployeeDashboard() {
           {isLoading ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-32 rounded" />
+                <Skeleton key={i} className="h-32 rounded-sm" />
               ))}
             </div>
           ) : !data?.leaveBalances.length ? (
@@ -399,13 +399,13 @@ export function EmployeeDashboard() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <Skeleton className="h-20 rounded" />
+              <Skeleton className="h-20 rounded-sm" />
             ) : !data?.latestPayslip ? (
               <EmptyState title="No payslips available yet." compact />
             ) : (
               <Link
                 href="/payroll/me"
-                className="hover:bg-muted/30 -m-2 flex items-center justify-between rounded-[2px] p-2 transition-colors"
+                className="hover:bg-muted/30 -m-2 flex items-center justify-between rounded-sm p-2 transition-colors"
               >
                 <div>
                   <p className="text-foreground text-sm font-medium">
@@ -493,10 +493,7 @@ function WeekStat({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span
-        className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
-        style={{ background: WEEK_TONES[tone] }}
-      />
+      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: WEEK_TONES[tone] }} />
       <span className="text-muted-foreground">{label}</span>
       <span className="ml-auto font-medium tabular-nums">{value}</span>
     </div>
@@ -522,7 +519,7 @@ function TaskLine({ task }: { task: DashTask }) {
       className="hover:bg-muted/40 flex items-center gap-3 px-4 py-2.5 transition-colors"
     >
       <span
-        className="h-6 w-1 shrink-0 rounded-[2px]"
+        className="h-6 w-1 shrink-0 rounded-sm"
         style={{
           background: overdue
             ? "var(--state-overdue)"

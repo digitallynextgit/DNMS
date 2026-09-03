@@ -49,7 +49,7 @@ const SERIES_2 = "var(--viz-2)"
 /** Shared tooltip shell, so every chart's hover reads the same. */
 function TipShell({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
   return (
-    <div className="bg-popover rounded border p-2 text-xs shadow-md">
+    <div className="bg-popover rounded-sm border p-2 text-xs shadow-md">
       <p className="mb-1 font-medium">{title}</p>
       {rows.map((r) => (
         <p key={r.label} className="text-muted-foreground flex items-center gap-3">
@@ -118,7 +118,7 @@ function StatusMix({ b }: { b: ProgressBucket }) {
         {seg.map((s) => (
           <div
             key={s.label}
-            className={cn("rounded-[2px]", s.cls)}
+            className={cn("rounded-sm", s.cls)}
             style={{ width: `${(s.n / b.total) * 100}%` }}
             title={`${s.label}: ${s.n}`}
           />
@@ -127,7 +127,7 @@ function StatusMix({ b }: { b: ProgressBucket }) {
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {seg.map((s) => (
           <span key={s.label} className="text-muted-foreground flex items-center gap-1 text-[11px]">
-            <span className={cn("h-2 w-2 rounded-[2px]", s.cls)} />
+            <span className={cn("h-2 w-2 rounded-sm", s.cls)} />
             {s.label} {s.n}
           </span>
         ))}
@@ -150,7 +150,7 @@ export function ProgressOverview({
 }) {
   const { data, isLoading } = useProjectProgress(projectId)
 
-  if (isLoading) return <Skeleton className="h-64 rounded" />
+  if (isLoading) return <Skeleton className="h-64 rounded-sm" />
   if (!data) return null
 
   const mine = data.byMember.find((m) => m.id === currentUserId) ?? null
@@ -238,7 +238,7 @@ export function ProgressOverview({
           <Stat
             label="Overdue"
             value={String(bucket.overdue)}
-            hint={bucket.overdue > 0 ? "past due, still open" : "nothing late"}
+            hint={bucket.overdue > 0 ? "past due, unfinished" : "nothing late"}
             tone={bucket.overdue > 0 ? "bad" : "good"}
             icon={AlertTriangle}
           />
@@ -270,17 +270,11 @@ export function ProgressOverview({
                 <p className="text-xs font-medium">Weekly pace</p>
                 <div className="flex items-center gap-3">
                   <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
-                    <span
-                      className="h-0.5 w-3 rounded-[2px]"
-                      style={{ backgroundColor: SERIES_1 }}
-                    />
+                    <span className="h-0.5 w-3 rounded-sm" style={{ backgroundColor: SERIES_1 }} />
                     Completed
                   </span>
                   <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
-                    <span
-                      className="h-0.5 w-3 rounded-[2px]"
-                      style={{ backgroundColor: SERIES_2 }}
-                    />
+                    <span className="h-0.5 w-3 rounded-sm" style={{ backgroundColor: SERIES_2 }} />
                     Due
                   </span>
                 </div>

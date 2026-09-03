@@ -16,19 +16,22 @@ export default function HolidayCalendarLoading() {
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <Skeleton className="bg-muted h-5 w-40 animate-pulse rounded" />
+          <Skeleton className="bg-muted h-5 w-40 animate-pulse rounded-sm" />
           <div className="flex items-center gap-2">
-            <Skeleton className="bg-muted h-8 w-8 animate-pulse rounded" />
-            <Skeleton className="bg-muted h-8 w-8 animate-pulse rounded" />
+            <Skeleton className="bg-muted h-8 w-8 animate-pulse rounded-sm" />
+            <Skeleton className="bg-muted h-8 w-8 animate-pulse rounded-sm" />
           </div>
         </div>
-        <div className="bg-card rounded-[2px] border p-4">
+        <div className="bg-card rounded-sm border p-4">
           <div className="grid grid-cols-7 gap-1">
             {Array.from({ length: 7 }).map((_, i) => (
-              <Skeleton key={`h-${i}`} className="bg-muted mx-auto h-3 w-8 animate-pulse rounded" />
+              <Skeleton
+                key={`h-${i}`}
+                className="bg-muted mx-auto h-3 w-8 animate-pulse rounded-sm"
+              />
             ))}
             {Array.from({ length: 35 }).map((_, i) => (
-              <Skeleton key={i} className="bg-muted min-h-19 animate-pulse rounded-[2px]" />
+              <Skeleton key={i} className="bg-muted min-h-19 animate-pulse rounded-sm" />
             ))}
           </div>
         </div>

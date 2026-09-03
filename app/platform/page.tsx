@@ -36,12 +36,12 @@ export default async function PlatformPage() {
       </header>
 
       {!platformAdminsConfigured() && (
-        <p className="border-destructive/40 bg-destructive/10 mb-6 rounded-[6px] border p-3 text-sm">
+        <p className="border-destructive/40 bg-destructive/10 mb-6 rounded-sm border p-3 text-sm">
           PLATFORM_ADMINS is not set. Nobody can reach this page.
         </p>
       )}
 
-      <dl className="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-[8px] border md:grid-cols-5">
+      <dl className="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-sm border md:grid-cols-5">
         {[
           ["Companies", totals.tenants],
           ["Active", totals.activeTenants],
@@ -58,7 +58,7 @@ export default async function PlatformPage() {
         ))}
       </dl>
 
-      <div className="overflow-x-auto rounded-[8px] border">
+      <div className="overflow-x-auto rounded-sm border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr className="text-muted-foreground text-left font-mono text-[11px] tracking-wider uppercase">

@@ -153,7 +153,7 @@ export function FileUpload({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          "focus-visible:ring-ring relative flex min-h-[140px] w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-[2px] border-2 border-dashed p-6 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+          "focus-visible:ring-ring relative flex min-h-[140px] w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-sm border-2 border-dashed p-6 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
           isDragging
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/60 hover:bg-muted/30",
@@ -176,7 +176,7 @@ export function FileUpload({
             <p className="text-muted-foreground text-sm font-medium">Uploading...</p>
           </>
         ) : selectedFile ? (
-          <div className="bg-muted/50 flex w-full items-center gap-3 rounded-[2px] border px-4 py-3">
+          <div className="bg-muted/50 flex w-full items-center gap-3 rounded-sm border px-4 py-3">
             <FileText className="text-primary h-8 w-8 shrink-0" />
             <div className="min-w-0 flex-1 text-left">
               <p className="text-foreground truncate text-sm font-medium">{selectedFile.name}</p>
@@ -185,7 +185,7 @@ export function FileUpload({
             <button
               type="button"
               onClick={handleRemove}
-              className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto shrink-0 rounded-[2px] p-1 transition-colors"
+              className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto shrink-0 rounded-sm p-1 transition-colors"
               aria-label="Remove file"
             >
               <X className="h-4 w-4" />
@@ -193,7 +193,7 @@ export function FileUpload({
           </div>
         ) : (
           <>
-            <div className="bg-muted flex h-12 w-12 items-center justify-center rounded">
+            <div className="bg-muted flex h-12 w-12 items-center justify-center rounded-sm">
               <Upload className="text-muted-foreground h-6 w-6" />
             </div>
             <div className="space-y-1">

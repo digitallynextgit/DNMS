@@ -198,7 +198,7 @@ export function DataTable<T>({
   ) : null
 
   const table = (
-    <div className={cn("bg-card rounded-[2px] border", className)}>
+    <div className={cn("bg-card rounded-sm border", className)}>
       {cards}
       {/* overflow-x-auto is unconditional: `md` is the app's TIGHTEST content
           column (cards stop at md, but the 224px sidebar starts at md, leaving
@@ -247,7 +247,7 @@ export function DataTable<T>({
                   <tr key={`sk-${rowIndex}`}>
                     {selection && (
                       <td className="w-10 px-4 py-3">
-                        <Skeleton className="h-4 w-4 rounded" />
+                        <Skeleton className="h-4 w-4 rounded-sm" />
                       </td>
                     )}
                     {showSerial && (

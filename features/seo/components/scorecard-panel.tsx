@@ -78,7 +78,7 @@ export function ScorecardPanel({
     return (
       <div className="space-y-4">
         <StatCardsSkeleton count={4} />
-        <div className="border-border bg-card overflow-hidden rounded-[2px] border">
+        <div className="border-border bg-card overflow-hidden rounded-sm border">
           <TableSkeleton rows={6} cols={4} />
         </div>
       </div>
@@ -154,9 +154,9 @@ export function ScorecardPanel({
                   {card.coverage < 80 && " Connect the missing sources for a fuller picture."}
                 </p>
                 <div className="pt-1">
-                  <div className="bg-muted h-1.5 w-full overflow-hidden rounded">
+                  <div className="bg-muted h-1.5 w-full overflow-hidden rounded-sm">
                     <div
-                      className="h-full rounded-[2px] bg-sky-500"
+                      className="h-full rounded-sm bg-sky-500"
                       style={{ width: `${Math.min(100, card.coverage)}%` }}
                     />
                   </div>
@@ -301,7 +301,7 @@ function VitalsTable({ rows }: { rows: VitalsView[] }) {
                     {r.verdict ? (
                       <span
                         className={cn(
-                          "rounded-[2px] px-1.5 py-0.5 text-xs font-medium",
+                          "rounded-sm px-1.5 py-0.5 text-xs font-medium",
                           VERDICTS[r.verdict]?.cls,
                         )}
                       >

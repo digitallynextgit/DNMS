@@ -9,7 +9,7 @@ export default function Loading() {
       <PageHeaderSkeleton />
       <div className="space-y-6">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="border-border bg-card rounded-[2px] border">
+          <div key={i} className="border-border bg-card rounded-sm border">
             <div className="border-border flex items-center justify-between border-b px-6 py-4">
               <Skeleton className="bg-muted h-4 w-40 animate-pulse" />
               <Skeleton className="bg-muted h-8 w-20 animate-pulse" />

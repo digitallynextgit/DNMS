@@ -11,7 +11,7 @@ export default function ApplyWfhLoading() {
       <div className="grid w-full gap-6 lg:grid-cols-2">
         {/* Left: eligibility banner + fields */}
         <div className="space-y-6">
-          <Skeleton className="bg-muted h-32 w-full animate-pulse rounded" />
+          <Skeleton className="bg-muted h-32 w-full animate-pulse rounded-sm" />
           <div className="space-y-2">
             <Skeleton className="bg-muted h-3.5 w-24 animate-pulse" />
             <Skeleton className="bg-muted h-9 w-full animate-pulse" />
@@ -27,7 +27,7 @@ export default function ApplyWfhLoading() {
         </div>
 
         {/* Right: mail preview card */}
-        <div className="border-border bg-card space-y-4 rounded-[2px] border p-5">
+        <div className="border-border bg-card space-y-4 rounded-sm border p-5">
           <Skeleton className="bg-muted h-4 w-40 animate-pulse" />
           <div className="space-y-2">
             <Skeleton className="bg-muted h-3 w-1/3 animate-pulse" />

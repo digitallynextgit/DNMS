@@ -23,14 +23,14 @@ export function Progress({ value = 0, indeterminate, className, ...props }: Prog
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={indeterminate ? undefined : pct}
-      className={cn("bg-muted relative h-2 w-full overflow-hidden rounded", className)}
+      className={cn("bg-muted relative h-2 w-full overflow-hidden rounded-sm", className)}
       {...props}
     >
       {indeterminate ? (
-        <div className="bg-primary absolute inset-y-0 w-1/3 animate-[progress-slide_1.2s_ease-in-out_infinite] rounded" />
+        <div className="bg-primary absolute inset-y-0 w-1/3 animate-[progress-slide_1.2s_ease-in-out_infinite] rounded-sm" />
       ) : (
         <div
-          className="bg-primary h-full rounded-[2px] transition-[width] duration-300 ease-out"
+          className="bg-primary h-full rounded-sm transition-[width] duration-300 ease-out"
           style={{ width: `${pct}%` }}
         />
       )}

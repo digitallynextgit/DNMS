@@ -70,7 +70,7 @@ function AvatarStack({ members, max = 4 }: { members: ProjectTeam["members"]; ma
         />
       ))}
       {rest > 0 && (
-        <span className="bg-muted text-muted-foreground ring-background flex h-6 w-6 items-center justify-center rounded-[2px] text-[10px] font-medium ring-2">
+        <span className="bg-muted text-muted-foreground ring-background flex h-6 w-6 items-center justify-center rounded-sm text-[10px] font-medium ring-2">
           +{rest}
         </span>
       )}
@@ -157,7 +157,7 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
     return (
       <div className="space-y-3">
         {[1, 2].map((i) => (
-          <Skeleton key={i} className="h-36 rounded" />
+          <Skeleton key={i} className="h-36 rounded-sm" />
         ))}
       </div>
     )
@@ -644,7 +644,7 @@ function AddMembersDialog({
         </div>
       )}
 
-      <div className="divide-border/60 max-h-80 divide-y overflow-y-auto rounded-[2px] border">
+      <div className="divide-border/60 max-h-80 divide-y overflow-y-auto rounded-sm border">
         {employees.length === 0 ? (
           <p className="text-muted-foreground p-6 text-center text-sm">
             {search ? "No one matches that search." : "Everyone available is already on this team."}

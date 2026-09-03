@@ -81,7 +81,7 @@ export function ClientCombobox({
     <div ref={rootRef} className="w-full">
       <div
         className={cn(
-          "border-input bg-background flex h-10 w-full items-center gap-2 rounded-[2px] border px-3",
+          "border-input bg-background flex h-10 w-full items-center gap-2 rounded-sm border px-3",
           open && "ring-ring/50 ring-2",
         )}
       >
@@ -134,7 +134,7 @@ export function ClientCombobox({
         <div
           id="client-combobox-list"
           role="listbox"
-          className="bg-popover text-popover-foreground mt-1 max-h-64 overflow-y-auto rounded-[2px] border p-1 shadow-md"
+          className="bg-popover text-popover-foreground mt-1 max-h-64 overflow-y-auto rounded-sm border p-1 shadow-md"
         >
           {isLoading ? (
             <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-sm">
@@ -153,9 +153,9 @@ export function ClientCombobox({
                   e.preventDefault()
                   select(c)
                 }}
-                className="hover:bg-accent flex w-full items-center gap-2.5 rounded-[2px] px-2 py-1.5 text-left transition-colors"
+                className="hover:bg-accent flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-left transition-colors"
               >
-                <span className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-[2px]">
+                <span className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-sm">
                   <Building2 className="text-muted-foreground h-3.5 w-3.5" />
                 </span>
                 <div className="min-w-0 flex-1">

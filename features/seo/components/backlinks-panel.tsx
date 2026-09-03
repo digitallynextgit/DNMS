@@ -53,7 +53,7 @@ export function BacklinksPanel({
     return (
       <div className="space-y-4">
         <StatCardsSkeleton count={4} />
-        <div className="border-border bg-card overflow-hidden rounded-[2px] border">
+        <div className="border-border bg-card overflow-hidden rounded-sm border">
           <TableSkeleton rows={6} cols={4} />
         </div>
       </div>

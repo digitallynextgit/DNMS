@@ -63,7 +63,7 @@ function ProfileSkeleton() {
       <PageHeader
         backHref="/employees/employee-directory"
         backLabel="Back to Employees"
-        leading={<Skeleton className="h-12 w-12 shrink-0 rounded" />}
+        leading={<Skeleton className="h-12 w-12 shrink-0 rounded-sm" />}
         title={<Skeleton className="h-6 w-48" />}
         description={<Skeleton className="h-4 w-64" />}
       />

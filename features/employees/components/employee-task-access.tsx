@@ -72,7 +72,7 @@ export function EmployeeTaskAccess({
           <Skeleton className="h-16 w-full" />
         ) : (
           <>
-            <div className="flex items-start justify-between gap-4 rounded-[2px] border p-3">
+            <div className="flex items-start justify-between gap-4 rounded-sm border p-3">
               <div className="space-y-0.5">
                 <p className="text-sm font-medium">Allow editing past tasks</p>
                 <p className="text-muted-foreground text-xs">

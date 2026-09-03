@@ -129,15 +129,20 @@ export function useTaskList(filters: TaskListFilters, enabled = true, limit = PA
 export function stateOfTask(t: DrillTask): State | null {
   if (t.status === "DONE") return "done"
   if (t.status === "DISCARDED" || t.status === "CANCELLED") return null
-  if (t.status === "ON_HOLD") return "hold"
+  // OVERDUE OUTRANKS ON-HOLD, and is tested first for that reason. Parking a
+  // task does not make it less late, and a row that answered "hold" here while
+  // the server counted it under overdue would put the chips and the donut out
+  // of step with each other.
   if (t.overdue) return "overdue"
+  if (t.status === "ON_HOLD") return "hold"
   if (t.status === "IN_PROGRESS" || t.status === "IN_REVIEW") return "progress"
   return "todo"
 }
 
 export function matchesState(t: DrillTask, state: TaskState): boolean {
   if (state === "all") return true
-  if (state === "open") return t.status !== "DONE" && t.status !== "DISCARDED"
+  if (state === "open")
+    return t.status !== "DONE" && t.status !== "DISCARDED" && t.status !== "CANCELLED"
   return stateOfTask(t) === state
 }
 
@@ -223,7 +228,7 @@ function TaskRow({
       {(t.estimatedHours != null || t.loggedHours > 0) && (
         <span className="text-muted-foreground hidden w-24 shrink-0 items-center justify-end gap-1 tabular-nums sm:inline-flex">
           <Timer className="h-3 w-3" />
-          {t.loggedHours > 0 ? formatHours(t.loggedHours) : "—"}
+          {t.loggedHours > 0 ? formatHours(t.loggedHours) : "-"}
           {t.estimatedHours != null && ` / ${formatHours(t.estimatedHours)}`}
         </span>
       )}
@@ -351,7 +356,7 @@ export function TaskRows({
       {hasToolbar && (
         <div className="bg-background/95 border-border/60 sticky top-0 z-10 space-y-2 border-b px-4 py-2.5 backdrop-blur">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="border-input bg-background focus-within:border-ring flex h-8 min-w-56 flex-1 items-center gap-2 rounded-[4px] border px-2 text-xs">
+            <label className="border-input bg-background focus-within:border-ring flex h-8 min-w-56 flex-1 items-center gap-2 rounded-sm border px-2 text-xs">
               <Search className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
               <input
                 value={query}
@@ -481,7 +486,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1 rounded-[2px] border px-2 py-0.5 text-[11px] transition-colors",
+        "inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[11px] transition-colors",
         active
           ? "border-foreground/40 bg-muted font-medium"
           : "border-border text-muted-foreground hover:text-foreground",
@@ -517,7 +522,7 @@ export function TaskList({
     true,
     compact ? (limit ?? PAGE) : page,
   )
-  if (isLoading && !data) return <Skeleton className="m-4 h-40 rounded" />
+  if (isLoading && !data) return <Skeleton className="m-4 h-40 rounded-sm" />
   return (
     <div>
       <TaskRows

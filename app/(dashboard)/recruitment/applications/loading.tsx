@@ -19,7 +19,7 @@ export default function Loading() {
       </div>
 
       {/* Applicants table */}
-      <div className="border-border bg-card overflow-x-auto rounded-[2px] border">
+      <div className="border-border bg-card overflow-x-auto rounded-sm border">
         <TableSkeleton rows={8} cols={6} />
       </div>
     </div>

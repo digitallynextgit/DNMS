@@ -98,9 +98,9 @@ export function PricingContent() {
       <div className="relative mx-auto max-w-[1600px] px-4 pt-28 pb-24 sm:px-6 lg:pt-32">
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <Reveal>
-          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs">
+          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
-              className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
               style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
             >
               <IndianRupee className="h-3 w-3" />
@@ -140,7 +140,7 @@ export function PricingContent() {
             return (
               <Reveal key={plan.key} delay={Math.min(i * 80, 240)}>
                 <div
-                  className={`flex h-full flex-col rounded-[6px] border p-6 ${
+                  className={`flex h-full flex-col rounded-sm border p-6 ${
                     featured ? "bg-card/70" : "border-border/70 bg-card/40"
                   }`}
                   style={featured ? { borderColor: BRAND_RED } : undefined}
@@ -149,7 +149,7 @@ export function PricingContent() {
                     <h2 className="text-lg font-semibold">{plan.name}</h2>
                     {featured && (
                       <span
-                        className="rounded-[4px] px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase"
+                        className="rounded-sm px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase"
                         style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
                       >
                         Most complete
@@ -230,7 +230,7 @@ export function PricingContent() {
             column made the reader work down it. Each carries an icon so the
             block can be skimmed for the one that applies. */}
         <Reveal delay={120}>
-          <div className="border-border/70 bg-card/40 mt-16 rounded-[6px] border p-6 sm:p-8 lg:p-10">
+          <div className="border-border/70 bg-card/40 mt-16 rounded-sm border p-6 sm:p-8 lg:p-10">
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
               <h2 className="text-lg font-semibold">The small print, in plain words</h2>
               <p className="text-muted-foreground text-xs">
@@ -242,7 +242,7 @@ export function PricingContent() {
               {NOTES.map(({ icon: Icon, title, body }) => (
                 <div key={title}>
                   <span
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-[6px]"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-sm"
                     style={{ backgroundColor: "rgba(239,68,68,0.12)" }}
                   >
                     <Icon className="h-4 w-4" style={{ color: BRAND_RED }} aria-hidden />
@@ -261,7 +261,7 @@ export function PricingContent() {
             as an afterthought; a band reads as the end of an argument. */}
         <Reveal delay={180}>
           <div
-            className="relative mt-8 overflow-hidden rounded-[6px] border p-8 sm:p-10 lg:p-12"
+            className="relative mt-8 overflow-hidden rounded-sm border p-8 sm:p-10 lg:p-12"
             style={{ borderColor: "rgba(239,68,68,0.35)" }}
           >
             <div

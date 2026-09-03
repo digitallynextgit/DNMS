@@ -32,7 +32,7 @@ function RecruitmentVisual() {
         <div key={s.name} className="flex sm:min-w-[64px] sm:flex-1 sm:items-stretch sm:gap-1.5">
           <div
             className={cn(
-              "flex flex-1 flex-col rounded-[6px] border p-2.5",
+              "flex flex-1 flex-col rounded-sm border p-2.5",
               s.accent ? "border-primary/40 bg-primary/5" : "border-border bg-background",
             )}
           >
@@ -53,7 +53,7 @@ function RecruitmentVisual() {
                   key={c}
                   style={{ animationDelay: `${(i * 2 + ci) * 0.4}s` }}
                   className={cn(
-                    "animate-dnms-bob-sm flex items-center gap-1.5 rounded-[6px] border px-1.5 py-1.5",
+                    "animate-dnms-bob-sm flex items-center gap-1.5 rounded-sm border px-1.5 py-1.5",
                     s.accent ? "border-primary/30 bg-card" : "border-border/70 bg-card",
                   )}
                 >

@@ -74,7 +74,7 @@ export function RoleCombobox({
     <div ref={rootRef} className="w-full">
       <div
         className={cn(
-          "flex h-10 w-full items-center gap-2 rounded-[2px] border px-3",
+          "flex h-10 w-full items-center gap-2 rounded-sm border px-3",
           hasError ? "border-destructive" : "border-input bg-background",
           open && "ring-ring/50 ring-2",
         )}
@@ -135,7 +135,7 @@ export function RoleCombobox({
         <div
           id="role-combobox-list"
           role="listbox"
-          className="bg-popover text-popover-foreground mt-1 max-h-56 overflow-y-auto rounded-[2px] border p-1 shadow-md"
+          className="bg-popover text-popover-foreground mt-1 max-h-56 overflow-y-auto rounded-sm border p-1 shadow-md"
         >
           {isLoading ? (
             <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-sm">
@@ -162,7 +162,7 @@ export function RoleCombobox({
                   setSearch("")
                   setOpen(false)
                 }}
-                className="hover:bg-accent flex w-full items-center gap-2 rounded-[2px] px-2 py-1.5 text-left transition-colors"
+                className="hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left transition-colors"
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{r.title}</p>

@@ -33,9 +33,9 @@ export function AboutContent() {
       <div className="relative mx-auto max-w-[1600px] px-4 pt-28 pb-8 sm:px-6 lg:pt-32">
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <Reveal>
-          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs">
+          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
-              className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
               style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
             >
               <Building2 className="h-3 w-3" />
@@ -117,9 +117,9 @@ export function AboutContent() {
         <div className="mt-8 grid gap-6 md:grid-cols-3">
           {PRINCIPLES.map(({ icon: Icon, title, text }, i) => (
             <Reveal key={title} delay={100 + i * 80}>
-              <div className="border-border/70 bg-card/50 h-full rounded-[6px] border p-6">
+              <div className="border-border/70 bg-card/50 h-full rounded-sm border p-6">
                 <span
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-[6px]"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-sm"
                   style={{ backgroundColor: "rgba(239,68,68,0.12)" }}
                 >
                   <Icon className="h-4.5 w-4.5" style={{ color: BRAND_RED }} />
@@ -145,7 +145,7 @@ export function AboutContent() {
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {MODULES.map((m, i) => (
             <Reveal key={m.name} delay={Math.min(60 + i * 40, 320)}>
-              <div className="border-border/70 bg-card/50 flex h-full items-start gap-3 rounded-[6px] border p-4">
+              <div className="border-border/70 bg-card/50 flex h-full items-start gap-3 rounded-sm border p-4">
                 <m.icon className="mt-0.5 h-4.5 w-4.5 shrink-0" style={{ color: BRAND_RED }} />
                 <div>
                   <p className="text-sm font-semibold">{m.name}</p>
@@ -160,7 +160,7 @@ export function AboutContent() {
       {/* ── Company facts ──────────────────────────────────────────────── */}
       <div className="relative mx-auto max-w-[1600px] px-4 py-12 sm:px-6">
         <Reveal>
-          <div className="border-border/70 bg-card/50 rounded-[6px] border p-6 sm:p-8">
+          <div className="border-border/70 bg-card/50 rounded-sm border p-6 sm:p-8">
             <h2 className="flex items-center gap-2.5 text-lg font-semibold">
               <Users className="h-4.5 w-4.5" style={{ color: BRAND_RED }} />
               The company behind it

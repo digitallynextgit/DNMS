@@ -204,7 +204,7 @@ function DisplayCell({
   }
   if (column.type === "SELECT") {
     return (
-      <span className="bg-muted inline-flex rounded-[3px] px-1.5 py-0.5 text-xs font-medium">
+      <span className="bg-muted inline-flex rounded-sm px-1.5 py-0.5 text-xs font-medium">
         {String(value)}
       </span>
     )
@@ -377,7 +377,7 @@ function HistoryDialog({
           {isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 rounded" />
+                <Skeleton key={i} className="h-10 rounded-sm" />
               ))}
             </div>
           ) : !data || data.length === 0 ? (
@@ -385,7 +385,7 @@ function HistoryDialog({
           ) : (
             <ol className="space-y-2">
               {data.map((e) => (
-                <li key={e.id} className="border-border rounded-[4px] border px-3 py-2 text-sm">
+                <li key={e.id} className="border-border rounded-sm border px-3 py-2 text-sm">
                   <div className="flex flex-wrap items-baseline gap-x-1.5">
                     <span className="font-medium">{e.actorName ?? "Someone"}</span>
                     <span className="text-muted-foreground">{EVENT_VERB[e.type]}</span>
@@ -819,7 +819,7 @@ export function ProjectSheetSection({
     }
   }
 
-  if (isLoading) return <Skeleton className="mt-4 h-72 rounded" />
+  if (isLoading) return <Skeleton className="mt-4 h-72 rounded-sm" />
 
   // ── No sheets yet ──────────────────────────────────────────────────────────
   if (!sheets || sheets.length === 0) {
@@ -910,7 +910,7 @@ export function ProjectSheetSection({
             type="button"
             onClick={() => setActiveId(s.id)}
             className={cn(
-              "rounded-[4px] px-2.5 py-1.5 text-sm transition-colors",
+              "rounded-sm px-2.5 py-1.5 text-sm transition-colors",
               s.id === active?.id
                 ? "bg-primary/10 text-primary font-medium"
                 : "text-muted-foreground hover:text-foreground hover:bg-foreground/5",
@@ -982,7 +982,7 @@ export function ProjectSheetSection({
               const left = e.currentTarget.scrollLeft
               setScroll((s) => ({ ...s, top, left }))
             }}
-            className="bg-card focus-visible:ring-ring/40 h-[70vh] overflow-auto rounded-[2px] border focus-visible:ring-2 focus-visible:outline-none"
+            className="bg-card focus-visible:ring-ring/40 h-[70vh] overflow-auto rounded-sm border focus-visible:ring-2 focus-visible:outline-none"
           >
             <table
               className="border-separate border-spacing-0 text-[13px]"

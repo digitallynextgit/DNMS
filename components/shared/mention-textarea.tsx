@@ -190,7 +190,7 @@ export function MentionTextarea({
       {open && suggestions.length > 0 && (
         <div
           className={cn(
-            "bg-popover absolute z-50 w-72 overflow-hidden rounded-[2px] border shadow-md",
+            "bg-popover absolute z-50 w-72 overflow-hidden rounded-sm border shadow-md",
             dropup ? "bottom-full mb-1" : "mt-1",
           )}
         >
@@ -276,7 +276,7 @@ export function renderWithMentions(text: string, memberNames: Set<string>) {
     ) : (
       <span
         key={i}
-        className="text-primary bg-primary/10 dark:bg-primary/20 rounded-[2px] px-1 font-medium"
+        className="text-primary bg-primary/10 dark:bg-primary/20 rounded-sm px-1 font-medium"
       >
         {p.mention}
       </span>

@@ -15,9 +15,9 @@ export function Benefits() {
       <div className="relative mx-auto max-w-[1600px] px-4 sm:px-6">
         {/* Hero-style pill */}
         <Reveal>
-          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs">
+          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
-              className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
               style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
             >
               <Sparkles className="h-3 w-3" />
@@ -53,7 +53,7 @@ export function Benefits() {
               <Reveal key={b.title} delay={i * 90}>
                 <SpotlightCard
                   className={cn(
-                    "group border-border bg-card/60 relative flex h-full flex-col overflow-hidden rounded-[6px] border p-6 shadow-sm transition-all duration-300 hover:-translate-y-1",
+                    "group border-border bg-card/60 relative flex h-full flex-col overflow-hidden rounded-sm border p-6 shadow-sm transition-all duration-300 hover:-translate-y-1",
                     red ? "hover:border-red-500/40" : "hover:border-blue-500/40",
                   )}
                 >
@@ -72,7 +72,7 @@ export function Benefits() {
                   >
                     {i + 1}
                   </span>
-                  <span className="bg-primary/10 text-primary ring-border relative flex h-12 w-12 items-center justify-center rounded-[6px] ring-1">
+                  <span className="bg-primary/10 text-primary ring-border relative flex h-12 w-12 items-center justify-center rounded-sm ring-1">
                     <Icon className="h-5 w-5" />
                   </span>
                   <h3 className="relative mt-5 text-lg font-semibold tracking-tight">{b.title}</h3>

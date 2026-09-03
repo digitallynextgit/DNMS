@@ -155,7 +155,7 @@ export function GoalDonut({
       <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1">
         {mix.map((m) => (
           <span key={m.status} className="flex items-center gap-1 text-[11px]">
-            <span className="h-2 w-2 rounded-[2px]" style={{ background: m.fill }} />
+            <span className="h-2 w-2 rounded-sm" style={{ background: m.fill }} />
             <span className="text-muted-foreground">{m.label}</span>
             <span className="font-medium tabular-nums">{m.value}</span>
           </span>
@@ -252,7 +252,7 @@ function Tile({
   tone?: "bad" | "warn" | "accent"
 }) {
   return (
-    <div className="bg-muted/40 rounded-[6px] px-3 py-2">
+    <div className="bg-muted/40 rounded-sm px-3 py-2">
       <p className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
         {label}
       </p>
@@ -333,7 +333,7 @@ export function GoalsProgressCard({
   onOpen: (projectId?: string) => void
 }) {
   const { data, isLoading } = useGoalsPortfolio(projectId)
-  if (isLoading && !data) return <Skeleton className="h-48 rounded" />
+  if (isLoading && !data) return <Skeleton className="h-48 rounded-sm" />
 
   const t = data?.totals
   const rows = data?.projects ?? []
@@ -362,7 +362,7 @@ export function GoalsProgressCard({
             <button
               type="button"
               onClick={() => onOpen(projectId)}
-              className="hover:bg-muted/40 rounded-[6px] p-1 text-left transition-colors"
+              className="hover:bg-muted/40 rounded-sm p-1 text-left transition-colors"
               title="Open every goal in this scope"
             >
               <GoalDonut rows={rows} overall={t.overallProgress} />
@@ -395,7 +395,7 @@ export function GoalsProgressCard({
                   . Click a row for its goals.
                 </p>
               )}
-              <div className="divide-border/60 border-border/60 max-h-64 divide-y overflow-y-auto rounded-[6px] border">
+              <div className="divide-border/60 border-border/60 max-h-64 divide-y overflow-y-auto rounded-sm border">
                 {rows.map((r) => (
                   <ProjectRow key={r.projectId} row={r} onOpen={() => onOpen(r.projectId)} />
                 ))}

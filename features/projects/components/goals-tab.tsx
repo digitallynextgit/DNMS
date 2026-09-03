@@ -265,7 +265,7 @@ function DeleteDialog({
 
         <label
           className={cn(
-            "flex cursor-pointer items-start gap-3 rounded-[6px] border p-3 transition-colors",
+            "flex cursor-pointer items-start gap-3 rounded-sm border p-3 transition-colors",
             permanent ? "border-destructive/50 bg-destructive/5" : "border-border",
           )}
         >
@@ -454,7 +454,7 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
     status: Status
   } | null>(null)
 
-  if (isLoading) return <Skeleton className="h-64 rounded" />
+  if (isLoading) return <Skeleton className="h-64 rounded-sm" />
 
   const full: GoalsSummary = data ?? EMPTY_SUMMARY
 
@@ -768,7 +768,7 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                         <StatusBadge status={goal.status} />
                       )}
                       {!goal.isActive && (
-                        <span className="border-border text-muted-foreground rounded-[3px] border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+                        <span className="border-border text-muted-foreground rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
                           Deactivated
                         </span>
                       )}

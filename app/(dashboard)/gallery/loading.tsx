@@ -9,7 +9,7 @@ export default function GalleryLoading() {
       <PageHeaderSkeleton withActions />
 
       {/* Stat strip: one card, four divided cells (Albums / Photos / Videos / week). */}
-      <div className="border-border bg-card rounded-[2px] border">
+      <div className="border-border bg-card rounded-sm border">
         <div className="divide-border grid grid-cols-2 divide-x divide-y sm:grid-cols-4 sm:divide-y-0">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="space-y-2 px-4 py-3">

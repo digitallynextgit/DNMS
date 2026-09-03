@@ -26,7 +26,7 @@ export default function ApplyLeaveLoading() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Skeleton className="bg-muted h-4 w-4 animate-pulse rounded" />
+            <Skeleton className="bg-muted h-4 w-4 animate-pulse rounded-sm" />
             <Skeleton className="bg-muted h-3.5 w-32 animate-pulse" />
           </div>
           <div className="space-y-2">
@@ -40,7 +40,7 @@ export default function ApplyLeaveLoading() {
         </div>
 
         {/* Right: mail preview card */}
-        <div className="border-border bg-card space-y-4 rounded-[2px] border p-5">
+        <div className="border-border bg-card space-y-4 rounded-sm border p-5">
           <Skeleton className="bg-muted h-4 w-40 animate-pulse" />
           <div className="space-y-2">
             <Skeleton className="bg-muted h-3 w-1/3 animate-pulse" />

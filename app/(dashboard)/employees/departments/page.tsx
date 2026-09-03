@@ -348,11 +348,11 @@ export default function DepartmentsPage() {
           loading={isLoading}
         />
       ) : departments.length === 0 ? (
-        <div className="bg-card rounded-[2px] border">
+        <div className="bg-card rounded-sm border">
           <EmptyState title="No departments yet." compact />
         </div>
       ) : (
-        <div className="bg-card rounded-[2px] border">
+        <div className="bg-card rounded-sm border">
           <EmptyState title="No departments match your search." compact />
         </div>
       )}

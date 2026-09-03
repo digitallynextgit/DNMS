@@ -79,7 +79,7 @@ export function WeeklyHoursCard() {
         month: "short",
         ...(year ? { year: "numeric" } : {}),
       })
-    return `${fmt(start, false)} – ${fmt(end, true)}`
+    return `${fmt(start, false)} - ${fmt(end, true)}`
   }, [weekStart])
 
   // "My hours" reads wrong over a table of five people, and "Team hours" reads
@@ -128,7 +128,7 @@ export function WeeklyHoursCard() {
 
       <CardContent className="space-y-3">
         {isLoading || !data ? (
-          <Skeleton className="h-40 rounded" />
+          <Skeleton className="h-40 rounded-sm" />
         ) : data.people.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-sm">
             No hours logged this week.
@@ -182,12 +182,12 @@ export function WeeklyHoursCard() {
                           ) : d.hours > 0 ? (
                             formatHours(d.hours)
                           ) : (
-                            <span className="text-muted-foreground/40">–</span>
+                            <span className="text-muted-foreground/40">-</span>
                           )}
                         </td>
                       ))}
                       <td className="border-r border-b px-3 py-2 text-right text-xs font-medium tabular-nums">
-                        {p.logged > 0 ? formatHours(p.logged) : "–"}
+                        {p.logged > 0 ? formatHours(p.logged) : "-"}
                       </td>
                       <td className="border-b px-3 py-2 text-right text-xs tabular-nums">
                         <Utilisation value={p.utilisation} available={p.available} />
@@ -212,7 +212,7 @@ export function WeeklyHoursCard() {
                             key={c.key}
                             className="border-r px-3 py-2 text-right text-xs font-semibold tabular-nums"
                           >
-                            {total > 0 ? formatHours(total) : "–"}
+                            {total > 0 ? formatHours(total) : "-"}
                           </td>
                         )
                       })}
@@ -244,7 +244,7 @@ export function WeeklyHoursCard() {
                 {data.people
                   .filter((p) => p.focus.length > 0)
                   .map((p) => (
-                    <div key={p.id} className="rounded-[2px] border p-3">
+                    <div key={p.id} className="rounded-sm border p-3">
                       <p className="text-xs font-semibold">{p.name}</p>
                       <div className="mt-2 space-y-2">
                         {p.focus.map((f) => (
@@ -252,7 +252,7 @@ export function WeeklyHoursCard() {
                             <p className="flex items-baseline justify-between gap-2 text-[11px] font-medium">
                               <span>{f.client}</span>
                               <span className="text-muted-foreground tabular-nums">
-                                {f.hours > 0 ? formatHours(f.hours) : "–"}
+                                {f.hours > 0 ? formatHours(f.hours) : "-"}
                               </span>
                             </p>
                             <p className="text-muted-foreground mt-0.5 text-[11px] leading-relaxed">

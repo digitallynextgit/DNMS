@@ -86,7 +86,7 @@ export function HolidayMonthCalendar({
     <div className={cn("space-y-4", className)}>
       <MonthNav year={year} month={month} onPrev={onPrevMonth} onNext={onNextMonth} />
 
-      <div className="bg-card rounded-[2px] border p-2 sm:p-4">
+      <div className="bg-card rounded-sm border p-2 sm:p-4">
         <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
           {WEEKDAYS.map((w) => (
             <div
@@ -140,7 +140,7 @@ export function HolidayMonthCalendar({
                   // Phone cells are ~33px wide, too narrow for a holiday name -
                   // they carry the colour + day number, with the name in the
                   // title tooltip; the label returns from `sm` up.
-                  "flex aspect-square w-full flex-col items-center justify-center rounded-[2px] p-1 text-center transition-shadow hover:ring-2 hover:ring-inset focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset sm:aspect-auto sm:min-h-19 sm:items-stretch sm:justify-start sm:p-1.5 sm:text-left",
+                  "flex aspect-square w-full flex-col items-center justify-center rounded-sm p-1 text-center transition-shadow hover:ring-2 hover:ring-inset focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset sm:aspect-auto sm:min-h-19 sm:items-stretch sm:justify-start sm:p-1.5 sm:text-left",
                   isBirthday
                     ? "bg-rose-100 text-rose-900 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200"
                     : h

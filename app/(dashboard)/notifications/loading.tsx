@@ -10,8 +10,8 @@ export default function NotificationsLoading() {
 
       <div className="flex flex-col gap-2">
         {Array.from({ length: 10 }).map((_, i) => (
-          <div key={i} className="bg-card flex w-full items-start gap-3 rounded-[2px] border p-4">
-            <Skeleton className="bg-muted mt-0.5 h-9 w-9 shrink-0 animate-pulse rounded" />
+          <div key={i} className="bg-card flex w-full items-start gap-3 rounded-sm border p-4">
+            <Skeleton className="bg-muted mt-0.5 h-9 w-9 shrink-0 animate-pulse rounded-sm" />
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <Skeleton className="bg-muted h-4 w-48 animate-pulse" />

@@ -168,7 +168,7 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
     <div className="space-y-4">
       {/* Date range + sync */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="bg-card inline-flex items-center rounded-[2px] border p-0.5 text-xs">
+        <div className="bg-card inline-flex items-center rounded-sm border p-0.5 text-xs">
           {RANGES.map((r) => (
             <button
               key={r.label}
@@ -178,7 +178,7 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
                 setPage(1)
               }}
               className={cn(
-                "rounded-[2px] px-2.5 py-1 font-medium transition-colors",
+                "rounded-sm px-2.5 py-1 font-medium transition-colors",
                 // A preset is only "on" when no custom span is overriding it.
                 !customRange && rangeDays === r.days
                   ? "bg-muted text-foreground"

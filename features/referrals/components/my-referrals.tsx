@@ -64,7 +64,7 @@ export function MyReferrals() {
               Applying on the careers site? Ask them to put this in
               <span className="text-foreground font-medium"> &ldquo;Referred by&rdquo;</span>:
             </span>
-            <code className="bg-muted rounded-[2px] px-2 py-0.5 font-mono text-sm font-semibold">
+            <code className="bg-muted rounded-sm px-2 py-0.5 font-mono text-sm font-semibold">
               {data.me.employeeNo}
             </code>
             <span className="text-muted-foreground text-xs">
@@ -90,7 +90,7 @@ export function MyReferrals() {
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-[2px]" />
+            <Skeleton key={i} className="h-20 rounded-sm" />
           ))}
         </div>
       ) : !data || data.rows.length === 0 ? (
@@ -188,7 +188,7 @@ function Stat({
   return (
     <Card>
       <CardContent className="flex items-center gap-3 p-4">
-        <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded">
+        <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-sm">
           <Icon className="text-muted-foreground h-4 w-4" />
         </div>
         <div className="min-w-0">

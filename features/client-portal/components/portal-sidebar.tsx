@@ -126,7 +126,7 @@ export function PortalSidebar({
               <DropdownMenuTrigger asChild>
                 <button
                   className={cn(
-                    "text-muted-foreground hover:text-foreground hover:bg-accent flex h-8 items-center gap-2.5 rounded-[2px] text-sm transition-colors",
+                    "text-muted-foreground hover:text-foreground hover:bg-accent flex h-8 items-center gap-2.5 rounded-sm text-sm transition-colors",
                     isCollapsed ? "mx-auto w-8 justify-center" : "w-full px-2.5",
                   )}
                 >
@@ -182,7 +182,7 @@ export function PortalSidebar({
                     <Link
                       href={href}
                       className={cn(
-                        "mx-auto flex h-8 w-8 items-center justify-center rounded-[2px] transition-colors",
+                        "mx-auto flex h-8 w-8 items-center justify-center rounded-sm transition-colors",
                         isActive
                           ? "bg-accent text-foreground"
                           : "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -204,7 +204,7 @@ export function PortalSidebar({
               key={m.key}
               href={href}
               className={cn(
-                "flex h-8 items-center gap-2.5 rounded-[2px] px-2.5 text-sm transition-colors",
+                "flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-sm transition-colors",
                 isActive
                   ? "bg-accent text-foreground font-medium"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent",

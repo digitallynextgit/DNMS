@@ -9,7 +9,7 @@ export default function NotFound() {
       </p>
       <Link
         href="/dashboard"
-        className="bg-primary text-primary-foreground rounded-[2px] px-4 py-2 text-sm"
+        className="bg-primary text-primary-foreground rounded-sm px-4 py-2 text-sm"
       >
         Back to dashboard
       </Link>

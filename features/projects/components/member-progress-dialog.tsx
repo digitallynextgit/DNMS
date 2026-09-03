@@ -51,7 +51,7 @@ function Stat({
   tone?: "default" | "good" | "warn" | "bad"
 }) {
   return (
-    <div className="bg-muted/40 rounded-[2px] p-2">
+    <div className="bg-muted/40 rounded-sm p-2">
       <p className="text-muted-foreground text-[10px] tracking-wide uppercase">{label}</p>
       <p
         className={cn(
@@ -164,7 +164,7 @@ export function MemberProgressDialog({
             </div>
 
             {isLoading ? (
-              <Skeleton className="h-48 rounded" />
+              <Skeleton className="h-48 rounded-sm" />
             ) : tasks.length === 0 ? (
               <EmptyState icon={ListChecks} compact title="No tasks in this scope." />
             ) : (

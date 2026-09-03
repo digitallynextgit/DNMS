@@ -210,7 +210,7 @@ export function StatusBadge({ status }: { status: Status }) {
   return (
     <span
       className={cn(
-        "shrink-0 rounded-[3px] px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
+        "shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
         STATUS_STYLE[status].chip,
       )}
     >

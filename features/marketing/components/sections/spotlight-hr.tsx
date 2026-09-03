@@ -23,14 +23,14 @@ function HrVisual() {
   return (
     <div className="flex h-full flex-col gap-3 sm:flex-row">
       {/* org chart */}
-      <div className="border-border bg-background relative flex flex-1 flex-col overflow-hidden rounded-[6px] border p-4">
+      <div className="border-border bg-background relative flex flex-1 flex-col overflow-hidden rounded-sm border p-4">
         <div className="text-muted-foreground mb-3 text-[10px] font-medium uppercase">
           Org chart
         </div>
         <div className="flex flex-1 flex-col justify-center">
           {/* root node */}
           <div className="flex justify-center">
-            <div className="border-border bg-card animate-dnms-bob-sm flex items-center gap-2 rounded-[6px] border px-3 py-2 shadow-sm">
+            <div className="border-border bg-card animate-dnms-bob-sm flex items-center gap-2 rounded-sm border px-3 py-2 shadow-sm">
               <span className="bg-primary/10 text-primary flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold">
                 MJ
               </span>
@@ -53,7 +53,7 @@ function HrVisual() {
             {reports.map(([initials, name, dept]) => (
               <div
                 key={name}
-                className="border-border bg-card flex flex-col items-center gap-1 rounded-[6px] border px-1 py-3 text-center"
+                className="border-border bg-card flex flex-col items-center gap-1 rounded-sm border px-1 py-3 text-center"
               >
                 <span className="bg-muted text-muted-foreground flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold">
                   {initials}
@@ -68,7 +68,7 @@ function HrVisual() {
         </div>
       </div>
       {/* directory */}
-      <div className="border-border bg-background flex flex-1 flex-col rounded-[6px] border p-3">
+      <div className="border-border bg-background flex flex-1 flex-col rounded-sm border p-3">
         <div className="text-muted-foreground mb-2 px-1 text-[10px] font-medium uppercase">
           Directory
         </div>
@@ -76,7 +76,7 @@ function HrVisual() {
           {directory.map(([initials, name, dept]) => (
             <div
               key={name}
-              className="border-border/70 bg-card flex items-center gap-2 rounded-[6px] border px-2 py-2"
+              className="border-border/70 bg-card flex items-center gap-2 rounded-sm border px-2 py-2"
             >
               <span className="bg-primary/10 text-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold">
                 {initials}

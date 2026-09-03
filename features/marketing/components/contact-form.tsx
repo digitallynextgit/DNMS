@@ -16,7 +16,7 @@ const TOPICS = [
 ] as const
 
 const field =
-  "border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary/50 w-full rounded-[6px] border px-3 py-2.5 text-sm shadow-sm outline-none transition-colors"
+  "border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary/50 w-full rounded-sm border px-3 py-2.5 text-sm shadow-sm outline-none transition-colors"
 
 /** Public contact form. Posts to /api/public/contact, which needs no session. */
 export function ContactForm({ className }: { className?: string }) {
@@ -56,10 +56,7 @@ export function ContactForm({ className }: { className?: string }) {
   if (status === "success") {
     return (
       <div
-        className={cn(
-          "border-border/70 bg-card/70 rounded-[6px] border p-6 text-center",
-          className,
-        )}
+        className={cn("border-border/70 bg-card/70 rounded-sm border p-6 text-center", className)}
       >
         <Check className="mx-auto h-8 w-8 text-emerald-500" />
         <p className="mt-3 text-lg font-semibold">Message sent</p>
@@ -157,7 +154,7 @@ export function ContactForm({ className }: { className?: string }) {
         <button
           type="submit"
           disabled={status === "loading"}
-          className="bg-primary text-primary-foreground inline-flex items-center justify-center gap-1.5 rounded-[6px] px-5 py-2.5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="bg-primary text-primary-foreground inline-flex items-center justify-center gap-1.5 rounded-sm px-5 py-2.5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {status === "loading" ? "Sending…" : "Send message"}
           <ArrowRight className="h-4 w-4" />

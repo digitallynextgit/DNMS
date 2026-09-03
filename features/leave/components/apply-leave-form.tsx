@@ -233,7 +233,7 @@ export function ApplyLeaveForm() {
           {leaveTypeId && selectedBalance && (
             <div
               className={cn(
-                "flex items-start gap-2 rounded-[2px] border px-3 py-2 text-sm",
+                "flex items-start gap-2 rounded-sm border px-3 py-2 text-sm",
                 hasInsufficientBalance
                   ? "bg-destructive/5 border-destructive/20 text-destructive"
                   : "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300",
@@ -406,7 +406,7 @@ export function ApplyLeaveForm() {
 
           {/* AI suggestions - the employee picks one, or ignores them. */}
           {variants.length > 0 && (
-            <div className="space-y-1.5 rounded-[2px] border p-2">
+            <div className="space-y-1.5 rounded-sm border p-2">
               <div className="flex items-center justify-between">
                 <p className="text-muted-foreground flex items-center gap-1 text-[11px] font-medium">
                   <Sparkles className="h-3 w-3" /> Pick a version
@@ -427,7 +427,7 @@ export function ApplyLeaveForm() {
                     commitReason(v.text)
                     setVariants([])
                   }}
-                  className="hover:bg-muted/60 focus-visible:ring-ring w-full rounded-[2px] border p-2 text-left transition-colors focus:outline-none focus-visible:ring-2"
+                  className="hover:bg-muted/60 focus-visible:ring-ring w-full rounded-sm border p-2 text-left transition-colors focus:outline-none focus-visible:ring-2"
                 >
                   <span className="text-primary text-[10px] font-semibold tracking-wide uppercase">
                     {v.label}

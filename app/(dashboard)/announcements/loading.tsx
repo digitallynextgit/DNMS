@@ -12,7 +12,7 @@ export default function Loading() {
       <PageHeaderSkeleton withActions />
 
       {/* Stat strip: one card, a divided 4-up row */}
-      <div className="border-border bg-card rounded-[2px] border">
+      <div className="border-border bg-card rounded-sm border">
         <div className="divide-border grid grid-cols-2 divide-x divide-y sm:grid-cols-4 sm:divide-y-0">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="space-y-2 px-4 py-3">
@@ -35,8 +35,8 @@ export default function Loading() {
           <div key={i} className="bg-card space-y-2 rounded-sm border p-4">
             <div className="flex flex-wrap items-center gap-2">
               <Skeleton className="bg-muted h-4 w-48 animate-pulse" />
-              <Skeleton className="bg-muted h-4 w-16 animate-pulse rounded" />
-              <Skeleton className="bg-muted h-4 w-20 animate-pulse rounded" />
+              <Skeleton className="bg-muted h-4 w-16 animate-pulse rounded-sm" />
+              <Skeleton className="bg-muted h-4 w-20 animate-pulse rounded-sm" />
             </div>
             <Skeleton className="bg-muted h-3 w-32 animate-pulse" />
             <Skeleton className="bg-muted h-3 w-full animate-pulse" />

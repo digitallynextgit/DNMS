@@ -79,7 +79,7 @@ function LeaveVisual() {
   return (
     <div className="flex h-full flex-col gap-3 sm:flex-row">
       {/* calendar */}
-      <div className="border-border bg-background flex flex-1 flex-col rounded-[6px] border p-4">
+      <div className="border-border bg-background flex flex-1 flex-col rounded-sm border p-4">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-xs font-semibold">{monthName}</span>
           <CalendarDays className="text-muted-foreground h-3.5 w-3.5" />
@@ -97,7 +97,7 @@ function LeaveVisual() {
               <span
                 key={d}
                 title={holidayMap.get(d)?.name}
-                className={`flex aspect-square items-center justify-center rounded-[6px] ${dayTone(d)}`}
+                className={`flex aspect-square items-center justify-center rounded-sm ${dayTone(d)}`}
               >
                 {d}
               </span>
@@ -117,7 +117,7 @@ function LeaveVisual() {
         </div>
       </div>
       {/* balance */}
-      <div className="border-border bg-background flex flex-1 flex-col rounded-[6px] border p-4">
+      <div className="border-border bg-background flex flex-1 flex-col rounded-sm border p-4">
         <div className="text-muted-foreground mb-3 text-[10px] font-medium uppercase">Balance</div>
         <div className="flex flex-1 flex-col justify-between gap-3">
           {balances.map(([label, used, total, bar]) => (

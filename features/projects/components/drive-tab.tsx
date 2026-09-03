@@ -143,7 +143,7 @@ function TagChip({ tag, muted }: { tag: DocTag; muted?: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-[3px] px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
+        "inline-flex shrink-0 items-center rounded-sm px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
         DOC_TAG_STYLE[tag],
         // A derived tag is shown at reduced weight: it is a guess about a file
         // we do not own a row for, and it cannot be corrected here.
@@ -520,7 +520,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
               <button
                 type="button"
                 title="Change tag"
-                className="focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none"
+                className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none"
               >
                 <TagChip tag={f.tag} muted={!f.tagIsStored} />
               </button>
@@ -585,7 +585,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
           type="button"
           onClick={() => viewFile(f)}
           title={f.source === "drive" ? "View in Drive" : "View"}
-          className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded"
+          className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded-sm"
         >
           <Eye className="h-4 w-4" />
         </button>
@@ -594,7 +594,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
             type="button"
             onClick={() => downloadFile(f)}
             title="Download"
-            className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded-sm"
           >
             <Download className="h-4 w-4" />
           </button>
@@ -604,7 +604,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
             type="button"
             title={f.source === "drive" ? "Move to trash" : "Delete"}
             onClick={() => setDeleteTarget(f)}
-            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex h-8 w-8 items-center justify-center rounded"
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex h-8 w-8 items-center justify-center rounded-sm"
           >
             <Trash2 className="h-4 w-4" />
           </button>

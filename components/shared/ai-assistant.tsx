@@ -82,7 +82,7 @@ export function AiAssistant() {
           panel at bottom-5 covered it along with whatever tab you were on.
           dvh so iOS Safari's collapsing chrome is excluded from the height. */}
       {open && (
-        <div className="bg-card fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex h-[min(560px,calc(100dvh-12rem))] w-[min(400px,calc(100vw-2.5rem))] flex-col rounded-[2px] border shadow-2xl md:bottom-5 md:h-[min(560px,calc(100dvh-6rem))]">
+        <div className="bg-card fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex h-[min(560px,calc(100dvh-12rem))] w-[min(400px,calc(100vw-2.5rem))] flex-col rounded-sm border shadow-2xl md:bottom-5 md:h-[min(560px,calc(100dvh-6rem))]">
           <div className="flex items-center justify-between border-b px-4 py-2.5">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
@@ -103,7 +103,7 @@ export function AiAssistant() {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close assistant"
-                className="text-muted-foreground hover:text-foreground flex h-7 w-7 items-center justify-center rounded"
+                className="text-muted-foreground hover:text-foreground flex h-7 w-7 items-center justify-center rounded-sm"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -123,7 +123,7 @@ export function AiAssistant() {
                       key={s}
                       type="button"
                       onClick={() => void send(s)}
-                      className="hover:bg-accent rounded-[2px] border px-2.5 py-1 text-xs"
+                      className="hover:bg-accent rounded-sm border px-2.5 py-1 text-xs"
                     >
                       {s}
                     </button>
@@ -139,7 +139,7 @@ export function AiAssistant() {
               >
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-[2px] px-3 py-2 text-sm",
+                    "max-w-[85%] rounded-sm px-3 py-2 text-sm",
                     m.role === "user"
                       ? "bg-primary text-primary-foreground whitespace-pre-wrap"
                       : "bg-muted leading-relaxed",
@@ -173,7 +173,7 @@ export function AiAssistant() {
                 placeholder="Ask anything…"
                 aria-label="Ask anything"
                 style={{ outline: "none", boxShadow: "none" }}
-                className="text-foreground max-h-28 min-h-9 flex-1 resize-none rounded-[2px] border bg-transparent px-3 py-2 text-sm"
+                className="text-foreground max-h-28 min-h-9 flex-1 resize-none rounded-sm border bg-transparent px-3 py-2 text-sm"
               />
               <Button
                 size="icon"

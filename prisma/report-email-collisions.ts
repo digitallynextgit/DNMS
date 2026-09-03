@@ -49,7 +49,7 @@ interface Row {
 const line = (n = 78) => console.log("─".repeat(n))
 
 async function main() {
-  console.log("\nEMAIL COLLISION REPORT — staff vs portal clients")
+  console.log("\nEMAIL COLLISION REPORT - staff vs portal clients")
   line()
 
   const [{ employees, clients }] = await prisma.$queryRaw<
@@ -83,7 +83,7 @@ async function main() {
 
   if (rows.length === 0) {
     console.log("✓ No address is used by both an employee and a client user.")
-    console.log("  The M2 merge has nothing to decide — every address is one human.\n")
+    console.log("  The M2 merge has nothing to decide - every address is one human.\n")
   } else {
     console.log(`⚠ ${rows.length} collision(s). Each needs a human call:\n`)
     for (const r of rows) {

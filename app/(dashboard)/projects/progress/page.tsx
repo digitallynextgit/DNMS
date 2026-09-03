@@ -80,11 +80,11 @@ const ALL_PROJECTS = "__all__"
 // drill-down pulls everything.
 const PortfolioCharts = dynamic(
   () => import("@/features/projects").then((m) => m.PortfolioCharts),
-  { loading: () => <Skeleton className="h-96 rounded" /> },
+  { loading: () => <Skeleton className="h-96 rounded-sm" /> },
 )
 const GoalsProgressCard = dynamic(
   () => import("@/features/projects").then((m) => m.GoalsProgressCard),
-  { loading: () => <Skeleton className="h-48 rounded" /> },
+  { loading: () => <Skeleton className="h-48 rounded-sm" /> },
 )
 const ProgressDrilldown = dynamic(
   () => import("@/features/projects").then((m) => m.ProgressDrilldown),
@@ -94,7 +94,7 @@ const ProgressDrilldown = dynamic(
 // download it. Concrete path, not the barrel, so it does not drag the rest in.
 const MyProgress = dynamic(
   () => import("@/features/projects/components/my-progress").then((m) => m.MyProgress),
-  { loading: () => <Skeleton className="h-64 rounded" /> },
+  { loading: () => <Skeleton className="h-64 rounded-sm" /> },
 )
 
 /**
@@ -122,9 +122,9 @@ function KpiTile({
     <button
       type="button"
       onClick={onClick}
-      className="group bg-card hover:border-foreground/30 hover:bg-muted/30 flex w-full items-center gap-3 rounded-[6px] border p-4 text-left transition-colors"
+      className="group bg-card hover:border-foreground/30 hover:bg-muted/30 flex w-full items-center gap-3 rounded-sm border p-4 text-left transition-colors"
     >
-      <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded">
+      <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-sm">
         <Icon className="text-muted-foreground h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
@@ -215,9 +215,9 @@ export default function ProjectProgressPage() {
   if (permsLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-16 rounded" />
-        <Skeleton className="h-24 rounded" />
-        <Skeleton className="h-64 rounded" />
+        <Skeleton className="h-16 rounded-sm" />
+        <Skeleton className="h-24 rounded-sm" />
+        <Skeleton className="h-64 rounded-sm" />
       </div>
     )
   }
@@ -308,7 +308,7 @@ export default function ProjectProgressPage() {
         <KpiTile
           icon={CheckCircle2}
           label="Complete"
-          value={s?.completionRate != null ? `${s.completionRate}%` : "–"}
+          value={s?.completionRate != null ? `${s.completionRate}%` : "-"}
           sub={s ? `${s.completed} of ${s.assigned - s.discarded} tasks ${scope}` : undefined}
           tone="accent"
           onClick={() =>
@@ -354,7 +354,8 @@ export default function ProjectProgressPage() {
               kind: "state",
               state: "overdue",
               title: "Overdue",
-              subtitle: "Open and past due, as of today - every week, not just this one",
+              subtitle:
+                "Past its due date and not finished, as of today - every week, not just this one. On-hold work counts.",
               projectId: scopeId,
             })
           }
@@ -362,7 +363,7 @@ export default function ProjectProgressPage() {
         <KpiTile
           icon={Clock}
           label="On time"
-          value={s?.onTimeRate != null ? `${s.onTimeRate}%` : "–"}
+          value={s?.onTimeRate != null ? `${s.onTimeRate}%` : "-"}
           sub={
             s?.completed ? `${s.onTime} of ${s.completed} finished on time` : "nothing finished yet"
           }
@@ -381,7 +382,7 @@ export default function ProjectProgressPage() {
         <KpiTile
           icon={Target}
           label="Goals"
-          value={g && g.totalGoals > 0 ? `${g.overallProgress}%` : "–"}
+          value={g && g.totalGoals > 0 ? `${g.overallProgress}%` : "-"}
           sub={
             g && g.totalGoals > 0
               ? `${g.doneGoals} of ${g.totalGoals} done · as of today`
@@ -457,7 +458,7 @@ export default function ProjectProgressPage() {
           }}
         />
       ) : (
-        <Skeleton className="h-96 rounded" />
+        <Skeleton className="h-96 rounded-sm" />
       )}
 
       {/* ── Goals strip: as of today, follows the picker only ─────────────── */}
@@ -514,7 +515,7 @@ export default function ProjectProgressPage() {
                   A written briefing on{" "}
                   {oneProject ? (project?.name ?? "this project") : "the portfolio"} for tasks{" "}
                   {scope}
-                  {range.from ? ` (${formatDate(range.from)} – ${formatDate(range.to!)})` : ""}.
+                  {range.from ? ` (${formatDate(range.from)} - ${formatDate(range.to!)})` : ""}.
                   Generate one to read it here.
                 </p>
               )}

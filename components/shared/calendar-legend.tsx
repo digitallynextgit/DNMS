@@ -26,7 +26,7 @@ export function CalendarLegend({ items, children, className }: CalendarLegendPro
     <div className={cn("mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px]", className)}>
       {items.map((item) => (
         <span key={item.label} className="flex items-center gap-1.5">
-          <span className={cn("h-3 w-3 rounded", item.swatch)} />
+          <span className={cn("h-3 w-3 rounded-sm", item.swatch)} />
           <span className="text-muted-foreground">{item.label}</span>
         </span>
       ))}

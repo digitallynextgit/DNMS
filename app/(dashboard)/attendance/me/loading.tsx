@@ -10,13 +10,16 @@ export default function MyAttendanceLoading() {
 
       <StatCardsSkeleton count={4} />
 
-      <div className="bg-card rounded-[2px] border p-4">
+      <div className="bg-card rounded-sm border p-4">
         <div className="grid grid-cols-7 gap-1">
           {Array.from({ length: 7 }).map((_, i) => (
-            <Skeleton key={`h-${i}`} className="bg-muted mx-auto h-3 w-8 animate-pulse rounded" />
+            <Skeleton
+              key={`h-${i}`}
+              className="bg-muted mx-auto h-3 w-8 animate-pulse rounded-sm"
+            />
           ))}
           {Array.from({ length: 35 }).map((_, i) => (
-            <Skeleton key={i} className="bg-muted min-h-19 animate-pulse rounded-[2px]" />
+            <Skeleton key={i} className="bg-muted min-h-19 animate-pulse rounded-sm" />
           ))}
         </div>
       </div>

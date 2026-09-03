@@ -19,7 +19,7 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
 
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <div className="bg-card border-border w-36 rounded-[2px] border px-3 py-2.5 text-center shadow-sm">
+      <div className="bg-card border-border w-36 rounded-sm border px-3 py-2.5 text-center shadow-sm">
         <div className="mb-1.5 flex justify-center">
           <AvatarDisplay
             src={node.profilePhoto}
@@ -38,7 +38,7 @@ function OrgNodeCard({ node }: { node: OrgNode }) {
           <p className="text-muted-foreground/70 truncate text-[10px]">{node.department.name}</p>
         )}
         {node.role && (
-          <span className="bg-muted text-muted-foreground mt-1 inline-block rounded-[2px] px-1.5 py-0.5 text-[9px] font-medium">
+          <span className="bg-muted text-muted-foreground mt-1 inline-block rounded-sm px-1.5 py-0.5 text-[9px] font-medium">
             {node.role}
           </span>
         )}
@@ -170,7 +170,7 @@ export function OrgChartTree({ nodes }: OrgChartTreeProps) {
   return (
     <div className="relative">
       {/* Zoom controls */}
-      <div className="bg-card/90 absolute top-3 right-3 z-10 flex items-center gap-0.5 rounded-[2px] border p-0.5 shadow-sm backdrop-blur">
+      <div className="bg-card/90 absolute top-3 right-3 z-10 flex items-center gap-0.5 rounded-sm border p-0.5 shadow-sm backdrop-blur">
         <Button
           variant="ghost"
           size="icon-sm"

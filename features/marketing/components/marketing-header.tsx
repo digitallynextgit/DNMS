@@ -101,7 +101,7 @@ export function MarketingHeader() {
             <a
               key={n.href}
               href={n.href}
-              className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-[6px] px-3 py-2 text-sm font-medium transition-colors"
+              className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-sm px-3 py-2 text-sm font-medium transition-colors"
             >
               {n.label}
             </a>
@@ -131,7 +131,7 @@ export function MarketingHeader() {
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((o) => !o)}
-            className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 flex h-9 w-9 items-center justify-center rounded-[6px] transition-colors md:hidden"
+            className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 flex h-9 w-9 items-center justify-center rounded-sm transition-colors md:hidden"
           >
             {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -147,7 +147,7 @@ export function MarketingHeader() {
                 key={n.href}
                 href={n.href}
                 onClick={() => setMenuOpen(false)}
-                className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-[6px] px-3 py-2.5 text-sm font-medium transition-colors"
+                className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-sm px-3 py-2.5 text-sm font-medium transition-colors"
               >
                 {n.label}
               </a>

@@ -127,7 +127,7 @@ function MultiPicker({
                     key={o.id}
                     type="button"
                     onClick={() => toggle(o.id)}
-                    className="hover:bg-muted flex w-full items-start gap-2 rounded-[2px] px-2 py-1.5 text-left text-xs"
+                    className="hover:bg-muted flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left text-xs"
                   >
                     <Check
                       className={cn(
@@ -272,7 +272,7 @@ export function ReportOptionsDialog({
                     type="button"
                     onClick={() => setType(t.key)}
                     className={cn(
-                      "rounded-[2px] border p-2 text-left transition-colors",
+                      "rounded-sm border p-2 text-left transition-colors",
                       active ? "border-primary bg-primary/5" : "hover:bg-muted/50",
                     )}
                   >
@@ -293,7 +293,7 @@ export function ReportOptionsDialog({
 
           {/* Scope */}
           {isLoading ? (
-            <Skeleton className="h-16 rounded-[2px]" />
+            <Skeleton className="h-16 rounded-sm" />
           ) : (
             <div className="grid gap-3 sm:grid-cols-3">
               {def.scopes.includes("projects") && (
@@ -343,7 +343,7 @@ export function ReportOptionsDialog({
                     type="button"
                     onClick={() => toggleSection(s.key)}
                     className={cn(
-                      "flex items-start gap-2 rounded-[2px] border p-2 text-left transition-colors",
+                      "flex items-start gap-2 rounded-sm border p-2 text-left transition-colors",
                       active ? "border-primary/60 bg-primary/5" : "hover:bg-muted/50",
                     )}
                   >

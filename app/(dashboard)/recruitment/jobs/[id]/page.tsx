@@ -161,7 +161,7 @@ function ApplicantCard({
     <div
       draggable
       onDragStart={(e) => onDragStart(e, applicant.id)}
-      className="bg-card group cursor-grab rounded-[2px] border p-3 shadow-sm transition-all duration-150 select-none hover:shadow-md active:cursor-grabbing"
+      className="bg-card group cursor-grab rounded-sm border p-3 shadow-sm transition-all duration-150 select-none hover:shadow-md active:cursor-grabbing"
     >
       <div className="flex items-start gap-2.5">
         <AvatarDisplay
@@ -236,7 +236,7 @@ function ApplicantCard({
 
       <button
         onClick={() => onScheduleInterview(applicant)}
-        className="border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary mt-2.5 w-full rounded-[2px] border border-dashed py-1.5 text-center text-xs transition-colors"
+        className="border-muted-foreground/30 text-muted-foreground hover:border-primary hover:text-primary mt-2.5 w-full rounded-sm border border-dashed py-1.5 text-center text-xs transition-colors"
       >
         + Schedule Interview
       </button>
@@ -373,11 +373,11 @@ export default function JobPipelinePage() {
                 {/* Column header */}
                 <div className="mb-3 flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
-                    <span className={cn("h-2 w-2 flex-shrink-0 rounded", cfg.dot)} />
+                    <span className={cn("h-2 w-2 flex-shrink-0 rounded-sm", cfg.dot)} />
                     <span className={cn("text-sm font-semibold", cfg.color)}>{cfg.label}</span>
                   </div>
                   {isLoading ? (
-                    <Skeleton className="h-5 w-6 rounded" />
+                    <Skeleton className="h-5 w-6 rounded-sm" />
                   ) : (
                     <Badge variant="secondary" className="h-5 px-1.5 text-xs font-medium">
                       {cards.length}
@@ -388,7 +388,7 @@ export default function JobPipelinePage() {
                 {/* Drop zone */}
                 <div
                   className={cn(
-                    "min-h-[200px] flex-1 rounded-[2px] border-2 border-dashed p-2 transition-all duration-150",
+                    "min-h-[200px] flex-1 rounded-sm border-2 border-dashed p-2 transition-all duration-150",
                     isOver
                       ? "border-primary bg-primary/5 scale-[1.01]"
                       : "bg-muted/40 border-transparent",
@@ -399,7 +399,7 @@ export default function JobPipelinePage() {
                     // ~8rem tall), so the board keeps its real geometry while loading.
                     <div className="space-y-2">
                       {Array.from({ length: 2 }).map((_, i) => (
-                        <Skeleton key={i} className="h-32 w-full rounded" />
+                        <Skeleton key={i} className="h-32 w-full rounded-sm" />
                       ))}
                     </div>
                   ) : (
@@ -422,7 +422,7 @@ export default function JobPipelinePage() {
                       {cards.length === 0 && (
                         <div
                           className={cn(
-                            "flex h-24 flex-col items-center justify-center gap-1.5 rounded-[2px] border border-dashed",
+                            "flex h-24 flex-col items-center justify-center gap-1.5 rounded-sm border border-dashed",
                             isOver
                               ? "border-primary/50 bg-primary/5"
                               : "border-muted-foreground/20",
@@ -510,7 +510,7 @@ export default function JobPipelinePage() {
           <div className="space-y-2">
             <Label>Notes (optional)</Label>
             <textarea
-              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded-[2px] border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded-sm border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             />
@@ -564,7 +564,7 @@ export default function JobPipelinePage() {
           <div className="space-y-2">
             <Label>Notes (optional)</Label>
             <textarea
-              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded-[2px] border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+              className="bg-background focus:ring-ring min-h-[60px] w-full resize-none rounded-sm border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
               value={iForm.notes}
               onChange={(e) => setIForm((f) => ({ ...f, notes: e.target.value }))}
             />

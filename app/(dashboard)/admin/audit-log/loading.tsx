@@ -8,7 +8,7 @@ export default function Loading() {
       <PageHeaderSkeleton withActions />
 
       {/* Filters row: module select, action search, two date inputs. */}
-      <div className="bg-card border-border flex flex-wrap gap-3 rounded-[2px] border p-4">
+      <div className="bg-card border-border flex flex-wrap gap-3 rounded-sm border p-4">
         <Skeleton className="bg-muted h-9 w-40 animate-pulse" />
         <Skeleton className="bg-muted h-9 min-w-[180px] flex-1 animate-pulse" />
         <Skeleton className="bg-muted h-9 w-40 animate-pulse" />
@@ -19,7 +19,7 @@ export default function Loading() {
       <Skeleton className="bg-muted h-5 w-56 animate-pulse" />
 
       {/* DataTable: bordered card + header row + rows + pagination footer. */}
-      <div className="border-border bg-card rounded-[2px] border">
+      <div className="border-border bg-card rounded-sm border">
         <TableSkeleton rows={10} cols={7} />
         <div className="border-border flex items-center justify-between border-t px-4 py-3">
           <Skeleton className="bg-muted h-3 w-28 animate-pulse" />

@@ -35,9 +35,9 @@ export function WhyDnms() {
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6">
         {/* Hero-style pill */}
         <Reveal>
-          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs">
+          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
-              className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
               style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
             >
               <Sparkles className="h-3 w-3" />
@@ -65,7 +65,7 @@ export function WhyDnms() {
         <div className="mt-14 grid items-stretch gap-6 lg:grid-cols-2">
           {/* The usual patchwork: red / error */}
           <Reveal>
-            <div className="h-full rounded-[6px] border border-red-500/25 bg-red-500/[0.03] p-7">
+            <div className="h-full rounded-sm border border-red-500/25 bg-red-500/[0.03] p-7">
               <h3 className="text-muted-foreground text-lg font-semibold tracking-tight">
                 The usual patchwork
               </h3>
@@ -87,7 +87,7 @@ export function WhyDnms() {
 
           {/* With DNMS: green / ok */}
           <Reveal delay={120}>
-            <div className="h-full rounded-[6px] border border-emerald-500/30 bg-emerald-500/[0.03] p-7 shadow-xl ring-1 ring-emerald-500/10">
+            <div className="h-full rounded-sm border border-emerald-500/30 bg-emerald-500/[0.03] p-7 shadow-xl ring-1 ring-emerald-500/10">
               <h3 className="text-lg font-semibold tracking-tight">
                 With <span className="text-emerald-500">DNMS</span>
               </h3>

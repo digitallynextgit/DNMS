@@ -588,7 +588,7 @@ export default function MyTasksPage() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full rounded" />
+            <Skeleton key={i} className="h-14 w-full rounded-sm" />
           ))}
         </div>
       ) : viewMode === "sheet" ? (
@@ -640,7 +640,7 @@ export default function MyTasksPage() {
                             // Phones stack: a 128px status select beside the
                             // title leaves too little room for it on 390px, so
                             // the select drops onto its own line there.
-                            "flex flex-col items-stretch gap-2 rounded-[2px] border p-2.5 sm:flex-row sm:items-center sm:gap-3",
+                            "flex flex-col items-stretch gap-2 rounded-sm border p-2.5 sm:flex-row sm:items-center sm:gap-3",
                             isOverdue &&
                               "border-red-200 bg-red-50/40 dark:border-red-900/60 dark:bg-red-950/20",
                             isRejected && "border-red-200 bg-red-50/40",
@@ -768,7 +768,7 @@ function DayHeader({
       type="button"
       aria-expanded={expanded}
       onClick={onToggle}
-      className="hover:bg-muted/40 flex w-full items-center gap-3 rounded-[2px] px-4 py-3 text-left transition-colors"
+      className="hover:bg-muted/40 flex w-full items-center gap-3 rounded-sm px-4 py-3 text-left transition-colors"
     >
       {expanded ? (
         <ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />

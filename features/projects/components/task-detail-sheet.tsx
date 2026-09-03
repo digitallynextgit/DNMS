@@ -129,7 +129,7 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
 
           {/* On-hold / discarded context */}
           {task.status === "ON_HOLD" && task.holdReason && (
-            <div className="rounded-[2px] border border-amber-300/50 bg-amber-50/50 p-2.5 text-xs dark:border-amber-900/60 dark:bg-amber-950/20">
+            <div className="rounded-sm border border-amber-300/50 bg-amber-50/50 p-2.5 text-xs dark:border-amber-900/60 dark:bg-amber-950/20">
               <p className="font-medium text-amber-700 dark:text-amber-300">
                 On hold
                 {task.holdExpectedDate && ` · expected by ${formatDate(task.holdExpectedDate)}`}
@@ -138,7 +138,7 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
             </div>
           )}
           {task.status === "DISCARDED" && task.discardReason && (
-            <div className="border-destructive/40 bg-destructive/5 rounded-[2px] border p-2.5 text-xs">
+            <div className="border-destructive/40 bg-destructive/5 rounded-sm border p-2.5 text-xs">
               <p className="text-destructive font-medium">Discarded</p>
               <p className="text-muted-foreground mt-0.5 whitespace-pre-wrap">
                 {task.discardReason}
@@ -213,7 +213,7 @@ function MilestoneToggle({ task }: { task: ProjectTask }) {
   return (
     <button
       className={cn(
-        "group flex w-full items-center gap-2.5 rounded-[2px] border px-3 py-2 text-sm transition-all",
+        "group flex w-full items-center gap-2.5 rounded-sm border px-3 py-2 text-sm transition-all",
         active
           ? "border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-950/30"
           : "border-border border-dashed hover:border-purple-300 hover:bg-purple-50/50 dark:hover:bg-purple-950/10",
@@ -223,7 +223,7 @@ function MilestoneToggle({ task }: { task: ProjectTask }) {
     >
       <div
         className={cn(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded",
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-sm",
           active
             ? "bg-purple-600 text-white"
             : "bg-muted text-muted-foreground group-hover:bg-purple-100 group-hover:text-purple-700",
@@ -298,10 +298,10 @@ function ChecklistSection({ taskId }: { taskId: string }) {
 
       {/* Progress bar */}
       {total > 0 && (
-        <div className="bg-muted h-1.5 overflow-hidden rounded">
+        <div className="bg-muted h-1.5 overflow-hidden rounded-sm">
           <div
             className={cn(
-              "h-full rounded-[2px] transition-all duration-300",
+              "h-full rounded-sm transition-all duration-300",
               pct === 100 ? "bg-emerald-500" : "bg-primary",
             )}
             style={{ width: `${pct}%` }}
@@ -312,8 +312,8 @@ function ChecklistSection({ taskId }: { taskId: string }) {
       {/* Items */}
       {isLoading ? (
         <div className="space-y-2">
-          <Skeleton className="h-8 rounded" />
-          <Skeleton className="h-8 rounded" />
+          <Skeleton className="h-8 rounded-sm" />
+          <Skeleton className="h-8 rounded-sm" />
         </div>
       ) : (
         <div className="space-y-1">
@@ -323,7 +323,7 @@ function ChecklistSection({ taskId }: { taskId: string }) {
           {items.map((item) => (
             <div
               key={item.id}
-              className="group hover:bg-muted/50 flex items-center gap-2.5 rounded-[2px] px-2 py-1.5 transition-colors"
+              className="group hover:bg-muted/50 flex items-center gap-2.5 rounded-sm px-2 py-1.5 transition-colors"
             >
               <button
                 className="shrink-0"
@@ -360,7 +360,7 @@ function ChecklistSection({ taskId }: { taskId: string }) {
       <div className="mt-1 flex items-center gap-2">
         <input
           ref={inputRef}
-          className="bg-background placeholder:text-muted-foreground/60 focus:ring-ring/30 flex-1 rounded-[2px] border px-3 py-2 text-sm transition focus:ring-2 focus:outline-none"
+          className="bg-background placeholder:text-muted-foreground/60 focus:ring-ring/30 flex-1 rounded-sm border px-3 py-2 text-sm transition focus:ring-2 focus:outline-none"
           placeholder="Add an item…"
           aria-label="Add an item"
           value={text}
@@ -405,7 +405,7 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
         <MessageSquare className="text-muted-foreground h-3.5 w-3.5" />
         <span className="text-xs font-semibold">Comments</span>
         {comments.length > 0 && (
-          <Badge variant="secondary" className="h-4 rounded-[2px] px-1.5 text-[10px]">
+          <Badge variant="secondary" className="h-4 rounded-sm px-1.5 text-[10px]">
             {comments.length}
           </Badge>
         )}
@@ -414,8 +414,8 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
       {/* Comment list */}
       {isLoading ? (
         <div className="space-y-3">
-          <Skeleton className="h-14 rounded" />
-          <Skeleton className="h-14 rounded" />
+          <Skeleton className="h-14 rounded-sm" />
+          <Skeleton className="h-14 rounded-sm" />
         </div>
       ) : comments.length === 0 ? (
         <EmptyState
@@ -439,7 +439,7 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
                   fallbackClassName="bg-primary/10 text-primary"
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="bg-muted/60 rounded-[2px] rounded-tl-sm px-3 py-2.5">
+                  <div className="bg-muted/60 rounded-sm rounded-tl-sm px-3 py-2.5">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <span className="text-[11px] font-semibold">
                         {c.author.firstName} {c.author.lastName}
@@ -453,7 +453,7 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
                         </span>
                         {isOwn && (
                           <button
-                            className="text-muted-foreground hover:text-destructive rounded-[2px] p-0.5 opacity-0 transition-all group-hover:opacity-100"
+                            className="text-muted-foreground hover:text-destructive rounded-sm p-0.5 opacity-0 transition-all group-hover:opacity-100"
                             onClick={() => del.mutate(c.id)}
                           >
                             <Trash2 className="h-3 w-3" />
@@ -477,7 +477,7 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
       <div className="space-y-1.5 pt-1">
         <div className="relative">
           <Textarea
-            className="border-muted-foreground/20 bg-muted/30 min-h-20 resize-none rounded-[2px] pr-12 text-sm focus-visible:ring-1"
+            className="border-muted-foreground/20 bg-muted/30 min-h-20 resize-none rounded-sm pr-12 text-sm focus-visible:ring-1"
             placeholder="Add a comment…"
             aria-label="Add a comment"
             value={text}

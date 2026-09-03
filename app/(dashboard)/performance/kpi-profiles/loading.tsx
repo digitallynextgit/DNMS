@@ -9,8 +9,8 @@ export default function Loading() {
       <PageHeaderSkeleton />
 
       <div className="space-y-4">
-        <Skeleton className="bg-muted h-9 w-full max-w-xs animate-pulse rounded" />
-        <div className="border-border bg-card rounded-[2px] border">
+        <Skeleton className="bg-muted h-9 w-full max-w-xs animate-pulse rounded-sm" />
+        <div className="border-border bg-card rounded-sm border">
           <TableSkeleton rows={10} cols={7} />
         </div>
       </div>

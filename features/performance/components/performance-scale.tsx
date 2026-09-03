@@ -45,7 +45,7 @@ export function PerformanceScale({ highlightPct }: { highlightPct?: number | nul
                     <td className="px-4 py-2.5">
                       <span
                         className={cn(
-                          "inline-block rounded-[2px] px-2 py-0.5 text-xs font-semibold",
+                          "inline-block rounded-sm px-2 py-0.5 text-xs font-semibold",
                           RANGE_CELL[b.tone],
                         )}
                       >

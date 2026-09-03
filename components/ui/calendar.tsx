@@ -40,26 +40,26 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         dropdowns: "flex items-center justify-center gap-1.5",
         month_grid: "w-full border-collapse",
         weekdays: "flex",
-        weekday: "text-muted-foreground w-8 rounded-[2px] text-[0.8rem] font-normal",
+        weekday: "text-muted-foreground w-8 rounded-sm text-[0.8rem] font-normal",
         week: "mt-2 flex w-full",
         day: "relative size-8 p-0 text-center text-sm focus-within:relative focus-within:z-20",
         day_button: cn(
           buttonVariants({ variant: "ghost" }),
-          "size-8 rounded-[2px] p-0 font-normal aria-selected:opacity-100",
+          "size-8 rounded-sm p-0 font-normal aria-selected:opacity-100",
         ),
         selected:
-          "[&>button]:bg-primary [&>button]:text-primary-foreground [&>button:hover]:bg-primary [&>button:hover]:text-primary-foreground rounded",
+          "[&>button]:bg-primary [&>button]:text-primary-foreground [&>button:hover]:bg-primary [&>button:hover]:text-primary-foreground rounded-sm",
         // Range mode only - these modifiers never apply to a single-date picker,
         // so they cannot affect the existing DateField. The two ends keep the
         // solid `selected` fill; the days between are a soft band instead, which
         // is what makes a range read as one span rather than 30 selected days.
         // The `!` is load-bearing: `selected` also matches every middle day, and
         // without it which background wins depends on CSS source order.
-        range_start: "rounded-l-[2px] rounded-r-none",
-        range_end: "day-range-end rounded-r-[2px] rounded-l-none",
+        range_start: "rounded-l-sm rounded-r-none",
+        range_end: "day-range-end rounded-r-sm rounded-l-none",
         range_middle:
           "bg-accent rounded-none [&>button]:!bg-transparent [&>button]:!text-accent-foreground",
-        today: "[&>button]:bg-accent [&>button]:text-accent-foreground rounded",
+        today: "[&>button]:bg-accent [&>button]:text-accent-foreground rounded-sm",
         outside: "text-muted-foreground/50",
         disabled: "text-muted-foreground opacity-50",
         hidden: "invisible",

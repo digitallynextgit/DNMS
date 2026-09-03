@@ -37,7 +37,7 @@ function Count({ badge }: { badge: NonNullable<NavItem["badge"]> }) {
     badge === "pending-resignations" ? resignations : badge === "unread-chat" ? chat : notifications
   if (count <= 0) return null
   return (
-    <span className="bg-destructive flex h-5 min-w-5 items-center justify-center rounded-[2px] px-1.5 text-[11px] leading-none font-semibold text-white">
+    <span className="bg-destructive flex h-5 min-w-5 items-center justify-center rounded-sm px-1.5 text-[11px] leading-none font-semibold text-white">
       {count > 99 ? "99+" : count}
     </span>
   )
@@ -114,7 +114,7 @@ function Group({
       <h2 className="text-muted-foreground px-1 text-[10px] font-medium tracking-widest uppercase">
         {title}
       </h2>
-      <div className="border-border bg-card overflow-hidden rounded-[2px] border">
+      <div className="border-border bg-card overflow-hidden rounded-sm border">
         {rows.map((r, i) => (
           <Row key={r.href} {...r} last={i === rows.length - 1} />
         ))}
@@ -152,7 +152,7 @@ export function MobileMoreMenu({ session }: { session: Session }) {
       {/* Identity card - doubles as the link into the full profile. */}
       <Link
         href="/profile"
-        className="border-border bg-card hover:bg-accent flex items-center gap-3.5 rounded-[2px] border p-4 transition-colors"
+        className="border-border bg-card hover:bg-accent flex items-center gap-3.5 rounded-sm border p-4 transition-colors"
       >
         <AvatarDisplay
           src={profilePhoto}
@@ -204,7 +204,7 @@ export function MobileMoreMenu({ session }: { session: Session }) {
         <h2 className="text-muted-foreground px-1 text-[10px] font-medium tracking-widest uppercase">
           Account
         </h2>
-        <div className="border-border bg-card overflow-hidden rounded-[2px] border">
+        <div className="border-border bg-card overflow-hidden rounded-sm border">
           <Row href="/profile" icon={User} label="My Profile" last={false} />
           <button
             type="button"

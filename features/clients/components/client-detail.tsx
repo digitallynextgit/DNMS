@@ -87,7 +87,7 @@ export function ClientDetail({ clientRef }: { clientRef: string }) {
       <div className="space-y-6">
         <PageHeaderSkeleton withActions />
         <StatCardsSkeleton count={4} />
-        <div className="border-border bg-card rounded-[2px] border">
+        <div className="border-border bg-card rounded-sm border">
           <TableSkeleton rows={5} cols={5} />
         </div>
       </div>
@@ -124,13 +124,13 @@ export function ClientDetail({ clientRef }: { clientRef: string }) {
         backHref="/projects/clients"
         backLabel="Back to clients"
         leading={
-          <span className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-[2px] border">
+          <span className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-sm border">
             <Building2 className="text-muted-foreground h-5 w-5" />
           </span>
         }
         title={client.name}
         titleSuffix={
-          <span className="bg-muted/50 text-muted-foreground shrink-0 rounded-[2px] border px-2 py-0.5 font-mono text-xs">
+          <span className="bg-muted/50 text-muted-foreground shrink-0 rounded-sm border px-2 py-0.5 font-mono text-xs">
             {client.code}
           </span>
         }
@@ -338,7 +338,7 @@ export function ClientDetail({ clientRef }: { clientRef: string }) {
 function Count({ n }: { n: number }) {
   if (n === 0) return null
   return (
-    <span className="bg-muted text-muted-foreground ml-1 rounded-[2px] px-1.5 py-0.5 text-[10px] tabular-nums">
+    <span className="bg-muted text-muted-foreground ml-1 rounded-sm px-1.5 py-0.5 text-[10px] tabular-nums">
       {n}
     </span>
   )

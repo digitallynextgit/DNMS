@@ -31,7 +31,7 @@ export function ViewToggle({
     <div
       // h-9 + p-1 leaves exactly h-7 inside, so this lines up with a default
       // (h-9) Button sitting next to it.
-      className={cn("bg-card inline-flex h-9 items-center rounded-[2px] border p-1", className)}
+      className={cn("bg-card inline-flex h-9 items-center rounded-sm border p-1", className)}
       role="tablist"
       aria-label="View mode"
     >
@@ -43,7 +43,7 @@ export function ViewToggle({
         aria-label="Card view"
         onClick={() => onChange("card")}
         className={cn(
-          "flex h-8 w-9 items-center justify-center rounded-[2px] transition-colors",
+          "flex h-8 w-9 items-center justify-center rounded-sm transition-colors",
           value === "card"
             ? "bg-muted text-foreground"
             : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
@@ -60,7 +60,7 @@ export function ViewToggle({
           aria-label="Table view"
           onClick={() => onChange("table")}
           className={cn(
-            "flex h-8 w-9 items-center justify-center rounded-[2px] transition-colors",
+            "flex h-8 w-9 items-center justify-center rounded-sm transition-colors",
             value === "table"
               ? "bg-muted text-foreground"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
@@ -78,7 +78,7 @@ export function ViewToggle({
           aria-label="Board view"
           onClick={() => onChange("kanban")}
           className={cn(
-            "flex h-8 w-9 items-center justify-center rounded-[2px] transition-colors",
+            "flex h-8 w-9 items-center justify-center rounded-sm transition-colors",
             value === "kanban"
               ? "bg-muted text-foreground"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
@@ -96,7 +96,7 @@ export function ViewToggle({
           aria-label="Sheet view"
           onClick={() => onChange("sheet")}
           className={cn(
-            "flex h-8 w-9 items-center justify-center rounded-[2px] transition-colors",
+            "flex h-8 w-9 items-center justify-center rounded-sm transition-colors",
             value === "sheet"
               ? "bg-muted text-foreground"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/50",

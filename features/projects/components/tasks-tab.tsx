@@ -223,7 +223,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
     if (mine) setActiveTeamId(mine.id)
   }, [teams, currentUserId])
 
-  if (teamsLoading) return <Skeleton className="h-64 rounded" />
+  if (teamsLoading) return <Skeleton className="h-64 rounded-sm" />
   if (teams.length === 0) {
     return (
       <Card className="border-dashed">
@@ -302,7 +302,7 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
       </div>
 
       {tasksLoading ? (
-        <Skeleton className="h-64 rounded" />
+        <Skeleton className="h-64 rounded-sm" />
       ) : (
         // Before any empty check: an empty week is exactly when the grid is
         // wanted, because the blank cells are what the plan gets typed into.

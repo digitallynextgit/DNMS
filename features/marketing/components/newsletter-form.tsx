@@ -47,7 +47,7 @@ export function NewsletterForm({ className }: { className?: string }) {
 
   return (
     <form onSubmit={onSubmit} className={cn("w-full", className)}>
-      <div className="sm:border-border sm:bg-card sm:focus-within:border-primary/50 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 sm:rounded-[6px] sm:border sm:p-1.5 sm:shadow-sm sm:transition-colors">
+      <div className="sm:border-border sm:bg-card sm:focus-within:border-primary/50 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 sm:rounded-sm sm:border sm:p-1.5 sm:shadow-sm sm:transition-colors">
         <input
           type="email"
           required
@@ -58,12 +58,12 @@ export function NewsletterForm({ className }: { className?: string }) {
           }}
           placeholder="you@company.com"
           aria-label="Email address"
-          className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary/50 min-w-0 flex-1 rounded-[6px] border px-3 py-2.5 text-sm shadow-sm outline-none sm:border-0 sm:bg-transparent sm:py-1.5 sm:shadow-none"
+          className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary/50 min-w-0 flex-1 rounded-sm border px-3 py-2.5 text-sm shadow-sm outline-none sm:border-0 sm:bg-transparent sm:py-1.5 sm:shadow-none"
         />
         <button
           type="submit"
           disabled={status === "loading"}
-          className="bg-primary text-primary-foreground inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-[6px] px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-60 sm:w-auto sm:py-1.5"
+          className="bg-primary text-primary-foreground inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-sm px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-60 sm:w-auto sm:py-1.5"
         >
           {status === "loading" ? "Subscribing…" : "Subscribe"}
           <ArrowRight className="h-4 w-4" />

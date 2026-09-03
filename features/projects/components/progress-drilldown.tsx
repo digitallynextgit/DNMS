@@ -122,7 +122,7 @@ export type Drill =
 /** "due 31 Aug – 6 Sep" or "all time". */
 export function rangeLabel(r?: DrillRange): string {
   if (!r?.from) return "all time"
-  return `due ${formatDate(r.from, "d MMM")}${r.to ? ` – ${formatDate(r.to, "d MMM")}` : ""}`
+  return `due ${formatDate(r.from, "d MMM")}${r.to ? ` - ${formatDate(r.to, "d MMM")}` : ""}`
 }
 
 // The performance query, shared with the page so the client popup opens from
@@ -178,7 +178,7 @@ function Tile({
   icon?: typeof Clock
 }) {
   return (
-    <div className="bg-muted/40 rounded-[6px] px-3 py-2">
+    <div className="bg-muted/40 rounded-sm px-3 py-2">
       <p className="text-muted-foreground flex items-center gap-1 text-[10px] tracking-widest uppercase">
         {Icon && <Icon className="h-3 w-3" />}
         {label}
@@ -215,7 +215,7 @@ function StateChips({
           type="button"
           onClick={() => onChange(c.key)}
           className={cn(
-            "rounded-[2px] border px-2 py-0.5 text-[11px] transition-colors",
+            "rounded-sm border px-2 py-0.5 text-[11px] transition-colors",
             value === c.key
               ? "border-foreground/40 bg-muted font-medium"
               : "border-border text-muted-foreground hover:text-foreground",
@@ -268,7 +268,7 @@ function Section({
     </div>
   )
   return (
-    <section className="border-border/60 overflow-hidden rounded-[6px] border">
+    <section className="border-border/60 overflow-hidden rounded-sm border">
       <div
         className={cn(
           "border-border/60 flex items-baseline justify-between gap-2 px-4 py-2.5",
@@ -399,14 +399,14 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
 
       <TabsContent value="overview" className="m-0 space-y-4 p-5">
         {!s || !p ? (
-          <Skeleton className="h-64 rounded" />
+          <Skeleton className="h-64 rounded-sm" />
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               <Tile
                 icon={CheckCircle2}
                 label="Completion"
-                value={s.completionRate == null ? "–" : `${s.completionRate}%`}
+                value={s.completionRate == null ? "-" : `${s.completionRate}%`}
                 sub={`${s.completed} of ${s.assigned - s.discarded} tasks ${rangeLabel(d.range)}`}
                 tone={
                   s.completionRate == null
@@ -421,7 +421,7 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
               <Tile
                 icon={Clock}
                 label="On time"
-                value={s.onTimeRate == null ? "–" : `${s.onTimeRate}%`}
+                value={s.onTimeRate == null ? "-" : `${s.onTimeRate}%`}
                 sub={s.completed ? `${s.onTime} on time, ${s.late} late` : "nothing finished yet"}
                 tone={s.onTimeRate == null ? "default" : s.onTimeRate >= 85 ? "good" : "warn"}
               />
@@ -461,7 +461,7 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
             <div className="grid gap-4 lg:grid-cols-2">
               <Section
                 title="Overdue now"
-                sub="Open and past due, as of today"
+                sub="Past due and unfinished, as of today"
                 action={
                   <button
                     type="button"
@@ -561,7 +561,7 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
 
       <TabsContent value="people" className="m-0 p-5">
         {!perf.data ? (
-          <Skeleton className="h-48 rounded" />
+          <Skeleton className="h-48 rounded-sm" />
         ) : (
           <Section title="By person" sub="Click a bar to open the person">
             <div className="p-3">
@@ -591,7 +591,7 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
 
       <TabsContent value="goals" className="m-0 p-5">
         {goals.isLoading ? (
-          <Skeleton className="h-48 rounded" />
+          <Skeleton className="h-48 rounded-sm" />
         ) : (
           <GoalsBody row={goalRow} project={d.project} />
         )}
@@ -599,7 +599,7 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
 
       <TabsContent value="hours" className="m-0 p-5">
         {!p ? (
-          <Skeleton className="h-48 rounded" />
+          <Skeleton className="h-48 rounded-sm" />
         ) : (
           <Section title="Hours by team" sub="Booked against spent, on tasks in this range">
             <table className="w-full text-xs">
@@ -694,7 +694,7 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
     return c
   }, [tasks])
 
-  if (isLoading) return <Skeleton className="m-5 h-64 rounded" />
+  if (isLoading) return <Skeleton className="m-5 h-64 rounded-sm" />
 
   return (
     <div className="space-y-4 p-5">
@@ -702,7 +702,7 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
         <Tile
           icon={CheckCircle2}
           label="Completion"
-          value={b.completionRate == null ? "–" : `${b.completionRate}%`}
+          value={b.completionRate == null ? "-" : `${b.completionRate}%`}
           sub={`${b.completed} of ${b.assigned - b.discarded} tasks`}
           tone={
             b.completionRate == null
@@ -717,7 +717,7 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
         <Tile
           icon={Clock}
           label="On time"
-          value={b.onTimeRate == null ? "–" : `${b.onTimeRate}%`}
+          value={b.onTimeRate == null ? "-" : `${b.onTimeRate}%`}
           sub={
             b.onTime + b.late > 0 ? `${b.onTime} on time, ${b.late} late` : "nothing dated finished"
           }
@@ -727,7 +727,7 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
           icon={AlertTriangle}
           label="Overdue"
           value={String(b.overdue)}
-          sub="open and past due"
+          sub="past due, unfinished"
           tone={b.overdue > 0 ? "bad" : "good"}
         />
         <Tile
@@ -747,7 +747,7 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
         </Section>
         <div className="space-y-3">
           <StateChips value={state} onChange={setState} counts={counts} />
-          <div className="border-border/60 overflow-hidden rounded-[6px] border">
+          <div className="border-border/60 overflow-hidden rounded-sm border">
             <TaskRows
               tasks={tasks.filter((t) => matchesState(t, state))}
               groupBy={d.projectId ? "none" : "project"}
@@ -816,7 +816,7 @@ function GoalsBody({ row, project }: { row?: ProjectGoalsRow; project: DrillProj
 
 function GoalsView({ d, push }: { d: Extract<Drill, { kind: "goals" }>; push: Push }) {
   const { data, isLoading } = useGoalsPortfolio(d.projectId)
-  if (isLoading || !data) return <Skeleton className="m-5 h-64 rounded" />
+  if (isLoading || !data) return <Skeleton className="m-5 h-64 rounded-sm" />
 
   if (d.projectId) {
     const row = data.projects[0]

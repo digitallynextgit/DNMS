@@ -45,7 +45,7 @@ export function ProjectLogo({
         // Chrome belongs to the FALLBACK only. A real logo carries its own shape
         // and edges, so a tile behind it just boxes it in; the tile exists to
         // give the initials something to sit on.
-        !hasLogo && "bg-muted rounded-[2px] border",
+        !hasLogo && "bg-muted rounded-sm border",
         className,
       )}
     >

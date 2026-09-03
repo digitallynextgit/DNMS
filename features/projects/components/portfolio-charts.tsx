@@ -101,7 +101,7 @@ export function statesOf(b: ChartBucket): Record<State, number> {
 
 export function Tip({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
   return (
-    <div className="bg-card rounded-[2px] border px-2 py-1.5 text-xs shadow-sm">
+    <div className="bg-card rounded-sm border px-2 py-1.5 text-xs shadow-sm">
       <p className="mb-0.5 font-medium">{title}</p>
       {rows.map((r) => (
         <p key={r.label} className="text-muted-foreground flex items-center gap-3">
@@ -132,7 +132,7 @@ export function StateLegend({
         const Icon = s.icon
         const inner = (
           <>
-            <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: s.fill }} />
+            <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: s.fill }} />
             <Icon className="text-muted-foreground h-3 w-3 shrink-0" />
             <span className="text-muted-foreground">{s.label}</span>
             {counts && <span className="font-medium tabular-nums">{counts[s.key]}</span>}
@@ -151,7 +151,7 @@ export function StateLegend({
             type="button"
             onClick={() => onPick(s.key)}
             className={cn(
-              "hover:bg-muted flex items-center gap-1.5 rounded-[2px] px-1.5 py-0.5 text-xs transition-colors",
+              "hover:bg-muted flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-xs transition-colors",
               active === s.key && "bg-muted",
             )}
           >
@@ -357,11 +357,11 @@ export function PaceLine({
     <div>
       <div className="mb-1 flex items-center justify-end gap-3">
         <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
-          <span className="h-0.5 w-3 rounded-[2px]" style={{ background: "var(--viz-1)" }} />
+          <span className="h-0.5 w-3 rounded-sm" style={{ background: "var(--viz-1)" }} />
           Completed
         </span>
         <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
-          <span className="h-0.5 w-3 rounded-[2px]" style={{ background: "var(--viz-2)" }} />
+          <span className="h-0.5 w-3 rounded-sm" style={{ background: "var(--viz-2)" }} />
           Due
         </span>
       </div>

@@ -554,7 +554,7 @@ export function EventCard({ event, compact }: { event: EventCardData; compact?: 
           hour: "2-digit",
           minute: "2-digit",
         })}
-        {end && ` – ${end.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`}
+        {end && ` - ${end.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`}
       </p>
 
       {event.location && (

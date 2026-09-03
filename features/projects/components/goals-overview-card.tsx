@@ -56,7 +56,7 @@ function Tile({
   className?: string
 }) {
   return (
-    <div className="bg-muted/40 rounded-[6px] px-3 py-2.5">
+    <div className="bg-muted/40 rounded-sm px-3 py-2.5">
       <p className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
         {label}
       </p>
@@ -103,7 +103,7 @@ export function GoalsOverviewCard({
 }) {
   const { data, isLoading } = useProjectGoals(projectId)
 
-  if (isLoading) return <Skeleton className="h-56 rounded" />
+  if (isLoading) return <Skeleton className="h-56 rounded-sm" />
 
   const summary = data ?? EMPTY_SUMMARY
   const b = breakdown(summary)

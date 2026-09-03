@@ -47,7 +47,7 @@ export function ListSkeleton({
   return (
     <div className={cn("space-y-2", className)}>
       {Array.from({ length: rows }).map((_, i) => (
-        <Skeleton key={i} className={cn("bg-muted w-full animate-pulse rounded", height)} />
+        <Skeleton key={i} className={cn("bg-muted w-full animate-pulse rounded-sm", height)} />
       ))}
     </div>
   )
@@ -57,7 +57,7 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="border-border bg-card rounded-[2px] border p-5">
+        <div key={i} className="border-border bg-card rounded-sm border p-5">
           <div className="flex items-start justify-between">
             <div className="flex-1 space-y-2">
               <Skeleton className="bg-muted h-3 w-1/2 animate-pulse" />
@@ -111,7 +111,7 @@ export function PageHeaderSkeleton({ withActions = false }: { withActions?: bool
 /** A single metric/stat card (label + big number + sub-line + corner icon). */
 export function StatCardSkeleton() {
   return (
-    <div className="border-border bg-card rounded-[2px] border p-5">
+    <div className="border-border bg-card rounded-sm border p-5">
       <div className="flex items-start justify-between">
         <div className="flex-1 space-y-2">
           <Skeleton className="bg-muted h-3 w-1/2 animate-pulse" />
@@ -139,9 +139,9 @@ export function StatCardsSkeleton({ count = 4 }: { count?: number }) {
 /** A chart placeholder: a titled card with a sized block, not a bare list. */
 export function ChartSkeleton({ height = "h-64" }: { height?: string }) {
   return (
-    <div className="border-border bg-card space-y-3 rounded-[2px] border p-5">
+    <div className="border-border bg-card space-y-3 rounded-sm border p-5">
       <Skeleton className="bg-muted h-4 w-40 animate-pulse" />
-      <Skeleton className={cn("bg-muted w-full animate-pulse rounded", height)} />
+      <Skeleton className={cn("bg-muted w-full animate-pulse rounded-sm", height)} />
     </div>
   )
 }
@@ -153,7 +153,7 @@ export function EntityCardGridSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="border-border bg-card space-y-3 rounded-[2px] border p-5">
+        <div key={i} className="border-border bg-card space-y-3 rounded-sm border p-5">
           <div className="flex items-center gap-3">
             <Skeleton className="bg-muted h-10 w-10 shrink-0 animate-pulse rounded-full" />
             <div className="flex-1 space-y-2">
@@ -209,7 +209,7 @@ export function TablePageSkeleton({
     <div className="space-y-6">
       <PageHeaderSkeleton withActions />
       {withStats && <StatCardsSkeleton count={statCount} />}
-      <div className="border-border bg-card rounded-[2px] border">
+      <div className="border-border bg-card rounded-sm border">
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
           <Skeleton className="bg-muted h-4 w-32 animate-pulse" />
           <div className="flex items-center gap-2">
@@ -233,7 +233,7 @@ export function ProfilePageSkeleton() {
       <PageHeaderSkeleton withActions />
 
       {/* Summary card: avatar + name / meta / badges / contact. */}
-      <div className="border-border bg-card rounded-[2px] border p-6">
+      <div className="border-border bg-card rounded-sm border p-6">
         <div className="flex flex-col items-start gap-6 sm:flex-row">
           <Skeleton className="bg-muted h-24 w-24 shrink-0 animate-pulse rounded-full" />
           <div className="min-w-0 flex-1 space-y-3">
@@ -263,7 +263,7 @@ export function ProfilePageSkeleton() {
 
       {/* Info tab: two cards, each a section title + a 3-up grid of label/value rows. */}
       {Array.from({ length: 2 }).map((_, card) => (
-        <div key={card} className="border-border bg-card space-y-6 rounded-[2px] border p-6">
+        <div key={card} className="border-border bg-card space-y-6 rounded-sm border p-6">
           <Skeleton className="bg-muted h-4 w-40 animate-pulse" />
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 9 }).map((_, i) => (
@@ -294,7 +294,7 @@ export function PageSkeleton() {
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="border-border bg-card rounded-[2px] border p-5">
+          <div key={i} className="border-border bg-card rounded-sm border p-5">
             <div className="flex items-start justify-between">
               <div className="flex-1 space-y-2">
                 <Skeleton className="bg-muted h-3 w-1/2 animate-pulse" />
@@ -306,7 +306,7 @@ export function PageSkeleton() {
           </div>
         ))}
       </div>
-      <div className="border-border bg-card rounded-[2px] border">
+      <div className="border-border bg-card rounded-sm border">
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
           <Skeleton className="bg-muted h-4 w-32 animate-pulse" />
           <div className="flex items-center gap-2">

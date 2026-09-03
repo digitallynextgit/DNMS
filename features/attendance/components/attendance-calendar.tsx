@@ -105,7 +105,7 @@ function DayCell({ d, onSelect }: { d: CalendarDay; onSelect: (d: CalendarDay) =
       title={d.label ?? d.status}
       aria-label={`${d.day} - ${STATUS_LABEL[d.status]}. View details`}
       className={cn(
-        "flex aspect-square w-full flex-col items-center justify-center rounded-[2px] p-1 text-center transition-shadow hover:ring-2 hover:ring-inset focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset sm:aspect-auto sm:min-h-19 sm:items-stretch sm:justify-start sm:p-1.5 sm:text-left",
+        "flex aspect-square w-full flex-col items-center justify-center rounded-sm p-1 text-center transition-shadow hover:ring-2 hover:ring-inset focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset sm:aspect-auto sm:min-h-19 sm:items-stretch sm:justify-start sm:p-1.5 sm:text-left",
         cellStyle(d.status),
       )}
     >
@@ -208,7 +208,7 @@ export function AttendanceCalendar({ days }: { days: CalendarDay[] }) {
   const firstDow = days[0]?.dow ?? 0
   const [selected, setSelected] = useState<CalendarDay | null>(null)
   return (
-    <div className="bg-card rounded-[2px] border p-2 sm:p-4">
+    <div className="bg-card rounded-sm border p-2 sm:p-4">
       <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
         {WEEKDAYS.map((w) => (
           <div

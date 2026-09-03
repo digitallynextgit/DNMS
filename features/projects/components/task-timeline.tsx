@@ -145,7 +145,7 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
     return [...phases, ...edits].sort((a, b) => a.at.localeCompare(b.at) || legOf(a) - legOf(b))
   }, [data])
 
-  if (isLoading) return <Skeleton className="h-32 rounded" />
+  if (isLoading) return <Skeleton className="h-32 rounded-sm" />
   if (!data) return null
 
   // Only worth a summary when a status was entered more than once - otherwise it
@@ -176,7 +176,7 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
       {/* Only when the work actually spans more than one task - otherwise it is
           a banner saying "this happened once", which is noise. */}
       {data.legs.length > 1 && (
-        <div className="bg-muted/40 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[2px] border-l-2 border-l-amber-500 px-2 py-1.5 text-[11px]">
+        <div className="bg-muted/40 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-sm border-l-2 border-l-amber-500 px-2 py-1.5 text-[11px]">
           <span className="font-medium">Carried across {data.legs.length} days</span>
           <span className="text-muted-foreground">
             started {formatDay(data.createdAt)} · {formatHours(data.chainLoggedHours)} spent in
@@ -192,7 +192,7 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
             .map(([status, seconds]) => (
               <span
                 key={status}
-                className="bg-muted/60 inline-flex items-center gap-1.5 rounded-[2px] px-2 py-1 text-[11px]"
+                className="bg-muted/60 inline-flex items-center gap-1.5 rounded-sm px-2 py-1 text-[11px]"
               >
                 <span className="text-muted-foreground">
                   {TASK_STATUS_LABELS[status] ?? status} total
@@ -290,7 +290,7 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
                       {/* "On hold" and "Discarded" are only half an answer without
                         the why - which is the question the log gets asked. */}
                       {m.phase.note && (
-                        <p className="bg-muted/40 text-muted-foreground rounded-[2px] px-2 py-1 text-[11px] break-words whitespace-pre-wrap">
+                        <p className="bg-muted/40 text-muted-foreground rounded-sm px-2 py-1 text-[11px] break-words whitespace-pre-wrap">
                           {m.phase.note}
                         </p>
                       )}
@@ -303,7 +303,7 @@ export function TaskTimeline({ taskId, open }: { taskId: string | undefined; ope
                       {m.edit.changes.map((c) => (
                         <div
                           key={c.label}
-                          className="bg-muted/40 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-[2px] px-2 py-1 text-[11px]"
+                          className="bg-muted/40 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-sm px-2 py-1 text-[11px]"
                         >
                           <span className="text-muted-foreground">{c.label}</span>
                           {/* Old struck through, new plain: which is which has to
@@ -342,7 +342,7 @@ function MomentCard({
   muted?: boolean
 }) {
   return (
-    <div className="bg-muted/40 min-w-0 rounded-[2px] p-2">
+    <div className="bg-muted/40 min-w-0 rounded-sm p-2">
       <p className="text-muted-foreground flex items-center gap-1 text-[10px] tracking-wide uppercase">
         <Icon className="h-3 w-3" />
         {label}

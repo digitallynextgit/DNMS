@@ -80,7 +80,7 @@ export function KeywordBacklog({
 
   if (isLoading)
     return (
-      <div className="border-border bg-card overflow-hidden rounded-[2px] border">
+      <div className="border-border bg-card overflow-hidden rounded-sm border">
         <TableSkeleton rows={8} cols={8} />
       </div>
     )
@@ -216,7 +216,7 @@ export function KeywordBacklog({
                           <td className="px-3 py-2">
                             {k.source === "COMPETITOR" ? (
                               <span
-                                className="inline-flex items-center gap-1 rounded-[2px] bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-600"
+                                className="inline-flex items-center gap-1 rounded-sm bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-600"
                                 title={
                                   k.sourceDomain
                                     ? `Mined from ${k.sourceDomain}. We cannot see their ranking, so verify it.`
@@ -235,7 +235,7 @@ export function KeywordBacklog({
                           <td className="px-3 py-2">
                             <span
                               className={cn(
-                                "rounded-[2px] px-1.5 py-0.5 text-[10px] font-medium",
+                                "rounded-sm px-1.5 py-0.5 text-[10px] font-medium",
                                 INTENT_STYLE[k.intent] ?? INTENT_STYLE.other,
                               )}
                             >
@@ -264,7 +264,7 @@ export function KeywordBacklog({
                                   patch(k, { winnable: k.winnable === true ? null : true })
                                 }
                                 className={cn(
-                                  "rounded-[2px] p-1",
+                                  "rounded-sm p-1",
                                   k.winnable === true
                                     ? "bg-emerald-500/20 text-emerald-600"
                                     : "text-muted-foreground hover:bg-muted",
@@ -280,7 +280,7 @@ export function KeywordBacklog({
                                   patch(k, { winnable: k.winnable === false ? null : false })
                                 }
                                 className={cn(
-                                  "rounded-[2px] p-1",
+                                  "rounded-sm p-1",
                                   k.winnable === false
                                     ? "bg-red-500/20 text-red-600"
                                     : "text-muted-foreground hover:bg-muted",
@@ -300,7 +300,7 @@ export function KeywordBacklog({
                                   disabled={!canManage}
                                   onClick={() => patch(k, { businessValue: v })}
                                   className={cn(
-                                    "h-2 w-2 rounded",
+                                    "h-2 w-2 rounded-sm",
                                     v <= k.businessValue ? "bg-primary" : "bg-muted",
                                   )}
                                   title={`Business value ${v}/5`}

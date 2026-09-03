@@ -10,8 +10,8 @@ export default function Loading() {
 
       {/* Tabs: Full-time / Internships. */}
       <div className="flex gap-2">
-        <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded-[2px]" />
-        <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded-[2px]" />
+        <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded-sm" />
+        <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded-sm" />
       </div>
 
       {/* Toolbar: breadcrumb on the left, "Add group" on the right. */}
@@ -23,10 +23,7 @@ export default function Loading() {
       {/* Large tile grid. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="bg-card flex min-h-47.5 flex-col rounded-[2px] border p-6 shadow-sm"
-          >
+          <div key={i} className="bg-card flex min-h-47.5 flex-col rounded-sm border p-6 shadow-sm">
             <Skeleton className="bg-muted h-3 w-12 animate-pulse" />
             <Skeleton className="bg-muted mt-3 h-7 w-3/4 animate-pulse" />
             <div className="mt-auto flex items-end justify-between gap-2 pt-6">

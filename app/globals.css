@@ -751,7 +751,7 @@
   will-change: transform;
 }
 /* A highlight segment that flows along a normalized (pathLength=1000) line, in a
-   seamless loop — the dash offset advances by exactly one period. */
+   seamless loop - the dash offset advances by exactly one period. */
 @keyframes dnms-flow-line {
   to {
     stroke-dashoffset: -1000;

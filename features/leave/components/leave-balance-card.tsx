@@ -38,14 +38,14 @@ export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className={cn("h-1.5 w-1.5 shrink-0 rounded", accent.dot)} />
+              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-sm", accent.dot)} />
               <h4 className="text-foreground truncate text-sm font-semibold">{leaveType.name}</h4>
             </div>
             <p className="text-muted-foreground mt-0.5 ml-3 text-[11px]">{leaveType.code}</p>
           </div>
           <span
             className={cn(
-              "shrink-0 rounded-[2px] border px-1.5 py-0.5 text-[10px] font-medium",
+              "shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium",
               leaveType.isPaid
                 ? "border-border bg-muted/40 text-muted-foreground"
                 : "border-border bg-muted/40 text-muted-foreground",
@@ -64,7 +64,7 @@ export function LeaveBalanceCard({ balance }: LeaveBalanceCardProps) {
         </div>
 
         {/* Progress bar */}
-        <div className="bg-muted h-1 w-full overflow-hidden rounded">
+        <div className="bg-muted h-1 w-full overflow-hidden rounded-sm">
           <div
             className={cn("h-full transition-all", accent.bar)}
             style={{ width: `${usedPercent}%` }}

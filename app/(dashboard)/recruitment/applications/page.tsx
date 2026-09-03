@@ -349,7 +349,7 @@ function ApplicationSheet({
               <p className="text-muted-foreground mt-0.5 text-xs">Opening: {a.opening}</p>
             )}
             {!a.roleResolved && (
-              <p className="mt-2 rounded-[2px] border border-amber-400/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-600 dark:text-amber-400">
+              <p className="mt-2 rounded-sm border border-amber-400/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-600 dark:text-amber-400">
                 This role was closed or removed before the application arrived. The candidate
                 applied in good faith - the titles above are what they saw.
               </p>
@@ -391,7 +391,7 @@ function ApplicationSheet({
           {a.message && (
             <div className="space-y-1.5">
               <p className="text-muted-foreground text-xs font-medium">Message</p>
-              <p className="bg-muted/50 rounded-[2px] p-3 text-sm leading-relaxed whitespace-pre-wrap">
+              <p className="bg-muted/50 rounded-sm p-3 text-sm leading-relaxed whitespace-pre-wrap">
                 {a.message}
               </p>
             </div>
@@ -443,7 +443,7 @@ function ContactRow({
     <a
       href={href}
       {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-      className="hover:bg-muted/60 flex items-center gap-2 rounded-[2px] px-2 py-1.5 text-sm transition-colors"
+      className="hover:bg-muted/60 flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors"
     >
       <Icon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
       <span className="min-w-0 flex-1 truncate">{label}</span>

@@ -70,7 +70,7 @@ export function RealtimePushPanel() {
 
   if (isLoading) {
     return (
-      <div className="border-border bg-card space-y-3 rounded-[2px] border p-4">
+      <div className="border-border bg-card space-y-3 rounded-sm border p-4">
         <Skeleton className="h-4 w-48" />
         <Skeleton className="h-9 w-full" />
       </div>
@@ -84,7 +84,7 @@ export function RealtimePushPanel() {
   const isLive = lastPush > 0 && Date.now() - lastPush < LIVE_WINDOW_MS
 
   return (
-    <div className="border-border bg-card space-y-4 rounded-[2px] border p-4">
+    <div className="border-border bg-card space-y-4 rounded-sm border p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <RadioTower className="h-4 w-4" />
@@ -92,7 +92,7 @@ export function RealtimePushPanel() {
         </div>
         <span
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-[2px] px-2 py-0.5 text-xs font-medium",
+            "inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-xs font-medium",
             isLive
               ? "bg-green-500/10 text-green-600 dark:text-green-400"
               : "bg-muted text-muted-foreground",
@@ -149,7 +149,7 @@ export function RealtimePushPanel() {
             (or Event → HTTP Host Notification). Paste this as the destination URL:
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <code className="bg-muted min-w-0 flex-1 overflow-x-auto rounded-[2px] px-3 py-2 font-mono text-xs break-all">
+            <code className="bg-muted min-w-0 flex-1 overflow-x-auto rounded-sm px-3 py-2 font-mono text-xs break-all">
               {data.url}
             </code>
             <Button variant="outline" size="sm" className="h-9 shrink-0 gap-1.5" onClick={copyUrl}>
@@ -195,7 +195,7 @@ export function RealtimePushPanel() {
 
 function Warning({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-2 rounded-[2px] bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+    <div className="flex items-start gap-2 rounded-sm bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
       <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       <p className="min-w-0">{children}</p>
     </div>

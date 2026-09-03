@@ -81,7 +81,7 @@ export function PlatformSidebar() {
               aria-current={active ? "page" : undefined}
               title={isCollapsed ? label : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-sm transition-colors",
+                "flex items-center gap-2.5 rounded-sm px-2.5 py-2 text-sm transition-colors",
                 isCollapsed && "justify-center px-0",
                 active
                   ? "bg-primary/10 text-primary font-medium"
@@ -102,7 +102,7 @@ export function PlatformSidebar() {
           href={`/${FOUNDING_TENANT_SLUG}/dashboard`}
           title={isCollapsed ? "Back to my workspace" : undefined}
           className={cn(
-            "text-muted-foreground hover:text-foreground hover:bg-foreground/5 flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-sm transition-colors",
+            "text-muted-foreground hover:text-foreground hover:bg-foreground/5 flex items-center gap-2.5 rounded-sm px-2.5 py-2 text-sm transition-colors",
             isCollapsed && "justify-center px-0",
           )}
         >

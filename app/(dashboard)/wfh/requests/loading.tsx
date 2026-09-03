@@ -8,7 +8,7 @@ export default function WfhRequestsLoading() {
     <div className="space-y-6">
       <PageHeaderSkeleton />
       <div className="space-y-4">
-        <div className="border-border bg-card rounded-[2px] border">
+        <div className="border-border bg-card rounded-sm border">
           <TableSkeleton rows={6} cols={7} />
         </div>
       </div>

@@ -68,7 +68,7 @@ export function ClientsDirectory() {
       header: "Client",
       cell: (c) => (
         <div className="flex items-center gap-2.5">
-          <span className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-[2px]">
+          <span className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-sm">
             <Building2 className="text-muted-foreground h-3.5 w-3.5" />
           </span>
           <div className="min-w-0">

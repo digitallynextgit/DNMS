@@ -110,7 +110,7 @@ export function EmployeeCombobox({
     <div ref={rootRef} className="w-full">
       <div
         className={cn(
-          "border-input bg-background flex h-10 w-full items-center gap-2 rounded-[2px] border px-3",
+          "border-input bg-background flex h-10 w-full items-center gap-2 rounded-sm border px-3",
           open && "ring-ring/50 ring-2",
         )}
       >
@@ -165,7 +165,7 @@ export function EmployeeCombobox({
         <div
           id="employee-combobox-list"
           role="listbox"
-          className="bg-popover text-popover-foreground mt-1 max-h-64 overflow-y-auto rounded-[2px] border p-1 shadow-md"
+          className="bg-popover text-popover-foreground mt-1 max-h-64 overflow-y-auto rounded-sm border p-1 shadow-md"
         >
           {isLoading ? (
             <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-sm">
@@ -186,7 +186,7 @@ export function EmployeeCombobox({
                   e.preventDefault()
                   handleSelect(emp)
                 }}
-                className="hover:bg-accent flex w-full items-center gap-2.5 rounded-[2px] px-2 py-1.5 text-left transition-colors"
+                className="hover:bg-accent flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-left transition-colors"
               >
                 <AvatarDisplay
                   src={emp.profilePhoto}

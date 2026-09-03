@@ -142,9 +142,9 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
 
   return (
     <>
-      <div className="bg-card hover:bg-muted/30 flex items-start gap-4 rounded-[2px] border p-4 transition-colors">
+      <div className="bg-card hover:bg-muted/30 flex items-start gap-4 rounded-sm border p-4 transition-colors">
         {/* File icon */}
-        <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded">
+        <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-sm">
           <Icon className={cn("h-5 w-5", colorClass)} />
         </div>
 

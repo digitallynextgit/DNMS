@@ -152,7 +152,7 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
                           <Skeleton className="h-8 w-full" />
                           <Skeleton className="h-7 w-2/3" />
                         </div>
-                        <Skeleton className="h-8 w-8 shrink-0 rounded" />
+                        <Skeleton className="h-8 w-8 shrink-0 rounded-sm" />
                       </div>
                     ))}
                   </CardContent>

@@ -57,9 +57,9 @@ export function SpotlightSection({
   // real in the text column, and as an invisible spacer above the visual so the
   // card top lines up with the TITLE rather than the pill.
   const pill = (
-    <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs">
+    <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
       <span
-        className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+        className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
         style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
       >
         <Sparkles className="h-3 w-3" />
@@ -121,7 +121,7 @@ export function SpotlightSection({
               // Visual brings its own frame - no outer card chrome.
               <div className="flex flex-1 flex-col lg:mt-6">{visual}</div>
             ) : (
-              <SpotlightCard className="border-border bg-card/60 relative flex flex-1 flex-col justify-center overflow-hidden rounded-[6px] border p-3 shadow-xl sm:p-4 lg:mt-6">
+              <SpotlightCard className="border-border bg-card/60 relative flex flex-1 flex-col justify-center overflow-hidden rounded-sm border p-3 shadow-xl sm:p-4 lg:mt-6">
                 {visual}
               </SpotlightCard>
             )}

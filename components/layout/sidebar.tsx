@@ -98,7 +98,7 @@ function CountBadge({ collapsed, count }: { collapsed: boolean; count: number })
   return (
     <span
       className={cn(
-        "bg-destructive flex items-center justify-center rounded-[2px] font-semibold text-white",
+        "bg-destructive flex items-center justify-center rounded-sm font-semibold text-white",
         collapsed
           ? "absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[9px] leading-none"
           : "ml-auto h-5 min-w-5 px-1.5 text-[11px] leading-none",
@@ -153,7 +153,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
             <TooltipTrigger asChild>
               <div
                 className={cn(
-                  "mx-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-[2px] transition-colors",
+                  "mx-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-sm transition-colors",
                   isActive
                     ? "bg-accent text-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -175,7 +175,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
         <button
           onClick={() => setOpen(!open)}
           className={cn(
-            "flex h-8 w-full items-center gap-2.5 rounded-[2px] px-2.5 text-sm transition-colors",
+            "flex h-8 w-full items-center gap-2.5 rounded-sm px-2.5 text-sm transition-colors",
             isActive
               ? "text-foreground font-medium"
               : "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -199,7 +199,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
                   key={child.href}
                   href={child.href}
                   className={cn(
-                    "block rounded-[2px] px-2 py-1.5 text-[13px] transition-colors",
+                    "block rounded-sm px-2 py-1.5 text-[13px] transition-colors",
                     childActive
                       ? "text-foreground font-medium"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -227,7 +227,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
             <Link
               href={item.href!}
               className={cn(
-                "relative mx-auto flex h-8 w-8 items-center justify-center rounded-[2px] transition-colors",
+                "relative mx-auto flex h-8 w-8 items-center justify-center rounded-sm transition-colors",
                 isActive
                   ? "bg-accent text-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -249,7 +249,7 @@ function SidebarNavItem({ item, isCollapsed, permissions, roles }: SidebarNavIte
     <Link
       href={item.href!}
       className={cn(
-        "flex h-8 items-center gap-2.5 rounded-[2px] px-2.5 text-sm transition-colors",
+        "flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-sm transition-colors",
         isActive
           ? "bg-accent text-foreground font-medium"
           : "text-muted-foreground hover:text-foreground hover:bg-accent",

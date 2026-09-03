@@ -68,9 +68,9 @@ export function WorkspacePicker({
           type="button"
           disabled={pending !== null}
           onClick={() => choose(workspace)}
-          className="border-border hover:bg-muted/60 flex items-center gap-3 rounded-[6px] border p-3 text-left transition-colors disabled:opacity-60"
+          className="border-border hover:bg-muted/60 flex items-center gap-3 rounded-sm border p-3 text-left transition-colors disabled:opacity-60"
         >
-          <span className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px]">
+          <span className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-sm">
             <Building2 className="h-4 w-4" aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">

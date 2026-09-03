@@ -123,7 +123,7 @@ export function LoginForm() {
                     aria-label="username@company.com"
                     autoComplete="email"
                     disabled={isSubmitting}
-                    className="h-11 rounded-[6px]"
+                    className="h-11 rounded-sm"
                     {...field}
                   />
                 </FormControl>
@@ -146,7 +146,7 @@ export function LoginForm() {
                       aria-label="••••••••"
                       autoComplete="current-password"
                       disabled={isSubmitting}
-                      className="h-11 rounded-[6px] pr-10"
+                      className="h-11 rounded-sm pr-10"
                       {...field}
                     />
                     <button
@@ -182,7 +182,7 @@ export function LoginForm() {
 
           <Button
             type="submit"
-            className="h-11 w-full rounded-[6px] text-sm"
+            className="h-11 w-full rounded-sm text-sm"
             disabled={isSubmitting}
             loading={isSubmitting}
           >

@@ -114,7 +114,7 @@ export default function LeaveTypesAndPolicyPage() {
     {
       header: "Code",
       cell: (type) => (
-        <code className="bg-muted rounded-[2px] px-1.5 py-0.5 font-mono text-xs">{type.code}</code>
+        <code className="bg-muted rounded-sm px-1.5 py-0.5 font-mono text-xs">{type.code}</code>
       ),
     },
     {

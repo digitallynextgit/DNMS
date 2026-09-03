@@ -48,7 +48,7 @@ export function PortalMobileTabbar({
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-1 rounded-[2px] py-1.5 transition-colors",
+              "flex flex-1 flex-col items-center justify-center gap-1 rounded-sm py-1.5 transition-colors",
               active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >

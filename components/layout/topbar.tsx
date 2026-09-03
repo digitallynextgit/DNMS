@@ -116,7 +116,7 @@ export function Topbar({ session }: { session: Session }) {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">
               {isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              <span className="border-border/60 text-muted-foreground ml-1.5 rounded-[2px] border px-1 py-px text-[10px]">
+              <span className="border-border/60 text-muted-foreground ml-1.5 rounded-sm border px-1 py-px text-[10px]">
                 Ctrl B
               </span>
             </TooltipContent>
@@ -159,7 +159,7 @@ export function Topbar({ session }: { session: Session }) {
           <Link href="/notifications" aria-label="Notifications">
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
-              <span className="bg-destructive absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-[2px] px-1 text-[9px] leading-none font-semibold text-white">
+              <span className="bg-destructive absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-[9px] leading-none font-semibold text-white">
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
@@ -171,7 +171,7 @@ export function Topbar({ session }: { session: Session }) {
         {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="hover:bg-accent focus-visible:ring-ring flex items-center gap-2 rounded-[2px] px-2 py-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none">
+            <button className="hover:bg-accent focus-visible:ring-ring flex items-center gap-2 rounded-sm px-2 py-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none">
               <AvatarDisplay
                 src={profilePhoto}
                 firstName={firstName}

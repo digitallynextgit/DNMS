@@ -106,7 +106,7 @@ export function BodyComposer({
         <Label className="text-xs">
           Body<span className="text-destructive"> *</span>
         </Label>
-        <div className="bg-muted inline-flex rounded-[2px] p-0.5">
+        <div className="bg-muted inline-flex rounded-sm p-0.5">
           {(
             [
               { value: "RICH", label: "Editor", icon: PenLine },
@@ -120,7 +120,7 @@ export function BodyComposer({
               size="sm"
               onClick={() => onModeChange(m.value)}
               className={cn(
-                "h-7 gap-1.5 rounded-[2px] px-2.5 text-xs",
+                "h-7 gap-1.5 rounded-sm px-2.5 text-xs",
                 mode === m.value && "bg-background text-foreground shadow-sm",
               )}
             >

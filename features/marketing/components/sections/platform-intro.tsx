@@ -63,9 +63,9 @@ function ConnectedNodes() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
           <span
             aria-hidden
-            className="border-primary/25 animate-dnms-pulse-ring absolute inset-0 rounded-[6px] border"
+            className="border-primary/25 animate-dnms-pulse-ring absolute inset-0 rounded-sm border"
           />
-          <div className="border-border bg-card relative flex h-28 w-28 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[6px] border shadow-2xl">
+          <div className="border-border bg-card relative flex h-28 w-28 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-sm border shadow-2xl">
             <BorderBeam />
             {/* 72px source for a 36px slot (2x retina) - the full-size
                 brand-mark.png is 2505x2200 / 729 KB on a public landing page. */}
@@ -112,9 +112,9 @@ export function PlatformIntro() {
       <div className="relative mx-auto max-w-[1600px] px-4 sm:px-6">
         {/* Hero-style pill */}
         <Reveal>
-          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs">
+          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
-              className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
               style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
             >
               <Sparkles className="h-3 w-3" />

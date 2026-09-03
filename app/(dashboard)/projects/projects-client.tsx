@@ -268,7 +268,7 @@ export function ProjectsClient() {
                     {group.map((project) => (
                       <div
                         key={project.id}
-                        className="group bg-card hover:border-foreground/20 hover:bg-muted/30 relative flex flex-col gap-3 rounded-[2px] border p-4 transition-colors"
+                        className="group bg-card hover:border-foreground/20 hover:bg-muted/30 relative flex flex-col gap-3 rounded-sm border p-4 transition-colors"
                       >
                         {/* Stretched link: an absolutely-positioned overlay makes the
                             WHOLE card clickable while keeping the markup valid (an
@@ -277,7 +277,7 @@ export function ProjectsClient() {
                         <Link
                           href={projectHref(project)}
                           aria-label={`Open ${project.name}`}
-                          className="focus-visible:ring-ring absolute inset-0 rounded-[2px] focus-visible:ring-2 focus-visible:outline-none"
+                          className="focus-visible:ring-ring absolute inset-0 rounded-sm focus-visible:ring-2 focus-visible:outline-none"
                         />
                         <div className="flex items-start justify-between gap-2">
                           <ProjectLogo

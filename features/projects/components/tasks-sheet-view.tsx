@@ -801,7 +801,7 @@ export function TasksSheetView({
         month: "short",
         ...(withYear ? { year: "numeric" } : {}),
       })
-    return `${fmt(start, false)} – ${fmt(end, true)}`
+    return `${fmt(start, false)} - ${fmt(end, true)}`
   }, [weekStart, days])
 
   /**
@@ -1109,13 +1109,13 @@ export function TasksSheetView({
       </div>
 
       {rows.length === 0 ? (
-        <div className="text-muted-foreground rounded-[2px] border border-dashed p-8 text-center text-sm">
+        <div className="text-muted-foreground rounded-sm border border-dashed p-8 text-center text-sm">
           {axis.by === "person"
             ? "Nobody is on this project yet - add a team first."
             : "No projects to plan against."}
         </div>
       ) : (
-        <div className="bg-card overflow-x-auto rounded-[2px] border">
+        <div className="bg-card overflow-x-auto rounded-sm border">
           {/* This grid is genuinely spreadsheet-shaped - seven day columns cannot
               become a phone card without losing the week-at-a-glance that is the
               whole point. So it stays a scrolling sheet with the Client column
@@ -1345,7 +1345,7 @@ export function TasksSheetView({
                       {rowAllocated > 0 || rowSpent > 0 ? (
                         <>
                           <span className="block font-medium">
-                            {rowAllocated > 0 ? formatHours(rowAllocated) : "–"}
+                            {rowAllocated > 0 ? formatHours(rowAllocated) : "-"}
                           </span>
                           <span className="text-muted-foreground block text-[10px]">
                             spent {rowSpent > 0 ? formatHours(rowSpent) : "0m"}
@@ -1500,7 +1500,7 @@ function Term({ children }: { children: ReactNode }) {
 
 /** A literal you type: a key, or text that goes in a cell. */
 function Chip({ children }: { children: ReactNode }) {
-  return <code className="bg-muted rounded-[2px] px-1 py-0.5">{children}</code>
+  return <code className="bg-muted rounded-sm px-1 py-0.5">{children}</code>
 }
 
 // ── Cells ────────────────────────────────────────────────────────────────────
@@ -1566,7 +1566,7 @@ function StatusNumber({
         }}
         onKeyDown={(e) => e.stopPropagation()}
         className={cn(
-          "w-4 shrink-0 cursor-pointer rounded-[2px] text-right text-[11px] font-medium tabular-nums underline-offset-2 hover:underline",
+          "w-4 shrink-0 cursor-pointer rounded-sm text-right text-[11px] font-medium tabular-nums underline-offset-2 hover:underline",
           "focus-visible:ring-primary/60 outline-none focus-visible:ring-2",
           STATUS_TEXT[task.status] ?? "text-foreground",
         )}
@@ -1588,7 +1588,7 @@ function StatusNumber({
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
           className={cn(
-            "w-4 shrink-0 cursor-pointer rounded-[2px] text-right text-[11px] font-medium tabular-nums underline-offset-2 hover:underline",
+            "w-4 shrink-0 cursor-pointer rounded-sm text-right text-[11px] font-medium tabular-nums underline-offset-2 hover:underline",
             "focus-visible:ring-primary/60 outline-none focus-visible:ring-2",
             STATUS_TEXT[task.status] ?? "text-foreground",
           )}
@@ -1911,7 +1911,7 @@ function ActualCell({
 
   return (
     <div className="min-h-14 px-2.5 py-2 text-xs leading-relaxed">
-      {tasks.length === 0 && <span className="text-muted-foreground/40 select-none">–</span>}
+      {tasks.length === 0 && <span className="text-muted-foreground/40 select-none">-</span>}
       {tasks.map((task, i) => {
         const editable = canEdit(task)
         return (
@@ -1956,7 +1956,7 @@ function ActualCell({
                 className={cn(
                   "min-w-0 flex-1 break-words whitespace-pre-wrap",
                   editable &&
-                    "hover:bg-muted/40 focus:ring-primary/60 cursor-text rounded-[2px] outline-none focus:ring-2",
+                    "hover:bg-muted/40 focus:ring-primary/60 cursor-text rounded-sm outline-none focus:ring-2",
                   // The note carries the task's status too, so a completed line
                   // reads as completed all the way across the sheet.
                   task.description
@@ -1964,7 +1964,7 @@ function ActualCell({
                     : "text-muted-foreground/40",
                 )}
               >
-                {task.description || (editable ? "add…" : "–")}
+                {task.description || (editable ? "add…" : "-")}
               </span>
             )}
           </span>
@@ -2002,7 +2002,7 @@ function ResourcesCell({
 
   return (
     <div className="min-h-14 px-2 py-2 text-xs leading-relaxed">
-      {tasks.length === 0 && <span className="text-muted-foreground/40 select-none">–</span>}
+      {tasks.length === 0 && <span className="text-muted-foreground/40 select-none">-</span>}
       {tasks.map((task, i) => (
         <span key={task.id} className="flex items-start gap-1.5 py-0.5">
           <TaskNumber n={i + 1} status={task.status} />
@@ -2082,7 +2082,7 @@ function HoursCell({
 
   return (
     <div className="min-h-14 px-2 py-2 text-right text-xs leading-relaxed">
-      {tasks.length === 0 && <span className="text-muted-foreground/40 select-none">–</span>}
+      {tasks.length === 0 && <span className="text-muted-foreground/40 select-none">-</span>}
       {tasks.map((task, i) => {
         const est = task.estimatedHours ?? 0
         const used = spentHours(task)
@@ -2133,12 +2133,12 @@ function HoursCell({
                     }
                   }}
                   className={cn(
-                    "block rounded-[2px]",
+                    "block rounded-sm",
                     editable && "hover:bg-muted/40 focus:ring-primary/60 outline-none focus:ring-2",
                     est === 0 && "text-muted-foreground/40",
                   )}
                 >
-                  {est > 0 ? formatHours(est) : editable ? "set" : "–"}
+                  {est > 0 ? formatHours(est) : editable ? "set" : "-"}
                 </span>
               )}
               <span
@@ -2159,7 +2159,7 @@ function HoursCell({
       {tasks.length > 1 && (allocated > 0 || spent > 0) && (
         <span className="mt-1 block border-t pt-1 tabular-nums">
           <span className="block text-[11px] font-semibold">
-            {allocated > 0 ? formatHours(allocated) : "–"}
+            {allocated > 0 ? formatHours(allocated) : "-"}
           </span>
           <span className="text-muted-foreground block text-[10px]">
             {spent > 0 ? formatHours(spent) : "0m"}

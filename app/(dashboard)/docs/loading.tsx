@@ -16,11 +16,8 @@ export default function DocsLoading() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="border-border bg-card flex flex-col gap-4 rounded-[2px] border p-6"
-          >
-            <Skeleton className="bg-muted h-11 w-11 animate-pulse rounded" />
+          <div key={i} className="border-border bg-card flex flex-col gap-4 rounded-sm border p-6">
+            <Skeleton className="bg-muted h-11 w-11 animate-pulse rounded-sm" />
             <div className="flex-1 space-y-2">
               <Skeleton className="bg-muted h-4 w-2/3 animate-pulse" />
               <Skeleton className="bg-muted h-3 w-full animate-pulse" />

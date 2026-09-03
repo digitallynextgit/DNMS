@@ -11,7 +11,7 @@ function CommsVisual() {
     ["Offsite next month", 32],
   ]
   return (
-    <div className="border-border bg-background flex h-full flex-col gap-3 rounded-[6px] border p-4">
+    <div className="border-border bg-background flex h-full flex-col gap-3 rounded-sm border p-4">
       <div className="text-muted-foreground mb-1 flex items-center justify-between px-1 text-[10px] font-medium uppercase">
         <span>Team · Design</span>
         <span className="text-emerald-500">3 online</span>
@@ -19,7 +19,7 @@ function CommsVisual() {
 
       {/* incoming */}
       <div className="flex max-w-[85%] flex-col gap-1">
-        <div className="bg-muted text-foreground rounded-[6px] px-3 py-2 text-xs">
+        <div className="bg-muted text-foreground rounded-sm px-3 py-2 text-xs">
           Ship-ready mockups are in the vault
         </div>
         <div className="-mt-1 ml-1">
@@ -30,19 +30,19 @@ function CommsVisual() {
       </div>
 
       {/* incoming */}
-      <div className="bg-muted text-foreground max-w-[85%] rounded-[6px] px-3 py-2 text-xs">
+      <div className="bg-muted text-foreground max-w-[85%] rounded-sm px-3 py-2 text-xs">
         Can we lock the launch date today?
       </div>
 
       {/* outgoing */}
       <div className="flex justify-end">
-        <div className="bg-primary text-primary-foreground animate-dnms-fade-up max-w-[85%] rounded-[6px] px-3 py-2 text-xs">
+        <div className="bg-primary text-primary-foreground animate-dnms-fade-up max-w-[85%] rounded-sm px-3 py-2 text-xs">
           Yes - posting a poll now 👇
         </div>
       </div>
 
       {/* poll card */}
-      <div className="border-border bg-card mt-auto rounded-[6px] border p-3">
+      <div className="border-border bg-card mt-auto rounded-sm border p-3">
         <div className="text-xs font-medium">When should we celebrate the launch?</div>
         <div className="mt-2.5 space-y-2">
           {poll.map(([label, pct]) => (

@@ -58,7 +58,7 @@ function StatusDot({ status }: { status: CareerRowStatus }) {
   return (
     <span
       aria-label={live ? "Published" : "Draft"}
-      className={cn("h-2 w-2 shrink-0 rounded", live ? "bg-primary" : "bg-muted-foreground/40")}
+      className={cn("h-2 w-2 shrink-0 rounded-sm", live ? "bg-primary" : "bg-muted-foreground/40")}
     />
   )
 }
@@ -101,7 +101,7 @@ function CareerTile({
         }
       }}
       className={cn(
-        "bg-card hover:border-primary/40 focus-visible:ring-ring relative flex min-h-47.5 cursor-pointer flex-col rounded-[2px] border p-6 shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2",
+        "bg-card hover:border-primary/40 focus-visible:ring-ring relative flex min-h-47.5 cursor-pointer flex-col rounded-sm border p-6 shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2",
         !live && "opacity-95",
       )}
     >
@@ -117,7 +117,7 @@ function CareerTile({
       <div className="mt-auto flex items-end justify-between gap-2 pt-6">
         <div className="min-w-0">
           {!live && (
-            <span className="bg-muted text-muted-foreground mb-1.5 inline-block rounded-[2px] px-1.5 py-0.5 text-[10px] font-medium">
+            <span className="bg-muted text-muted-foreground mb-1.5 inline-block rounded-sm px-1.5 py-0.5 text-[10px] font-medium">
               Draft - hidden from site
             </span>
           )}
@@ -512,7 +512,7 @@ function RoleDialog({
       </div>
 
       {isEdit && (
-        <div className="rounded-[2px] border p-3">
+        <div className="rounded-sm border p-3">
           <Label className="mb-2 block">Current openings</Label>
           <div className="space-y-1.5">
             {(role.openings ?? []).map((op) => (
@@ -579,7 +579,7 @@ function RoleItem({ role, subId }: { role: AdminCareerRole; subId: string }) {
   const update = useUpdateRole()
   const openings = role.openings ?? []
   return (
-    <div className="bg-card flex flex-col rounded-[2px] border p-3 shadow-sm transition-shadow hover:shadow-md">
+    <div className="bg-card flex flex-col rounded-sm border p-3 shadow-sm transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between gap-2">
         <button
           type="button"
@@ -598,7 +598,7 @@ function RoleItem({ role, subId }: { role: AdminCareerRole; subId: string }) {
           {openings.map((op) => (
             <span
               key={op.id}
-              className="bg-muted text-muted-foreground rounded-[2px] px-1.5 py-0.5 text-[11px]"
+              className="bg-muted text-muted-foreground rounded-sm px-1.5 py-0.5 text-[11px]"
             >
               {op.label}
             </span>
@@ -827,8 +827,8 @@ export function CareersManager() {
       <div className="space-y-4">
         <PageHeaderSkeleton />
         <div className="flex gap-2">
-          <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded-[2px]" />
-          <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded-[2px]" />
+          <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded-sm" />
+          <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded-sm" />
         </div>
         <div className="flex items-center justify-between gap-3">
           <Skeleton className="bg-muted h-5 w-28 animate-pulse" />
@@ -838,7 +838,7 @@ export function CareersManager() {
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="bg-card flex min-h-47.5 flex-col rounded-[2px] border p-6 shadow-sm"
+              className="bg-card flex min-h-47.5 flex-col rounded-sm border p-6 shadow-sm"
             >
               <Skeleton className="bg-muted h-3 w-12 animate-pulse" />
               <Skeleton className="bg-muted mt-3 h-7 w-3/4 animate-pulse" />

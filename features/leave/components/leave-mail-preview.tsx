@@ -115,14 +115,14 @@ export function LeaveMailPreview({
             <Loader2 className="h-3 w-3 animate-spin" /> Working out who this goes to…
           </p>
         ) : data?.autoApprove ? (
-          <div className="flex items-start gap-2 rounded-[2px] border border-emerald-500/30 bg-emerald-500/10 p-3">
+          <div className="flex items-start gap-2 rounded-sm border border-emerald-500/30 bg-emerald-500/10 p-3">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
             <p className="text-xs text-emerald-700 dark:text-emerald-300">
               This request is <strong>approved automatically</strong> - no email is sent.
             </p>
           </div>
         ) : !data?.to ? (
-          <div className="flex items-start gap-2 rounded-[2px] border border-amber-400/40 bg-amber-500/10 p-3">
+          <div className="flex items-start gap-2 rounded-sm border border-amber-400/40 bg-amber-500/10 p-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <p className="text-xs text-amber-700 dark:text-amber-300">
               You don&apos;t have a reporting manager set, and no approver was found. Your request
@@ -171,7 +171,7 @@ export function LeaveMailPreview({
             {/* The letter - a distinct edit box so it's obviously editable. This
                 exact text is what gets emailed. Border stays static (no focus
                 highlight - the box already reads as an input). */}
-            <div className="bg-background relative rounded-[2px] border p-3">
+            <div className="bg-background relative rounded-sm border p-3">
               <span className="text-muted-foreground/60 pointer-events-none absolute top-1.5 right-2 z-10 inline-flex items-center gap-0.5 text-[9px] font-medium tracking-wide uppercase">
                 <Pencil className="h-2.5 w-2.5" /> Editable
               </span>

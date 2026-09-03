@@ -60,7 +60,7 @@ function ProjectsVisual() {
       {columns.map((col) => (
         <div
           key={col.name}
-          className="border-border bg-background flex flex-1 flex-col rounded-[6px] border p-2.5"
+          className="border-border bg-background flex flex-1 flex-col rounded-sm border p-2.5"
         >
           <div className="mb-2 flex items-center gap-1.5 px-0.5">
             <span className={`h-1.5 w-1.5 rounded-full ${col.accent}`} />
@@ -73,7 +73,7 @@ function ProjectsVisual() {
                 <div
                   key={card.title}
                   className={cn(
-                    "flex flex-1 flex-col rounded-[6px] border p-2",
+                    "flex flex-1 flex-col rounded-sm border p-2",
                     col.card,
                     active && "animate-dnms-bob-sm shadow-sm",
                   )}

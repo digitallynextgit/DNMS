@@ -77,9 +77,9 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
       <div className="relative mx-auto max-w-[1600px] px-4 pt-28 pb-24 sm:px-6 lg:pt-32">
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <Reveal>
-          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs">
+          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
-              className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
               style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
             >
               <FileText className="h-3 w-3" />
@@ -151,7 +151,7 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
                       at full column width, and these carry the densest content
                       on the page - the sub-processor and data-category tables. */}
                   {section.rows && (
-                    <dl className="border-border/60 mt-5 divide-y rounded-[6px] border">
+                    <dl className="border-border/60 mt-5 divide-y rounded-sm border">
                       {section.rows.map((row) => (
                         <div key={row.term} className="p-4 sm:flex sm:gap-8">
                           <dt className="text-foreground shrink-0 text-sm font-semibold sm:w-56">
@@ -184,8 +184,8 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
                       aria-current={current ? "page" : undefined}
                       className={
                         current
-                          ? "bg-card/70 border-border/70 block rounded-[6px] border px-3 py-2.5"
-                          : "hover:bg-card/50 block rounded-[6px] border border-transparent px-3 py-2.5 transition-colors"
+                          ? "bg-card/70 border-border/70 block rounded-sm border px-3 py-2.5"
+                          : "hover:bg-card/50 block rounded-sm border border-transparent px-3 py-2.5 transition-colors"
                       }
                     >
                       <span

@@ -158,7 +158,7 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
             />
           </div>
         ) : (
-          <div className="bg-muted/50 rounded-[2px] px-3 py-2 text-sm">
+          <div className="bg-muted/50 rounded-sm px-3 py-2 text-sm">
             <span className="font-medium">
               {editData?.employee.firstName} {editData?.employee.lastName}
             </span>
@@ -246,7 +246,7 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
         <Separator />
 
         {/* Preview - gross == net, no deductions */}
-        <div className="bg-muted/30 grid grid-cols-2 gap-4 rounded-[2px] border p-4 text-sm">
+        <div className="bg-muted/30 grid grid-cols-2 gap-4 rounded-sm border p-4 text-sm">
           <div className="min-w-0">
             <p className="text-muted-foreground">Gross (= Net, no deductions)</p>
             <p className="overflow-x-auto text-base font-bold whitespace-nowrap text-emerald-600">

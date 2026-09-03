@@ -69,7 +69,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
                 className="animate-dnms-fade-up flex items-center gap-3 text-sm text-neutral-300"
                 style={{ animationDelay: `${0.35 + i * 0.1}s` }}
               >
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] bg-emerald-500/15 ring-1 ring-emerald-500/25">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-emerald-500/15 ring-1 ring-emerald-500/25">
                   <Check className="h-3 w-3 text-emerald-500" />
                 </span>
                 {item}

@@ -14,7 +14,7 @@ export default function Loading() {
       <div className="bg-background border-b px-6">
         <div className="flex items-center justify-between py-4">
           <div className="flex items-center gap-3">
-            <Skeleton className="bg-muted h-8 w-8 shrink-0 animate-pulse rounded" />
+            <Skeleton className="bg-muted h-8 w-8 shrink-0 animate-pulse rounded-sm" />
             <div className="space-y-2.5">
               <Skeleton className="bg-muted h-5 w-48 animate-pulse" />
               <Skeleton className="bg-muted h-4 w-64 animate-pulse" />
@@ -32,16 +32,16 @@ export default function Loading() {
               {/* Column header */}
               <div className="mb-3 flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
-                  <Skeleton className="bg-muted h-2 w-2 animate-pulse rounded" />
+                  <Skeleton className="bg-muted h-2 w-2 animate-pulse rounded-sm" />
                   <Skeleton className="bg-muted h-4 w-20 animate-pulse" />
                 </div>
-                <Skeleton className="bg-muted h-5 w-6 animate-pulse rounded" />
+                <Skeleton className="bg-muted h-5 w-6 animate-pulse rounded-sm" />
               </div>
               {/* Drop zone with two card-shaped placeholders */}
-              <div className="bg-muted/40 min-h-[200px] flex-1 rounded-[2px] border-2 border-transparent p-2">
+              <div className="bg-muted/40 min-h-[200px] flex-1 rounded-sm border-2 border-transparent p-2">
                 <div className="space-y-2">
                   {Array.from({ length: 2 }).map((_, i) => (
-                    <Skeleton key={i} className="bg-muted h-32 w-full animate-pulse rounded" />
+                    <Skeleton key={i} className="bg-muted h-32 w-full animate-pulse rounded-sm" />
                   ))}
                 </div>
               </div>

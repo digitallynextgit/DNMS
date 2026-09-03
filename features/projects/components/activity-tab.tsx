@@ -97,7 +97,7 @@ export function ActivityTab({ projectId }: Props) {
   const activities = data?.data ?? []
 
   const toggle = (
-    <div className="bg-muted mb-3 inline-flex rounded-[2px] p-0.5">
+    <div className="bg-muted mb-3 inline-flex rounded-sm p-0.5">
       {(
         [
           { value: true, label: "Key events" },
@@ -110,7 +110,7 @@ export function ActivityTab({ projectId }: Props) {
           onClick={() => setKeyOnly(o.value)}
           aria-pressed={keyOnly === o.value}
           className={cn(
-            "rounded-[2px] px-2.5 py-1 text-xs transition-colors",
+            "rounded-sm px-2.5 py-1 text-xs transition-colors",
             keyOnly === o.value
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",
@@ -159,7 +159,7 @@ export function ActivityTab({ projectId }: Props) {
         {activities.map((activity) => (
           <div key={activity.id} className="flex items-start gap-3 py-2 pl-1">
             {/* Icon bubble */}
-            <div className="bg-background border-border relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-[2px] border">
+            <div className="bg-background border-border relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border">
               {getActivityIcon(activity.type)}
             </div>
 

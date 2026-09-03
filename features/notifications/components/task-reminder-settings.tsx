@@ -155,14 +155,14 @@ export function TaskReminderSettings() {
           </div>
 
           {/* ── What those numbers actually do ───────────────────────────── */}
-          <div className="bg-muted/50 space-y-2 rounded-[2px] border p-3">
+          <div className="bg-muted/50 space-y-2 rounded-sm border p-3">
             <p className="text-sm font-medium">You will be reminded</p>
             <div className="flex flex-wrap gap-2">
               {offsets.map((offset, i) => (
                 <span
                   key={i}
                   className={cn(
-                    "bg-background rounded-[2px] border px-2 py-1 text-xs",
+                    "bg-background rounded-sm border px-2 py-1 text-xs",
                     offset < 0 && "border-destructive/40 text-destructive",
                   )}
                 >

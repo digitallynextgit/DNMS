@@ -18,7 +18,7 @@ function SeoVisual() {
   return (
     <div className="flex h-full flex-col gap-4">
       {/* chart */}
-      <div className="border-border bg-background rounded-[6px] border p-4">
+      <div className="border-border bg-background rounded-sm border p-4">
         <div className="mb-3 flex items-center justify-between">
           <div>
             <div className="text-muted-foreground text-[10px] font-medium uppercase">Clicks</div>
@@ -51,7 +51,7 @@ function SeoVisual() {
       </div>
 
       {/* keyword table */}
-      <div className="border-border bg-background flex flex-1 flex-col rounded-[6px] border p-3">
+      <div className="border-border bg-background flex flex-1 flex-col rounded-sm border p-3">
         <div className="text-muted-foreground mb-2 grid grid-cols-3 items-center gap-2 text-[10px] font-medium uppercase">
           <span>Keyword</span>
           <span className="text-center">Position</span>
@@ -62,7 +62,7 @@ function SeoVisual() {
             <div key={kw} className="grid flex-1 grid-cols-3 items-center gap-2 text-xs">
               <span className="truncate">{kw}</span>
               <span className="w-9 justify-self-center text-right tabular-nums">#{pos}</span>
-              <span className="inline-flex items-center justify-center gap-0.5 justify-self-end rounded-[6px] bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">
+              <span className="inline-flex items-center justify-center gap-0.5 justify-self-end rounded-sm bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">
                 <TrendingUp className="h-2.5 w-2.5" />
                 {delta}
               </span>

@@ -421,7 +421,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
             <div className="flex flex-col items-center gap-1.5">
               <div
                 className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-[2px] text-sm font-semibold transition-all",
+                  "flex h-8 w-8 items-center justify-center rounded-sm text-sm font-semibold transition-all",
                   isCompleted && "bg-primary text-primary-foreground",
                   isActive &&
                     "bg-primary text-primary-foreground ring-primary ring-2 ring-offset-2",

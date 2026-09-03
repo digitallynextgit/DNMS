@@ -12,9 +12,9 @@ export function SecuritySection() {
   // Rendered for real in the left column, and as an invisible spacer above the
   // right cards so they start at the TITLE line (not the pill).
   const pill = (
-    <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs">
+    <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
       <span
-        className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+        className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
         style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
       >
         <Sparkles className="h-3 w-3" />
@@ -65,9 +65,9 @@ export function SecuritySection() {
               {SECURITY_POINTS.map((s) => (
                 <div
                   key={s.title}
-                  className="border-border bg-card/60 hover:border-border flex h-full flex-col rounded-[6px] border p-5 shadow-sm transition-colors"
+                  className="border-border bg-card/60 hover:border-border flex h-full flex-col rounded-sm border p-5 shadow-sm transition-colors"
                 >
-                  <span className="bg-primary/10 text-primary ring-border flex h-10 w-10 items-center justify-center rounded-[6px] ring-1">
+                  <span className="bg-primary/10 text-primary ring-border flex h-10 w-10 items-center justify-center rounded-sm ring-1">
                     <s.icon className="h-5 w-5" />
                   </span>
                   <h3 className="mt-4 text-base font-semibold tracking-tight">{s.title}</h3>

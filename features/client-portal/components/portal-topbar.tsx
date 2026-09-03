@@ -77,7 +77,7 @@ export function PortalTopbar({
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">
               {isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              <span className="border-border/60 text-muted-foreground ml-1.5 rounded-[2px] border px-1 py-px text-[10px]">
+              <span className="border-border/60 text-muted-foreground ml-1.5 rounded-sm border px-1 py-px text-[10px]">
                 Ctrl B
               </span>
             </TooltipContent>
@@ -92,7 +92,7 @@ export function PortalTopbar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 gap-2 px-2">
-              <span className="bg-muted text-foreground flex h-6 w-6 items-center justify-center rounded-[2px] text-[11px] font-semibold">
+              <span className="bg-muted text-foreground flex h-6 w-6 items-center justify-center rounded-sm text-[11px] font-semibold">
                 {initials}
               </span>
               <span className="hidden text-sm font-medium sm:inline">{name}</span>

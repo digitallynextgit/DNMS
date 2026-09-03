@@ -227,7 +227,7 @@ export function MyProgress() {
     }
   }, [tasks, preset, custom])
 
-  if (isLoading) return <Skeleton className="h-96 rounded" />
+  if (isLoading) return <Skeleton className="h-96 rounded-sm" />
 
   const donut = STATES.map((s) => ({ ...s, value: view.counts[s.key] })).filter((d) => d.value > 0)
   const completion = view.total > 0 ? Math.round((view.counts.done / view.total) * 100) : null
@@ -237,7 +237,7 @@ export function MyProgress() {
       {/* Filters in ONE row above the charts, so the whole page reads as being
           about the selected period. */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="bg-card inline-flex items-center rounded-[2px] border p-0.5 text-xs">
+        <div className="bg-card inline-flex items-center rounded-sm border p-0.5 text-xs">
           {PRESETS.map((p) => (
             <button
               key={p.key}
@@ -246,7 +246,7 @@ export function MyProgress() {
                 setCustom(undefined)
               }}
               className={cn(
-                "rounded-[2px] px-2.5 py-1 font-medium transition-colors",
+                "rounded-sm px-2.5 py-1 font-medium transition-colors",
                 !custom && preset === p.key
                   ? "bg-muted text-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -551,7 +551,7 @@ function StateLegend({
         const Icon = s.icon
         return (
           <div key={s.key} className="flex items-center gap-1.5 text-xs">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: s.fill }} />
+            <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: s.fill }} />
             <Icon className="text-muted-foreground h-3 w-3 shrink-0" />
             <span className="text-muted-foreground truncate">{s.label}</span>
             {counts && (
@@ -595,7 +595,7 @@ function StateTooltip({
     const p = rows[0]!
     const value = p.value ?? 0
     return (
-      <div className="bg-card rounded-[2px] border px-2 py-1 text-xs shadow-sm">
+      <div className="bg-card rounded-sm border px-2 py-1 text-xs shadow-sm">
         <span className="font-medium">{p.name}</span>
         <span className="text-muted-foreground ml-2 tabular-nums">
           {value} · {total > 0 ? Math.round((value / total) * 100) : 0}%
@@ -606,14 +606,11 @@ function StateTooltip({
 
   const sum = rows.reduce((a, p) => a + Number(p.value ?? 0), 0)
   return (
-    <div className="bg-card min-w-36 rounded-[2px] border px-2 py-1.5 text-xs shadow-sm">
+    <div className="bg-card min-w-36 rounded-sm border px-2 py-1.5 text-xs shadow-sm">
       {label && <p className="mb-1 font-medium">{label}</p>}
       {rows.map((p) => (
         <p key={p.name} className="flex items-center gap-2">
-          <span
-            className="h-2 w-2 shrink-0 rounded-[1px]"
-            style={{ background: p.fill ?? p.color }}
-          />
+          <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: p.fill ?? p.color }} />
           {/* Label in muted ink, value in primary - never in the series colour. */}
           <span className="text-muted-foreground">{p.name}</span>
           <span className="text-foreground ml-auto font-medium tabular-nums">{p.value}</span>
@@ -639,11 +636,11 @@ function HoursTooltip({
 }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-card rounded-[2px] border px-2 py-1.5 text-xs shadow-sm">
+    <div className="bg-card rounded-sm border px-2 py-1.5 text-xs shadow-sm">
       <p className="mb-0.5 font-medium">{label}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-1.5">
-          <span className="h-2 w-2 shrink-0 rounded-[1px]" style={{ background: p.color }} />
+          <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: p.color }} />
           <span className="text-muted-foreground">{p.name}</span>
           <span className="ml-auto font-medium tabular-nums">{formatHours(p.value ?? 0)}</span>
         </div>

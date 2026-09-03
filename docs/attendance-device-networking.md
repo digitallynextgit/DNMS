@@ -92,7 +92,7 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up --accept-routes
 ```
 
-`--accept-routes` is required on Linux — subnet routes are ignored without it.
+`--accept-routes` is required on Linux - subnet routes are ignored without it.
 
 ### 5. Verify from the VPS
 
@@ -102,7 +102,7 @@ ping -c 3 192.168.29.234
 curl -sS -m 10 -o /dev/null -w '%{http_code}\n' http://192.168.29.234/ISAPI/System/deviceInfo
 ```
 
-A `401` from that last command is **success** — the device is reachable and
+A `401` from that last command is **success** - the device is reachable and
 asking for Digest auth, which is exactly what `hikvisionRequest` expects.
 
 Then click **Test** on the Devices page. It should report the model/firmware
@@ -122,7 +122,7 @@ distinguishes the failure modes, because they have completely different causes:
 | `No route to …`                  | The OS has no route at all.                                           |
 
 When the server is on a mesh VPN (a `100.64.0.0/10` address is present), the
-timeout hint changes — it stops claiming "different network, no route", because
+timeout hint changes - it stops claiming "different network, no route", because
 a subnet route reaches a LAN the host holds no address on. It points at the
 route approval and the device instead.
 
@@ -134,7 +134,7 @@ route approval and the device instead.
   RCE on Hikvision ISAPI and these devices are scanned continuously. Every
   approach here keeps it unreachable from the internet.
 - `lastSyncAt` is stamped by **both** the pull sync and the push hook.
-  `lastPushAt` is stamped **only** by the hook — that is the field that tells
+  `lastPushAt` is stamped **only** by the hook - that is the field that tells
   you whether realtime is genuinely working.
 - The "Enabled" badge on the Devices page is the stored `isActive` flag. It is
   not live connectivity; **Test** is what answers that.

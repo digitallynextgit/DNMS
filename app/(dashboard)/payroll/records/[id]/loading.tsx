@@ -8,23 +8,23 @@ export default function Loading() {
     <div className="space-y-6">
       {/* Header: back link, title + description (left), download (right). */}
       <div className="space-y-2 py-4">
-        <Skeleton className="bg-muted h-8 w-32 animate-pulse rounded" />
+        <Skeleton className="bg-muted h-8 w-32 animate-pulse rounded-sm" />
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-2">
             <Skeleton className="bg-muted h-5 w-56 animate-pulse" />
             <Skeleton className="bg-muted h-4 w-56 animate-pulse" />
           </div>
-          <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded" />
+          <Skeleton className="bg-muted h-9 w-32 animate-pulse rounded-sm" />
         </div>
       </div>
 
       {/* Status row */}
       <div className="flex items-center gap-3">
-        <Skeleton className="bg-muted h-5 w-20 animate-pulse rounded" />
+        <Skeleton className="bg-muted h-5 w-20 animate-pulse rounded-sm" />
       </div>
 
       {/* Payslip document */}
-      <div className="bg-card rounded-[2px] border p-2 sm:p-4">
+      <div className="bg-card rounded-sm border p-2 sm:p-4">
         <PayslipDocSkeleton />
       </div>
 
@@ -41,7 +41,7 @@ export default function Loading() {
 
 function BreakdownCard({ rows }: { rows: number }) {
   return (
-    <div className="border-border bg-card rounded-[2px] border p-5">
+    <div className="border-border bg-card rounded-sm border p-5">
       <Skeleton className="bg-muted mb-4 h-4 w-24 animate-pulse" />
       <div className="space-y-1">
         {Array.from({ length: rows }).map((_, i) => (
@@ -57,7 +57,7 @@ function BreakdownCard({ rows }: { rows: number }) {
 
 function NetPayCard() {
   return (
-    <div className="border-border bg-card rounded-[2px] border p-5">
+    <div className="border-border bg-card rounded-sm border p-5">
       <Skeleton className="bg-muted mb-4 h-4 w-20 animate-pulse" />
       <Skeleton className="bg-muted h-8 w-36 animate-pulse" />
     </div>
@@ -68,7 +68,7 @@ function NetPayCard() {
 function PayslipDocSkeleton() {
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="space-y-4 rounded-[2px] border border-neutral-300 px-6 py-5 dark:border-neutral-700">
+      <div className="space-y-4 rounded-sm border border-neutral-300 px-6 py-5 dark:border-neutral-700">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1.5">
             <Skeleton className="h-4 w-56" />

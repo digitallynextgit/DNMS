@@ -213,7 +213,7 @@ function TagFilter({
                 key={tag}
                 type="button"
                 onClick={() => toggle(tag)}
-                className="hover:bg-muted flex w-full items-center gap-2 rounded-[2px] px-2 py-1.5 text-left"
+                className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left"
               >
                 <Check className={cn("h-3.5 w-3.5 shrink-0", on ? "opacity-100" : "opacity-0")} />
                 <TagChip tag={tag} />

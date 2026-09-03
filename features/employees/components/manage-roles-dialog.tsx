@@ -116,7 +116,7 @@ export function ManageRolesDialog({
                 key={role.id}
                 htmlFor={`role-${role.id}`}
                 className={cn(
-                  "hover:bg-muted/50 flex cursor-pointer items-start gap-3 rounded-[2px] border p-2 transition-colors",
+                  "hover:bg-muted/50 flex cursor-pointer items-start gap-3 rounded-sm border p-2 transition-colors",
                   selected === role.id ? "border-primary bg-muted/40" : "border-transparent",
                 )}
               >

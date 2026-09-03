@@ -61,7 +61,7 @@ function PayrollVisual() {
   return (
     <div className="flex h-full flex-col gap-3 sm:flex-row">
       {/* payslip */}
-      <div className="border-border bg-background flex flex-1 flex-col rounded-[6px] border p-4">
+      <div className="border-border bg-background flex flex-1 flex-col rounded-sm border p-4">
         <div className="mb-3 flex items-center gap-2">
           <span className="bg-primary/10 text-primary flex h-7 w-7 items-center justify-center rounded-full">
             <FileText className="h-3.5 w-3.5" />
@@ -103,7 +103,7 @@ function PayrollVisual() {
       </div>
 
       {/* KPI ring */}
-      <div className="border-border bg-background flex flex-1 flex-col items-center justify-center rounded-[6px] border p-4">
+      <div className="border-border bg-background flex flex-1 flex-col items-center justify-center rounded-sm border p-4">
         <div ref={ringRef} className="relative h-28 w-28">
           <svg viewBox="0 0 80 80" className="h-28 w-28 -rotate-90">
             <circle cx="40" cy="40" r="34" fill="none" strokeWidth="7" className="stroke-muted" />

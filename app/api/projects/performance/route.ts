@@ -75,13 +75,23 @@ export const GET = withSession(
         ? Prisma.sql`t.due_date <= ${new Date(`${to}T23:59:59.999Z`)}`
         : Prisma.sql`TRUE`
 
-      // `open` == still actionable: not done, not discarded, not on hold. Matches
-      // the original's if/else-if chain, where those three exited early.
-      const OPEN = Prisma.sql`t.status NOT IN ('DONE', 'DISCARDED', 'ON_HOLD')`
-      // The original compared completedAt against dueDate at 23:59:59.999 UTC.
-      // due_date is @db.Date, so it reads back as UTC midnight in both engines.
-      const DUE_END = Prisma.sql`(t.due_date + INTERVAL '1 day' - INTERVAL '1 millisecond')`
+      // ── What "overdue" means ────────────────────────────────────────────────
+      //
+      // PAST ITS DATE AND NOT FINISHED. That is the whole rule. It deliberately
+      // does NOT also require the task to be actively in play: a task parked on
+      // hold is still work that was promised for a date that has gone by, and
+      // hiding it made the number smaller than the truth.
+      //
+      // CLOSED is "finished or dropped" - the only states that can never be
+      // overdue, because nobody owes them any more. CANCELLED is legacy and
+      // rides with DISCARDED.
+      const CLOSED = Prisma.sql`(t.status IN ('DONE', 'DISCARDED', 'CANCELLED'))`
+      // due_date is @db.Date, so it reads back as UTC midnight. Strictly before
+      // today's midnight, so a task due TODAY has all of today to be done.
       const LATE = Prisma.sql`(t.due_date IS NOT NULL AND t.due_date < ${todayStart})`
+      const OVERDUE = Prisma.sql`(NOT ${CLOSED} AND ${LATE})`
+      // The original compared completedAt against dueDate at 23:59:59.999 UTC.
+      const DUE_END = Prisma.sql`(t.due_date + INTERVAL '1 day' - INTERVAL '1 millisecond')`
 
       type GroupRow = {
         assignee_id: string | null
@@ -120,10 +130,14 @@ export const GET = withSession(
               AND t.due_date IS NOT NULL AND t.completed_at IS NOT NULL
               AND t.completed_at > ${DUE_END}
           )                                                             AS late,
-          COUNT(*) FILTER (WHERE ${OPEN} AND ${LATE})                   AS overdue,
+          COUNT(*) FILTER (WHERE ${OVERDUE})                            AS overdue,
           COUNT(*) FILTER (WHERE t.status = 'IN_PROGRESS')              AS in_progress,
-          COUNT(*) FILTER (WHERE t.status = 'ON_HOLD')                  AS on_hold,
-          COUNT(*) FILTER (WHERE t.status = 'DISCARDED')                AS discarded,
+          -- The four "live" buckets below all exclude OVERDUE, so the five
+          -- chart states stay MUTUALLY EXCLUSIVE and the donut still sums to
+          -- the total. Overdue outranks on-hold: a held task past its date is
+          -- counted once, as late, not twice.
+          COUNT(*) FILTER (WHERE t.status = 'ON_HOLD' AND NOT ${LATE})  AS on_hold,
+          COUNT(*) FILTER (WHERE t.status IN ('DISCARDED', 'CANCELLED')) AS discarded,
           COUNT(*) FILTER (
             WHERE t.due_date >= ${weekStart} AND t.due_date < ${weekEnd}
           )                                                             AS due_this_week,
@@ -132,11 +146,11 @@ export const GET = withSession(
               AND t.completed_at >= ${weekStart} AND t.completed_at < ${weekEnd}
           )                                                             AS done_this_week,
           COUNT(*) FILTER (
-            WHERE ${OPEN} AND NOT ${LATE}
-              AND t.status NOT IN ('IN_PROGRESS', 'IN_REVIEW')
+            WHERE NOT ${CLOSED} AND NOT ${LATE}
+              AND t.status NOT IN ('IN_PROGRESS', 'IN_REVIEW', 'ON_HOLD')
           )                                                             AS open_todo,
           COUNT(*) FILTER (
-            WHERE ${OPEN} AND NOT ${LATE}
+            WHERE NOT ${CLOSED} AND NOT ${LATE}
               AND t.status IN ('IN_PROGRESS', 'IN_REVIEW')
           )                                                             AS open_progress,
           COALESCE(SUM(t.estimated_hours), 0)                           AS allocated_hours,
@@ -236,7 +250,7 @@ export const GET = withSession(
           FROM project_tasks t
           LEFT JOIN project_teams tm ON tm.id = t.team_id
           LEFT JOIN projects      p  ON p.id  = t.project_id
-          WHERE ${scopeSql} AND ${projectSql} AND ${OPEN} AND ${LATE}
+          WHERE ${scopeSql} AND ${projectSql} AND ${OVERDUE}
         `,
         db.$queryRaw<{ wk: Date; n: number }[]>`
           SELECT date_trunc('week', t.completed_at) AS wk, COUNT(*)::int AS n

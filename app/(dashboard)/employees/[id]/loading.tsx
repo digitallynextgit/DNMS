@@ -12,7 +12,7 @@ export default function EmployeeProfileLoading() {
       <PageHeaderSkeleton withActions />
 
       {/* Identity card */}
-      <div className="border-border bg-card rounded-[2px] border p-6">
+      <div className="border-border bg-card rounded-sm border p-6">
         <div className="flex flex-col items-start gap-6 sm:flex-row">
           <Skeleton className="bg-muted h-24 w-24 shrink-0 animate-pulse rounded-full" />
           <div className="min-w-0 flex-1 space-y-3">
@@ -41,7 +41,7 @@ export default function EmployeeProfileLoading() {
       </div>
 
       {/* Info card: section title + 3-up field grid */}
-      <div className="border-border bg-card space-y-6 rounded-[2px] border p-6">
+      <div className="border-border bg-card space-y-6 rounded-sm border p-6">
         <Skeleton className="bg-muted h-4 w-40 animate-pulse" />
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 9 }).map((_, i) => (

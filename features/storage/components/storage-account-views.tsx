@@ -169,7 +169,7 @@ export function AccountCard({
         // Byte-for-byte the project card's shell. No accent border for the
         // default account: a tinted border is what made this card read as
         // heavier than a project card, and the "Default" badge already says it.
-        "group bg-card hover:border-foreground/20 hover:bg-muted/30 relative flex flex-col gap-3 rounded-[2px] border p-4 transition-colors",
+        "group bg-card hover:border-foreground/20 hover:bg-muted/30 relative flex flex-col gap-3 rounded-sm border p-4 transition-colors",
         !a.isActive && "opacity-60",
       )}
     >
@@ -181,11 +181,11 @@ export function AccountCard({
         type="button"
         onClick={() => onOpen(a)}
         aria-label={`Open ${a.label}`}
-        className="focus-visible:ring-ring absolute inset-0 rounded-[2px] focus-visible:ring-2 focus-visible:outline-none"
+        className="focus-visible:ring-ring absolute inset-0 rounded-sm focus-visible:ring-2 focus-visible:outline-none"
       />
 
       <div className="flex items-start justify-between gap-2">
-        <span className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-[2px]">
+        <span className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-sm">
           <HardDrive className="text-muted-foreground h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">

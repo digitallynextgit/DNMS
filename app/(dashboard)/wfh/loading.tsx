@@ -8,11 +8,11 @@ export default function WfhLoading() {
     <div className="space-y-6">
       <PageHeaderSkeleton withActions />
 
-      <Skeleton className="bg-muted h-24 w-full animate-pulse rounded" />
+      <Skeleton className="bg-muted h-24 w-full animate-pulse rounded-sm" />
 
       <div className="space-y-3">
         <Skeleton className="bg-muted h-3 w-32 animate-pulse" />
-        <div className="border-border bg-card rounded-[2px] border">
+        <div className="border-border bg-card rounded-sm border">
           <TableSkeleton rows={5} cols={6} />
         </div>
       </div>

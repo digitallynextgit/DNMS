@@ -21,17 +21,17 @@ const buttonVariants = cva(
         link: "text-foreground h-auto p-0 underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 rounded-[2px] px-4 py-2",
-        sm: "h-8 rounded-[2px] px-3 text-xs",
-        lg: "h-10 rounded-[2px] px-6",
+        default: "h-9 rounded-sm px-4 py-2",
+        sm: "h-8 rounded-sm px-3 text-xs",
+        lg: "h-10 rounded-sm px-6",
         // Two sanctioned icon sizes - never override these with a className.
         // `icon`     - standalone icon button, pairs with a default (h-9) Button.
         // `icon-sm`  - compact row/toolbar action, pairs with a `sm` (h-8) Button.
         // rounded-[2px], not bare `rounded` (4px): every other size here uses
         // 2px, so a standalone icon button was visibly rounder than the default
         // Button sitting next to it - straight out of the core primitive.
-        icon: "h-9 w-9 rounded-[2px]",
-        "icon-sm": "h-8 w-8 rounded-[2px] [&_svg]:size-3.5",
+        icon: "h-9 w-9 rounded-sm",
+        "icon-sm": "h-8 w-8 rounded-sm [&_svg]:size-3.5",
       },
     },
     defaultVariants: {

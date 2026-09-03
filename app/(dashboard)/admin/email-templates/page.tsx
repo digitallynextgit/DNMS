@@ -105,9 +105,7 @@ export default function EmailTemplatesPage() {
     {
       header: "Slug",
       cell: (template) => (
-        <code className="bg-muted rounded-[2px] px-1.5 py-0.5 font-mono text-xs">
-          {template.slug}
-        </code>
+        <code className="bg-muted rounded-sm px-1.5 py-0.5 font-mono text-xs">{template.slug}</code>
       ),
     },
     {
@@ -199,7 +197,7 @@ export default function EmailTemplatesPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{template.name}</p>
-                  <code className="bg-muted mt-1 inline-block rounded-[2px] px-1.5 py-0.5 font-mono text-[11px]">
+                  <code className="bg-muted mt-1 inline-block rounded-sm px-1.5 py-0.5 font-mono text-[11px]">
                     {template.slug}
                   </code>
                 </div>

@@ -69,10 +69,10 @@ export function Hero() {
             <motion.div variants={fade} custom={0} initial="hidden" animate="show">
               <a
                 href="#modules"
-                className="group border-border/70 bg-card/70 hover:bg-card inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs backdrop-blur transition-colors"
+                className="group border-border/70 bg-card/70 hover:bg-card inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs backdrop-blur transition-colors"
               >
                 <span
-                  className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+                  className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
                   style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
                 >
                   <Sparkles className="h-3 w-3" />
@@ -153,7 +153,7 @@ export function Hero() {
             animate="show"
             className="hidden lg:mt-14 lg:block"
           >
-            <div className="border-border bg-card/50 rounded-[6px] border p-6 sm:p-7">
+            <div className="border-border bg-card/50 rounded-sm border p-6 sm:p-7">
               <div className="text-muted-foreground text-xs font-medium tracking-[0.16em] uppercase">
                 Everything, in one login
               </div>
@@ -210,11 +210,11 @@ export function Hero() {
             custom={1.1}
             initial="hidden"
             animate="show"
-            className="animate-dnms-float border-border bg-card absolute -top-6 -left-6 z-10 hidden items-center gap-2 rounded-[6px] border p-3 shadow-lg md:flex"
+            className="animate-dnms-float border-border bg-card absolute -top-6 -left-6 z-10 hidden items-center gap-2 rounded-sm border p-3 shadow-lg md:flex"
             style={{ animationDelay: "-3s" }}
           >
             <span
-              className="flex h-8 w-8 items-center justify-center rounded-[6px]"
+              className="flex h-8 w-8 items-center justify-center rounded-sm"
               style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
             >
               <Fingerprint className="h-4 w-4" />
@@ -229,11 +229,11 @@ export function Hero() {
             custom={1.25}
             initial="hidden"
             animate="show"
-            className="animate-dnms-float border-border bg-card absolute -right-6 bottom-8 z-10 hidden items-center gap-2 rounded-[6px] border p-3 shadow-lg md:flex"
+            className="animate-dnms-float border-border bg-card absolute -right-6 bottom-8 z-10 hidden items-center gap-2 rounded-sm border p-3 shadow-lg md:flex"
             style={{ animationDelay: "-7s" }}
           >
             <span
-              className="flex h-8 w-8 items-center justify-center rounded-[6px]"
+              className="flex h-8 w-8 items-center justify-center rounded-sm"
               style={{ backgroundColor: "rgba(59,130,246,0.12)", color: "#3b82f6" }}
             >
               <Wallet className="h-4 w-4" />

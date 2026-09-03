@@ -129,7 +129,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
             labelMap={PAYROLL_STATUS_LABELS}
           />
         ) : (
-          <Skeleton className="h-5 w-20 rounded" />
+          <Skeleton className="h-5 w-20 rounded-sm" />
         )}
         {r && canProcess && next && (
           <Button
@@ -144,7 +144,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* The official payslip (this is what prints / downloads). */}
-      <div className="bg-card rounded-[2px] border p-2 sm:p-4">
+      <div className="bg-card rounded-sm border p-2 sm:p-4">
         {r ? <PayslipDocument record={r} /> : <PayslipSkeleton />}
       </div>
 

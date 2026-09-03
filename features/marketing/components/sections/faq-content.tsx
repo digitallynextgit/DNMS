@@ -25,9 +25,9 @@ export function FaqContent() {
       <div className="relative mx-auto max-w-[1600px] px-4 pt-28 pb-24 sm:px-6 lg:pt-32">
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <Reveal>
-          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs">
+          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
-              className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
               style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
             >
               <HelpCircle className="h-3 w-3" />
@@ -93,7 +93,7 @@ export function FaqContent() {
                 <dl className="mt-6 space-y-6">
                   {cat.items.map((item, i) => (
                     <Reveal key={item.q} delay={Math.min(ci * 40 + i * 40, 240)}>
-                      <div className="border-border/70 bg-card/40 rounded-[6px] border p-5 sm:p-6">
+                      <div className="border-border/70 bg-card/40 rounded-sm border p-5 sm:p-6">
                         <dt className="text-base font-semibold">{item.q}</dt>
                         <dd className="text-muted-foreground mt-2 max-w-[76ch] leading-relaxed">
                           {item.a}
@@ -110,7 +110,7 @@ export function FaqContent() {
         {/* ── CTA ────────────────────────────────────────────────────────── */}
         <Reveal delay={120}>
           <div
-            className="relative mt-16 overflow-hidden rounded-[6px] border p-8 sm:p-10 lg:p-12"
+            className="relative mt-16 overflow-hidden rounded-sm border p-8 sm:p-10 lg:p-12"
             style={{ borderColor: "rgba(239,68,68,0.35)" }}
           >
             <div

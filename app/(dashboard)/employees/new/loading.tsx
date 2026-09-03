@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
  *  two-column field grid, so the page doesn't reflow when the form mounts. */
 function FormCardSkeleton({ fields = 6 }: { fields?: number }) {
   return (
-    <div className="border-border bg-card space-y-5 rounded-[2px] border p-6">
+    <div className="border-border bg-card space-y-5 rounded-sm border p-6">
       <Skeleton className="bg-muted h-4 w-40 animate-pulse" />
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         {Array.from({ length: fields }).map((_, i) => (

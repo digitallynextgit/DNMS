@@ -33,7 +33,7 @@ const NAV: { key: ViewKey; label: string; icon: LucideIcon }[] = [
 
 function Stat({ k, v }: { k: string; v: string }) {
   return (
-    <div className="border-border bg-background rounded-[6px] border p-3">
+    <div className="border-border bg-background rounded-sm border p-3">
       <div className="text-muted-foreground text-[10px] tracking-wide uppercase">{k}</div>
       <div className="mt-1 text-xl font-semibold">{v}</div>
     </div>
@@ -42,7 +42,7 @@ function Stat({ k, v }: { k: string; v: string }) {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border-border bg-background rounded-[6px] border p-4">
+    <div className="border-border bg-background rounded-sm border p-4">
       <div className="text-muted-foreground mb-3 text-xs font-medium">{title}</div>
       {children}
     </div>
@@ -66,7 +66,7 @@ function DashboardView() {
             {[40, 62, 48, 78, 58, 88, 70, 96, 82, 66, 92, 76].map((h, i) => (
               <div
                 key={i}
-                className="bg-muted-foreground/25 flex-1 rounded-[6px]"
+                className="bg-muted-foreground/25 flex-1 rounded-sm"
                 style={{ height: `${h}%` }}
               />
             ))}
@@ -133,7 +133,7 @@ function AttendanceView() {
           {Array.from({ length: 28 }).map((_, i) => (
             <div
               key={i}
-              className={cn("h-7 rounded-[6px]", bg[tone[i % tone.length] ?? ""])}
+              className={cn("h-7 rounded-sm", bg[tone[i % tone.length] ?? ""])}
               aria-hidden
             />
           ))}
@@ -153,7 +153,7 @@ function LeaveView() {
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {bal.map(([name, used, total]) => (
-          <div key={name} className="border-border bg-background rounded-[6px] border p-4">
+          <div key={name} className="border-border bg-background rounded-sm border p-4">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">{name}</span>
               <span className="font-medium">
@@ -215,9 +215,9 @@ function PayrollView() {
           <Stat k="Payslips" v="142" />
           <Stat k="Approved" v="142" />
         </div>
-        <div className="border-border bg-background flex items-center justify-between rounded-[6px] border p-4 text-xs">
+        <div className="border-border bg-background flex items-center justify-between rounded-sm border p-4 text-xs">
           <span className="text-muted-foreground">Run status</span>
-          <span className="rounded-[6px] bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-500">
+          <span className="rounded-sm bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-500">
             Paid
           </span>
         </div>
@@ -244,7 +244,7 @@ function ProjectsView() {
             <div
               key={t}
               className={cn(
-                "rounded-[6px] border p-2.5 text-xs",
+                "rounded-sm border p-2.5 text-xs",
                 ci === 1 ? "border-primary/40 bg-primary/5" : "border-border bg-background",
               )}
             >
@@ -275,7 +275,7 @@ function RecruitmentView() {
         <div key={name} className="flex flex-1 items-stretch gap-1.5">
           <div
             className={cn(
-              "flex min-w-[68px] flex-1 flex-col rounded-[6px] border p-2.5",
+              "flex min-w-[68px] flex-1 flex-col rounded-sm border p-2.5",
               name === "Offer" ? "border-primary/40 bg-primary/5" : "border-border bg-background",
             )}
           >
@@ -359,7 +359,7 @@ export function HeroAppMockup() {
   const title = NAV.find((n) => n.key === active)!.label
 
   return (
-    <div className="border-border bg-card relative overflow-hidden rounded-[6px] border text-left shadow-2xl">
+    <div className="border-border bg-card relative overflow-hidden rounded-sm border text-left shadow-2xl">
       <BorderBeam />
       {/* window chrome */}
       <div className="border-border bg-muted/50 flex items-center gap-2 border-b px-4 py-3">
@@ -384,7 +384,7 @@ export function HeroAppMockup() {
                 onClick={() => setActive(n.key)}
                 aria-current={on ? "page" : undefined}
                 className={cn(
-                  "relative flex w-full items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-left text-xs font-medium transition-colors sm:text-sm",
+                  "relative flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-left text-xs font-medium transition-colors sm:text-sm",
                   on
                     ? "bg-background text-foreground"
                     : "text-muted-foreground hover:bg-background/60 hover:text-foreground",

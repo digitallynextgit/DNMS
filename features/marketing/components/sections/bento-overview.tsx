@@ -29,16 +29,16 @@ function AttendanceMock() {
   return (
     <div className="mt-5 grid gap-3 sm:grid-cols-[auto_1fr]">
       <div className="flex gap-2 sm:flex-col">
-        <div className="border-border bg-background rounded-[6px] border px-3 py-2">
+        <div className="border-border bg-background rounded-sm border px-3 py-2">
           <div className="text-muted-foreground text-[10px] uppercase">Present</div>
           <div className="text-lg font-semibold tabular-nums">142</div>
         </div>
-        <div className="border-border bg-background rounded-[6px] border px-3 py-2">
+        <div className="border-border bg-background rounded-sm border px-3 py-2">
           <div className="text-muted-foreground text-[10px] uppercase">On leave</div>
           <div className="text-lg font-semibold tabular-nums">8</div>
         </div>
       </div>
-      <div className="border-border bg-background relative overflow-hidden rounded-[6px] border p-3">
+      <div className="border-border bg-background relative overflow-hidden rounded-sm border p-3">
         <div className="text-muted-foreground mb-2 text-[10px] font-medium uppercase">
           Punches · this week
         </div>
@@ -46,7 +46,7 @@ function AttendanceMock() {
           {bars.map((h, i) => (
             <div
               key={i}
-              className="from-primary/80 to-primary/25 flex-1 rounded-[6px] bg-gradient-to-t"
+              className="from-primary/80 to-primary/25 flex-1 rounded-sm bg-gradient-to-t"
               style={{ height: `${h}%` }}
             />
           ))}
@@ -69,7 +69,7 @@ function ProjectsMock() {
       {cols.map(([label, n], c) => (
         <div
           key={label}
-          className="border-border bg-background overflow-hidden rounded-[6px] border p-2"
+          className="border-border bg-background overflow-hidden rounded-sm border p-2"
         >
           <div className="text-muted-foreground mb-2 flex items-center justify-between text-[10px] font-medium">
             <span className="truncate uppercase">{label}</span>
@@ -80,7 +80,7 @@ function ProjectsMock() {
               <div
                 key={i}
                 className={cn(
-                  "animate-dnms-bob-sm rounded-[6px] px-2 py-2",
+                  "animate-dnms-bob-sm rounded-sm px-2 py-2",
                   c === 2 ? "bg-emerald-500/10" : c === 1 ? "bg-blue-500/10" : "bg-muted",
                 )}
                 style={{ animationDelay: `${-(c * 2 + i)}s` }}
@@ -105,7 +105,7 @@ function SeoMock() {
   ]
   return (
     <div className="mt-5 grid gap-3 sm:grid-cols-2">
-      <div className="border-border bg-background relative overflow-hidden rounded-[6px] border p-3">
+      <div className="border-border bg-background relative overflow-hidden rounded-sm border p-3">
         <div className="text-muted-foreground mb-2 text-[10px] font-medium uppercase">
           Avg. position
         </div>
@@ -132,7 +132,7 @@ function SeoMock() {
           />
         </svg>
       </div>
-      <div className="border-border bg-background rounded-[6px] border p-2">
+      <div className="border-border bg-background rounded-sm border p-2">
         <div className="text-muted-foreground mb-1.5 px-1 text-[10px] font-medium uppercase">
           Keywords
         </div>
@@ -143,7 +143,7 @@ function SeoMock() {
               <span className="text-muted-foreground text-center text-[11px] tabular-nums">
                 {pos}
               </span>
-              <span className="justify-self-end rounded-[6px] bg-emerald-500/10 px-1.5 py-0.5 text-sm font-semibold text-emerald-500 tabular-nums">
+              <span className="justify-self-end rounded-sm bg-emerald-500/10 px-1.5 py-0.5 text-sm font-semibold text-emerald-500 tabular-nums">
                 {delta}
               </span>
             </div>
@@ -166,9 +166,9 @@ function ModuleCell({ m, index }: { m: MarketingModule; index: number }) {
   const mock = MOCKS[m.name]
   return (
     <Reveal delay={(index % 3) * 90} className={cn("h-full", span)}>
-      <SpotlightCard className="border-border bg-card/60 flex h-full flex-col rounded-[6px] border p-5 shadow-sm">
+      <SpotlightCard className="border-border bg-card/60 flex h-full flex-col rounded-sm border p-5 shadow-sm">
         <div className="flex items-center gap-3">
-          <span className="bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px]">
+          <span className="bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-sm">
             <Icon className="h-5 w-5" />
           </span>
           <h3 className="text-base font-semibold tracking-tight">{m.name}</h3>
@@ -204,9 +204,9 @@ export function BentoOverview() {
       <div className="relative mx-auto max-w-[1600px] px-4 sm:px-6">
         {/* Hero-style pill */}
         <Reveal>
-          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs">
+          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
-              className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
               style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
             >
               <Sparkles className="h-3 w-3" />

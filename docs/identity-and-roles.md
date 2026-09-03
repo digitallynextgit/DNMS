@@ -37,7 +37,7 @@ The role is now the primary signal; the env list remains as a bootstrap.
 
 The env list is kept for two reasons: it is how the _first_ platform admin
 exists before anyone can grant the role, and it still works when the role table
-is wrong — which is exactly when you need it.
+is wrong - which is exactly when you need it.
 
 > To make someone DNMS staff: grant them `admin_` in the Digitally Next
 > workspace. To remove it: take the role away. No deploy, no env change.
@@ -59,13 +59,13 @@ users                     memberships                    employees
 - **`users` is global.** One email, one identity, one password.
 - **`memberships` is where the tenant lives.** A person belongs to a company
   _through_ a membership, and can hold more than one.
-- **`employees` is the tenant-scoped profile** — the record with a designation,
+- **`employees` is the tenant-scoped profile** - the record with a designation,
   a manager, attendance and payslips.
 
 ### Why users are global rather than per-tenant
 
-This comes up often enough to write down. The alternative — a `tenant_id` on
-`users`, with email unique _per tenant_ — sounds tidier and is worse, because it
+This comes up often enough to write down. The alternative - a `tenant_id` on
+`users`, with email unique _per tenant_ - sounds tidier and is worse, because it
 breaks sign-in:
 
 > If `priya@acme.com` can exist independently in two companies, then an email
@@ -86,7 +86,7 @@ every query, not on the identity row:
 - a deliberate cross-tenant read must say so out loud via `runUnscoped(reason)`
 
 A tenant admin cannot see another company's users, employees or anything else.
-That is verified, not assumed — `scripts/verify-tenant-guard.ts` and
+That is verified, not assumed - `scripts/verify-tenant-guard.ts` and
 `scripts/verify-provisioning.ts` create a second real company and prove neither
 can see the other.
 
@@ -105,7 +105,7 @@ can see the other.
 Roles are **per tenant**. Every company gets its own copy of all five at
 provisioning time, with its own `role_permissions` rows. Digitally Next's
 `admin` and Acme's `admin` are different database rows that happen to share a
-name — which is why the unique index is on `(tenant_id, name)` and not on `name`.
+name - which is why the unique index is on `(tenant_id, name)` and not on `name`.
 
 Permissions are granular scopes, not one switch: an `hr_manager` approves leave
 without seeing salaries; a project manager runs projects without either.
@@ -123,7 +123,7 @@ without seeing salaries; a project manager runs projects without either.
    - four default leave types
    - the founder's `employees` row, their `users` identity, and a `STAFF`
      membership joining the two
-   - the founder is granted `admin` — **never** `admin_`
+   - the founder is granted `admin` - **never** `admin_`
 3. They sign in at `/login` and land on `/{slug}/dashboard`.
 
 ### DNMS staff manage a customer
@@ -132,7 +132,7 @@ without seeing salaries; a project manager runs projects without either.
 2. Go to `/platform`. The gate is `getPlatformAdminSession()` in the page
    itself: anyone who fails it gets `notFound()` and never reaches a query.
    `proxy.ts` only requires _a_ session for this route, so the page-level check
-   is the whole boundary — do not remove it.
+   is the whole boundary - do not remove it.
 
    Verified by role: `admin_` renders the console; `admin`, `employee` and a
    signed-out visitor do not. Note that `notFound()` here answers with a 200
@@ -142,13 +142,13 @@ without seeing salaries; a project manager runs projects without either.
 3. From there: view companies, change plans, see headcount against the limit.
 
 Deleting a company is `deprovisionTenant(slug)`, which refuses the founding
-tenant and sweeps every tenant-scoped table — the list is discovered from
+tenant and sweeps every tenant-scoped table - the list is discovered from
 Prisma's runtime model list, so a table added later is covered automatically.
 
 ### A customer's admin manages their company
 
 Everything under `/{slug}/...`. They cannot reach `/platform`, and the tenant
-guard means they cannot read another company's rows even by guessing an id — a
+guard means they cannot read another company's rows even by guessing an id - a
 `findUnique` on a real id belonging to another tenant returns `null`.
 
 ### Plans and limits

@@ -284,7 +284,7 @@ export function LeaveRequestTable({
 
               <p className="text-muted-foreground text-xs">
                 {formatDate(request.startDate)}
-                {request.startDate !== request.endDate && <> – {formatDate(request.endDate)}</>}
+                {request.startDate !== request.endDate && <> - {formatDate(request.endDate)}</>}
                 {" · "}
                 {request.totalDays} {request.totalDays === 1 ? "day" : "days"}
               </p>

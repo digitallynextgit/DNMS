@@ -12,7 +12,7 @@ export default function Loading() {
       <PageHeaderSkeleton withActions />
 
       {/* Summary strip: Total · Done · Overdue */}
-      <div className="border-border bg-card rounded-[2px] border">
+      <div className="border-border bg-card rounded-sm border">
         <div className="divide-border grid grid-cols-3 divide-x">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="space-y-2 px-4 py-3">
@@ -36,7 +36,7 @@ export default function Loading() {
       {/* Day-grouped task cards */}
       <div className="space-y-3">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="bg-muted h-14 w-full animate-pulse rounded" />
+          <Skeleton key={i} className="bg-muted h-14 w-full animate-pulse rounded-sm" />
         ))}
       </div>
     </div>

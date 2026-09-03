@@ -56,7 +56,7 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
 
 function StatCardSkeleton() {
   return (
-    <div className="border-border bg-card rounded-[2px] border p-5">
+    <div className="border-border bg-card rounded-sm border p-5">
       <div className="flex items-start justify-between">
         <div className="flex-1 space-y-2">
           <Skeleton className="h-3 w-1/2" />
@@ -70,7 +70,7 @@ function StatCardSkeleton() {
 }
 
 function ChartSkeleton({ height = 280 }: { height?: number }) {
-  return <div className="bg-muted w-full animate-pulse rounded" style={{ height }} />
+  return <div className="bg-muted w-full animate-pulse rounded-sm" style={{ height }} />
 }
 
 export function AdminDashboard() {
@@ -83,7 +83,7 @@ export function AdminDashboard() {
   return (
     <>
       {isError && (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-[2px] border px-4 py-3 text-sm">
+        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-sm border px-4 py-3 text-sm">
           {error?.message ?? "Something went wrong loading the dashboard."}
         </div>
       )}

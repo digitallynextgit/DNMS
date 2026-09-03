@@ -64,7 +64,7 @@ import {
 // The 7 tab bodies are ~4,000 lines combined, but Radix only RENDERS the active
 // one - so statically importing them made every visit download and parse all of
 // them up front. Each now loads on first activation.
-const tabFallback = () => <Skeleton className="mt-4 h-64 rounded" />
+const tabFallback = () => <Skeleton className="mt-4 h-64 rounded-sm" />
 const BrandTab = dynamic(
   () => import("@/features/projects/components/brand-tab").then((m) => m.BrandTab),
   {
@@ -96,7 +96,7 @@ const GoalsTab = dynamic(() => import("@/features/projects").then((m) => m.Goals
 // heavy to sit in this page's eager chunk for the sake of one donut.
 const GoalsOverviewCard = dynamic(
   () => import("@/features/projects").then((m) => m.GoalsOverviewCard),
-  { loading: () => <Skeleton className="h-56 rounded" /> },
+  { loading: () => <Skeleton className="h-56 rounded-sm" /> },
 )
 const SeoTab = dynamic(() => import("@/features/seo").then((m) => m.SeoTab), {
   loading: tabFallback,
@@ -250,33 +250,33 @@ export default function ProjectDetailPage() {
       <div className="space-y-6">
         {/* Header: logo + name/code + status/priority + Edit */}
         <div className="space-y-4 py-4">
-          <Skeleton className="h-3 w-28 rounded" />
+          <Skeleton className="h-3 w-28 rounded-sm" />
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Skeleton className="h-10 w-10 shrink-0 rounded" />
+              <Skeleton className="h-10 w-10 shrink-0 rounded-sm" />
               <div className="space-y-2">
-                <Skeleton className="h-5 w-48 rounded" />
-                <Skeleton className="h-3 w-24 rounded" />
+                <Skeleton className="h-5 w-48 rounded-sm" />
+                <Skeleton className="h-3 w-24 rounded-sm" />
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Skeleton className="h-8 w-24 rounded" />
-              <Skeleton className="h-8 w-28 rounded" />
-              <Skeleton className="h-8 w-16 rounded" />
+              <Skeleton className="h-8 w-24 rounded-sm" />
+              <Skeleton className="h-8 w-28 rounded-sm" />
+              <Skeleton className="h-8 w-16 rounded-sm" />
             </div>
           </div>
         </div>
         {/* Tab bar */}
         <div className="flex flex-wrap items-center gap-2 border-b pb-2">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-8 w-24 rounded" />
+            <Skeleton key={i} className="h-8 w-24 rounded-sm" />
           ))}
         </div>
         {/* Overview stat strip */}
-        <Skeleton className="h-16 w-full rounded" />
+        <Skeleton className="h-16 w-full rounded-sm" />
         {/* Overview body */}
-        <Skeleton className="h-40 w-full rounded" />
-        <Skeleton className="h-64 w-full rounded" />
+        <Skeleton className="h-40 w-full rounded-sm" />
+        <Skeleton className="h-64 w-full rounded-sm" />
       </div>
     )
   }
@@ -308,7 +308,7 @@ export default function ProjectDetailPage() {
         title={project.name}
         titleSuffix={
           <>
-            <span className="bg-muted/50 text-muted-foreground shrink-0 rounded-[2px] border px-2 py-0.5 font-mono text-xs">
+            <span className="bg-muted/50 text-muted-foreground shrink-0 rounded-sm border px-2 py-0.5 font-mono text-xs">
               {project.code}
             </span>
             {/* Who it is for, one click from the client's page. */}

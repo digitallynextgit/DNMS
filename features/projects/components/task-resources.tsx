@@ -116,7 +116,7 @@ export function TaskResources({
                   finish(true)
                 }
               }}
-              className="border-border focus:border-primary min-w-0 flex-1 rounded-[2px] border bg-transparent px-1 py-0.5 text-[10px] outline-none"
+              className="border-border focus:border-primary min-w-0 flex-1 rounded-sm border bg-transparent px-1 py-0.5 text-[10px] outline-none"
               placeholder="https://…"
               aria-label={`Resource ${i + 1}`}
             />
@@ -125,7 +125,7 @@ export function TaskResources({
                 type="button"
                 onClick={() => removeRow(i)}
                 aria-label={`Remove resource ${i + 1}`}
-                className="text-muted-foreground/50 hover:text-destructive shrink-0 rounded-[2px] outline-none"
+                className="text-muted-foreground/50 hover:text-destructive shrink-0 rounded-sm outline-none"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -151,7 +151,7 @@ export function TaskResources({
           rel="noopener noreferrer"
           title={url}
           onClick={(e) => e.stopPropagation()}
-          className="bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground inline-flex max-w-full items-center gap-1 rounded-[2px] px-1 py-0.5 text-[10px] transition-colors"
+          className="bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground inline-flex max-w-full items-center gap-1 rounded-sm px-1 py-0.5 text-[10px] transition-colors"
         >
           <LinkIcon className="h-2.5 w-2.5 shrink-0" />
           <span className="truncate">{linkLabel(url)}</span>
@@ -164,13 +164,13 @@ export function TaskResources({
             e.stopPropagation()
             begin()
           }}
-          className="text-muted-foreground/40 hover:text-foreground focus-visible:ring-primary/60 rounded-[2px] px-0.5 text-[10px] outline-none focus-visible:ring-2"
+          className="text-muted-foreground/40 hover:text-foreground focus-visible:ring-primary/60 rounded-sm px-0.5 text-[10px] outline-none focus-visible:ring-2"
           aria-label={links.length > 0 ? "Edit resources" : "Add a resource link"}
         >
           {links.length > 0 ? "edit" : "add…"}
         </button>
       )}
-      {!canEdit && links.length === 0 && <span className="text-muted-foreground/40">–</span>}
+      {!canEdit && links.length === 0 && <span className="text-muted-foreground/40">-</span>}
     </span>
   )
 }

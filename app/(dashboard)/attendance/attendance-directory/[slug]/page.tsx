@@ -109,7 +109,7 @@ export default function EmployeeAttendancePage() {
               size="md"
             />
           ) : (
-            <Skeleton className="h-10 w-10 shrink-0 rounded" />
+            <Skeleton className="h-10 w-10 shrink-0 rounded-sm" />
           )
         }
         title={employee ? fullName : <Skeleton className="h-6 w-40" />}
@@ -165,7 +165,7 @@ export default function EmployeeAttendancePage() {
       </div>
 
       {isLoading || empLoading ? (
-        <div className="bg-card flex h-72 items-center justify-center rounded-[2px] border">
+        <div className="bg-card flex h-72 items-center justify-center rounded-sm border">
           <Spinner size="lg" className="text-muted-foreground" />
         </div>
       ) : (

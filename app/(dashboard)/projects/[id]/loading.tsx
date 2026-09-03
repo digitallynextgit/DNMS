@@ -14,7 +14,7 @@ export default function Loading() {
         <Skeleton className="bg-muted h-3 w-28 animate-pulse" />
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Skeleton className="bg-muted h-10 w-10 shrink-0 animate-pulse rounded" />
+            <Skeleton className="bg-muted h-10 w-10 shrink-0 animate-pulse rounded-sm" />
             <div className="space-y-2">
               <Skeleton className="bg-muted h-5 w-48 animate-pulse" />
               <Skeleton className="bg-muted h-3 w-24 animate-pulse" />
@@ -31,12 +31,12 @@ export default function Loading() {
       {/* Tab bar */}
       <div className="border-border flex flex-wrap items-center gap-2 border-b pb-2">
         {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="bg-muted h-8 w-24 animate-pulse rounded" />
+          <Skeleton key={i} className="bg-muted h-8 w-24 animate-pulse rounded-sm" />
         ))}
       </div>
 
       {/* Overview: stat strip */}
-      <div className="border-border bg-card rounded-[2px] border">
+      <div className="border-border bg-card rounded-sm border">
         <div className="divide-border grid grid-cols-2 divide-x sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="space-y-2 px-4 py-3">
@@ -48,7 +48,7 @@ export default function Loading() {
       </div>
 
       {/* Account manager + info card */}
-      <div className="border-border bg-card space-y-4 rounded-[2px] border p-5">
+      <div className="border-border bg-card space-y-4 rounded-sm border p-5">
         <div className="space-y-2">
           <Skeleton className="bg-muted h-3 w-32 animate-pulse" />
           <div className="flex items-center gap-3">
@@ -66,7 +66,7 @@ export default function Loading() {
       </div>
 
       {/* Progress overview chart */}
-      <Skeleton className="bg-muted h-64 w-full animate-pulse rounded" />
+      <Skeleton className="bg-muted h-64 w-full animate-pulse rounded-sm" />
     </div>
   )
 }

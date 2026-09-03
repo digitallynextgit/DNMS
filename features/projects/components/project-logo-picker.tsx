@@ -110,8 +110,8 @@ export function ProjectLogoPicker({
           "flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden",
           // Only the empty/loading states get a tile. Once a logo is chosen the
           // preview shows it bare, matching how it renders on the cards.
-          !preview && "bg-muted rounded-[2px] border border-dashed",
-          busy && "bg-muted rounded-[2px] border",
+          !preview && "bg-muted rounded-sm border border-dashed",
+          busy && "bg-muted rounded-sm border",
         )}
       >
         {busy ? (

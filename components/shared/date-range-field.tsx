@@ -144,7 +144,7 @@ export function DateRangeField({
                     setDraft({ preset: p.key, from: r?.from ?? null, to: r?.to ?? null })
                   }}
                   className={cn(
-                    "hover:bg-muted flex w-full items-center gap-2 rounded-[2px] px-2 py-1.5 text-left text-sm",
+                    "hover:bg-muted flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm",
                     active && "font-medium",
                   )}
                 >

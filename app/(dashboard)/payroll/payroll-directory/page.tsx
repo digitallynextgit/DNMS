@@ -271,7 +271,7 @@ export default function PayrollPage() {
                   <p className="mt-1 text-3xl font-bold">{summary?.employeeCount ?? 0}</p>
                 )}
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-[2px] bg-blue-50 dark:bg-blue-950/40">
+              <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-blue-50 dark:bg-blue-950/40">
                 <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
@@ -289,7 +289,7 @@ export default function PayrollPage() {
                   <p className="mt-1 text-2xl font-bold">{fmt(summary?.totalGross ?? 0)}</p>
                 )}
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-[2px] bg-emerald-50 dark:bg-emerald-950/40">
+              <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-emerald-50 dark:bg-emerald-950/40">
                 <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
@@ -309,7 +309,7 @@ export default function PayrollPage() {
                   </p>
                 )}
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-[2px] bg-violet-50 dark:bg-violet-950/40">
+              <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-violet-50 dark:bg-violet-950/40">
                 <DollarSign className="h-5 w-5 text-violet-600 dark:text-violet-400" />
               </div>
             </div>
@@ -327,12 +327,12 @@ export default function PayrollPage() {
             <span
               key={s}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-[2px] px-3 py-1 text-xs font-medium",
+                "inline-flex items-center gap-1.5 rounded-sm px-3 py-1 text-xs font-medium",
                 color,
               )}
             >
               {summaryLoading ? (
-                <Skeleton className="h-3 w-3 rounded" />
+                <Skeleton className="h-3 w-3 rounded-sm" />
               ) : (
                 <span className="font-bold">{statusCount}</span>
               )}

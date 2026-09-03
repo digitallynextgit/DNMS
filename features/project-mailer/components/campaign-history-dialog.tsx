@@ -204,7 +204,7 @@ export function CampaignHistoryDialog({
           {isPending ? (
             <div className="space-y-1 p-2">
               {[0, 1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-9 rounded" />
+                <Skeleton key={i} className="h-9 rounded-sm" />
               ))}
             </div>
           ) : rows.length === 0 ? (

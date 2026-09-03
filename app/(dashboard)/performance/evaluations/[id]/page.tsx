@@ -57,7 +57,7 @@ function Rating({
           title={RATING_LABELS[n - 1]}
           onClick={() => onChange?.(n)}
           className={cn(
-            "h-7 w-7 rounded-[2px] border text-xs font-semibold transition-colors",
+            "h-7 w-7 rounded-sm border text-xs font-semibold transition-colors",
             value === n
               ? "border-primary bg-primary text-primary-foreground"
               : "border-border bg-muted/30 text-muted-foreground",
@@ -256,7 +256,7 @@ function SidePanelSkeleton({ title, accent }: { title: string; accent: string })
                   </div>
                   <div className="flex gap-1">
                     {Array.from({ length: 5 }).map((_, n) => (
-                      <Skeleton key={n} className="h-7 w-7 rounded" />
+                      <Skeleton key={n} className="h-7 w-7 rounded-sm" />
                     ))}
                   </div>
                   <Skeleton className="h-4 w-6" />

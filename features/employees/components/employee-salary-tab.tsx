@@ -134,7 +134,7 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
         </div>
 
         {structuresLoading ? (
-          <Skeleton className="h-48 rounded" />
+          <Skeleton className="h-48 rounded-sm" />
         ) : !structure ? (
           <Card className="border-dashed">
             <CardContent className="py-10 text-center">
@@ -234,7 +234,7 @@ export function EmployeeSalaryTab({ employeeId }: EmployeeSalaryTabProps) {
         {payrollLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 rounded" />
+              <Skeleton key={i} className="h-14 rounded-sm" />
             ))}
           </div>
         ) : payslips.length === 0 ? (

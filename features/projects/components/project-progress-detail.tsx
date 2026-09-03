@@ -74,12 +74,12 @@ function StatusBar({ b }: { b: ProgressBucket }) {
     <div className="space-y-1.5">
       {/* Wide segments carry their own percentage; a narrow one would only
           collide with its own label, so those fall back to the legend. */}
-      <div className="bg-muted flex h-5 w-full gap-0.5 overflow-hidden rounded-[2px]">
+      <div className="bg-muted flex h-5 w-full gap-0.5 overflow-hidden rounded-sm">
         {seg.map((s) => (
           <div
             key={s.label}
             className={cn(
-              "flex items-center justify-center rounded-[2px] text-[10px] font-medium text-white",
+              "flex items-center justify-center rounded-sm text-[10px] font-medium text-white",
               s.cls,
             )}
             style={{ width: `${share(s.n)}%` }}
@@ -92,7 +92,7 @@ function StatusBar({ b }: { b: ProgressBucket }) {
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {seg.map((s) => (
           <span key={s.label} className="text-muted-foreground flex items-center gap-1 text-[11px]">
-            <span className={cn("h-2 w-2 rounded-[2px]", s.cls)} />
+            <span className={cn("h-2 w-2 rounded-sm", s.cls)} />
             {s.label} {s.n}
             <span className="opacity-70">({share(s.n)}%)</span>
           </span>
@@ -134,7 +134,7 @@ function StatusDonut({ b }: { b: ProgressBucket }) {
         <Tooltip
           content={({ active, payload }) =>
             active && payload?.length ? (
-              <div className="bg-popover rounded border p-2 text-xs shadow-md">
+              <div className="bg-popover rounded-sm border p-2 text-xs shadow-md">
                 <p className="font-medium">{String(payload[0]!.name)}</p>
                 <p className="text-muted-foreground">
                   {payload[0]!.value} tasks ·{" "}
@@ -245,7 +245,7 @@ export function ProjectProgressDetail({
         <HeadStat
           label="Overdue"
           value={String(summary.overdue)}
-          sub={summary.overdue === 0 ? "nothing past its due date" : "open and past due"}
+          sub={summary.overdue === 0 ? "nothing past its due date" : "past due, unfinished"}
           icon={AlertTriangle}
           tone={summary.overdue === 0 ? "good" : "bad"}
         />
@@ -279,12 +279,12 @@ export function ProjectProgressDetail({
                 <div key={w.weekStart} className="flex flex-1 flex-col items-center gap-1">
                   <div className="flex h-20 w-full items-end justify-center gap-0.5">
                     <div
-                      className="w-1/2 rounded-t bg-emerald-500"
+                      className="w-1/2 rounded-t-sm bg-emerald-500"
                       style={{ height: `${(w.completed / peakWeek) * 100}%` }}
                       title={`${w.completed} completed`}
                     />
                     <div
-                      className="bg-muted-foreground/30 w-1/2 rounded-t"
+                      className="bg-muted-foreground/30 w-1/2 rounded-t-sm"
                       style={{ height: `${(w.due / peakWeek) * 100}%` }}
                       title={`${w.due} due`}
                     />

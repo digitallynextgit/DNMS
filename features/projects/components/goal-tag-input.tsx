@@ -95,7 +95,7 @@ export function GoalTagInput({
   return (
     <div
       className={cn(
-        "border-input bg-background flex min-h-9 flex-wrap items-center gap-1.5 rounded-[4px] border px-2 py-1.5",
+        "border-input bg-background flex min-h-9 flex-wrap items-center gap-1.5 rounded-sm border px-2 py-1.5",
         "focus-within:border-ring focus-within:ring-ring/30 focus-within:ring-2",
         className,
       )}

@@ -147,7 +147,7 @@ export function StorageManager({
           <div className="flex items-center gap-2.5">
             <div
               className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded",
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-sm",
                 CATEGORY_META[f.category].tint,
               )}
             >
@@ -185,7 +185,7 @@ export function StorageManager({
             target="_blank"
             rel="noreferrer"
             title="View"
-            className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded-sm"
           >
             <Eye className="h-4 w-4" />
           </a>
@@ -193,7 +193,7 @@ export function StorageManager({
             href={`/api/admin/storage/object?key=${encodeURIComponent(f.key)}&download=1`}
             download={f.name}
             title="Download"
-            className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded-sm"
           >
             <Download className="h-4 w-4" />
           </a>
@@ -201,7 +201,7 @@ export function StorageManager({
             type="button"
             title="Delete"
             onClick={() => setDeleteTarget(f)}
-            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex h-8 w-8 items-center justify-center rounded"
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex h-8 w-8 items-center justify-center rounded-sm"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -244,7 +244,7 @@ export function StorageManager({
       />
 
       {/* Usage gauge */}
-      <div className="bg-card rounded-[2px] border p-5">
+      <div className="bg-card rounded-sm border p-5">
         <div className="mb-2 flex items-end justify-between">
           <div>
             <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
@@ -323,13 +323,13 @@ export function StorageManager({
           placeholder="Search files or owner..."
           className="max-w-xs"
         />
-        <div className="bg-card inline-flex items-center rounded-[2px] border p-0.5 text-xs">
+        <div className="bg-card inline-flex items-center rounded-sm border p-0.5 text-xs">
           {(["all", "live", "orphan"] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStatus(s)}
               className={cn(
-                "rounded-[2px] px-2.5 py-1 font-medium transition-colors",
+                "rounded-sm px-2.5 py-1 font-medium transition-colors",
                 status === s
                   ? "bg-muted text-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -420,11 +420,11 @@ function FolderCard({
     <button
       onClick={onClick}
       className={cn(
-        "bg-card flex items-center gap-3 rounded-[2px] border p-3 text-left transition-colors",
+        "bg-card flex items-center gap-3 rounded-sm border p-3 text-left transition-colors",
         active ? "border-primary ring-primary/30 ring-1" : "hover:bg-muted/40",
       )}
     >
-      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded", tint)}>
+      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-sm", tint)}>
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">

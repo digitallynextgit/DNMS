@@ -82,7 +82,7 @@ export function FormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("rounded", SIZES[size], contentClassName)}>
+      <DialogContent className={cn("rounded-sm", SIZES[size], contentClassName)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

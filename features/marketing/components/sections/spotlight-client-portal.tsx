@@ -36,7 +36,7 @@ const NAV: { key: ViewKey; icon: LucideIcon; label: string; title: string; badge
   { key: "activity", icon: Activity, label: "Activity", title: "Activity", badge: "Live" },
 ]
 
-const rowBase = "border-border/70 bg-card flex flex-1 items-center gap-2 rounded-[6px] border p-1.5"
+const rowBase = "border-border/70 bg-card flex flex-1 items-center gap-2 rounded-sm border p-1.5"
 const badge = "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium whitespace-nowrap"
 
 function ProductsView() {
@@ -55,7 +55,7 @@ function ProductsView() {
     <>
       {rows.map(([name, cat, price, stock]) => (
         <div key={name} className={rowBase}>
-          <span className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px]">
+          <span className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-sm">
             <ImageIcon className="text-muted-foreground/50 h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
@@ -84,7 +84,7 @@ function ChannelsView() {
     <>
       {rows.map(([name, channel, status, tone]) => (
         <div key={name} className={rowBase}>
-          <span className="bg-muted text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px]">
+          <span className="bg-muted text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-sm">
             <Store className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
@@ -142,7 +142,7 @@ function CampaignsView() {
       {rows.map(([name, meta, open]) => (
         <div key={name} className={rowBase}>
           <span
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px]"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm"
             style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
           >
             <Mail className="h-4 w-4" />
@@ -197,13 +197,13 @@ function ClientPortalVisual() {
   const current = NAV.find((n) => n.key === view)!
 
   return (
-    <div className="border-border bg-background flex h-full overflow-hidden rounded-[6px] border shadow-xl">
+    <div className="border-border bg-background flex h-full overflow-hidden rounded-sm border shadow-xl">
       {/* sidebar */}
       <div className="border-border/70 bg-card/40 flex w-[116px] shrink-0 flex-col border-r p-2 sm:w-[136px]">
         {/* project switcher */}
-        <button className="border-border/70 bg-card mb-3 flex items-center gap-1.5 rounded-[6px] border px-1.5 py-1.5 text-left">
+        <button className="border-border/70 bg-card mb-3 flex items-center gap-1.5 rounded-sm border px-1.5 py-1.5 text-left">
           <span
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] text-[9px] font-bold text-white"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-[9px] font-bold text-white"
             style={{ backgroundColor: BRAND_RED }}
           >
             A
@@ -227,7 +227,7 @@ function ClientPortalVisual() {
                 type="button"
                 onClick={() => setView(item.key)}
                 className={cn(
-                  "relative flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-left text-[10px] transition-colors",
+                  "relative flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[10px] transition-colors",
                   active ? "font-medium" : "text-muted-foreground hover:text-foreground",
                 )}
                 style={

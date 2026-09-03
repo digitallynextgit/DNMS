@@ -73,7 +73,7 @@ function AttendanceVisual() {
   return (
     <div className="flex h-full flex-col gap-3 sm:flex-row">
       {/* scanner */}
-      <div className="border-border bg-background relative flex flex-1 flex-col items-center justify-center overflow-hidden rounded-[6px] border p-6">
+      <div className="border-border bg-background relative flex flex-1 flex-col items-center justify-center overflow-hidden rounded-sm border p-6">
         <div className="text-primary relative">
           <span className="border-primary/40 animate-dnms-pulse-ring absolute inset-0 rounded-full border" />
           <span className="bg-primary/10 flex h-20 w-20 items-center justify-center rounded-full">
@@ -84,7 +84,7 @@ function AttendanceVisual() {
         <div className="text-muted-foreground mt-4 text-xs">Scanning · ISAPI</div>
       </div>
       {/* live rows */}
-      <div className="border-border bg-background flex flex-1 flex-col rounded-[6px] border p-3">
+      <div className="border-border bg-background flex flex-1 flex-col rounded-sm border p-3">
         <div className="text-muted-foreground mb-1 flex items-center justify-between gap-2 text-[10px] font-medium uppercase">
           <span className="flex items-center gap-1.5">
             <span>{snap ? snap.day : "Today"}</span>
@@ -109,7 +109,7 @@ function AttendanceVisual() {
               <span className="text-muted-foreground text-right tabular-nums">{time}</span>
               <span
                 className={cn(
-                  "justify-self-end rounded-[6px] px-1.5 py-0.5 text-[10px] font-medium",
+                  "justify-self-end rounded-sm px-1.5 py-0.5 text-[10px] font-medium",
                   TONE[status] ?? "text-muted-foreground bg-muted",
                 )}
               >

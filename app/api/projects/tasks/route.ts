@@ -63,23 +63,30 @@ export const GET = withSession(
     const todayStart = new Date()
     todayStart.setUTCHours(0, 0, 0, 0)
 
-    // Mirrors the SQL predicates in the performance route, expressed as
-    // exclusions rather than inclusions so a legacy CANCELLED row lands in the
-    // same bucket on both sides: OPEN is "not done, not discarded, not on
-    // hold"; LATE is a due date before today.
-    const CLOSED = ["DONE", "DISCARDED", "ON_HOLD"] as const
+    // Mirrors the performance route's predicates exactly - if these two ever
+    // disagree, a slice of N opens a list of M.
+    //
+    // CLOSED is "finished or dropped": the only states that can never be
+    // overdue. Being on hold does NOT exempt a task - it was promised for a
+    // date that has passed, so it is late like any other.
+    const CLOSED = ["DONE", "DISCARDED", "CANCELLED"] as const
     const notLate: Prisma.ProjectTaskWhereInput = {
       OR: [{ dueDate: null }, { dueDate: { gte: todayStart } }],
     }
     const byState: Record<State, Prisma.ProjectTaskWhereInput> = {
       overdue: { status: { notIn: [...CLOSED] }, dueDate: { lt: todayStart } },
-      todo: { status: { notIn: [...CLOSED, "IN_PROGRESS", "IN_REVIEW"] }, ...notLate },
+      // The three live buckets exclude anything late, so overdue owns those
+      // rows outright and the five states stay mutually exclusive.
+      todo: {
+        status: { notIn: [...CLOSED, "ON_HOLD", "IN_PROGRESS", "IN_REVIEW"] },
+        ...notLate,
+      },
       progress: { status: { in: ["IN_PROGRESS", "IN_REVIEW"] }, ...notLate },
-      hold: { status: "ON_HOLD" },
+      hold: { status: "ON_HOLD", ...notLate },
       done: { status: "DONE" },
-      // "Open" on the tile = pending = assigned minus completed minus discarded,
-      // which INCLUDES on-hold work. Not the same set as OPEN above.
-      open: { status: { notIn: ["DONE", "DISCARDED"] } },
+      // "Open" on the tile = pending = assigned minus completed minus dropped,
+      // so it spans overdue, todo, progress AND hold.
+      open: { status: { notIn: [...CLOSED] } },
       all: {},
     }
 

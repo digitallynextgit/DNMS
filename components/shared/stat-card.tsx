@@ -32,7 +32,7 @@ export function StatCard({
   const isPositive = trend ? trend.value >= 0 : true
 
   return (
-    <Card className={cn("border-border bg-card rounded-[2px] border", className)}>
+    <Card className={cn("border-border bg-card rounded-sm border", className)}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-2">
@@ -65,10 +65,7 @@ export function StatCard({
               it stays a plain muted glyph. */}
           {iconBg ? (
             <div
-              className={cn(
-                "flex h-9 w-9 shrink-0 items-center justify-center rounded-[2px]",
-                iconBg,
-              )}
+              className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-sm", iconBg)}
             >
               <Icon className={cn("h-4 w-4", iconColor ?? "text-muted-foreground")} />
             </div>

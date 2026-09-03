@@ -121,7 +121,7 @@ export function SignupForm() {
                   aria-label="Acme Media"
                   autoComplete="organization"
                   disabled={isSubmitting}
-                  className="h-11 rounded-[6px]"
+                  className="h-11 rounded-sm"
                   {...field}
                 />
               </FormControl>
@@ -137,7 +137,7 @@ export function SignupForm() {
             <FormItem className="space-y-2.5">
               <FormLabel className="mb-2 block text-sm font-medium">Workspace address</FormLabel>
               <FormControl>
-                <div className="border-input focus-within:ring-ring flex h-11 items-center rounded-[6px] border focus-within:ring-1">
+                <div className="border-input focus-within:ring-ring flex h-11 items-center rounded-sm border focus-within:ring-1">
                   <span className="text-muted-foreground pl-3 text-sm select-none">
                     dnms.digitallynext.com/
                   </span>
@@ -181,7 +181,7 @@ export function SignupForm() {
                   <Input
                     autoComplete="given-name"
                     disabled={isSubmitting}
-                    className="h-11 rounded-[6px]"
+                    className="h-11 rounded-sm"
                     {...field}
                   />
                 </FormControl>
@@ -199,7 +199,7 @@ export function SignupForm() {
                   <Input
                     autoComplete="family-name"
                     disabled={isSubmitting}
-                    className="h-11 rounded-[6px]"
+                    className="h-11 rounded-sm"
                     {...field}
                   />
                 </FormControl>
@@ -222,7 +222,7 @@ export function SignupForm() {
                   aria-label="you@yourcompany.com"
                   autoComplete="email"
                   disabled={isSubmitting}
-                  className="h-11 rounded-[6px]"
+                  className="h-11 rounded-sm"
                   {...field}
                 />
               </FormControl>
@@ -245,7 +245,7 @@ export function SignupForm() {
                     aria-label="At least 8 characters"
                     autoComplete="new-password"
                     disabled={isSubmitting}
-                    className="h-11 rounded-[6px] pr-10"
+                    className="h-11 rounded-sm pr-10"
                     {...field}
                   />
                   <button
@@ -266,7 +266,7 @@ export function SignupForm() {
 
         <Button
           type="submit"
-          className="h-11 w-full rounded-[6px] text-sm"
+          className="h-11 w-full rounded-sm text-sm"
           disabled={isSubmitting || slugState.available === false}
           loading={isSubmitting}
         >

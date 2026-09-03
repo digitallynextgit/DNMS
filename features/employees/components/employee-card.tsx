@@ -44,7 +44,7 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
   const onProbation = isOnProbation(employee)
 
   return (
-    <Card className="group border-border bg-card relative overflow-hidden rounded-[2px] border">
+    <Card className="group border-border bg-card relative overflow-hidden rounded-sm border">
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
@@ -124,7 +124,7 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
 
         {employee.department?.name && (
           <div className="mt-3">
-            <span className="bg-accent text-foreground inline-flex items-center rounded-[2px] px-1.5 py-0.5 text-xs font-medium">
+            <span className="bg-accent text-foreground inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs font-medium">
               {employee.department.name}
             </span>
           </div>

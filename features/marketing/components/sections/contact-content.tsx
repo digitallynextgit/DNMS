@@ -42,9 +42,9 @@ export function ContactContent() {
       <div className="relative mx-auto max-w-[1600px] px-4 pt-28 pb-24 sm:px-6 lg:pt-32">
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <Reveal>
-          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-[6px] border py-1 pr-3 pl-1 text-xs">
+          <span className="border-border/70 bg-card/70 inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs">
             <span
-              className="inline-flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[11px] font-semibold"
+              className="inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[11px] font-semibold"
               style={{ backgroundColor: "rgba(239,68,68,0.12)", color: BRAND_RED }}
             >
               <MessageSquare className="h-3 w-3" />
@@ -79,7 +79,7 @@ export function ContactContent() {
         {/* ── Form + channels ────────────────────────────────────────────── */}
         <div className="mt-14 grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:gap-16 xl:gap-24">
           <Reveal>
-            <div className="border-border/70 bg-card/50 rounded-[6px] border p-6 sm:p-8">
+            <div className="border-border/70 bg-card/50 rounded-sm border p-6 sm:p-8">
               <h2 className="text-lg font-semibold">Send us a message</h2>
               <p className="text-muted-foreground mt-1.5 text-sm">
                 Most messages get a reply within one business day.
@@ -99,7 +99,7 @@ export function ContactContent() {
                     <li key={title}>
                       <a
                         href={href}
-                        className="border-border/70 bg-card/50 hover:border-border block rounded-[6px] border p-4 transition-colors"
+                        className="border-border/70 bg-card/50 hover:border-border block rounded-sm border p-4 transition-colors"
                       >
                         <span className="flex items-center gap-2.5">
                           <Icon className="h-4 w-4 shrink-0" style={{ color: BRAND_RED }} />
