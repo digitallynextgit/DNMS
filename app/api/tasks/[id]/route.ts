@@ -11,7 +11,7 @@ import {
   canRemoveUntouchedFollowUp,
   type ResumeTaskResult,
 } from "@/features/projects/server/task-hold.service"
-import { pauseOtherRunningTasks } from "@/features/projects/server/task-clock.service"
+import { settleRunningTasks } from "@/features/projects/server/task-clock.service"
 import { diffTaskFields } from "@/features/projects/server/task-audit"
 import { dedupeLinks, isSafeHttpUrl } from "@/features/projects/lib/task-links"
 import { formatHours } from "@/features/projects/lib/format-hours"
@@ -160,6 +160,8 @@ export const PATCH = withSession(
       }
 
       const data: Record<string, unknown> = {}
+      /** Whether THIS task's clock starts, stops, or is untouched by this PATCH. */
+      let clockAction: "start" | "stop" | null = null
       if (title !== undefined) data.title = title
       if (description !== undefined) data.description = description
       if (status !== undefined) {
@@ -168,18 +170,17 @@ export const PATCH = withSession(
 
         // Time spent is MEASURED, not typed in: the clock starts the moment a
         // task enters In Progress and the elapsed stretch is banked into
-        // loggedHours when it leaves. A task can be started and paused any
+        // loggedHours when it leaves. A task can be started and stopped any
         // number of times; each stretch adds to the total.
+        //
+        // ANY NUMBER OF A PERSON'S TASKS MAY RUN AT ONCE. The banking itself is
+        // done by settleRunningTasks inside the transaction below, which pays
+        // every running clock its share of the stretch just ended - see
+        // task-clock.service.ts. All this branch decides is whether THIS task's
+        // clock is running afterwards.
         if (status !== auth.task.status) {
-          if (status === "IN_PROGRESS") {
-            data.inProgressSince = new Date()
-          } else if (auth.task.inProgressSince) {
-            const elapsedHours = (Date.now() - auth.task.inProgressSince.getTime()) / 3_600_000
-            // Round to the second so repeated start/stop cycles cannot drift.
-            data.loggedHours =
-              Math.round((auth.task.loggedHours + Math.max(0, elapsedHours)) * 3600) / 3600
-            data.inProgressSince = null
-          }
+          if (status === "IN_PROGRESS") clockAction = "start"
+          else if (auth.task.inProgressSince) clockAction = "stop"
         }
 
         if (status === "ON_HOLD") {
@@ -265,7 +266,28 @@ export const PATCH = withSession(
       // The task row and its status history move together: a recorded status
       // with no period (or the reverse) would make every duration wrong from
       // that point on.
-      const { task, resumeTask, removedResume, pausedTasks } = await db.$transaction(async (tx) => {
+      const { task, resumeTask, removedResume, sharedTasks } = await db.$transaction(async (tx) => {
+        // ── Settle BEFORE the status moves ──────────────────────────────────
+        // Every running clock is paid its share of the stretch that is ending,
+        // at the rate that applied while it ran. Doing it first is what makes
+        // the arithmetic exact: after this line every running task (including
+        // this one, if it was running) is banked and restarted from `now`, so
+        // starting or stopping below is a clean cut. See task-clock.service.ts.
+        const now = new Date()
+        const sharedTasks =
+          clockAction === null
+            ? []
+            : await settleRunningTasks(tx, {
+                assigneeId: auth.task.assigneeId,
+                actorId: session.user.id,
+                at: now,
+              })
+
+        // Now this task's own clock. Several of a person's tasks may run at
+        // once; starting one does NOT stop the others.
+        if (clockAction === "start") data.inProgressSince = now
+        else if (clockAction === "stop") data.inProgressSince = null
+
         const updated = await tx.projectTask.update({
           where: { id: ctx.params.id },
           data,
@@ -273,19 +295,6 @@ export const PATCH = withSession(
             assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
           },
         })
-
-        // ONE CLOCK PER PERSON. Starting this task stops whatever else they had
-        // running, banking its stretch on the way out. Without this two tasks
-        // both sat In Progress and both billed the same wall-clock hours - a
-        // 6h 33m morning booked as 13h 6m. See task-clock.service.ts.
-        const pausedTasks =
-          statusChanged && updated.status === "IN_PROGRESS"
-            ? await pauseOtherRunningTasks(tx, {
-                assigneeId: updated.assigneeId,
-                exceptTaskId: updated.id,
-                actorId: session.user.id,
-              })
-            : []
 
         if (statusChanged) {
           await recordStatusChange(tx, {
@@ -319,7 +328,7 @@ export const PATCH = withSession(
           // into a future week.
           removedResume = await removeResumeTaskIfPristine(tx, updated.id)
         }
-        return { task: updated, resumeTask: resume, removedResume, pausedTasks }
+        return { task: updated, resumeTask: resume, removedResume, sharedTasks }
       })
 
       // Before AND after, not just the new value: "who moved the deadline, and
@@ -425,12 +434,12 @@ export const PATCH = withSession(
         })
       }
 
-      // Returned so the client can say what stopped. A task that moves itself
-      // out of In Progress without a word is worse than the double-count it
-      // prevents: the person cannot tell whether their time was recorded.
+      // Returned so the client can say the stretch was SHARED. Time landing on
+      // a task at half rate, with nothing on screen explaining why, is the kind
+      // of thing people only notice at the end of the month.
       return NextResponse.json({
         data: task,
-        ...(pausedTasks.length > 0 ? { pausedTasks } : {}),
+        ...(sharedTasks.length > 0 ? { sharedTasks } : {}),
       })
     } catch (error) {
       console.error("[TASK_PATCH]", error)

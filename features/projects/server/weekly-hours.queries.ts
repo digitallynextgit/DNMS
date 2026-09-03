@@ -170,10 +170,23 @@ export async function getWeeklyHours(
     leaveByPerson.set(l.employeeId, set)
   }
 
-  /** Banked time plus the stretch currently running - the sheet's "spent". */
+  // How many clocks each person has running right now. Concurrent tasks SHARE
+  // the clock (see task-clock.service.ts), so the in-flight stretch has to be
+  // divided the same way the banked one will be - otherwise the sheet reads two
+  // hours for one hour of somebody's morning until the next settle, and then
+  // quietly halves itself when they stop.
+  const runningPerPerson = new Map<string, number>()
+  for (const t of tasks) {
+    if (t.inProgressSince && t.assigneeId) {
+      runningPerPerson.set(t.assigneeId, (runningPerPerson.get(t.assigneeId) ?? 0) + 1)
+    }
+  }
+
+  /** Banked time plus this task's share of the stretch running - the sheet's "spent". */
   const spent = (t: (typeof tasks)[number]) => {
+    const share = t.assigneeId ? (runningPerPerson.get(t.assigneeId) ?? 1) : 1
     const live = t.inProgressSince
-      ? Math.max(0, Date.now() - t.inProgressSince.getTime()) / 3_600_000
+      ? Math.max(0, Date.now() - t.inProgressSince.getTime()) / 3_600_000 / share
       : 0
     return (t.loggedHours ?? 0) + live
   }

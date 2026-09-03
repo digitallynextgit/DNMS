@@ -549,18 +549,23 @@ export function useUpdateTask() {
       }),
     onSuccess: (data, variables) => {
       invalidate()
-      // Starting a task stops whatever else was running, so the person is told
-      // which one and how much it banked. Silent updates stay silent for the
-      // "Updated" toast, but never for this: time moving on a task they did not
-      // touch is the one thing they must not discover from a report next month.
-      const paused = (data as { pausedTasks?: { title: string; bankedHours: number }[] } | null)
-        ?.pausedTasks
-      if (paused?.length) {
-        for (const p of paused) {
-          toast.info(`Paused "${p.title}"`, {
-            description: `${formatHours(p.bankedHours)} logged. One task runs at a time.`,
-          })
-        }
+      // Several tasks may run at once, and while they do they SHARE the clock -
+      // so the stretch just ended was split between them. Said once, plainly,
+      // because time landing at half rate is otherwise only noticeable in a
+      // report next month. Silent updates stay silent for the "Updated" toast
+      // but never for this.
+      const shared = (
+        data as {
+          sharedTasks?: { title: string; creditedHours: number; sharedWith: number }[]
+        } | null
+      )?.sharedTasks
+      if (shared?.length) {
+        const n = shared[0]!.sharedWith
+        toast.info(`Time split across ${n} tasks`, {
+          description: shared
+            .map((s) => `${s.title}: +${formatHours(s.creditedHours)}`)
+            .join(" · "),
+        })
       }
       if (!variables.silent) toast.success("Updated")
     },
