@@ -28,7 +28,7 @@ export default async function PortalProjectLayout({
 }) {
   const { projectRef } = await params
   const session = await auth()
-  if (!session || session.user.kind !== "client") redirect("/client-login")
+  if (!session || session.user.kind !== "client") redirect("/login")
 
   const grants = await listClientGrants(session.user.id)
   const current = grants.find((g) => g.projectRef === projectRef || g.projectId === projectRef)

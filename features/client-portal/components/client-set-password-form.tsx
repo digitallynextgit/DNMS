@@ -63,7 +63,7 @@ export function ClientSetPasswordForm() {
     // NextAuth mints a fresh JWT carrying mustChangePassword=false.
     const email = session?.user?.email
     const reauth = email
-      ? await signIn("client-credentials", {
+      ? await signIn("credentials", {
           email,
           password: values.newPassword,
           redirect: false,
@@ -75,7 +75,7 @@ export function ClientSetPasswordForm() {
     // Drop them at the login screen instead, where the new password works.
     if (!reauth?.ok) {
       toast.success("Password updated - please sign in with your new password")
-      await signOut({ callbackUrl: "/client-login" })
+      await signOut({ callbackUrl: "/login" })
       return
     }
 
@@ -141,7 +141,7 @@ export function ClientSetPasswordForm() {
             way off it. */}
         <button
           type="button"
-          onClick={() => signOut({ callbackUrl: "/client-login" })}
+          onClick={() => signOut({ callbackUrl: "/login" })}
           className="text-muted-foreground hover:text-foreground mx-auto block text-xs"
         >
           Sign out

@@ -10,6 +10,8 @@ import { resolveProjectId, canAccessProject } from "./project-access"
 export interface ListProjectsOptions {
   status?: string
   mine?: boolean
+  /** Only projects delivered for this client. */
+  clientId?: string
   page?: number | string | null
   limit?: number | string | null
 }
@@ -33,6 +35,7 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
   // feature would otherwise be invisible with no way to bring it back.
   const where: Record<string, unknown> = {}
   if (status) where.status = status
+  if (opts.clientId) where.clientId = opts.clientId
   // Admins/PMs (project:write) can see all projects; everyone else is always
   // restricted to projects they own or are a team member of (the `mine`
   // filter can further narrow it for admins, but never widens it for others).
@@ -52,6 +55,7 @@ export async function listProjects(opts: ListProjectsOptions, session: Session) 
       orderBy: { createdAt: "desc" },
       include: {
         owner: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
+        client: { select: { id: true, name: true, slug: true } },
         teams: {
           select: {
             id: true,

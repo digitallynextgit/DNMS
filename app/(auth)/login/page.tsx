@@ -26,7 +26,8 @@ export default async function LoginPage() {
       <LoginForm />
 
       <p className="text-muted-foreground mt-6 text-center text-xs">
-        Having trouble signing in? Contact your HR administrator.
+        Having trouble signing in? Staff, contact your HR administrator. Clients, contact your
+        account manager.
       </p>
     </AuthShell>
   )

@@ -51,8 +51,10 @@ import {
   Search,
   HelpCircle,
   Target,
+  Building2,
 } from "lucide-react"
 import { ProjectFormDialog } from "@/features/projects/components/project-form-dialog"
+import { clientHref } from "@/features/clients/lib/client-href"
 import { ProjectLogo } from "@/features/projects/components/project-logo"
 import {
   ProjectTabsBar,
@@ -305,9 +307,21 @@ export default function ProjectDetailPage() {
         leading={<ProjectLogo src={project.logo} name={project.name} className="h-10 w-10" />}
         title={project.name}
         titleSuffix={
-          <span className="bg-muted/50 text-muted-foreground shrink-0 rounded-[2px] border px-2 py-0.5 font-mono text-xs">
-            {project.code}
-          </span>
+          <>
+            <span className="bg-muted/50 text-muted-foreground shrink-0 rounded-[2px] border px-2 py-0.5 font-mono text-xs">
+              {project.code}
+            </span>
+            {/* Who it is for, one click from the client's page. */}
+            {project.client && (
+              <Link
+                href={clientHref(project.client)}
+                className="text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center gap-1 text-xs hover:underline"
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                {project.client.name}
+              </Link>
+            )}
+          </>
         }
         /* The description is NOT passed here: PageHeader's subtitle truncates to one
            line, but a project description is a full paragraph, so it is rendered in
@@ -385,7 +399,7 @@ export default function ProjectDetailPage() {
               // as const: inside a conditional spread the literal widens to
               // string, which defeats the check below.
               ...(canManage
-                ? [{ value: "clients" as const, label: "Clients", icon: UserCog }]
+                ? [{ value: "clients" as const, label: "Portal access", icon: UserCog }]
                 : []),
               // Typed against PROJECT_TABS: adding a tab here without adding its
               // value there stops the build instead of shipping a dead tab.
@@ -544,6 +558,8 @@ export default function ProjectDetailPage() {
           startDate: project.startDate ? project.startDate.split("T")[0] : "",
           budget: project.budget != null ? String(project.budget) : "",
           accountManagerId: project.owner.id,
+          clientId: project.client?.id ?? "",
+          clientName: project.client?.name,
         }}
       />
     </div>

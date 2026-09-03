@@ -682,6 +682,7 @@ model Employee {
   sheetEvents        ProjectSheetEvent[]    @relation("SheetEventActor")
   timesheets         Timesheet[]
   ownedProjects      Project[]              @relation("ProjectOwner")
+  ownedClients       Client[]               @relation("ClientOwner")
   brandAssets        BrandAsset[]           @relation("BrandAssetUploader")
 
   // Performance
@@ -743,6 +744,7 @@ model Employee {
 
   // Client portal administration
   createdClientUsers  ClientUser[]          @relation("ClientUserCreator")
+  createdClients      Client[]              @relation("ClientCreator")
   grantedClientAccess ClientProjectAccess[] @relation("ClientAccessGranter")
 
   // Project mailer
@@ -1502,6 +1504,8 @@ model Project {
   /// The B2 object key behind `logo`. Null for a project with no logo.
   logoKey        String?       @map("logo_key")
   ownerId        String        @map("owner_id")
+  /// The company this is delivered for. Null = an internal project.
+  clientId       String?       @map("client_id")
   // DEPRECATED: the phase feature was removed from the app; this column is kept
   // only so the shared DB stays compatible with the currently-deployed build.
   // Safe to drop once the phase-removal code is deployed everywhere.
@@ -1514,6 +1518,7 @@ model Project {
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
   owner           Employee               @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  client          Client?                @relation(fields: [clientId], references: [id], onDelete: SetNull)
   currentPhase    ProjectPhase?          @relation(fields: [currentPhaseId], references: [id], onDelete: SetNull)
   members         ProjectMember[] // legacy - kept for migration safety
   teams           ProjectTeam[] // v2 - primary structure
@@ -1555,6 +1560,7 @@ model Project {
   @@unique([tenantId, slug])
   @@index([status])
   @@index([ownerId])
+  @@index([clientId])
   @@index([tenantId])
   @@map("projects")
 }
@@ -1777,8 +1783,8 @@ model ProjectSheet {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy Employee?           @relation("SheetAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  project   Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy Employee?            @relation("SheetAuthor", fields: [createdById], references: [id], onDelete: SetNull)
   columns   ProjectSheetColumn[]
   rows      ProjectSheetRow[]
   events    ProjectSheetEvent[]
@@ -1861,18 +1867,18 @@ enum SheetEventType {
 /// time for the same reason.
 model ProjectSheetEvent {
   /// Owning tenant. See the Tenant model for why this carries a DB default.
-  tenantId String         @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id       String         @id @default(uuid()) @map("id")
-  sheetId  String         @map("sheet_id")
-  rowId    String?        @map("row_id")
-  columnId String?        @map("column_id")
-  type     SheetEventType @map("type")
+  tenantId  String         @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id        String         @id @default(uuid()) @map("id")
+  sheetId   String         @map("sheet_id")
+  rowId     String?        @map("row_id")
+  columnId  String?        @map("column_id")
+  type      SheetEventType @map("type")
   /// What the row or column was called when this happened.
-  label    String?        @map("label")
-  before   Json?          @map("before")
-  after    Json?          @map("after")
-  actorId  String?        @map("actor_id")
-  createdAt DateTime      @default(now()) @map("created_at")
+  label     String?        @map("label")
+  before    Json?          @map("before")
+  after     Json?          @map("after")
+  actorId   String?        @map("actor_id")
+  createdAt DateTime       @default(now()) @map("created_at")
 
   sheet ProjectSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
   actor Employee?    @relation("SheetEventActor", fields: [actorId], references: [id], onDelete: SetNull)
@@ -3334,6 +3340,51 @@ enum ClientAccessStatus {
   SUSPENDED
 }
 
+enum ClientStatus {
+  PROSPECT
+  ACTIVE
+  INACTIVE
+}
+
+/// The company a project is delivered for. Projects hang off it, and so do the
+/// portal logins (ClientUser) of its people. A project without one is internal.
+model Client {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String       @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String       @id @default(uuid()) @map("id")
+  name        String       @map("name")
+  /// CL00001-style, generated once at creation. Fixed width, so it sorts.
+  code        String       @map("code")
+  /// URL identifier from the name at creation. Not regenerated on rename.
+  slug        String?      @map("slug")
+  status      ClientStatus @default(ACTIVE) @map("status")
+  industry    String?      @map("industry")
+  website     String?      @map("website")
+  email       String?      @map("email")
+  phone       String?      @map("phone")
+  address     String?      @map("address") @db.Text
+  /// GST / VAT / tax registration, as printed on invoices.
+  taxId       String?      @map("tax_id")
+  notes       String?      @map("notes") @db.Text
+  /// The account manager for the relationship as a whole.
+  ownerId     String?      @map("owner_id")
+  createdById String?      @map("created_by_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  owner     Employee?    @relation("ClientOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdBy Employee?    @relation("ClientCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  projects  Project[]
+  contacts  ClientUser[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, slug])
+  @@index([status])
+  @@index([ownerId])
+  @@index([tenantId])
+  @@map("clients")
+}
+
 model ClientUser {
   /// Owning tenant. See the Tenant model for why this carries a DB default.
   tenantId     String  @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
@@ -3341,8 +3392,11 @@ model ClientUser {
   email        String  @unique @map("email")
   name         String  @map("name")
   phone        String? @map("phone")
-  /// The client's own company/brand, shown in the portal header.
+  /// The client's own company/brand, shown in the portal header. Free text that
+  /// predates `clientId`; the Client row is now the source of truth.
   company      String? @map("company")
+  /// The company this person belongs to. Null on logins made before clients existed.
+  clientId     String? @map("client_id")
   /// Null until they set one via the invite flow. Never selected by default
   /// (see server/db.ts omit list) - only the credentials provider opts back in.
   passwordHash String? @map("password_hash")
@@ -3356,6 +3410,7 @@ model ClientUser {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   createdBy Employee?             @relation("ClientUserCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  client    Client?               @relation(fields: [clientId], references: [id], onDelete: SetNull)
   access    ClientProjectAccess[]
   activity  ClientActivityLog[]
 
@@ -3368,6 +3423,7 @@ model ClientUser {
   mailerAssets ProjectMailerAsset[]   @relation("MailerAssetClientAuthor")
 
   @@index([isActive])
+  @@index([clientId])
   @@index([tenantId])
   @@map("client_users")
 }
@@ -4402,6 +4458,11 @@ model ProjectGoal {
   targetDate    DateTime?  @map("target_date") @db.Date
   /// Manual ordering within a parent (or within the project, for main goals).
   sortOrder     Int        @default(0) @map("sort_order")
+  /// Free-text labels typed by whoever set the goal - "weekly", "primary",
+  /// "q4 push". Deliberately NOT an enum: the vocabulary for how a team slices
+  /// its work belongs to that team, and a fixed list would need a migration
+  /// every time somebody invented a word for a cadence they already run.
+  tags          String[]   @default([]) @map("tags")
   /// Soft delete. A deactivated goal is hidden from the board and counts for
   /// nothing in the progress maths, but its history survives - which is the
   /// difference between "we stopped tracking this" and "this never happened".

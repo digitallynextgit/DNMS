@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
-import type { ProjectBrandData } from "@/features/projects/brand"
+import type { BrandAssetKind, ProjectBrandData } from "@/features/projects/brand"
 
 // ─── Brand workspace ──────────────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ export function useSaveProjectBrand(projectId: string) {
 export function useUploadBrandAsset(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ file, kind }: { file: File; kind: "BRIEF" | "LOGO" }) => {
+    mutationFn: async ({ file, kind }: { file: File; kind: BrandAssetKind }) => {
       const fd = new FormData()
       fd.append("file", file)
       fd.append("kind", kind)

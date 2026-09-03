@@ -34,11 +34,16 @@ export interface GoalNode {
   statusReason: string | null
   progress: number
   targetDate: string | null
+  /** Free text, as typed. Deduplicated case-insensitively by the server. */
+  tags: string[]
   isActive: boolean
   createdByName: string | null
   children: GoalNode[]
   progressIsDerived: boolean
   countableChildren: number
+  /** Of `countableChildren`, how many are done. Counted server-side over ALL
+   *  sub-goals, so a filtered board cannot under-report it. */
+  doneChildren: number
   overdue: boolean
   events: GoalEvent[]
 }
@@ -55,6 +60,8 @@ export interface GoalsSummary {
   inactiveGoals: number
   overdueGoals: number
   nextTargetDate: string | null
+  /** Every tag in use on the project, for the filter list and the type-ahead. */
+  allTags: string[]
 }
 
 /**
@@ -70,6 +77,7 @@ export const EMPTY_SUMMARY: GoalsSummary = {
   inactiveGoals: 0,
   overdueGoals: 0,
   nextTargetDate: null,
+  allTags: [],
 }
 
 export const STATUS_LABEL: Record<Status, string> = {
@@ -208,6 +216,96 @@ export function StatusBadge({ status }: { status: Status }) {
     >
       {STATUS_LABEL[status]}
     </span>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tags
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Offered as type-ahead on a project that has not invented its own tags yet.
+ *
+ * A SUGGESTION, NOT A VOCABULARY. The field is free text and the server stores
+ * whatever is typed; these exist only so the first person to tag a goal is not
+ * staring at an empty box, and so the obvious cadences get spelled the same way
+ * on every project instead of splitting into "weekly"/"Weekly"/"wkly".
+ */
+export const SUGGESTED_TAGS = ["weekly", "monthly", "quarterly", "primary", "secondary"] as const
+
+/**
+ * Tag colours, keyed off the tag itself.
+ *
+ * DELIBERATELY NOT THE STATUS PALETTE. Blue, amber, emerald and red all mean
+ * something specific on this board, and a "weekly" chip in amber sitting beside
+ * an AT_RISK badge in amber would be read as a warning by anyone scanning the
+ * page. These are the hues left over once the five states have taken theirs.
+ *
+ * Assigned by hashing the tag rather than by position, so "weekly" is the same
+ * colour on every goal, on every project, however many tags exist and whatever
+ * order they were created in. Position-based assignment would recolour half the
+ * board the moment somebody added a tag alphabetically early.
+ */
+const TAG_TINTS = [
+  "border-violet-500/35 bg-violet-500/10 text-violet-400",
+  "border-cyan-500/35 bg-cyan-500/10 text-cyan-400",
+  "border-fuchsia-500/35 bg-fuchsia-500/10 text-fuchsia-400",
+  "border-indigo-500/35 bg-indigo-500/10 text-indigo-400",
+  "border-teal-500/35 bg-teal-500/10 text-teal-400",
+] as const
+
+/** Case-insensitive, so "Weekly" and "weekly" cannot land on two colours. */
+export function tagTint(tag: string): string {
+  const key = tag.toLowerCase()
+  let hash = 0
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0
+  return TAG_TINTS[hash % TAG_TINTS.length]!
+}
+
+/**
+ * One tag, as a pill.
+ *
+ * Rounded-full and sentence-cased against the status badge's square corners and
+ * uppercase, because the two sit inches apart on the same row and the shape has
+ * to say which is which before the colour does.
+ *
+ * `onClick` turns it into a filter button - clicking "weekly" on any goal
+ * filters the board to it. That is the shortest path from "I see a tag" to "show
+ * me the rest of these", and it costs a prop.
+ */
+export function TagChip({
+  tag,
+  onClick,
+  active,
+  className,
+}: {
+  tag: string
+  onClick?: () => void
+  active?: boolean
+  className?: string
+}) {
+  const shared = cn(
+    "inline-flex max-w-40 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium",
+    tagTint(tag),
+    active && "ring-primary/60 ring-1",
+    className,
+  )
+  if (!onClick) {
+    return (
+      <span className={shared}>
+        <span className="truncate">{tag}</span>
+      </span>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={active ? `Stop filtering by "${tag}"` : `Show only goals tagged "${tag}"`}
+      className={cn(shared, "hover:brightness-125")}
+    >
+      <span className="truncate">{tag}</span>
+    </button>
   )
 }
 

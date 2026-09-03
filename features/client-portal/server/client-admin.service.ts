@@ -56,11 +56,11 @@ const ACCESS_SELECT = {
  * not guessable, and never returned to the caller, so it cannot surface in an
  * API response, a log line or the browser devtools.
  */
-function generatePassword(): string {
+export function generatePassword(): string {
   return randomBytes(14).toString("base64url").slice(0, 18)
 }
 
-async function sendCredentials(input: {
+export async function sendCredentials(input: {
   to: string
   name: string
   password: string
@@ -76,7 +76,7 @@ async function sendCredentials(input: {
     isReset: input.isReset,
     mustChange: input.mustChange,
     projectName: input.projectName,
-    loginUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/client-login` : "/client-login",
+    loginUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/login` : "/login",
   })
   addEmailJob({
     to: input.to,
@@ -89,29 +89,59 @@ async function sendCredentials(input: {
 
 // ─── Read ───────────────────────────────────────────────────────────────────
 
-/** Everyone with access to THIS project. */
+/**
+ * Everyone with access to THIS project - plus, when the project belongs to a
+ * client, that client and the people at it who do NOT have this project yet.
+ * The tab offers those as a pick-list, so giving a second project to someone
+ * who already has a login is one click rather than a re-typed invitation.
+ */
 export async function listProjectClients(projectId: string): Promise<ActionResult<unknown>> {
   return runAction(async () => {
-    const rows = await db.clientProjectAccess.findMany({
-      where: { projectId },
-      select: ACCESS_SELECT,
-      orderBy: { createdAt: "desc" },
-    })
+    const [rows, project] = await Promise.all([
+      db.clientProjectAccess.findMany({
+        where: { projectId },
+        select: ACCESS_SELECT,
+        orderBy: { createdAt: "desc" },
+      }),
+      db.project.findUnique({
+        where: { id: projectId },
+        select: { client: { select: { id: true, name: true, slug: true } } },
+      }),
+    ])
+    const client = project?.client ?? null
+    const onProject = new Set(rows.map((r) => r.clientUser.id))
+    const candidates = client
+      ? (
+          await db.clientUser.findMany({
+            where: { clientId: client.id, isActive: true },
+            select: { id: true, name: true, email: true },
+            orderBy: { name: "asc" },
+          })
+        ).filter((c) => !onProject.has(c.id))
+      : []
     // Report only modules this build understands, so a key left over from
     // another deploy never renders as something it won't actually unlock.
-    return ok(serialize({ data: rows.map((r) => ({ ...r, modules: resolveModules(r.modules) })) }))
+    return ok(
+      serialize({
+        data: rows.map((r) => ({ ...r, modules: resolveModules(r.modules) })),
+        client,
+        candidates,
+      }),
+    )
   })
 }
 
 // ─── Create / attach ────────────────────────────────────────────────────────
 
 /**
- * Add a client to this project.
+ * Add a person to this project's portal.
  *
- * If the email already belongs to a client account, they are ATTACHED to this
- * project rather than rejected - the same person legitimately works across
- * several of our projects, and they should keep one login. In that case no new
- * password is issued and none is emailed: their existing credentials still work.
+ * Two shapes of request. `contactId` names someone already on the books at this
+ * project's client: they get the project, and nothing else changes. Otherwise a
+ * name and email arrive, and if the email already belongs to a client account
+ * they are ATTACHED rather than rejected - the same person legitimately works
+ * across several of our projects and should keep one login. Only a brand-new
+ * account has a password generated and emailed.
  */
 export async function addProjectClient(
   projectId: string,
@@ -123,64 +153,93 @@ export async function addProjectClient(
 
     const project = await db.project.findUnique({
       where: { id: projectId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, clientId: true },
     })
     if (!project) return fail("Project not found", undefined, 404)
 
-    // An email that belongs to an EMPLOYEE is refused outright: one address with
-    // both a staff and a client account means whichever login page they happen
-    // to use decides what they can see.
-    const staff = await db.employee.findUnique({
-      where: { email: input.email },
-      select: { id: true },
-    })
-    if (staff) return fail("This email belongs to an employee account", undefined, 409)
-
-    const existing = await db.clientUser.findUnique({
-      where: { email: input.email },
-      select: { id: true, name: true },
-    })
-
     let clientUserId: string
     let issuedPassword: string | null = null
+    let mustChange = true
+    let email: string
+    let name: string
 
-    if (existing) {
-      clientUserId = existing.id
-      const already = await db.clientProjectAccess.findUnique({
-        where: { clientUserId_projectId: { clientUserId, projectId } },
-        select: { id: true },
+    if ("contactId" in input) {
+      // Only THIS client's people are offered, so a contact id from another
+      // company cannot be pasted in to reach this project.
+      const contact = await db.clientUser.findFirst({
+        where: { id: input.contactId, ...(project.clientId ? { clientId: project.clientId } : {}) },
+        select: { id: true, name: true, email: true },
       })
-      if (already) return fail("This client already has access to this project", undefined, 409)
+      if (!contact) return fail("That contact is not at this project's client", undefined, 404)
+      clientUserId = contact.id
+      email = contact.email
+      name = contact.name
     } else {
-      issuedPassword = generatePassword()
-      const passwordHash = await bcrypt.hash(issuedPassword, 12)
-      const created = await db.clientUser.create({
-        data: {
-          name: input.name,
-          email: input.email,
-          phone: input.phone || null,
-          passwordHash,
-          mustChangePassword: input.forcePasswordChange,
-          createdById: session.user.id,
-        },
-        select: { id: true, tenantId: true },
-      })
-      clientUserId = created.id
+      email = input.email
+      name = input.name
+      mustChange = input.forcePasswordChange
 
-      // Give the new portal account a platform identity (M2). If this address
-      // already belongs to somebody - a staff member being given client access -
-      // provisionIdentity keeps their existing credential and just adds the
-      // CLIENT membership, so they keep using the password they already have.
-      await provisionIdentity({
-        email: input.email,
-        name: input.name,
-        tenantId: created.tenantId,
-        kind: "CLIENT",
-        clientUserId: created.id,
-        passwordHash,
-        mustChangePassword: input.forcePasswordChange,
+      // An email that belongs to an EMPLOYEE is refused outright: one address
+      // with both a staff and a client account means whichever login page they
+      // happen to use decides what they can see.
+      const staff = await db.employee.findUnique({ where: { email }, select: { id: true } })
+      if (staff) return fail("This email belongs to an employee account", undefined, 409)
+
+      const existing = await db.clientUser.findUnique({
+        where: { email },
+        select: { id: true, clientId: true },
       })
+
+      if (existing) {
+        clientUserId = existing.id
+        // A login that predates clients, or was made from a project with none,
+        // adopts this project's client. One that already belongs to a different
+        // company is left alone: that is a question for a person, not a side
+        // effect of granting a project.
+        if (project.clientId && !existing.clientId) {
+          await db.clientUser.update({
+            where: { id: existing.id },
+            data: { clientId: project.clientId },
+          })
+        }
+      } else {
+        issuedPassword = generatePassword()
+        const passwordHash = await bcrypt.hash(issuedPassword, 12)
+        const created = await db.clientUser.create({
+          data: {
+            name,
+            email,
+            phone: input.phone || null,
+            clientId: project.clientId,
+            passwordHash,
+            mustChangePassword: mustChange,
+            createdById: session.user.id,
+          },
+          select: { id: true, tenantId: true },
+        })
+        clientUserId = created.id
+
+        // Give the new portal account a platform identity (M2). If this address
+        // already belongs to somebody - a staff member being given client access -
+        // provisionIdentity keeps their existing credential and just adds the
+        // CLIENT membership, so they keep using the password they already have.
+        await provisionIdentity({
+          email,
+          name,
+          tenantId: created.tenantId,
+          kind: "CLIENT",
+          clientUserId: created.id,
+          passwordHash,
+          mustChangePassword: mustChange,
+        })
+      }
     }
+
+    const already = await db.clientProjectAccess.findUnique({
+      where: { clientUserId_projectId: { clientUserId, projectId } },
+      select: { id: true },
+    })
+    if (already) return fail("This person already has access to this project", undefined, 409)
 
     const access = await db.clientProjectAccess.create({
       data: {
@@ -195,12 +254,12 @@ export async function addProjectClient(
 
     if (issuedPassword) {
       await sendCredentials({
-        to: input.email,
-        name: input.name,
+        to: email,
+        name,
         password: issuedPassword,
         projectName: project.name,
         isReset: false,
-        mustChange: input.forcePasswordChange,
+        mustChange,
       })
     }
 
@@ -209,13 +268,13 @@ export async function addProjectClient(
       module: "project",
       entityType: "ClientProjectAccess",
       entityId: access.id,
-      changes: { projectId, email: input.email, modules: input.modules, reused: !!existing },
+      changes: { projectId, email, modules: input.modules, reused: !issuedPassword },
     })
 
     return ok(
       serialize({
         data: { ...access, modules: resolveModules(access.modules) },
-        // Lets the UI say "existing client attached" instead of implying an
+        // Lets the UI say "existing login attached" instead of implying an
         // invite email went out when it didn't.
         credentialsSent: !!issuedPassword,
       }),

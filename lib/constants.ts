@@ -46,6 +46,11 @@ export const PERMISSIONS = {
   PROJECT_READ: "project:read",
   PROJECT_WRITE: "project:write",
   PROJECT_DELETE: "project:delete",
+  // Clients: the companies projects are delivered for, and their portal contacts.
+  // Separate from project:* so a project manager who may run projects cannot
+  // necessarily mint client logins or read the whole client book.
+  CLIENT_READ: "client:read",
+  CLIENT_WRITE: "client:write",
   // Performance
   PERFORMANCE_READ: "performance:read",
   PERFORMANCE_WRITE: "performance:write",
@@ -274,6 +279,18 @@ export const PERMISSION_DEFINITIONS = [
     description: "Create and edit projects and tasks",
   },
   { scope: "project:delete", module: "project", action: "delete", description: "Delete projects" },
+  {
+    scope: "client:read",
+    module: "client",
+    action: "read",
+    description: "View clients, their projects and portal contacts",
+  },
+  {
+    scope: "client:write",
+    module: "client",
+    action: "write",
+    description: "Create and edit clients, their contacts and portal access",
+  },
   {
     scope: "performance:read",
     module: "performance",
@@ -514,6 +531,18 @@ export const PROJECT_STATUS_COLORS: Record<string, string> = {
   ON_HOLD: TONE.amber,
   COMPLETED: TONE.purple,
   CANCELLED: TONE.neutral,
+}
+
+export const CLIENT_STATUS_LABELS: Record<string, string> = {
+  PROSPECT: "Prospect",
+  ACTIVE: "Active",
+  INACTIVE: "Inactive",
+}
+
+export const CLIENT_STATUS_COLORS: Record<string, string> = {
+  PROSPECT: TONE.blue,
+  ACTIVE: TONE.green,
+  INACTIVE: TONE.neutral,
 }
 
 export const TASK_STATUS_LABELS: Record<string, string> = {

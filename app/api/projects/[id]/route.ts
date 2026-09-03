@@ -13,6 +13,7 @@ export const GET = withProjectAccess(
         where: { id: ctx.params.id },
         include: {
           owner: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
+          client: { select: { id: true, name: true, slug: true, code: true } },
           teams: {
             include: {
               manager: {
@@ -67,7 +68,14 @@ export const PATCH = withProjectManager(
         budget,
         isArchived,
         accountManagerId,
+        clientId,
       } = body
+
+      // `null` clears the client; a string must name one in this tenant.
+      if (clientId) {
+        const client = await db.client.findUnique({ where: { id: clientId }, select: { id: true } })
+        if (!client) return NextResponse.json({ error: "Client not found" }, { status: 422 })
+      }
 
       // Validate new Account Manager if provided
       if (accountManagerId) {
@@ -94,6 +102,7 @@ export const PATCH = withProjectManager(
           ...(budget !== undefined && { budget: budget ? parseFloat(budget) : null }),
           ...(isArchived !== undefined && { isArchived }),
           ...(accountManagerId !== undefined && { ownerId: accountManagerId }),
+          ...(clientId !== undefined && { clientId: clientId || null }),
         },
       })
 
@@ -110,6 +119,7 @@ export const PATCH = withProjectManager(
           startDate,
           budget,
           accountManagerId,
+          clientId,
           isArchived,
         } as object,
       })

@@ -32,9 +32,6 @@ import type { NextAuthConfig } from "next-auth"
 // change. The platform id travels alongside as `session.user.userId`.
 // =============================================================================
 
-/** The provider id for client sign-in - referenced by the portal login form. */
-export const CLIENT_PROVIDER_ID = "client-credentials"
-
 /** How long a token may go without re-checking that the membership still exists. */
 const MEMBERSHIP_RECHECK_MS = 15 * 60 * 1000
 
@@ -99,11 +96,12 @@ async function getClientForToken(clientUserId: string) {
 /**
  * Choose which membership a sign-in activates.
  *
- * `prefer` comes from the login page used, and only matters for somebody who
- * holds both a staff and a client membership - a contractor who is also a
- * client contact. It is a preference, not a filter: a client who lands on the
- * staff /login still gets in as a client, which is what makes one login point
- * work for everyone.
+ * `prefer` only matters for somebody who holds both a staff and a client
+ * membership - a contractor who is also a client contact. /login prefers STAFF,
+ * because that is the surface where they can do more; the workspace picker
+ * takes them across to their client portal. It is a preference, not a filter:
+ * a client-only account still gets in as a client, which is what makes one
+ * login work for everyone.
  *
  * M3 replaces the "first tenant wins" line below with /select-workspace. It
  * cannot bite today - every membership is in Digitally Next - but it would as
@@ -236,22 +234,6 @@ export const authOptions: NextAuthConfig = {
         password: { label: "Password", type: "password" },
       },
       authorize: (c) => authorizeWithIdentity(c?.email, c?.password, "STAFF"),
-    }),
-
-    // -----------------------------------------------------------------------
-    // The portal's login form posts here. Same identity, same checks - it
-    // differs only in preferring a CLIENT membership for the rare person who
-    // holds both. Kept as its own provider id so /client-login and any bookmark
-    // or deployed client of it keeps working unchanged.
-    // -----------------------------------------------------------------------
-    Credentials({
-      id: CLIENT_PROVIDER_ID,
-      name: "client",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      authorize: (c) => authorizeWithIdentity(c?.email, c?.password, "CLIENT"),
     }),
 
     // -----------------------------------------------------------------------
@@ -473,7 +455,7 @@ export const authOptions: NextAuthConfig = {
     // signIn event - stamp last-seen and write an audit entry. Non-critical: a
     // failure here must never block the login itself.
     // -----------------------------------------------------------------------
-    async signIn({ user, account }) {
+    async signIn({ user }) {
       if (!user?.id) return
       // The audit entry and the client activity row belong to the company the
       // person just signed in to, so ENTER that tenant rather than running
@@ -496,7 +478,7 @@ export const authOptions: NextAuthConfig = {
       // Client sign-ins: they must NOT reach the audit log write below -
       // AuditLog.actorId is a foreign key into `employees`, so a client id there
       // is a constraint violation, not a log entry.
-      if (account?.provider === CLIENT_PROVIDER_ID || user.kind === "client") {
+      if (user.kind === "client") {
         try {
           await db.clientUser.update({
             where: { id: user.id },

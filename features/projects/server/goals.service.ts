@@ -42,6 +42,19 @@ import { ValidationError, NotFoundError } from "@/lib/errors"
 // current row cannot answer "when did this slip, and what did they say at the
 // time", and that answer is worth more than the row the moment anyone asks why
 // a date moved.
+//
+// ── TAGS ARE THE TEAM'S WORDS, NOT OURS ──────────────────────────────────────
+// A goal carries free-text tags - "weekly", "primary", "q4 push" - typed by
+// whoever set it. No enum, no admin screen to add one: a fixed list would need
+// a migration every time somebody named a cadence they already run, and the
+// half-answer ("Other") is exactly the value that makes a filter untrustworthy.
+//
+// What IS enforced here is the small set of rules that keep a free-text field
+// from becoming unfilterable: trimmed, whitespace-collapsed, deduplicated
+// CASE-INSENSITIVELY, capped in length and in count. "Weekly" and "weekly" must
+// not become two rows in the filter list, or the filter starts lying by
+// omission. Casing is otherwise preserved, because "Q4 Push" lower-cased reads
+// like a typo.
 // =============================================================================
 
 export type GoalStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "AT_RISK" | "DONE" | "DISCARDED"
@@ -54,6 +67,64 @@ const REASON_REQUIRED: ReadonlySet<GoalStatusValue> = new Set<GoalStatusValue>([
 
 /** Statuses that take a goal out of the progress calculation. */
 const NOT_COUNTABLE: ReadonlySet<GoalStatusValue> = new Set<GoalStatusValue>(["DISCARDED"])
+
+/** Long enough for "quarterly review", short enough to stay a chip on a row. */
+const MAX_TAG_LENGTH = 24
+/** Past this a row is a wall of chips and the tag stops being a signal. */
+const MAX_TAGS_PER_GOAL = 6
+
+/**
+ * Clean one goal's tags into something a filter can be trusted with.
+ *
+ * The case-insensitive dedupe is the important line. Tags are typed by hand on
+ * every goal, so "Weekly" and "weekly" WILL both get typed, and a filter list
+ * holding both is a filter that quietly hides half the matches behind the entry
+ * the user did not click.
+ */
+function normaliseTags(raw: unknown): string[] {
+  if (!Array.isArray(raw)) throw new ValidationError("Tags must be a list of words.")
+
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    if (typeof item !== "string") continue
+    const tag = item.trim().replace(/\s+/g, " ")
+    if (!tag) continue
+    if (tag.length > MAX_TAG_LENGTH) {
+      throw new ValidationError(
+        `Keep tags under ${MAX_TAG_LENGTH} characters - "${tag}" is longer.`,
+      )
+    }
+    const key = tag.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(tag)
+  }
+
+  if (out.length > MAX_TAGS_PER_GOAL) {
+    throw new ValidationError(`A goal can carry at most ${MAX_TAGS_PER_GOAL} tags.`)
+  }
+  return out
+}
+
+/**
+ * Every distinct tag in use on a project, for the filter list and the
+ * type-ahead on the add-goal row.
+ *
+ * Deduped the same way a single goal's tags are - one entry per tag regardless
+ * of how it was capitalised - and sorted case-insensitively so the list reads
+ * alphabetically rather than putting every capitalised tag first.
+ */
+function collectTags(rows: { tags: string[] }[]): string[] {
+  const seen = new Map<string, string>()
+  for (const row of rows) {
+    for (const tag of row.tags) {
+      const key = tag.toLowerCase()
+      if (!seen.has(key)) seen.set(key, tag)
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+}
 
 export interface GoalEvent {
   id: string
@@ -75,6 +146,8 @@ export interface GoalNode {
   /** 0-100. Derived from countable children when there are any. */
   progress: number
   targetDate: string | null
+  /** Free text, as typed. Deduplicated case-insensitively, order preserved. */
+  tags: string[]
   sortOrder: number
   isActive: boolean
   createdByName: string | null
@@ -82,6 +155,15 @@ export interface GoalNode {
   progressIsDerived: boolean
   /** How many children actually counted towards `progress`. */
   countableChildren: number
+  /**
+   * How many of those are DONE - the numerator behind `progress`.
+   *
+   * Sent rather than left to the board to count, because the board may be
+   * showing a FILTERED subset of a goal's sub-goals and counting the rows on
+   * screen would report "1 of 4 done" for a goal that has three done sub-goals
+   * outside the current date range.
+   */
+  doneChildren: number
   overdue: boolean
   events: GoalEvent[]
 }
@@ -99,6 +181,15 @@ export interface ProjectGoalsSummary {
   overdueGoals: number
   /** Earliest upcoming target across every countable goal, sub-goals included. */
   nextTargetDate: string | null
+  /**
+   * Every tag in use on this project, sub-goals included.
+   *
+   * Sent with the tree rather than fetched separately: the filter list and the
+   * type-ahead both need it the moment the board renders, and it is already in
+   * memory here. Reflects `includeInactive` - a tag that survives only on a
+   * deactivated goal appears exactly when that goal does.
+   */
+  allTags: string[]
 }
 
 const ymd = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null)
@@ -153,6 +244,7 @@ export async function getProjectGoals(
       status: true,
       statusReason: true,
       targetDate: true,
+      tags: true,
       sortOrder: true,
       isActive: true,
       createdBy: { select: { firstName: true, lastName: true } },
@@ -207,12 +299,14 @@ export async function getProjectGoals(
       statusReason: r.statusReason,
       progress,
       targetDate: ymd(r.targetDate),
+      tags: r.tags,
       sortOrder: r.sortOrder,
       isActive: r.isActive,
       createdByName: name(r.createdBy),
       children: kids,
       progressIsDerived: derived,
       countableChildren: countable.length,
+      doneChildren: countable.filter((k) => k.status === "DONE").length,
       // A discarded or deactivated goal is not "late" - nobody is working on it.
       overdue: Boolean(
         r.targetDate &&
@@ -261,6 +355,7 @@ export async function getProjectGoals(
     inactiveGoals: flat.filter((g) => !g.isActive).length,
     overdueGoals: flat.filter((g) => g.overdue).length,
     nextTargetDate: upcoming[0] ?? null,
+    allTags: collectTags(rows),
   }
 }
 
@@ -272,6 +367,8 @@ export interface GoalInput {
   /** Required when moving to AT_RISK or DISCARDED. */
   reason?: string | null
   targetDate?: string | null
+  /** The complete set, not a delta: what is sent replaces what is stored. */
+  tags?: string[]
 }
 
 function parseTargetDate(value: string | null | undefined): Date | null {
@@ -323,6 +420,9 @@ export async function createGoal(
 
   const status = input.status ?? "NOT_STARTED"
   const reason = normaliseReason(status, input.reason)
+  // Validated before the transaction opens, so a bad tag costs a 422 rather
+  // than a rolled-back write.
+  const tags = input.tags === undefined ? [] : normaliseTags(input.tags)
 
   const last = await db.projectGoal.findFirst({
     where: { projectId, parentId: input.parentId ?? null },
@@ -341,6 +441,7 @@ export async function createGoal(
         status,
         statusReason: reason,
         targetDate: parseTargetDate(input.targetDate),
+        tags,
         sortOrder: (last?.sortOrder ?? -1) + 1,
         createdById: actorId,
       },
@@ -361,7 +462,7 @@ export async function updateGoal(
 ): Promise<void> {
   const existing = await db.projectGoal.findFirst({
     where: { id: goalId, projectId },
-    select: { id: true, status: true, title: true, targetDate: true },
+    select: { id: true, status: true, title: true, targetDate: true, tags: true },
   })
   if (!existing) throw new NotFoundError("Goal")
 
@@ -378,6 +479,17 @@ export async function updateGoal(
     }
   }
   if (input.description !== undefined) data.description = input.description?.trim() || null
+  if (input.tags !== undefined) {
+    const tags = normaliseTags(input.tags)
+    // Compared as a set, not a list: re-saving the same tags in a different
+    // order is not a change worth a line in the history.
+    const before = new Set(existing.tags.map((t) => t.toLowerCase()))
+    const after = new Set(tags.map((t) => t.toLowerCase()))
+    if (before.size !== after.size || [...after].some((t) => !before.has(t))) {
+      data.tags = tags
+      edits.push(tags.length ? `tagged ${tags.join(", ")}` : "tags cleared")
+    }
+  }
   if (input.targetDate !== undefined) {
     const d = parseTargetDate(input.targetDate)
     if (ymd(d) !== ymd(existing.targetDate)) {

@@ -21,7 +21,7 @@ export const metadata: Metadata = {
  */
 export default async function PortalHomePage() {
   const session = await auth()
-  if (!session || session.user.kind !== "client") redirect("/client-login")
+  if (!session || session.user.kind !== "client") redirect("/login")
 
   const grants = await listClientGrants(session.user.id)
   if (grants.length === 1) redirect(`/portal/${grants[0]!.projectRef}`)

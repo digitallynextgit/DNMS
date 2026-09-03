@@ -25,6 +25,9 @@ import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from "@/lib/constants"
 import { formatDate } from "@/lib/utils"
 import { ProjectFormDialog, ProjectLogo, projectHref } from "@/features/projects"
+// The leaf helper, not the clients barrel: the barrel would land the whole
+// client book (and the portal feature behind it) in the projects board bundle.
+import { clientHref } from "@/features/clients/lib/client-href"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 
 interface Project {
@@ -41,6 +44,8 @@ interface Project {
   endDate: string | null
   budget: number | null
   owner: { id: string; firstName: string; lastName: string; profilePhoto: string | null }
+  /** The company this is delivered for. Null for internal projects. */
+  client: { id: string; name: string; slug: string | null } | null
   members: {
     employee: { id: string; firstName: string; lastName: string; profilePhoto: string | null }
   }[]
@@ -121,6 +126,17 @@ export function ProjectsClient() {
           </Link>
         </div>
       ),
+    },
+    {
+      header: "Client",
+      cell: (p) =>
+        p.client ? (
+          <Link href={clientHref(p.client)} className="text-xs hover:underline">
+            {p.client.name}
+          </Link>
+        ) : (
+          <span className="text-muted-foreground text-xs">Internal</span>
+        ),
     },
     {
       header: "Account Manager",
@@ -276,6 +292,17 @@ export function ProjectsClient() {
                             <p className="text-muted-foreground mt-0.5 font-mono text-xs">
                               {project.code}
                             </p>
+                            {project.client && (
+                              <p className="text-muted-foreground mt-0.5 truncate text-xs">
+                                for{" "}
+                                <Link
+                                  href={clientHref(project.client)}
+                                  className="relative z-10 hover:underline"
+                                >
+                                  {project.client.name}
+                                </Link>
+                              </p>
+                            )}
                           </div>
                           {canWrite && (
                             <DropdownMenu>
@@ -400,6 +427,8 @@ export function ProjectsClient() {
             startDate: editing.startDate ? editing.startDate.split("T")[0] : "",
             budget: editing.budget != null ? String(editing.budget) : "",
             accountManagerId: editing.owner.id,
+            clientId: editing.client?.id ?? "",
+            clientName: editing.client?.name,
           }}
         />
       )}

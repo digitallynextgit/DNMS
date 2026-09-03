@@ -65,6 +65,7 @@ import {
   MANIFESTATION_THEMES,
   EMPTY_GUIDELINES,
   emptyManifestation,
+  type BrandAssetKind,
   type DigitalObjective,
   type BrandGuidelines,
   type Manifestation,
@@ -172,6 +173,16 @@ function SectionCard({
 
 // ─── Strategy ─────────────────────────────────────────────────────────────────
 
+/**
+ * What the file picker offers on the document sections.
+ *
+ * Spreadsheets are in the list because the two sections that grew uploads last -
+ * objectives and the manifestation plan - are the ones people already keep in
+ * Excel. `accept` is a filter on the picker, not a security control; the server
+ * has the blocklist and the size cap.
+ */
+const DOC_ACCEPT = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,image/*"
+
 const THEME_ACCENT: Record<string, string> = {
   AWARENESS: "border-l-blue-500 bg-blue-50/40 dark:bg-blue-950/20",
   DEMAND: "border-l-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20",
@@ -215,8 +226,16 @@ function StrategySection({ projectId, canManage }: Props) {
   }, [d])
 
   const assets = d?.assets ?? []
-  const briefFiles = assets.filter((a) => a.kind === "BRIEF")
-  const logoFiles = assets.filter((a) => a.kind === "LOGO")
+  const filesFor = (kind: BrandAssetKind) => assets.filter((a) => a.kind === kind)
+
+  /**
+   * Which section is mid-upload.
+   *
+   * Read off the mutation's own variables rather than a bare `upload.isPending`:
+   * one shared flag put a spinner on all five upload buttons at once, so a file
+   * going into Brand Brief looked like it was going into everything.
+   */
+  const uploadingKind = upload.isPending ? upload.variables?.kind : undefined
 
   function saveSection(key: string, payload: Partial<ProjectBrandData>) {
     setSavingKey(key)
@@ -344,12 +363,12 @@ function StrategySection({ projectId, canManage }: Props) {
         />
         <AssetRow
           label="Brief documents"
-          files={briefFiles}
+          files={filesFor("BRIEF")}
           canManage={canManage}
-          uploading={upload.isPending}
+          uploading={uploadingKind === "BRIEF"}
           onUpload={(file) => upload.mutate({ file, kind: "BRIEF" })}
           onDelete={(id) => delAsset.mutate(id)}
-          accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,image/*"
+          accept={DOC_ACCEPT}
         />
       </SectionCard>
 
@@ -391,6 +410,18 @@ function StrategySection({ projectId, canManage }: Props) {
             <Plus className="h-3.5 w-3.5" /> Add objective
           </Button>
         )}
+        {/* Outside the Save flow, like every other AssetRow: a file is stored the
+            moment it is picked, so attaching the client's target sheet does not
+            depend on remembering to press Save on the table above it. */}
+        <AssetRow
+          label="Target sheets & reports"
+          files={filesFor("OBJECTIVES")}
+          canManage={canManage}
+          uploading={uploadingKind === "OBJECTIVES"}
+          onUpload={(file) => upload.mutate({ file, kind: "OBJECTIVES" })}
+          onDelete={(id) => delAsset.mutate(id)}
+          accept={DOC_ACCEPT}
+        />
       </SectionCard>
 
       {/* 3 · Manifestation Plan */}
@@ -458,6 +489,18 @@ function StrategySection({ projectId, canManage }: Props) {
             </div>
           ))}
         </div>
+        {/* Section-level, not per-theme. Four upload rows inside a four-card grid
+            would read as part of each theme's form; the plan is presented as one
+            document, so its attachments hang off the whole plan. */}
+        <AssetRow
+          label="Plan documents"
+          files={filesFor("MANIFESTATION")}
+          canManage={canManage}
+          uploading={uploadingKind === "MANIFESTATION"}
+          onUpload={(file) => upload.mutate({ file, kind: "MANIFESTATION" })}
+          onDelete={(id) => delAsset.mutate(id)}
+          accept={DOC_ACCEPT}
+        />
       </SectionCard>
 
       {/* 4 · Brand Overview */}
@@ -479,6 +522,15 @@ function StrategySection({ projectId, canManage }: Props) {
           rows={7}
           placeholder="Positioning, competitor landscape, market research, key takeaways…"
           aria-label="Positioning, competitor landscape, market research, key takeaways"
+        />
+        <AssetRow
+          label="Strategy & research documents"
+          files={filesFor("OVERVIEW")}
+          canManage={canManage}
+          uploading={uploadingKind === "OVERVIEW"}
+          onUpload={(file) => upload.mutate({ file, kind: "OVERVIEW" })}
+          onDelete={(id) => delAsset.mutate(id)}
+          accept={DOC_ACCEPT}
         />
       </SectionCard>
 
@@ -590,9 +642,9 @@ function StrategySection({ projectId, canManage }: Props) {
 
           <AssetRow
             label="Logos & guideline files"
-            files={logoFiles}
+            files={filesFor("LOGO")}
             canManage={canManage}
-            uploading={upload.isPending}
+            uploading={uploadingKind === "LOGO"}
             onUpload={(file) => upload.mutate({ file, kind: "LOGO" })}
             onDelete={(id) => delAsset.mutate(id)}
             accept="image/*,.pdf,.ai,.svg,.zip"

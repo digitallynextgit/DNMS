@@ -16,7 +16,7 @@ export const metadata: Metadata = {
  */
 export default async function ClientSetPasswordPage() {
   const session = await auth()
-  if (!session || session.user.kind !== "client") redirect("/client-login")
+  if (!session || session.user.kind !== "client") redirect("/login")
   if (!session.user.mustChangePassword) redirect(await tenantPath("/portal"))
 
   return (

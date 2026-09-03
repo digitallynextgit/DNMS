@@ -36,7 +36,6 @@ export default function robots(): MetadataRoute.Robots {
         "/analytics",
         "/portal",
         "/login",
-        "/client-login",
         "/forgot-password",
       ],
     },

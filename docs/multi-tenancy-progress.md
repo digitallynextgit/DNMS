@@ -76,8 +76,10 @@ employee id for staff, the client_user id for a client — because several hundr
 The platform id rides alongside as `session.user.userId`, with `membershipId`, `tenantId` and
 `tenantSlug`.
 
-- One login point: `/login` serves both populations. `/client-login` still works and differs only in
-  preferring a CLIENT membership for someone who holds both.
+- One login point: `/login` serves both populations. `/client-login` was retired on 2026-09-03; the
+  proxy forwards the old address to `/login` so invitation emails already sent keep working. Someone
+  who holds both a staff and a client membership signs in as staff and crosses to the portal from
+  the workspace picker.
 - 15-minute membership re-check in the JWT callback. Revoking a role, deactivating someone or
   suspending a tenant now takes effect within 15 minutes instead of at token expiry; a membership
   that has gone away ends the session.

@@ -60,10 +60,11 @@ export default async function SelectWorkspacePage({
     )
   }
 
-  // Exactly one: never make somebody choose from a list of one.
+  // Exactly one: never make somebody choose from a list of one. A client
+  // membership has no company pages - its home is the portal.
   if (memberships.length === 1) {
     const only = memberships[0]!
-    redirect(safeNext(next, only.tenantSlug))
+    redirect(only.kind === "CLIENT" ? "/portal" : safeNext(next, only.tenantSlug))
   }
 
   return (

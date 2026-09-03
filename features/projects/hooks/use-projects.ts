@@ -33,6 +33,8 @@ export interface ProjectListItem {
   endDate: string | null
   budget: number | null
   owner: { id: string; firstName: string; lastName: string; profilePhoto?: string | null }
+  /** The company this is delivered for. Null for internal projects. */
+  client: { id: string; name: string; slug: string | null } | null
   members: {
     employee: { id: string; firstName: string; lastName: string; profilePhoto: string | null }
   }[]

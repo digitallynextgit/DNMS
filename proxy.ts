@@ -79,9 +79,6 @@ const PUBLIC_PREFIXES = [
   // "//", which nothing else matches), so no protected route is exposed by this.
   "/",
   "/login",
-  // External client portal sign-in. Its own page so a client never lands on the
-  // staff login (and never sees the Google button, which is employees-only).
-  "/client-login",
   // Self-service signup (M5). Public by definition - the person creating a
   // company does not have an account yet, so the session guard would bounce
   // them to /login and there would be no way to become a customer.
@@ -312,6 +309,14 @@ export default auth((req: NextRequest & { auth: unknown }) => {
   headers.delete(REWRITE_MARKER)
   const passThrough = () => NextResponse.next({ request: { headers } })
 
+  // /client-login was retired: /login is the one door for staff and portal
+  // contacts alike (see server/auth.ts). Invitation emails already sent still
+  // point at the old address, so it forwards rather than 404s. Checked on the
+  // stripped path, so /{tenant}/client-login lands here too.
+  if (pathname === "/client-login") {
+    return NextResponse.redirect(onThisOrigin("/login", req.nextUrl.search))
+  }
+
   // Un-prefixed public paths: the marketing page, sign-in, static assets, the
   // self-authenticating API families. Unchanged behaviour.
   if (!claimedSlug && isPublic(requestedPath)) {
@@ -351,12 +356,6 @@ export default auth((req: NextRequest & { auth: unknown }) => {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-    // A signed-out visitor to the portal belongs on the CLIENT login page, not
-    // the staff one.
-    if (isPortalPath) {
-      return NextResponse.redirect(onThisOrigin("/client-login", `?callbackUrl=${requestedPath}`))
-    }
-
     // Page routes: redirect to the login page, preserving the original URL as
     // a `callbackUrl` query parameter so the user is sent back after login.
     const loginUrl = onThisOrigin("/login")

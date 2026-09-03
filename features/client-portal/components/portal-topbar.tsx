@@ -43,7 +43,7 @@ export function PortalTopbar({
   function handleSignOut() {
     clearPalette()
     setTheme("system")
-    signOut({ callbackUrl: "/client-login" })
+    signOut({ callbackUrl: "/login" })
   }
 
   const initials =

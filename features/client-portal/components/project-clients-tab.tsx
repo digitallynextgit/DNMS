@@ -1,13 +1,16 @@
 "use client"
 
 /**
- * Project → Clients tab.
+ * Project → Portal access tab.
  *
- * Adding a client here does three things at once: creates their login, emails
- * them a generated password, and grants them THIS project with exactly the
- * sections ticked. There is no package indirection - each client's sections are
- * their own, so two people on the same project can be given different views and
- * changing one never moves the other.
+ * Who at the client can sign in and see THIS project, and which sections. Each
+ * person's sections are their own - two people on the same project can be given
+ * different views, and changing one never moves the other.
+ *
+ * When the project is filed under a client, the people already on that client's
+ * books are offered as a pick-list, so giving someone a second project is one
+ * click rather than a re-typed invitation. The client's own page
+ * (Clients → Contacts) is the same accounts from the other end.
  */
 
 import * as React from "react"
@@ -28,6 +31,7 @@ import {
 
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
+import { Link } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +39,13 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import {
@@ -45,6 +56,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+// A leaf helper, imported by its concrete path: the clients barrel renders the
+// contacts tab from this feature, so importing it here would be a cycle.
+import { clientHref } from "@/features/clients/lib/client-href"
 import { CLIENT_MODULES, type ClientModuleKey } from "../modules"
 
 interface ClientAccess {
@@ -63,6 +77,19 @@ interface ClientAccess {
   }
 }
 
+interface ClientRef {
+  id: string
+  name: string
+  slug: string | null
+}
+
+/** Someone at the project's client who does not have this project yet. */
+interface Candidate {
+  id: string
+  name: string
+  email: string
+}
+
 export function ProjectClientsTab({
   projectRef,
   canManage,
@@ -78,23 +105,33 @@ export function ProjectClientsTab({
   const [resetForceChange, setResetForceChange] = React.useState(true)
 
   const key = ["project-clients", projectRef]
-  const invalidate = () => qc.invalidateQueries({ queryKey: key })
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: key })
+    // The client's page counts contacts and grants.
+    qc.invalidateQueries({ queryKey: ["client"] })
+    qc.invalidateQueries({ queryKey: ["clients"] })
+  }
 
   const { data, isPending } = useQuery({
     queryKey: key,
     // Double `data`: withProjectManager → respond() wraps the service's own
     // { data } payload.
     queryFn: async () =>
-      (await apiFetch<{ data: { data: ClientAccess[] } }>(`/api/projects/${projectRef}/clients`))
-        .data,
+      (
+        await apiFetch<{
+          data: { data: ClientAccess[]; client: ClientRef | null; candidates: Candidate[] }
+        }>(`/api/projects/${projectRef}/clients`)
+      ).data,
     enabled: canManage,
   })
+  const client = data?.client ?? null
+  const candidates = data?.candidates ?? []
 
   const remove = useMutation({
     mutationFn: (row: ClientAccess) =>
       apiFetch(`/api/projects/${projectRef}/clients/${row.id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast.success("Client removed from this project")
+      toast.success("Removed from this project")
       setRemoving(null)
       invalidate()
     },
@@ -135,7 +172,7 @@ export function ProjectClientsTab({
       <EmptyState
         icon={Users}
         title="Not available"
-        description="Only the Account Manager or a project admin can manage client access."
+        description="Only the Account Manager or a project admin can manage portal access."
         variant="card"
       />
     )
@@ -147,12 +184,28 @@ export function ProjectClientsTab({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-muted-foreground text-xs">
-          Clients added here can sign in at <span className="font-medium">/client-login</span> and
-          see only the sections ticked for them.
+          {client ? (
+            <>
+              People at{" "}
+              <Link
+                href={clientHref(client)}
+                className="text-foreground font-medium hover:underline"
+              >
+                {client.name}
+              </Link>{" "}
+              who can sign in at <span className="font-medium">/login</span> and see this project.
+              Each sees only the sections ticked for them.
+            </>
+          ) : (
+            <>
+              People who can sign in at <span className="font-medium">/login</span> and see this
+              project. File the project under a client to pick from its existing contacts.
+            </>
+          )}
         </p>
         <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAddOpen(true)}>
           <Plus className="h-3.5 w-3.5" />
-          Add client
+          Add person
         </Button>
       </div>
 
@@ -167,8 +220,8 @@ export function ProjectClientsTab({
       {!isPending && clients.length === 0 && (
         <EmptyState
           icon={Users}
-          title="No clients on this project"
-          description="Add a client to give them a login and share this project with them."
+          title="Nobody can see this project yet"
+          description="Add a person to give them a login and share this project with them."
           variant="card"
         />
       )}
@@ -274,6 +327,8 @@ export function ProjectClientsTab({
       <ClientDialog
         projectRef={projectRef}
         access={editing}
+        client={client}
+        candidates={candidates}
         open={addOpen || !!editing}
         onOpenChange={(o) => {
           if (!o) {
@@ -350,7 +405,7 @@ export function ProjectClientsTab({
 // ─── Add / edit ─────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { number: 1, label: "Client details" },
+  { number: 1, label: "Who" },
   { number: 2, label: "Access" },
 ]
 
@@ -399,43 +454,51 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
   )
 }
 
-/**
- * Two-step modal, mirroring the employee wizard: WHO the client is, then WHAT
- * they can see. Splitting it that way keeps the second step's real question -
- * "how much of this project are we handing over?" - from being buried under
- * three contact fields.
- */
-function ClientDialog({
-  projectRef,
-  access,
-  open,
-  onOpenChange,
-  onDone,
-}: {
+const NEW_PERSON = "__new__"
+
+interface ClientDialogProps {
   projectRef: string
-  /** null = adding a new client; set = editing an existing one. */
+  /** null = adding; set = editing an existing grant. */
   access: ClientAccess | null
+  client: ClientRef | null
+  candidates: Candidate[]
   open: boolean
   onOpenChange: (o: boolean) => void
   onDone: () => void
-}) {
+}
+
+/**
+ * Two-step modal, mirroring the employee wizard: WHO they are, then WHAT they
+ * can see. When the project has a client, step one starts with that client's
+ * existing people; picking one skips the identity fields, because the account
+ * already exists and no password is issued.
+ *
+ * Remounted on every open (the key), so the fields seed from `access` fresh
+ * each time without an effect.
+ */
+function ClientDialog(props: ClientDialogProps) {
+  return <ClientDialogForm key={props.open ? "open" : "closed"} {...props} />
+}
+
+function ClientDialogForm({
+  projectRef,
+  access,
+  client,
+  candidates,
+  open,
+  onOpenChange,
+  onDone,
+}: ClientDialogProps) {
   const isEdit = !!access
   const [step, setStep] = React.useState(1)
-  const [name, setName] = React.useState("")
-  const [email, setEmail] = React.useState("")
-  const [phone, setPhone] = React.useState("")
-  const [modules, setModules] = React.useState<ClientModuleKey[]>([])
+  const [contactId, setContactId] = React.useState("")
+  const [name, setName] = React.useState(access?.clientUser.name ?? "")
+  const [email, setEmail] = React.useState(access?.clientUser.email ?? "")
+  const [phone, setPhone] = React.useState(access?.clientUser.phone ?? "")
+  const [modules, setModules] = React.useState<ClientModuleKey[]>(access?.modules ?? [])
   const [forceChange, setForceChange] = React.useState(true)
 
-  React.useEffect(() => {
-    if (!open) return
-    setStep(1)
-    setName(access?.clientUser.name ?? "")
-    setEmail(access?.clientUser.email ?? "")
-    setPhone(access?.clientUser.phone ?? "")
-    setModules(access?.modules ?? [])
-    setForceChange(true)
-  }, [open, access])
+  const usingExisting = !isEdit && !!contactId
 
   const save = useMutation({
     mutationFn: async () => {
@@ -453,22 +516,28 @@ function ClientDialog({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, phone, modules, forcePasswordChange: forceChange }),
+          body: JSON.stringify(
+            usingExisting
+              ? { contactId, modules }
+              : { name, email, phone, modules, forcePasswordChange: forceChange },
+          ),
         },
       )
     },
     onSuccess: (res) => {
       if (isEdit) {
-        toast.success("Client updated")
+        toast.success("Updated")
+      } else if (usingExisting) {
+        toast.success("Added to this project")
       } else {
-        // An existing client account keeps its password, so promising an email
-        // went out would be a lie.
+        // An existing account keeps its password, so promising an email went
+        // out would be a lie.
         const sent = (res as { data?: { credentialsSent?: boolean } } | undefined)?.data
           ?.credentialsSent
         toast.success(
           sent === false
-            ? "That client already had a login - they've been added to this project"
-            : "Client added - their password has been emailed",
+            ? "That person already had a login - they've been added to this project"
+            : "Added - their password has been emailed",
         )
       }
       onOpenChange(false)
@@ -484,7 +553,8 @@ function ClientDialog({
   // Step 1 needs a usable identity; step 2 needs at least one section. Gating
   // "Next" on step 1 means you cannot reach the access screen and then discover
   // the email was malformed.
-  const step1Valid = name.trim().length >= 2 && (isEdit || /\S+@\S+\.\S+/.test(email))
+  const step1Valid =
+    usingExisting || (name.trim().length >= 2 && (isEdit || /\S+@\S+\.\S+/.test(email)))
   const step2Valid = modules.length > 0
 
   return (
@@ -492,11 +562,11 @@ function ClientDialog({
       <DialogContent className="max-w-lg lg:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-sm">
-            {isEdit ? `Edit ${access!.clientUser.name}` : "Add a client to this project"}
+            {isEdit ? `Edit ${access!.clientUser.name}` : "Add a person to this project"}
           </DialogTitle>
           <DialogDescription className="text-xs">
             {step === 1
-              ? "Who are they? This is also how they'll sign in."
+              ? "Who are they? Their email is also how they sign in."
               : "What should they be able to see on this project?"}
           </DialogDescription>
         </DialogHeader>
@@ -506,51 +576,83 @@ function ClientDialog({
 
           {step === 1 ? (
             <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="client-name" className="text-xs">
-                  Full name<span className="text-destructive"> *</span>
-                </Label>
-                <Input
-                  id="client-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Priya Sharma"
-                  className="h-9 text-sm"
-                />
-              </div>
+              {!isEdit && client && candidates.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Already at {client.name}</Label>
+                  <Select
+                    value={contactId || NEW_PERSON}
+                    onValueChange={(v) => setContactId(v === NEW_PERSON ? "" : v)}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NEW_PERSON} className="text-xs">
+                        Someone new
+                      </SelectItem>
+                      {candidates.map((c) => (
+                        <SelectItem key={c.id} value={c.id} className="text-xs">
+                          {c.name}
+                          <span className="text-muted-foreground ml-1.5">{c.email}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-muted-foreground text-[11px]">
+                    An existing login keeps its password. Only someone new is emailed one.
+                  </p>
+                </div>
+              )}
 
-              <div className="space-y-1.5">
-                <Label htmlFor="client-email" className="text-xs">
-                  Email<span className="text-destructive"> *</span>
-                </Label>
-                <Input
-                  id="client-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isEdit}
-                  placeholder="you@theircompany.com"
-                  className="h-9 text-sm"
-                />
-                <p className="text-muted-foreground text-[11px]">
-                  {isEdit
-                    ? "The email is their login, so it can't be changed here."
-                    : "Their login, and where the generated password is sent."}
-                </p>
-              </div>
+              {!usingExisting && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="client-name" className="text-xs">
+                      Full name<span className="text-destructive"> *</span>
+                    </Label>
+                    <Input
+                      id="client-name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. Priya Sharma"
+                      className="h-9 text-sm"
+                    />
+                  </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="client-phone" className="text-xs">
-                  Phone
-                </Label>
-                <Input
-                  id="client-phone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="h-9 text-sm"
-                />
-              </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="client-email" className="text-xs">
+                      Email<span className="text-destructive"> *</span>
+                    </Label>
+                    <Input
+                      id="client-email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={isEdit}
+                      placeholder="you@theircompany.com"
+                      className="h-9 text-sm"
+                    />
+                    <p className="text-muted-foreground text-[11px]">
+                      {isEdit
+                        ? "The email is their login, so it can't be changed here."
+                        : "Their login, and where the generated password is sent."}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="client-phone" className="text-xs">
+                      Phone
+                    </Label>
+                    <Input
+                      id="client-phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -585,7 +687,7 @@ function ClientDialog({
                 </p>
               </div>
 
-              {!isEdit && (
+              {!isEdit && !usingExisting && (
                 <div className="space-y-2 border-t pt-4">
                   <label className="flex cursor-pointer items-start gap-2.5 rounded-sm border p-3">
                     <Checkbox
@@ -636,7 +738,11 @@ function ClientDialog({
                 loading={save.isPending}
                 onClick={() => save.mutate()}
               >
-                {isEdit ? "Save changes" : "Add client and email password"}
+                {isEdit
+                  ? "Save changes"
+                  : usingExisting
+                    ? "Add to project"
+                    : "Add person and email password"}
               </Button>
             </>
           )}

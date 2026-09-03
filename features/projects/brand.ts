@@ -56,9 +56,31 @@ export interface BrandGuidelines {
   uiux: string
 }
 
+/**
+ * Which section of the Strategy page a file was attached to.
+ *
+ * ONE FLAT LIST, not a nested "section owns its files" model. An asset row is
+ * just a file plus the section it belongs to, so adding a new attachable
+ * section is this array plus an <AssetRow> - no migration, no new table.
+ *
+ * The strings are stored verbatim in BrandAsset.kind, so they are append-only:
+ * renaming one orphans every file already filed under the old name. The server
+ * validates uploads against this list (see the assets route) - without that, a
+ * typo'd kind writes a row that no section on the page will ever render.
+ */
+export const BRAND_ASSET_KINDS = [
+  "BRIEF",
+  "OBJECTIVES",
+  "MANIFESTATION",
+  "OVERVIEW",
+  "LOGO",
+] as const
+export type BrandAssetKind = (typeof BRAND_ASSET_KINDS)[number]
+
 export interface BrandAsset {
   id: string
-  kind: "BRIEF" | "LOGO" | string
+  /** A BrandAssetKind. Typed loosely because rows predate the constant. */
+  kind: BrandAssetKind | string
   fileName: string
   fileSize: number
   mimeType: string

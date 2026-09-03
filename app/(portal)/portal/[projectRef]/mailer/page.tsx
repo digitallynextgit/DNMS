@@ -25,7 +25,7 @@ export default async function PortalMailerPage({
 }) {
   const { projectRef } = await params
   const session = await auth()
-  if (!session || session.user.kind !== "client") redirect("/client-login")
+  if (!session || session.user.kind !== "client") redirect("/login")
 
   const grant = (await listClientGrants(session.user.id)).find(
     (g) => g.projectRef === projectRef || g.projectId === projectRef,

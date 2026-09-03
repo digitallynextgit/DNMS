@@ -26,15 +26,24 @@ export {
   projectClientResetSchema,
   clientPasswordSchema,
   productListQuerySchema,
+  clientContactCreateSchema,
+  clientContactUpdateSchema,
+  clientContactResetSchema,
+  clientGrantCreateSchema,
+  clientGrantUpdateSchema,
   type ProjectClientCreateInput,
   type ProjectClientUpdateInput,
   type ProjectClientResetInput,
   type ClientPasswordInput,
   type ProductListQuery,
+  type ClientContactCreateInput,
+  type ClientContactUpdateInput,
+  type ClientContactResetInput,
+  type ClientGrantCreateInput,
+  type ClientGrantUpdateInput,
 } from "./schemas/client-portal.schema"
 
 // Components
-export { ClientLoginForm } from "./components/client-login-form"
 export { ClientSetPasswordForm } from "./components/client-set-password-form"
 export { PortalSidebar, type PortalProject } from "./components/portal-sidebar"
 export { PortalTopbar } from "./components/portal-topbar"
@@ -42,3 +51,9 @@ export { PortalMobileTabbar } from "./components/portal-mobile-tabbar"
 export { PortalProductGrid } from "./components/portal-product-grid"
 export { PortalActivityLog } from "./components/portal-activity-log"
 export { ProjectClientsTab } from "./components/project-clients-tab"
+export {
+  ClientContactsTab,
+  type ContactRow,
+  type ContactGrant,
+  type ContactProjectOption,
+} from "./components/client-contacts-tab"

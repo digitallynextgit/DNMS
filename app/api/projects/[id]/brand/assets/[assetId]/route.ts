@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withAuth } from "@/server/api-handler"
-import { withProjectManager } from "@/features/projects/server/project-access"
-import { PERMISSIONS } from "@/lib/constants"
+import { withProjectAccess, withProjectManager } from "@/features/projects/server/project-access"
 import { getSignedUrl, deleteFile } from "@/lib/storage"
 
 // GET - redirect to a short-lived signed download URL for the asset.
-export const GET = withAuth(
-  PERMISSIONS.PROJECT_READ,
+//
+// withProjectAccess for the same reason as the parent route: the ownership check
+// below compares `asset.projectId` (a uuid) against `ctx.params.id`, and under
+// withAuth that was the URL slug - so every asset looked like it belonged to
+// another project and 404'd.
+export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
     const asset = await db.brandAsset.findUnique({ where: { id: ctx.params.assetId } })
     if (!asset || asset.projectId !== ctx.params.id)

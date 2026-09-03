@@ -15,6 +15,7 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
         {
           status: searchParams.get("status") ?? undefined,
           mine: searchParams.get("mine") === "true",
+          clientId: searchParams.get("clientId") ?? undefined,
           page: searchParams.get("page"),
           limit: searchParams.get("limit"),
         },
@@ -32,7 +33,15 @@ export const POST = withAuth(
   async (req: NextRequest, _ctx: unknown, session: Session) => {
     try {
       const body = await req.json()
-      const { name, description, status, priority, startDate, budget, accountManagerId } = body
+      const { name, description, status, priority, startDate, budget, accountManagerId, clientId } =
+        body
+
+      // Optional: the company this is delivered for. Looked up through the
+      // tenant guard, so an id from another company reads as "not found".
+      if (clientId) {
+        const client = await db.client.findUnique({ where: { id: clientId }, select: { id: true } })
+        if (!client) return NextResponse.json({ error: "Client not found" }, { status: 422 })
+      }
 
       // Validate Account Manager (formerly "owner") - falls back to creator if not supplied
       const ownerId: string = accountManagerId || session.user.id
@@ -79,6 +88,7 @@ export const POST = withAuth(
               status: status ?? "PLANNING",
               priority: priority ?? "MEDIUM",
               ownerId,
+              clientId: clientId || null,
               startDate: startDate ? new Date(startDate) : null,
               budget: budget ? parseFloat(budget) : null,
             },
@@ -100,7 +110,7 @@ export const POST = withAuth(
         module: "project",
         entityType: "Project",
         entityId: project.id,
-        changes: { name, code: project.code, status: project.status },
+        changes: { name, code: project.code, status: project.status, clientId: clientId || null },
       })
 
       return NextResponse.json({ data: project }, { status: 201 })

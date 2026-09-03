@@ -1,18 +1,27 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withAuth } from "@/server/api-handler"
-import { withProjectManager } from "@/features/projects/server/project-access"
-import { PERMISSIONS } from "@/lib/constants"
+import { withProjectAccess, withProjectManager } from "@/features/projects/server/project-access"
 import { getSignedUrl } from "@/lib/storage"
 import type { Session } from "next-auth"
 
 // GET - the project's brand/strategy workspace (brief, overview, objectives,
 // manifestation, guidelines) + uploaded assets with signed download URLs.
-export const GET = withAuth(
-  PERMISSIONS.PROJECT_READ,
+//
+// withProjectAccess, NOT withAuth. Two things were wrong with withAuth here and
+// they compounded:
+//
+//   1. Project URLs are SLUGS (/projects/happy-ganga). withProjectAccess and
+//      withProjectManager resolve `ctx.params.id` to the real uuid; withAuth
+//      does not. So the write routes stored assets against the uuid while THIS
+//      route queried for the slug - every upload saved correctly and then came
+//      back empty, along with the brief and every other saved section.
+//   2. It demanded the global `project:read`, so a team member on the project
+//      could open every other tab and not this one. Every other project read
+//      uses withProjectAccess, which is membership-based.
+export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) => {
     try {
-      const projectId = ctx.params.id
+      const projectId = ctx.params.id!
       const [brand, assets] = await Promise.all([
         db.projectBrand.findUnique({ where: { projectId } }),
         db.brandAsset.findMany({ where: { projectId }, orderBy: { createdAt: "desc" } }),

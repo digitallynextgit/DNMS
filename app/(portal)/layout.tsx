@@ -9,14 +9,14 @@ import {
 
 /**
  * Portal route group. proxy.ts already keeps staff out and signed-out visitors
- * on /client-login; this re-checks server-side (defence in depth) and, like the
+ * on /login; this re-checks server-side (defence in depth) and, like the
  * dashboard layout, re-reads isActive on every navigation - a stateless JWT
  * outlives an account being disabled.
  */
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   // Establishes the tenant context for everything this layout renders (M4).
   const session = await tenantScopedSession()
-  if (!session) redirect("/client-login")
+  if (!session) redirect("/login")
   if (session.user.kind !== "client") redirect(await tenantPath("/dashboard"))
 
   const account = await db.clientUser.findUnique({

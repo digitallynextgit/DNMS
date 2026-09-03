@@ -25,6 +25,7 @@ import {
   Megaphone,
   Images,
   MessageSquare,
+  Building2,
 } from "lucide-react"
 
 import { PERMISSIONS } from "@/lib/constants"
@@ -110,6 +111,15 @@ export function projectItems(canManageProjects: boolean): NavItem[] {
       label: canManageProjects ? "Progress" : "My Progress",
       href: "/projects/progress",
       icon: TrendingUp,
+    },
+    // The company book: who the projects are for, with their contacts and
+    // portal access. Gated on its own scope rather than project:write, because
+    // running projects and administering client logins are different jobs.
+    {
+      label: "Clients",
+      href: "/projects/clients",
+      icon: Building2,
+      permission: PERMISSIONS.CLIENT_READ,
     },
   ]
 }
