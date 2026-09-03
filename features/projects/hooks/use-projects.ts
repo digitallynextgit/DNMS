@@ -15,6 +15,7 @@ import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
 import { followUpConflictFrom } from "../lib/follow-up-conflict"
+import { formatHours } from "../lib/format-hours"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -546,8 +547,21 @@ export function useUpdateTask() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       invalidate()
+      // Starting a task stops whatever else was running, so the person is told
+      // which one and how much it banked. Silent updates stay silent for the
+      // "Updated" toast, but never for this: time moving on a task they did not
+      // touch is the one thing they must not discover from a report next month.
+      const paused = (data as { pausedTasks?: { title: string; bankedHours: number }[] } | null)
+        ?.pausedTasks
+      if (paused?.length) {
+        for (const p of paused) {
+          toast.info(`Paused "${p.title}"`, {
+            description: `${formatHours(p.bankedHours)} logged. One task runs at a time.`,
+          })
+        }
+      }
       if (!variables.silent) toast.success("Updated")
     },
     onError: (e: Error, variables) => {

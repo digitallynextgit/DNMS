@@ -1,5 +1,6 @@
 import "server-only"
 
+import type { Prisma } from "@prisma/client"
 import { db } from "@/server/db"
 import { ValidationError, NotFoundError } from "@/lib/errors"
 
@@ -223,6 +224,52 @@ function parentStatus(stored: GoalStatusValue, countable: GoalNode[]): GoalStatu
 }
 
 /**
+ * The columns a goal summary is built from.
+ *
+ * Exported so the portfolio query (goals-portfolio.queries.ts) selects EXACTLY
+ * the same shape and can hand its rows to summariseGoalRows below. A second
+ * hand-written select would drift, and the first symptom of drift is a progress
+ * figure that differs between the Goals tab and the Progress page - two numbers
+ * for one project, with no way to tell which is right.
+ */
+export const GOAL_SELECT = {
+  id: true,
+  parentId: true,
+  title: true,
+  description: true,
+  status: true,
+  statusReason: true,
+  targetDate: true,
+  tags: true,
+  sortOrder: true,
+  isActive: true,
+  createdBy: { select: { firstName: true, lastName: true } },
+  events: {
+    orderBy: { createdAt: "desc" },
+    // Enough to answer "what happened lately" without shipping a decade of rows
+    // for a goal nobody is looking at in detail.
+    take: 25,
+    select: {
+      id: true,
+      type: true,
+      fromStatus: true,
+      toStatus: true,
+      reason: true,
+      createdAt: true,
+      actor: { select: { firstName: true, lastName: true } },
+    },
+  },
+} satisfies Prisma.ProjectGoalSelect
+
+export type GoalRow = Prisma.ProjectGoalGetPayload<{ select: typeof GOAL_SELECT }>
+
+/** The order a board reads in. Shared for the same reason GOAL_SELECT is. */
+export const GOAL_ORDER = [
+  { sortOrder: "asc" },
+  { createdAt: "asc" },
+] satisfies Prisma.ProjectGoalOrderByWithRelationInput[]
+
+/**
  * Every goal on a project, nested, with progress rolled up and history attached.
  *
  * `includeInactive` decides whether deactivated goals come back at all. They
@@ -235,38 +282,25 @@ export async function getProjectGoals(
 ): Promise<ProjectGoalsSummary> {
   const rows = await db.projectGoal.findMany({
     where: { projectId, ...(includeInactive ? {} : { isActive: true }) },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    select: {
-      id: true,
-      parentId: true,
-      title: true,
-      description: true,
-      status: true,
-      statusReason: true,
-      targetDate: true,
-      tags: true,
-      sortOrder: true,
-      isActive: true,
-      createdBy: { select: { firstName: true, lastName: true } },
-      events: {
-        orderBy: { createdAt: "desc" },
-        // Enough to answer "what happened lately" without shipping a decade of
-        // rows for a goal nobody is looking at in detail.
-        take: 25,
-        select: {
-          id: true,
-          type: true,
-          fromStatus: true,
-          toStatus: true,
-          reason: true,
-          createdAt: true,
-          actor: { select: { firstName: true, lastName: true } },
-        },
-      },
-    },
+    orderBy: GOAL_ORDER,
+    select: GOAL_SELECT,
   })
+  return summariseGoalRows(rows)
+}
 
-  const today = todayUtc()
+/**
+ * Turn one project's goal rows into its summary: nest them, roll progress and
+ * status up, and tally the board-level counts.
+ *
+ * Split out from the query so the SAME arithmetic serves one project and a whole
+ * portfolio. The portfolio fetches every project's goals in a single findMany
+ * and calls this per group - one query instead of one per project, and no second
+ * implementation of the rollup to keep in step.
+ *
+ * PURE. It takes rows and returns a summary; `today` is a parameter so a caller
+ * summarising many projects cannot have the date move underneath it mid-loop.
+ */
+export function summariseGoalRows(rows: GoalRow[], today = todayUtc()): ProjectGoalsSummary {
   const byParent = new Map<string | null, typeof rows>()
   for (const r of rows) {
     if (!byParent.has(r.parentId)) byParent.set(r.parentId, [])

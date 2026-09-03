@@ -86,6 +86,7 @@ export const GET = withSession(
       type GroupRow = {
         assignee_id: string | null
         project_id: string | null
+        team_id: string | null
         assigned: bigint
         completed: bigint
         on_time: bigint
@@ -106,6 +107,7 @@ export const GET = withSession(
         SELECT
           t.assignee_id,
           t.project_id,
+          t.team_id,
           COUNT(*)                                                      AS assigned,
           COUNT(*) FILTER (WHERE t.status = 'DONE')                     AS completed,
           COUNT(*) FILTER (
@@ -143,8 +145,13 @@ export const GET = withSession(
         LEFT JOIN project_teams tm ON tm.id = t.team_id
         LEFT JOIN projects      p  ON p.id  = t.project_id
         WHERE ${scopeSql} AND ${projectSql} AND ${fromSql} AND ${toSql}
-        GROUP BY t.assignee_id, t.project_id
+        GROUP BY t.assignee_id, t.project_id, t.team_id
       `
+      // team_id joined the GROUP BY so the Progress page can stack one bar per
+      // TEAM inside a project on the same exclusive states as everything else.
+      // Every other roll-up is a plain sum, so the finer grouping changes none
+      // of their totals - a (person, project) pair now arrives as a few rows
+      // instead of one and adds up the same.
 
       type Bucket = {
         assigned: number
@@ -209,9 +216,70 @@ export const GET = withSession(
         b.spentHours += Number(g.spent_hours ?? 0)
       }
 
+      // ── Two figures the date range must NOT narrow ─────────────────────────
+      //
+      // overdueNow: "what is late right now" is a question about today, not
+      // about the window. With the page defaulting to This week, the range-
+      // scoped overdue count silently dropped every task that fell late in an
+      // earlier week and was still open - the ones a manager most needs to see.
+      // The tile shows this; the range-scoped `overdue` in the buckets stays for
+      // the charts that describe the window.
+      //
+      // trend: eight Monday-start weeks ending this one, so the pace line has a
+      // shape. A pace line clipped to a one-week range is a single dot.
+      const trendStart = new Date(weekStart)
+      trendStart.setUTCDate(trendStart.getUTCDate() - 7 * 7)
+
+      const [[overdueRow], completedByWeek, dueByWeek] = await Promise.all([
+        db.$queryRaw<{ n: number }[]>`
+          SELECT COUNT(*)::int AS n
+          FROM project_tasks t
+          LEFT JOIN project_teams tm ON tm.id = t.team_id
+          LEFT JOIN projects      p  ON p.id  = t.project_id
+          WHERE ${scopeSql} AND ${projectSql} AND ${OPEN} AND ${LATE}
+        `,
+        db.$queryRaw<{ wk: Date; n: number }[]>`
+          SELECT date_trunc('week', t.completed_at) AS wk, COUNT(*)::int AS n
+          FROM project_tasks t
+          LEFT JOIN project_teams tm ON tm.id = t.team_id
+          LEFT JOIN projects      p  ON p.id  = t.project_id
+          WHERE ${scopeSql} AND ${projectSql}
+            AND t.status = 'DONE'
+            AND t.completed_at >= ${trendStart} AND t.completed_at < ${weekEnd}
+          GROUP BY 1
+        `,
+        db.$queryRaw<{ wk: Date; n: number }[]>`
+          SELECT date_trunc('week', t.due_date::timestamp) AS wk, COUNT(*)::int AS n
+          FROM project_tasks t
+          LEFT JOIN project_teams tm ON tm.id = t.team_id
+          LEFT JOIN projects      p  ON p.id  = t.project_id
+          WHERE ${scopeSql} AND ${projectSql}
+            AND t.due_date >= ${trendStart} AND t.due_date < ${weekEnd}
+          GROUP BY 1
+        `,
+      ])
+      const overdueNow = Number(overdueRow?.n ?? 0)
+
+      // date_trunc returns the Monday as a timestamp; keyed by its date so the
+      // lookup does not depend on how the driver renders midnight.
+      const key = (d: Date) => d.toISOString().slice(0, 10)
+      const completedMap = new Map(completedByWeek.map((r) => [key(r.wk), Number(r.n)]))
+      const dueMap = new Map(dueByWeek.map((r) => [key(r.wk), Number(r.n)]))
+      const trend: { weekStart: string; completed: number; due: number }[] = []
+      for (let i = 7; i >= 0; i--) {
+        const start = new Date(weekStart)
+        start.setUTCDate(start.getUTCDate() - i * 7)
+        const k = key(start)
+        trend.push({ weekStart: k, completed: completedMap.get(k) ?? 0, due: dueMap.get(k) ?? 0 })
+      }
+
       const summary = zero()
       const byEmp = new Map<string, Bucket>()
       const byProj = new Map<string, Bucket>()
+      const byTeamMap = new Map<string, Bucket>()
+      // Teamless tasks still need a bar, or a project's team bars would not add
+      // up to its donut. Same sentinel the per-project progress query uses.
+      const NO_TEAM = "__no_team__"
 
       for (const g of groups) {
         add(summary, g)
@@ -225,11 +293,20 @@ export const GET = withSession(
           add(b, g)
           byProj.set(g.project_id, b)
         }
+        // Only meaningful inside one project: across the portfolio a "team"
+        // bar would merge same-named teams from different clients.
+        if (projectId) {
+          const key = g.team_id ?? NO_TEAM
+          const b = byTeamMap.get(key) ?? zero()
+          add(b, g)
+          byTeamMap.set(key, b)
+        }
       }
 
       // Display info for just the ids that actually appear - a couple of small
       // keyed reads instead of joining these columns onto every task row.
-      const [empInfo, projInfo] = await Promise.all([
+      const teamIds = [...byTeamMap.keys()].filter((k) => k !== NO_TEAM)
+      const [empInfo, projInfo, teamInfo] = await Promise.all([
         byEmp.size
           ? db.employee.findMany({
               where: { id: { in: [...byEmp.keys()] } },
@@ -239,12 +316,21 @@ export const GET = withSession(
         byProj.size
           ? db.project.findMany({
               where: { id: { in: [...byProj.keys()] } },
-              select: { id: true, name: true, code: true },
+              // slug: the drill-down links to the project page, and every link
+              // in the app is slug-first (see projectHref).
+              select: { id: true, name: true, code: true, slug: true },
+            })
+          : Promise.resolve([]),
+        teamIds.length
+          ? db.projectTeam.findMany({
+              where: { id: { in: teamIds } },
+              select: { id: true, name: true },
             })
           : Promise.resolve([]),
       ])
       const empById = new Map(empInfo.map((e) => [e.id, e]))
       const projById = new Map(projInfo.map((p) => [p.id, p]))
+      const teamById = new Map(teamInfo.map((t) => [t.id, t]))
 
       const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : null)
       const withRates = (b: Bucket) => ({
@@ -272,7 +358,18 @@ export const GET = withSession(
       const byProject = [...byProj.entries()]
         .flatMap(([id, b]) => {
           const info = projById.get(id)
-          return info ? [{ id: info.id, name: info.name, code: info.code, ...withRates(b) }] : []
+          return info
+            ? [{ id: info.id, name: info.name, code: info.code, slug: info.slug, ...withRates(b) }]
+            : []
+        })
+        .sort((a, b) => b.assigned - a.assigned)
+
+      const byTeam = [...byTeamMap.entries()]
+        .flatMap(([id, b]) => {
+          if (id === NO_TEAM)
+            return b.assigned > 0 ? [{ id, name: "No team", ...withRates(b) }] : []
+          const info = teamById.get(id)
+          return info ? [{ id: info.id, name: info.name, ...withRates(b) }] : []
         })
         .sort((a, b) => b.assigned - a.assigned)
 
@@ -286,15 +383,19 @@ export const GET = withSession(
       const projects = (
         await db.project.findMany({
           where: { tasks: { some: scopeWhere } },
-          select: { id: true, name: true, code: true },
+          select: { id: true, name: true, code: true, slug: true },
         })
       ).sort((a, b) => a.name.localeCompare(b.name))
 
       return NextResponse.json({
         data: {
           summary: withRates(summary),
+          overdueNow,
+          trend,
           byEmployee,
           byProject,
+          /** Only populated when narrowed to one project. */
+          byTeam,
           projects,
           scope: isAdmin ? "all" : "mine",
         },

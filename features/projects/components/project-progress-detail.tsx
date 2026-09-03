@@ -525,7 +525,8 @@ export function ProjectProgressDetail({
   )
 }
 
-function SeoRow({ site }: { site: SeoSiteProgress }) {
+/** One tracked site's search numbers. Exported for the Progress drill-down. */
+export function SeoRow({ site }: { site: SeoSiteProgress }) {
   const BAND: Record<string, string> = {
     HEALTHY: "text-emerald-600",
     WATCH: "text-amber-600",

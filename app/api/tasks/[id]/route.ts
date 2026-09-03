@@ -11,6 +11,7 @@ import {
   canRemoveUntouchedFollowUp,
   type ResumeTaskResult,
 } from "@/features/projects/server/task-hold.service"
+import { pauseOtherRunningTasks } from "@/features/projects/server/task-clock.service"
 import { diffTaskFields } from "@/features/projects/server/task-audit"
 import { dedupeLinks, isSafeHttpUrl } from "@/features/projects/lib/task-links"
 import { formatHours } from "@/features/projects/lib/format-hours"
@@ -264,7 +265,7 @@ export const PATCH = withSession(
       // The task row and its status history move together: a recorded status
       // with no period (or the reverse) would make every duration wrong from
       // that point on.
-      const { task, resumeTask, removedResume } = await db.$transaction(async (tx) => {
+      const { task, resumeTask, removedResume, pausedTasks } = await db.$transaction(async (tx) => {
         const updated = await tx.projectTask.update({
           where: { id: ctx.params.id },
           data,
@@ -272,6 +273,20 @@ export const PATCH = withSession(
             assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
           },
         })
+
+        // ONE CLOCK PER PERSON. Starting this task stops whatever else they had
+        // running, banking its stretch on the way out. Without this two tasks
+        // both sat In Progress and both billed the same wall-clock hours - a
+        // 6h 33m morning booked as 13h 6m. See task-clock.service.ts.
+        const pausedTasks =
+          statusChanged && updated.status === "IN_PROGRESS"
+            ? await pauseOtherRunningTasks(tx, {
+                assigneeId: updated.assigneeId,
+                exceptTaskId: updated.id,
+                actorId: session.user.id,
+              })
+            : []
+
         if (statusChanged) {
           await recordStatusChange(tx, {
             taskId: updated.id,
@@ -304,7 +319,7 @@ export const PATCH = withSession(
           // into a future week.
           removedResume = await removeResumeTaskIfPristine(tx, updated.id)
         }
-        return { task: updated, resumeTask: resume, removedResume }
+        return { task: updated, resumeTask: resume, removedResume, pausedTasks }
       })
 
       // Before AND after, not just the new value: "who moved the deadline, and
@@ -410,7 +425,13 @@ export const PATCH = withSession(
         })
       }
 
-      return NextResponse.json({ data: task })
+      // Returned so the client can say what stopped. A task that moves itself
+      // out of In Progress without a word is worse than the double-count it
+      // prevents: the person cannot tell whether their time was recorded.
+      return NextResponse.json({
+        data: task,
+        ...(pausedTasks.length > 0 ? { pausedTasks } : {}),
+      })
     } catch (error) {
       console.error("[TASK_PATCH]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })

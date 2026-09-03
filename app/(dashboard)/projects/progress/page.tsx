@@ -1,35 +1,46 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import dynamic from "next/dynamic"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation } from "@tanstack/react-query"
 import {
   CheckCircle2,
   CircleDot,
   Clock,
-  ListChecks,
   AlertTriangle,
-  CalendarRange,
+  Target,
   Sparkles,
   Loader2,
   SlidersHorizontal,
+  ChevronRight,
+  LayoutDashboard,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { MarkdownLite } from "@/components/shared/markdown-lite"
-import { apiFetch } from "@/lib/api-fetch"
-import { formatDate } from "@/lib/utils"
 import {
-  MemberProgressDialog,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import { apiFetch } from "@/lib/api-fetch"
+import { cn, formatDate } from "@/lib/utils"
+import {
   ReportOptionsDialog,
   DEFAULT_REPORT_CONFIG,
   describeConfig,
-  type MemberProgress,
+  usePerformance,
+  rangeLabel,
+  type Drill,
   type ReportConfig,
+  type TaskState,
 } from "@/features/projects"
+import { useGoalsPortfolio } from "@/features/projects/components/goals-progress-card"
 import {
   Select,
   SelectContent,
@@ -46,115 +57,93 @@ import {
   type DateRangeValue,
 } from "@/components/shared/date-range-field"
 
+// =============================================================================
+// Progress: glance -> chart -> popup.
+//
+// Three layers, and every number is a door. The tiles say whether things are
+// OK; the four charts say where; the drill-down says which tasks. The old page
+// stacked six tiles, five charts and a table that all restated one set of
+// counts and none of which could be clicked - a report pretending to be a
+// dashboard.
+//
+// ── TWO CLOCKS, STATED ───────────────────────────────────────────────────────
+// The date range scopes tasks by DUE date - "what was due this week, how did it
+// go". Two things are not weekly questions and ignore it on purpose: OVERDUE
+// (late is late today, whichever week it was due) and GOALS (a target three
+// months out is the normal case). Both say "as of today" wherever they appear.
+// =============================================================================
+
 /** Radix Select cannot hold "" as a value, so the "everything" option needs a sentinel. */
 const ALL_PROJECTS = "__all__"
 
-/** Stand-in while the first response is in flight, so the charts can mount. */
-const EMPTY_BUCKET = {
-  assigned: 0,
-  completed: 0,
-  onTime: 0,
-  late: 0,
-  overdue: 0,
-  inProgress: 0,
-  onHold: 0,
-  discarded: 0,
-  dueThisWeek: 0,
-  doneThisWeek: 0,
-  openTodo: 0,
-  openProgress: 0,
-  allocatedHours: 0,
-  spentHours: 0,
-  completionRate: null,
-  onTimeRate: null,
-}
-
-// The per-project breakdown is a big component; it loads when this page does,
-// not with the rest of the bundle.
-const ProjectProgressDetail = dynamic(
-  () => import("@/features/projects").then((m) => m.ProjectProgressDetail),
-  { loading: () => <Skeleton className="h-64 rounded" /> },
-)
+// Heavy sections load with the page, not the app: the charts pull recharts, the
+// drill-down pulls everything.
 const PortfolioCharts = dynamic(
   () => import("@/features/projects").then((m) => m.PortfolioCharts),
-  { loading: () => <Skeleton className="h-64 rounded" /> },
+  { loading: () => <Skeleton className="h-96 rounded" /> },
 )
-// Dynamic + concrete module (PERF-11): MyProgress renders only for non-managers
-// and pulls recharts, so a manager should not download it. The concrete path
-// (not the barrel) keeps it from dragging the rest of the feature in with it.
+const GoalsProgressCard = dynamic(
+  () => import("@/features/projects").then((m) => m.GoalsProgressCard),
+  { loading: () => <Skeleton className="h-48 rounded" /> },
+)
+const ProgressDrilldown = dynamic(
+  () => import("@/features/projects").then((m) => m.ProgressDrilldown),
+  { ssr: false },
+)
+// Renders only for non-managers and pulls recharts, so a manager should not
+// download it. Concrete path, not the barrel, so it does not drag the rest in.
 const MyProgress = dynamic(
   () => import("@/features/projects/components/my-progress").then((m) => m.MyProgress),
   { loading: () => <Skeleton className="h-64 rounded" /> },
 )
 
-interface Bucket {
-  assigned: number
-  completed: number
-  onTime: number
-  late: number
-  overdue: number
-  inProgress: number
-  onHold: number
-  discarded: number
-  dueThisWeek: number
-  doneThisWeek: number
-  /**
-   * Mutually exclusive display states - see the API. `inProgress` and `overdue`
-   * overlap, so any part-to-whole chart has to use these instead or it counts a
-   * late in-progress task twice.
-   */
-  openTodo: number
-  openProgress: number
-  allocatedHours: number
-  spentHours: number
-  completionRate: number | null
-  onTimeRate: number | null
-}
-interface EmpRow extends Bucket {
-  id: string
-  name: string
-  profilePhoto: string | null
-}
-interface ProjRow extends Bucket {
-  id: string
-  name: string
-  code: string
-}
-interface PerfData {
-  summary: Bucket
-  byEmployee: EmpRow[]
-  byProject: ProjRow[]
-  /** Scope-filtered only, so narrowing never strands the picker. */
-  projects: { id: string; name: string; code: string }[]
-  scope: "all" | "mine"
-}
-
-function StatCard({
+/**
+ * A headline number that opens the list behind it.
+ *
+ * A button, not a card: the value is the thing you click to see what it is
+ * made of, and the chevron says so before you hover.
+ */
+function KpiTile({
   icon: Icon,
   label,
   value,
   sub,
+  tone = "default",
+  onClick,
 }: {
-  icon: typeof ListChecks
+  icon: typeof Clock
   label: string
-  value: string | number
+  value: string
   sub?: string
+  tone?: "default" | "good" | "warn" | "bad" | "accent"
+  onClick: () => void
 }) {
   return (
-    <Card>
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded">
-          <Icon className="text-muted-foreground h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-muted-foreground text-xs">{label}</p>
-          <p className="text-lg font-bold tabular-nums">
-            {value}
-            {sub && <span className="text-muted-foreground ml-1 text-xs font-normal">{sub}</span>}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+    <button
+      type="button"
+      onClick={onClick}
+      className="group bg-card hover:border-foreground/30 hover:bg-muted/30 flex w-full items-center gap-3 rounded-[6px] border p-4 text-left transition-colors"
+    >
+      <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded">
+        <Icon className="text-muted-foreground h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-muted-foreground text-xs">{label}</p>
+        <p
+          className={cn(
+            "text-xl font-bold tabular-nums",
+            tone === "good" && "text-emerald-500",
+            tone === "warn" && "text-amber-500",
+            tone === "bad" && "text-destructive",
+            tone === "accent" && "text-primary",
+          )}
+        >
+          {value}
+        </p>
+        {sub && <p className="text-muted-foreground truncate text-[11px]">{sub}</p>}
+      </div>
+      <ChevronRight className="text-muted-foreground/50 group-hover:text-foreground h-4 w-4 shrink-0 transition-colors" />
+    </button>
   )
 }
 
@@ -163,61 +152,44 @@ export default function ProjectProgressPage() {
   const canManageProjects = can(PERMISSIONS.PROJECT_WRITE)
 
   // Both filters drive the SAME numbers: the tiles are the totals for whatever
-  // is selected, so "All projects" reads as the portfolio and a named project
-  // reads as that project. ALL_PROJECTS is a sentinel because Radix Select
-  // cannot hold an empty string as a value.
+  // is selected. ALL_PROJECTS is a sentinel because Radix Select cannot hold an
+  // empty string as a value.
   const [projectId, setProjectId] = useState<string>(ALL_PROJECTS)
   // Defaults to the current week: "what is going on right now" is the question
   // this page is opened to answer, and all-time buries it under months of work.
   const [range, setRange] = useState<DateRangeValue>(() => presetValue("week"))
+  const oneProject = projectId !== ALL_PROJECTS
+  const scopeId = oneProject ? projectId : undefined
+  const window = { from: range.from, to: range.to }
 
-  const query = useMemo(() => {
-    const p = new URLSearchParams()
-    if (projectId !== ALL_PROJECTS) p.set("projectId", projectId)
-    if (range.from) p.set("from", range.from)
-    if (range.to) p.set("to", range.to)
-    return p.toString()
-  }, [projectId, range])
-
-  const { data } = useQuery({
-    queryKey: ["project-performance", query],
-    queryFn: () =>
-      apiFetch<{ data: PerfData }>(`/api/projects/performance${query ? `?${query}` : ""}`).then(
-        (r) => r.data,
-      ),
-    staleTime: 60_000,
-    placeholderData: (prev) => prev,
-  })
+  const { data } = usePerformance(scopeId, window, canManageProjects)
+  const goals = useGoalsPortfolio(scopeId)
 
   // The option list is scope-filtered only, so narrowing never strands you with
   // a single option and no way back.
   const projects = data?.projects ?? []
+  const project = projects.find((p) => p.id === projectId)
 
+  /** What is open in the popup, if anything. */
+  const [drill, setDrill] = useState<Drill | null>(null)
+
+  // ── AI briefing, in a slide-over ───────────────────────────────────────────
   // A briefing describes ONE slice. Remember which, so changing the filters
   // retires it instead of leaving a report about the old scope on screen.
-  const [reportFor, setReportFor] = useState<string | null>(null)
-
-  /** The member whose drill-down is open, if any. */
-  const [drillMember, setDrillMember] = useState<MemberProgress | null>(null)
-
+  const [insightsOpen, setInsightsOpen] = useState(false)
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [reportConfig, setReportConfig] = useState<ReportConfig>(DEFAULT_REPORT_CONFIG)
+  const [reportFor, setReportFor] = useState<string | null>(null)
 
   // One rule, so the two scope controls never contradict each other: an empty
   // project scope in the options means "follow the picker at the top of the
   // page". Picking projects in the dialog overrides it.
   const resolveScope = (config: ReportConfig) => ({
     ...config,
-    projectIds:
-      config.projectIds.length > 0
-        ? config.projectIds
-        : projectId === ALL_PROJECTS
-          ? []
-          : [projectId],
+    projectIds: config.projectIds.length > 0 ? config.projectIds : oneProject ? [projectId] : [],
   })
-
-  /** Identity of a briefing: the data slice AND the shape that was asked for. */
-  const signature = (config: ReportConfig) => JSON.stringify([query, resolveScope(config)])
+  const signature = (config: ReportConfig) =>
+    JSON.stringify([scopeId, range.from, range.to, resolveScope(config)])
 
   const report = useMutation({
     mutationFn: (config: ReportConfig) =>
@@ -230,23 +202,16 @@ export default function ProjectProgressPage() {
     onError: (e: unknown) =>
       toast.error(e instanceof Error ? e.message : "Couldn't generate the report"),
   })
-
   const generate = (config: ReportConfig) => {
     setReportConfig(config)
     setOptionsOpen(false)
     report.mutate(config)
   }
-
-  /** Only show a briefing that was written for what is currently on screen. */
   const currentReport = reportFor === signature(reportConfig) ? report.data : undefined
-
-  const s = data?.summary
 
   // Which of the two pages below to render is a PERMISSION decision, and during
   // a client-side navigation the session has not resolved yet - `can()` answers
-  // false for everyone for a beat. Rendering on that answer put a manager on the
-  // individual view first and mounted MyProgress underneath them, which is where
-  // the "Couldn't load projects" crash came from. Wait for the real answer.
+  // false for everyone for a beat. Wait for the real answer.
   if (permsLoading) {
     return (
       <div className="space-y-6">
@@ -258,8 +223,8 @@ export default function ProjectProgressPage() {
   }
 
   // An individual asks "what do I owe and what have I finished", a manager asks
-  // "what is going on across the portfolio". Those are different pages, not the
-  // same page with rows hidden.
+  // "what is going on across the portfolio". Different pages, not the same page
+  // with rows hidden.
   if (!canManageProjects) {
     return (
       <div className="space-y-6">
@@ -272,20 +237,31 @@ export default function ProjectProgressPage() {
     )
   }
 
+  const s = data?.summary
   const pending = s ? s.assigned - s.completed - s.discarded : 0
-  const oneProject = projectId !== ALL_PROJECTS
-  const projectName = projects.find((p) => p.id === projectId)?.name
+  const scope = rangeLabel(window)
+  const g = goals.data?.totals
+
+  const openClient = (id: string, state?: TaskState) => {
+    const p = projects.find((x) => x.id === id) ?? data?.byProject.find((x) => x.id === id)
+    if (!p) return
+    setDrill({
+      kind: "client",
+      project: { id: p.id, name: p.name, code: p.code, slug: p.slug },
+      tab: state ? "tasks" : "overview",
+      state,
+      range: window,
+    })
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Filters ride in the header, on the right of the title, so the controls
-          and the numbers they change are not separated by a band of whitespace. */}
+    <div className="space-y-5">
       <PageHeader
         title="Progress"
         description={
           oneProject
-            ? `${projectName ?? "Project"}${range.from ? ` · due ${formatDate(range.from)} to ${formatDate(range.to!)}` : " · all time"}`
-            : `All projects${range.from ? ` · due ${formatDate(range.from)} to ${formatDate(range.to!)}` : " · all time"}`
+            ? `${project?.name ?? "Project"} · tasks ${scope} · overdue and goals as of today`
+            : `All projects · tasks ${scope} · overdue and goals as of today`
         }
         actions={
           <>
@@ -303,45 +279,206 @@ export default function ProjectProgressPage() {
               </SelectContent>
             </Select>
             <DateRangeField value={range} onChange={setRange} />
+            {oneProject && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5"
+                onClick={() => openClient(projectId)}
+              >
+                <LayoutDashboard className="h-3.5 w-3.5" />
+                Details
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant={currentReport ? "default" : "outline"}
+              className="h-8 gap-1.5"
+              onClick={() => setInsightsOpen(true)}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Insights
+            </Button>
           </>
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <StatCard icon={ListChecks} label="Total tasks" value={s?.assigned ?? 0} />
-        <StatCard
+      {/* ── Layer 1: five numbers, each a door ──────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+        <KpiTile
           icon={CheckCircle2}
-          label="Completed"
-          value={s?.completed ?? 0}
-          sub={s?.completionRate != null ? `${s.completionRate}%` : undefined}
+          label="Complete"
+          value={s?.completionRate != null ? `${s.completionRate}%` : "–"}
+          sub={s ? `${s.completed} of ${s.assigned - s.discarded} tasks ${scope}` : undefined}
+          tone="accent"
+          onClick={() =>
+            setDrill({
+              kind: "state",
+              state: "done",
+              title: "Completed",
+              subtitle: `Tasks finished, ${scope}`,
+              projectId: scopeId,
+              range: window,
+            })
+          }
         />
-        {/* Pending excludes discarded: work that was dropped is not outstanding. */}
-        <StatCard icon={CircleDot} label="Pending" value={pending} />
-        <StatCard
+        <KpiTile
+          icon={CircleDot}
+          label="Open"
+          value={String(pending)}
+          sub={s ? `${s.overdue} overdue · ${s.onHold} on hold · ${scope}` : undefined}
+          onClick={() =>
+            setDrill({
+              kind: "state",
+              state: "open",
+              title: "Open",
+              subtitle: `Not finished and not dropped, ${scope}`,
+              projectId: scopeId,
+              range: window,
+            })
+          }
+        />
+        <KpiTile
+          icon={AlertTriangle}
+          label="Overdue"
+          value={String(data?.overdueNow ?? 0)}
+          sub={
+            // Only worth a second number when a range is on: with "all time"
+            // the two figures are the same, and "127 of them due all time"
+            // reads as nonsense.
+            s && range.from ? `as of today · ${s.overdue} of them ${scope}` : "as of today"
+          }
+          tone={(data?.overdueNow ?? 0) > 0 ? "bad" : "good"}
+          onClick={() =>
+            setDrill({
+              kind: "state",
+              state: "overdue",
+              title: "Overdue",
+              subtitle: "Open and past due, as of today - every week, not just this one",
+              projectId: scopeId,
+            })
+          }
+        />
+        <KpiTile
           icon={Clock}
-          label="On-time"
-          value={s?.onTimeRate != null ? `${s.onTimeRate}%` : "-"}
-          sub={s ? `${s.onTime}/${s.completed}` : undefined}
+          label="On time"
+          value={s?.onTimeRate != null ? `${s.onTimeRate}%` : "–"}
+          sub={
+            s?.completed ? `${s.onTime} of ${s.completed} finished on time` : "nothing finished yet"
+          }
+          tone={s?.onTimeRate == null ? "default" : s.onTimeRate >= 85 ? "good" : "warn"}
+          onClick={() =>
+            setDrill({
+              kind: "state",
+              state: "done",
+              title: "Delivered",
+              subtitle: `Finished ${scope} - late ones are flagged`,
+              projectId: scopeId,
+              range: window,
+            })
+          }
         />
-        <StatCard icon={AlertTriangle} label="Overdue" value={s?.overdue ?? 0} />
-        <StatCard
-          icon={CalendarRange}
-          label="This week"
-          value={s?.doneThisWeek ?? 0}
-          sub={s ? `done / ${s.dueThisWeek} due` : undefined}
+        <KpiTile
+          icon={Target}
+          label="Goals"
+          value={g && g.totalGoals > 0 ? `${g.overallProgress}%` : "–"}
+          sub={
+            g && g.totalGoals > 0
+              ? `${g.doneGoals} of ${g.totalGoals} done · as of today`
+              : "none set"
+          }
+          tone={g && g.overdueGoals > 0 ? "bad" : g && g.atRiskGoals > 0 ? "warn" : "default"}
+          onClick={() => setDrill({ kind: "goals", projectId: scopeId })}
         />
       </div>
 
-      {/* AI briefing */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
-          <div>
-            <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+      {/* ── Layer 2: four charts ─────────────────────────────────────────── */}
+      {data ? (
+        <PortfolioCharts
+          mode={oneProject ? "project" : "portfolio"}
+          summary={data.summary}
+          scopeLabel={scope}
+          projects={data.byProject}
+          teams={data.byTeam}
+          people={data.byEmployee}
+          trend={data.trend}
+          onState={(state) =>
+            setDrill({
+              kind: "state",
+              state,
+              title:
+                state === "overdue"
+                  ? "Overdue"
+                  : state === "done"
+                    ? "Done"
+                    : state === "hold"
+                      ? "On hold"
+                      : state === "progress"
+                        ? "In progress"
+                        : "To do",
+              subtitle: `Tasks ${scope}`,
+              projectId: scopeId,
+              range: window,
+            })
+          }
+          onClient={(id, state) => openClient(id, state)}
+          onTeam={(teamId, state) =>
+            setDrill({
+              kind: "state",
+              state,
+              title: `${data.byTeam.find((t) => t.id === teamId)?.name ?? "Team"} · ${
+                state === "overdue"
+                  ? "overdue"
+                  : state === "done"
+                    ? "done"
+                    : state === "hold"
+                      ? "on hold"
+                      : state === "progress"
+                        ? "in progress"
+                        : "to do"
+              }`,
+              subtitle: `Tasks ${scope}`,
+              projectId: scopeId,
+              teamId: teamId === "__no_team__" ? undefined : teamId,
+              range: window,
+              groupBy: "assignee",
+            })
+          }
+          onPerson={(id, state) => {
+            const who = data.byEmployee.find((e) => e.id === id)
+            if (!who) return
+            setDrill({
+              kind: "person",
+              person: { id, name: who.name, profilePhoto: who.profilePhoto },
+              projectId: scopeId,
+              state,
+              range: window,
+            })
+          }}
+        />
+      ) : (
+        <Skeleton className="h-96 rounded" />
+      )}
+
+      {/* ── Goals strip: as of today, follows the picker only ─────────────── */}
+      <GoalsProgressCard
+        projectId={scopeId}
+        onOpen={(id) => setDrill({ kind: "goals", projectId: id })}
+      />
+
+      {/* ── Layer 3: the popup ──────────────────────────────────────────── */}
+      <ProgressDrilldown drill={drill} onClose={() => setDrill(null)} />
+
+      {/* ── AI insights, off the main page ──────────────────────────────── */}
+      <Sheet open={insightsOpen} onOpenChange={setInsightsOpen}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-1.5 text-base">
               <Sparkles className="h-4 w-4" /> AI insights
-            </CardTitle>
-            <p className="text-muted-foreground text-xs">{describeConfig(reportConfig)}</p>
-          </div>
-          <div className="flex shrink-0 gap-2">
+            </SheetTitle>
+            <SheetDescription className="text-xs">{describeConfig(reportConfig)}</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 flex gap-2">
             <Button
               size="sm"
               variant="ghost"
@@ -354,7 +491,6 @@ export default function ProjectProgressPage() {
             </Button>
             <Button
               size="sm"
-              variant="outline"
               className="gap-1.5"
               onClick={() => report.mutate(reportConfig)}
               disabled={report.isPending}
@@ -367,50 +503,31 @@ export default function ProjectProgressPage() {
               {currentReport ? "Regenerate" : "Generate report"}
             </Button>
           </div>
-        </CardHeader>
-        {(currentReport || report.isPending) && (
-          <CardContent>
-            {report.isPending ? (
-              <p className="text-muted-foreground text-sm">Analysing the task data…</p>
-            ) : (
-              <MarkdownLite content={currentReport ?? ""} className="text-sm leading-relaxed" />
-            )}
-          </CardContent>
-        )}
-      </Card>
-
+          <Card className="mt-4">
+            <CardContent className="p-4">
+              {report.isPending ? (
+                <p className="text-muted-foreground text-sm">Analysing the task data…</p>
+              ) : currentReport ? (
+                <MarkdownLite content={currentReport} className="text-sm leading-relaxed" />
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  A written briefing on{" "}
+                  {oneProject ? (project?.name ?? "this project") : "the portfolio"} for tasks{" "}
+                  {scope}
+                  {range.from ? ` (${formatDate(range.from)} – ${formatDate(range.to!)})` : ""}.
+                  Generate one to read it here.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </SheetContent>
+      </Sheet>
       <ReportOptionsDialog
         open={optionsOpen}
         value={reportConfig}
         onOpenChange={setOptionsOpen}
         onGenerate={generate}
       />
-
-      {/* The deep breakdown follows the picker above. It is inherently
-          per-project (teams, members, tracked sites), so on "All projects" it
-          says which project to pick rather than showing a meaningless merge.
-          Its own numbers are all-time - the date filter drives the tiles. */}
-      {oneProject ? (
-        <>
-          <ProjectProgressDetail
-            projectId={projectId}
-            range={{ from: range.from, to: range.to }}
-            onSelectMember={setDrillMember}
-          />
-          <MemberProgressDialog
-            projectId={projectId}
-            member={drillMember}
-            range={{ from: range.from, to: range.to }}
-            onClose={() => setDrillMember(null)}
-          />
-        </>
-      ) : (
-        <PortfolioCharts
-          summary={s ?? EMPTY_BUCKET}
-          projects={data?.byProject ?? []}
-          people={data?.byEmployee ?? []}
-        />
-      )}
     </div>
   )
 }
