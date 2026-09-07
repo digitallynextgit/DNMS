@@ -89,7 +89,7 @@ function matches(goal: GoalNode, f: GoalFilters): boolean {
  * tree for the row-level tallies. Each goal's own `progress` is the server's
  * figure, untouched.
  */
-function summarise(goals: GoalNode[]): Omit<GoalsSummary, "allTags"> {
+function summarise(goals: GoalNode[]): Omit<GoalsSummary, "allTags" | "unlinkedOpenTasks"> {
   const flat: GoalNode[] = []
   const walk = (n: GoalNode) => {
     flat.push(n)
@@ -115,6 +115,10 @@ function summarise(goals: GoalNode[]): Omit<GoalsSummary, "allTags"> {
     discardedGoals: flat.filter((g) => g.isActive && g.status === "DISCARDED").length,
     inactiveGoals: flat.filter((g) => !g.isActive).length,
     overdueGoals: flat.filter((g) => g.overdue).length,
+    // Both off the COUNTABLE set, matching summariseGoalRows: a discarded goal
+    // that was slipping when it was dropped is not a warning any more.
+    atRiskGoals: flat.filter((g) => counts(g) && g.status === "AT_RISK").length,
+    slippingGoals: flat.filter((g) => counts(g) && g.slipping).length,
     nextTargetDate: upcoming[0] ?? null,
   }
 }
@@ -155,7 +159,12 @@ export function filterGoals(summary: GoalsSummary, f: GoalFilters): FilteredGoal
     // allTags is the PROJECT's vocabulary, not this view's: the tag picker must
     // keep offering every tag, or filtering to one would empty the list you use
     // to filter by another.
-    summary: { ...summarise(goals), allTags: summary.allTags },
+    // Both are facts about the PROJECT, not the filtered view.
+    summary: {
+      ...summarise(goals),
+      allTags: summary.allTags,
+      unlinkedOpenTasks: summary.unlinkedOpenTasks,
+    },
     hiddenMains: summary.goals.length - goals.length,
     hiddenSubs,
     active: true,

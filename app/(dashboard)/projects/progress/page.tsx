@@ -90,6 +90,10 @@ const ProgressDrilldown = dynamic(
   () => import("@/features/projects").then((m) => m.ProgressDrilldown),
   { ssr: false },
 )
+const DeliverablesOutputCard = dynamic(
+  () => import("@/features/projects").then((m) => m.DeliverablesOutputCard),
+  { loading: () => <Skeleton className="h-64 rounded-sm" /> },
+)
 // Renders only for non-managers and pulls recharts, so a manager should not
 // download it. Concrete path, not the barrel, so it does not drag the rest in.
 const MyProgress = dynamic(
@@ -460,6 +464,14 @@ export default function ProjectProgressPage() {
       ) : (
         <Skeleton className="h-96 rounded-sm" />
       )}
+
+      {/* ── Output: what was MADE in the range - the third question ──────── */}
+      <DeliverablesOutputCard
+        projectId={scopeId}
+        range={window}
+        scopeLabel={range.from ? scope.replace(/^due /, "completed ") : "all time"}
+        onOpen={(f) => setDrill({ kind: "deliverables", ...f, range: window })}
+      />
 
       {/* ── Goals strip: as of today, follows the picker only ─────────────── */}
       <GoalsProgressCard

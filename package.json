@@ -22,7 +22,9 @@
     "db:restore:check": "tsx prisma/seed-snapshot.ts --dry-run",
     "db:studio": "prisma studio",
     "export:punches": "tsx scripts/export-hikvision-punches.ts",
-    "setup": "pnpm prisma migrate dev && pnpm prisma db seed"
+    "setup": "pnpm prisma migrate dev && pnpm prisma db seed",
+    "test": "vitest run",
+    "validate": "pnpm type-check && pnpm lint && pnpm test"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -108,6 +110,7 @@
     "tailwindcss": "^4.3.0",
     "tsx": "^4.22.3",
     "tw-animate-css": "^1.0.7",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.0"
   }
 }

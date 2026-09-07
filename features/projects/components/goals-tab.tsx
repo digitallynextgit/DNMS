@@ -12,6 +12,7 @@ import {
   RotateCcw,
   EyeOff,
   Pencil,
+  ListChecks,
 } from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useProjectGoals } from "../hooks/use-goals"
+import { useAssignableEmployees, useProjectTeams } from "../hooks/use-projects"
 import {
   EMPTY_SUMMARY,
   NEEDS_REASON,
@@ -47,6 +49,7 @@ import {
   STATUS_LABEL,
   STATUS_ORDER,
   STATUS_STYLE,
+  SlippingChip,
   StatusBadge,
   fmtDate,
   fmtWhen,
@@ -63,6 +66,11 @@ import {
   type GoalFilters,
 } from "./goal-filters"
 import { GoalTagEditor, GoalTagInput, GoalTagList } from "./goal-tag-input"
+import { GoalTasks } from "./goal-tasks"
+import { GoalTargets } from "./goal-targets"
+
+/** Radix Select cannot carry "" as a value; this stands in for "no owner". */
+const NO_OWNER = "__none__"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Dialogs
@@ -133,7 +141,8 @@ function ReasonDialog({
 }
 
 /**
- * Change what a goal IS: its title and the date it is meant to be met by.
+ * Change what a goal IS: its title, the date it is meant to be met by, and who
+ * is accountable for it landing.
  *
  * The gap this fills: until now a goal was write-once. A typo in a title, or a
  * date the client moved, could only be fixed by deleting the goal and retyping
@@ -142,8 +151,8 @@ function ReasonDialog({
  * button was missing.
  *
  * ONE EDITOR PER FIELD, deliberately. Status has its dropdown, tags have their
- * popover, and this dialog owns the title and the date. A second way to set a
- * field is a second thing to keep in step with the first.
+ * popover, and this dialog owns the title, the date and the owner. A second way
+ * to set a field is a second thing to keep in step with the first.
  *
  * Mounted fresh per goal by the caller (`key={editing.id}`) so the fields seed
  * straight from props. The alternative - one long-lived dialog reset by an
@@ -154,23 +163,28 @@ function EditDialog({
   goal,
   onCancel,
   onSave,
+  people,
   pending,
 }: {
   goal: GoalNode
   onCancel: () => void
-  onSave: (patch: { title: string; targetDate: string | null }) => void
+  onSave: (patch: { title: string; targetDate: string | null; ownerId: string | null }) => void
+  /** Who can own it: everyone assignable on the project. */
+  people: { id: string; firstName: string; lastName: string }[]
   pending: boolean
 }) {
   const [title, setTitle] = React.useState(goal.title)
   const [date, setDate] = React.useState(goal.targetDate ?? "")
+  const [owner, setOwner] = React.useState(goal.ownerId ?? "")
 
   const trimmed = title.trim()
   // Nothing to send is not an error, it just is not a save - the server would
   // no-op anyway, and a disabled button says so before the click.
-  const changed = trimmed !== goal.title || (date || null) !== goal.targetDate
+  const changed =
+    trimmed !== goal.title || (date || null) !== goal.targetDate || (owner || null) !== goal.ownerId
   const submit = () => {
     if (!trimmed || !changed) return
-    onSave({ title: trimmed, targetDate: date || null })
+    onSave({ title: trimmed, targetDate: date || null, ownerId: owner || null })
   }
 
   return (
@@ -179,7 +193,7 @@ function EditDialog({
         <DialogHeader>
           <DialogTitle>Edit goal</DialogTitle>
           <DialogDescription>
-            Both changes are recorded in this goal&rsquo;s history, with who made them and when.
+            Changes are recorded in this goal&rsquo;s history, with who made them and when.
           </DialogDescription>
         </DialogHeader>
 
@@ -209,6 +223,30 @@ function EditDialog({
                 Clear the date
               </button>
             )}
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-muted-foreground text-[11px]">Owner</Label>
+            {/* Accountable for it landing - not who typed it, not who does the
+                tasks. Left blank it reads as the account manager, which is the
+                honest default rather than a name picked to fill a box. */}
+            <Select
+              value={owner || NO_OWNER}
+              onValueChange={(v) => setOwner(v === NO_OWNER ? "" : v)}
+            >
+              <SelectTrigger className="h-8 text-xs" aria-label="Goal owner">
+                <SelectValue placeholder="Account manager" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_OWNER} className="text-xs">
+                  Account manager (default)
+                </SelectItem>
+                {people.map((p) => (
+                  <SelectItem key={p.id} value={p.id} className="text-xs">
+                    {p.firstName} {p.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -398,13 +436,44 @@ function HistoryPanel({ events }: { events: GoalEvent[] }) {
  * deactivated goals leave the sum rather than counting as zero, so dropping
  * scope does not read as failure.
  */
-export function GoalsTab({ projectId, canManage }: { projectId: string; canManage: boolean }) {
+export function GoalsTab({
+  projectId,
+  canManage,
+  currentUserId,
+}: {
+  projectId: string
+  canManage: boolean
+  /** Whose standing decides whether they may staff a goal - see canStaff. */
+  currentUserId?: string
+}) {
   const qc = useQueryClient()
   const [showInactive, setShowInactive] = React.useState(false)
   const { data, isLoading } = useProjectGoals(projectId, showInactive)
 
+  // ── Who may break a goal into work ──────────────────────────────────────
+  // Two different permissions live on this board and used to be one. WHAT was
+  // promised is the account manager's (canManage); HOW it gets done is also
+  // the team manager's, because they are the ones who know what it takes and
+  // they were previously reduced to asking someone else to press Add task.
+  const teams = useProjectTeams(projectId)
+  const teamRows = React.useMemo(() => teams.data?.data ?? [], [teams.data])
+  const myTeams = React.useMemo(
+    () =>
+      (canManage ? teamRows : teamRows.filter((t) => t.managerId === currentUserId)).map((t) => ({
+        id: t.id,
+        name: t.name,
+      })),
+    [teamRows, canManage, currentUserId],
+  )
+  const canStaff =
+    canManage || Boolean(currentUserId && teamRows.some((t) => t.managerId === currentUserId))
+
   const invalidate = () => qc.invalidateQueries({ queryKey: ["project-goals", projectId] })
   const json = { "Content-Type": "application/json" }
+
+  // Owner candidates for the edit dialog. Only fetched for managers - nobody
+  // else can open it.
+  const people = useAssignableEmployees(projectId, canManage)
 
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -504,8 +573,10 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
     update.mutate({ id: goal.id, status })
   }
 
+  // A goal whose status is DERIVED - from sub-goals or from linked tasks - has
+  // no dropdown: whatever was picked would be overwritten on the next read.
   const statusControl = (goal: GoalNode) =>
-    canManage && goal.isActive ? (
+    canManage && goal.isActive && !goal.progressIsDerived ? (
       <Select value={goal.status} onValueChange={(v) => changeStatus(goal, v as Status)}>
         {/* The control carries its own state's colour, so a row reads as
             "at risk" without anyone parsing the words in it. */}
@@ -627,6 +698,12 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                 value={`${summary.overdueGoals}`}
                 tone={summary.overdueGoals > 0 ? "bad" : "muted"}
               />
+              {/* Only when there is something to say. A permanent "Slipping 0"
+                  is a tile people learn to skip, and then miss the day it
+                  turns 3. */}
+              {summary.slippingGoals > 0 && (
+                <Stat label="Slipping" value={`${summary.slippingGoals}`} tone="warn" />
+              )}
               <Stat label="Next target" value={fmtDate(summary.nextTargetDate)} small />
             </div>
           </div>
@@ -704,6 +781,23 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
         </Card>
       )}
 
+      {/* ── Work that serves no goal ──────────────────────────────────────
+          Allowed, on purpose - forcing a goal at creation produces junk goals.
+          But it is the manager's list to sort, so it is said out loud. */}
+      {canManage && full.unlinkedOpenTasks > 0 && (
+        <p className="text-muted-foreground border-border/60 flex items-center gap-2 rounded-sm border border-dashed px-4 py-2.5 text-xs">
+          <ListChecks className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            <span className="text-foreground font-medium">
+              {full.unlinkedOpenTasks} open task{full.unlinkedOpenTasks === 1 ? "" : "s"}
+            </span>{" "}
+            on this project {full.unlinkedOpenTasks === 1 ? "isn't" : "aren't"} tied to any goal.
+            Use <span className="text-foreground">Link tasks</span> on a goal below, or add the goal
+            that is missing.
+          </span>
+        </p>
+      )}
+
       {/* ── Goals ─────────────────────────────────────────────────────── */}
       {summary.goals.length === 0 ? (
         <Card>
@@ -777,6 +871,10 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                           <TriangleAlert className="h-3 w-3" /> Past target
                         </span>
                       )}
+                      {/* Beside "Past target", never instead of it: overdue is
+                          a fact about the date, slipping is a reading of the
+                          pace, and a goal can be both. */}
+                      {goal.slipping && <SlippingChip />}
                     </div>
                     <p className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                       <span className="inline-flex items-center gap-1">
@@ -785,12 +883,20 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                       </span>
                       {!isLeaf && (
                         <span className="tabular-nums">
-                          {goal.doneChildren} of {goal.countableChildren} counted sub-goals done
+                          {goal.doneChildren} of {goal.countableChildren} done
+                          {goal.tasks.length > 0 &&
+                            goal.children.length > 0 &&
+                            " (sub-goals and tasks)"}
                         </span>
                       )}
                       {hiddenHere > 0 && (
                         <span className="italic">
                           {hiddenHere} sub-goal{hiddenHere === 1 ? "" : "s"} hidden by filters
+                        </span>
+                      )}
+                      {goal.ownerName && (
+                        <span title="Accountable for this goal landing">
+                          owner {goal.ownerName}
                         </span>
                       )}
                       {goal.createdByName && <span>set by {goal.createdByName}</span>}
@@ -810,6 +916,15 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                         {goal.statusReason}
                       </p>
                     )}
+                    {/* What was promised, under what it is called and above the
+                        work meant to produce it - the order somebody reads a
+                        goal in. */}
+                    <GoalTargets
+                      projectId={projectId}
+                      goal={goal}
+                      canManage={canManage}
+                      className="mt-2"
+                    />
                   </div>
 
                   {isLeaf ? (
@@ -818,11 +933,24 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                     <div className="w-36 shrink-0">
                       <div className="flex items-baseline justify-between">
                         <span className="text-muted-foreground text-[10px] tracking-widest uppercase">
-                          Progress
+                          {goal.targets.length > 0 ? "Delivered" : "Progress"}
                         </span>
                         <span className="text-sm font-semibold tabular-nums">{goal.progress}%</span>
                       </div>
                       <ProgressBar value={goal.progress} className="mt-1.5" />
+                      {/* When a goal has targets the bar is the OUTPUT, because
+                          output is what was bought. The work is still worth
+                          saying - "tasks 100%, delivered 40%" is the whole
+                          story in six words - so it goes underneath rather
+                          than fighting the bar for the same space. */}
+                      {goal.targets.length > 0 && goal.taskProgress !== null && (
+                        <p
+                          className="text-muted-foreground mt-1 text-[10px] tabular-nums"
+                          title="How much of the linked work is done"
+                        >
+                          tasks {goal.taskProgress}%
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -851,6 +979,7 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                               {sub.overdue && (
                                 <span className="text-destructive font-medium">past target</span>
                               )}
+                              {sub.slipping && <SlippingChip />}
                               <GoalTagList
                                 tags={sub.tags}
                                 activeTags={filters.tags}
@@ -862,14 +991,31 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
                                 {sub.statusReason}
                               </p>
                             )}
+                            <GoalTargets
+                              projectId={projectId}
+                              goal={sub}
+                              canManage={canManage}
+                              className="mt-1.5"
+                            />
                           </div>
                           {statusControl(sub)}
                           {rowActions(sub)}
                         </div>
+                        <GoalTasks
+                          projectId={projectId}
+                          goal={sub}
+                          canStaff={canStaff}
+                          teams={myTeams}
+                          compact
+                        />
                       </div>
                     ))}
                   </div>
                 )}
+
+                {/* The work behind the goal - and where the manager breaks it
+                    into work. Progress derives from these once any exist. */}
+                <GoalTasks projectId={projectId} goal={goal} canStaff={canStaff} teams={myTeams} />
 
                 {canManage && goal.isActive && (
                   <div className="border-border/60 border-t px-4 py-2.5 sm:px-5">
@@ -946,6 +1092,7 @@ export function GoalsTab({ projectId, canManage }: { projectId: string; canManag
         <EditDialog
           key={editing.id}
           goal={editing}
+          people={people.data?.data ?? []}
           pending={update.isPending}
           onCancel={() => setEditing(null)}
           onSave={(patch) => {
@@ -982,7 +1129,7 @@ function Stat({
   value: string
   suffix?: string
   accent?: boolean
-  tone?: "bad" | "muted"
+  tone?: "bad" | "warn" | "muted"
   small?: boolean
 }) {
   return (
@@ -994,6 +1141,7 @@ function Stat({
           small ? "text-sm" : "text-xl",
           accent && "text-primary",
           tone === "bad" && "text-destructive",
+          tone === "warn" && "text-amber-500",
           tone === "muted" && "text-muted-foreground",
         )}
       >

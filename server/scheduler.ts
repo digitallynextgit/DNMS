@@ -78,6 +78,20 @@ const SEO_FIRST_RUN_DELAY_MS = 90_000
 /** Don't crawl client sites in the small hours; 7am IST matches the old cron. */
 const SEO_EARLIEST_HOUR = 7
 
+/**
+ * Weekly work digest. Ticked hourly for the same reason as renewals and SEO: a
+ * once-a-week timer is lost by any deploy, and "the digest stopped arriving" is
+ * a failure nobody reports for a month. The tick only acts on Monday morning,
+ * and the `digest_runs` unique key decides whether it actually sends - so a
+ * restart, a second instance and the cron route all converge on one digest.
+ */
+const WORK_DIGEST_INTERVAL_MS = 60 * 60_000
+const WORK_DIGEST_FIRST_RUN_DELAY_MS = 120_000
+/** Monday, in the server's own week (getDay(): 0 = Sunday). */
+const WORK_DIGEST_WEEKDAY = 1
+/** Nobody wants last week's chores at 02:00. */
+const WORK_DIGEST_EARLIEST_HOUR = 8
+
 /** Wait before the first pass so boot is not competing with a DB round trip. */
 const FIRST_RUN_DELAY_MS = 15_000
 
@@ -94,6 +108,8 @@ const globalForScheduler = globalThis as unknown as {
   campaignRunning?: boolean
   seoTimer?: NodeJS.Timeout
   seoRunning?: boolean
+  workDigestTimer?: NodeJS.Timeout
+  workDigestRunning?: boolean
 }
 
 export function startTaskReminderScheduler(): void {
@@ -363,5 +379,60 @@ async function seoTick(): Promise<void> {
     console.error("[scheduler] seo sweep failed:", err)
   } finally {
     globalForScheduler.seoRunning = false
+  }
+}
+
+// ─── Weekly work digest ──────────────────────────────────────────────────────
+
+/**
+ * "Here is what last week left behind" - tasks finished with nothing to show
+ * for them, work serving no goal, goals past their date, output owed.
+ *
+ * In-process for the same reason as the rest: the digest is worthless unless it
+ * actually arrives, and a weekly crontab line is the easiest thing in the world
+ * to lose. app/api/cron/work-digest stays as the manual trigger; running both is
+ * safe because the period is claimed with a unique insert before anything is
+ * sent, so exactly one of them wins.
+ */
+export function startWorkDigestScheduler(): void {
+  if (globalForScheduler.workDigestTimer) return
+  if (process.env.DISABLE_INLINE_SCHEDULER === "1") {
+    console.log("[scheduler] work digest disabled (DISABLE_INLINE_SCHEDULER=1)")
+    return
+  }
+
+  const timer = setInterval(workDigestTick, WORK_DIGEST_INTERVAL_MS)
+  timer.unref?.()
+  globalForScheduler.workDigestTimer = timer
+
+  const first = setTimeout(workDigestTick, WORK_DIGEST_FIRST_RUN_DELAY_MS)
+  first.unref?.()
+
+  console.log("[scheduler] work digest started (hourly check, Mondays from 08:00)")
+}
+
+async function workDigestTick(): Promise<void> {
+  if (globalForScheduler.workDigestRunning) return
+
+  // Local weekday/hour, because "Monday morning" is about the recipient's week.
+  // Every other tick of the week returns here without touching the database;
+  // from Monday 08:00 the digest_runs row does the rest of the deciding, so the
+  // remaining Monday ticks each cost one failed insert and nothing else.
+  const now = new Date()
+  if (now.getDay() !== WORK_DIGEST_WEEKDAY || now.getHours() < WORK_DIGEST_EARLIEST_HOUR) return
+
+  globalForScheduler.workDigestRunning = true
+  try {
+    await forEachTenant("work-digest", async () => {
+      const { runWeeklyWorkDigest } = await import("@/features/projects/server/work-digest.service")
+      const r = await runWeeklyWorkDigest()
+      // Quiet on the skip: on a normal Monday all but the first tick skip, and
+      // a line an hour saying "already sent" buries the one that matters.
+      if (!r.skipped) console.log(`[scheduler] work digest: ${r.sent} recipient(s)`)
+    })
+  } catch (err) {
+    console.error("[scheduler] work digest failed:", err)
+  } finally {
+    globalForScheduler.workDigestRunning = false
   }
 }

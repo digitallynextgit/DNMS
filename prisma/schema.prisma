@@ -761,8 +761,15 @@ model Employee {
 
   /// Goals this person created. SetNull on delete: a goal outlives whoever
   /// happened to write it down.
-  goalsCreated ProjectGoal[]      @relation("GoalCreator")
-  goalEvents   ProjectGoalEvent[] @relation("GoalEventActor")
+  goalsCreated         ProjectGoal[]             @relation("GoalCreator")
+  goalsOwned           ProjectGoal[]             @relation("GoalOwner")
+  deliverablesMade     ProjectDeliverable[]      @relation("DeliverableMaker")
+  deliverablesLogged   ProjectDeliverable[]      @relation("DeliverableLogger")
+  deliverablesVerified ProjectDeliverable[]      @relation("DeliverableVerifier")
+  deliverablesAccepted ProjectDeliverable[]      @relation("DeliverableAcceptor")
+  deliverableEvents    ProjectDeliverableEvent[] @relation("DeliverableEventActor")
+  goalTargetsCreated   ProjectGoalTarget[]       @relation("GoalTargetCreator")
+  goalEvents           ProjectGoalEvent[]        @relation("GoalEventActor")
 
   @@unique([tenantId, employeeNo])
   // Employee had NO indexes at all. These serve the manager/team queues and the
@@ -1524,6 +1531,7 @@ model Project {
   teams           ProjectTeam[] // v2 - primary structure
   tasks           ProjectTask[]
   resources       ProjectResource[]
+  deliverables    ProjectDeliverable[]
   timesheets      Timesheet[]
   activities      ProjectActivity[]
   messages        ProjectMessage[]
@@ -1906,6 +1914,7 @@ model ProjectTeam {
   tasks        ProjectTask[]
   resources    ProjectResource[]
   requirements ProjectRequirement[]
+  deliverables ProjectDeliverable[]
 
   @@unique([projectId, name])
   @@index([projectId])
@@ -1960,30 +1969,194 @@ enum DocTag {
 
 model ProjectResource {
   /// Owning tenant. See the Tenant model for why this carries a DB default.
-  tenantId     String           @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id           String           @id @default(uuid()) @map("id")
-  projectId    String           @map("project_id")
-  teamId       String?          @map("team_id") // null = project-level
-  category     ResourceCategory @default(OTHER) @map("category")
-  tag          DocTag?          @map("tag")
-  fileName     String           @map("file_name")
-  fileSize     Int              @map("file_size")
-  mimeType     String           @map("mime_type")
-  objectKey    String           @unique @map("object_key") // B2 object key
-  description  String?          @map("description")
-  uploadedById String           @map("uploaded_by_id")
-  createdAt    DateTime         @default(now()) @map("created_at")
+  tenantId      String           @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id            String           @id @default(uuid()) @map("id")
+  projectId     String           @map("project_id")
+  teamId        String?          @map("team_id") // null = project-level
+  category      ResourceCategory @default(OTHER) @map("category")
+  tag           DocTag?          @map("tag")
+  fileName      String           @map("file_name")
+  fileSize      Int              @map("file_size")
+  mimeType      String           @map("mime_type")
+  objectKey     String           @unique @map("object_key") // B2 object key
+  description   String?          @map("description")
+  uploadedById  String           @map("uploaded_by_id")
+  /// Set when the file is the output of a logged deliverable. SetNull on the
+  /// entry's deletion: a wrong log line must not destroy real work product.
+  deliverableId String?          @map("deliverable_id")
+  createdAt     DateTime         @default(now()) @map("created_at")
 
-  project    Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  team       ProjectTeam? @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  uploadedBy Employee     @relation("ResourceUploader", fields: [uploadedById], references: [id])
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  team        ProjectTeam?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  uploadedBy  Employee            @relation("ResourceUploader", fields: [uploadedById], references: [id])
+  deliverable ProjectDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([teamId])
   @@index([category])
   @@index([tag])
+  @@index([deliverableId])
   @@index([tenantId])
   @@map("project_resources")
+}
+
+/// Something a person PRODUCED for a project: a video, a set of product pages,
+/// a packaging design. Tasks record what people are doing and hours record how
+/// long it took; this is the third column, what came out - which is the one a
+/// client is actually paying for and the one nothing else here counted.
+///
+/// One row per thing (or batch of things: `quantity`). Dated by the day it was
+/// finished, so "what did the video team make in August" is a range query on
+/// completed_on. Files ride on ProjectResource under the DELIVERABLES category,
+/// linked back here, so they also appear on the project's Files tab.
+model ProjectDeliverable {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId       String            @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id             String            @id @default(uuid()) @map("id")
+  projectId      String            @map("project_id")
+  /// The maker's team on this project at the time of logging. Null when they
+  /// were on no team. SetNull on team deletion: the output still happened.
+  teamId         String?           @map("team_id")
+  /// Who made it.
+  employeeId     String            @map("employee_id")
+  /// Who wrote the entry - the maker, or a manager logging on their behalf.
+  loggedById     String?           @map("logged_by_id")
+  /// The task it came out of, when there was one.
+  taskId         String?           @map("task_id")
+  /// "Video", "Reel", "Product page"... Free text with per-team suggestions,
+  /// normalised like goal tags so "reel" and "Reel" cannot split a count.
+  type           String            @map("type")
+  title          String            @map("title")
+  /// "10 product pages" can be one entry. Every count sums this.
+  quantity       Int               @default(1) @map("quantity")
+  /// Where it is in its life. PLANNED = owed (nothing made yet); DELIVERED =
+  /// made; ACCEPTED / REJECTED = the client's verdict, recorded by staff.
+  status         DeliverableStatus @default(DELIVERED) @map("status")
+  /// When a PLANNED row is owed by. Null for after-the-fact logging.
+  dueOn          DateTime?         @map("due_on") @db.Date
+  /// Which goal this output serves when the task link is not enough (or there
+  /// is no task). SetNull: removing a goal must not remove the work.
+  goalId         String?           @map("goal_id")
+  startedOn      DateTime?         @map("started_on") @db.Date
+  /// The day it counts for. Null only while PLANNED / IN_PROGRESS (a CHECK
+  /// constraint in the migration enforces this; Prisma cannot express it).
+  completedOn    DateTime?         @map("completed_on") @db.Date
+  /// How many times it went REJECTED -> DELIVERED.
+  revisionCount  Int               @default(0) @map("revision_count")
+  acceptedAt     DateTime?         @map("accepted_at")
+  acceptedById   String?           @map("accepted_by_id")
+  acceptanceNote String?           @map("acceptance_note") @db.Text
+  /// Where it lives: the Drive folder, the published page. http(s) only.
+  links          String[]          @default([]) @map("links")
+  notes          String?           @map("notes") @db.Text
+  /// Internal QC sign-off by a manager. Null = self-reported. Distinct from
+  /// ACCEPTED, which is the client's word.
+  verifiedById   String?           @map("verified_by_id")
+  verifiedAt     DateTime?         @map("verified_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  project    Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  team       ProjectTeam?              @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  employee   Employee                  @relation("DeliverableMaker", fields: [employeeId], references: [id], onDelete: Cascade)
+  loggedBy   Employee?                 @relation("DeliverableLogger", fields: [loggedById], references: [id], onDelete: SetNull)
+  verifiedBy Employee?                 @relation("DeliverableVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  acceptedBy Employee?                 @relation("DeliverableAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+  task       ProjectTask?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  goal       ProjectGoal?              @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  files      ProjectResource[]
+  events     ProjectDeliverableEvent[]
+
+  @@index([projectId, completedOn])
+  @@index([employeeId, completedOn])
+  @@index([projectId, status])
+  @@index([goalId])
+  @@index([teamId])
+  @@index([taskId])
+  @@index([tenantId])
+  @@map("project_deliverables")
+}
+
+enum DeliverableStatus {
+  PLANNED
+  IN_PROGRESS
+  DELIVERED
+  ACCEPTED
+  REJECTED
+}
+
+/// What happened to a deliverable. Append-only.
+enum DeliverableEventType {
+  CREATED
+  EDITED
+  STATUS_CHANGED
+  VERIFIED
+  UNVERIFIED
+  /// A project manager edited a row whose period had closed for members.
+  LOCKED_EDIT
+}
+
+/// The history of one deliverable. Same rules as ProjectGoalEvent: never
+/// edited, deleted with its row.
+model ProjectDeliverableEvent {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId      String               @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id            String               @id @default(uuid()) @map("id")
+  deliverableId String               @map("deliverable_id")
+  type          DeliverableEventType @map("type")
+  fromStatus    DeliverableStatus?   @map("from_status")
+  toStatus      DeliverableStatus?   @map("to_status")
+  /// { field: [before, after] } for EDITED / LOCKED_EDIT / STATUS_CHANGED.
+  changes       Json?                @map("changes")
+  reason        String?              @map("reason") @db.Text
+  actorId       String?              @map("actor_id")
+  createdAt     DateTime             @default(now()) @map("created_at")
+
+  deliverable ProjectDeliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  actor       Employee?          @relation("DeliverableEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([deliverableId, createdAt])
+  @@index([tenantId])
+  @@map("project_deliverable_events")
+}
+
+/// "50 reels by March" as a row. A goal with targets reads its progress off
+/// what was delivered against them instead of off task checkboxes.
+model ProjectGoalTarget {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId        String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id              String    @id @default(uuid()) @map("id")
+  goalId          String    @map("goal_id")
+  /// Free text matched case-insensitively against ProjectDeliverable.type.
+  deliverableType String    @map("deliverable_type")
+  quantity        Int       @map("quantity")
+  /// Both null = counts everything ever attributed to the goal.
+  periodStart     DateTime? @map("period_start") @db.Date
+  periodEnd       DateTime? @map("period_end") @db.Date
+  createdById     String?   @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  goal      ProjectGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  createdBy Employee?   @relation("GoalTargetCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([goalId])
+  @@index([tenantId])
+  @@map("project_goal_targets")
+}
+
+/// One row per digest sent for a period; the unique index is the lock that
+/// stops the scheduler tick and the cron route from both sending.
+model DigestRun {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String   @id @default(uuid()) @map("id")
+  kind        String   @map("kind")
+  periodStart DateTime @map("period_start") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, kind, periodStart])
+  @@map("digest_runs")
 }
 
 enum TaskApprovalStatus {
@@ -2075,6 +2248,22 @@ model ProjectTask {
   // follow-up instead of littering the board with copies.
   resumedFromId String? @map("resumed_from_id")
 
+  // WHY this work exists: the goal (or milestone under it) it serves. A goal
+  // with linked tasks derives its progress from them - done over countable -
+  // instead of from a checkbox somebody remembers to tick. Nullable on purpose:
+  // forcing a goal at creation produces junk goals to satisfy the form, so an
+  // unlinked task is allowed and shown to the manager as one to sort out.
+  goalId          String?   @map("goal_id")
+  // Is something expected to come OUT of this task - a page, a video, a design?
+  // Defaults from the team's nature at creation (production teams yes, adhoc
+  // no). Completing a task flagged true without logging a deliverable draws a
+  // nudge, never a block: a block teaches people to log rubbish.
+  producesOutput  Boolean   @default(true) @map("produces_output")
+  // "Done, and there was nothing to log" - answered once by the assignee so the
+  // capture prompt and the digest stop asking. Cleared when a deliverable is
+  // later logged against the task, or when the task leaves DONE.
+  outputSkippedAt DateTime? @map("output_skipped_at")
+
   project        Project?              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   seoProperty    SeoProperty?          @relation(fields: [seoPropertyId], references: [id], onDelete: SetNull)
   requirement    ProjectRequirement?   @relation(fields: [requirementId], references: [id], onDelete: SetNull)
@@ -2082,6 +2271,8 @@ model ProjectTask {
   // (and the hours booked on it) with it.
   resumedFrom    ProjectTask?          @relation("TaskResume", fields: [resumedFromId], references: [id], onDelete: SetNull)
   resumeTasks    ProjectTask[]         @relation("TaskResume")
+  // SetNull: deleting a goal must not delete the work that was done for it.
+  goal           ProjectGoal?          @relation(fields: [goalId], references: [id], onDelete: SetNull)
   team           ProjectTeam?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   assignee       Employee?             @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   creator        Employee              @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
@@ -2092,6 +2283,7 @@ model ProjectTask {
   reminderStates TaskReminderState[]
   // Set when this task was generated from a content-calendar post.
   contentEntry   ContentCalendarEntry?
+  deliverables   ProjectDeliverable[]
 
   @@index([projectId])
   @@index([teamId])
@@ -2101,6 +2293,9 @@ model ProjectTask {
   // Serves the "is there already an open follow-up for this task?" lookup done
   // every time a task is put on hold.
   @@index([resumedFromId])
+  // Every goal read walks its tasks; every "unlinked tasks" count filters on
+  // null here.
+  @@index([goalId])
   // Hot list/board shapes: "my tasks due soon", the project board, and the
   // progress buckets. dueDate previously had no index of any kind.
   @@index([assigneeId, dueDate])
@@ -4472,18 +4667,31 @@ model ProjectGoal {
   /// this is the copy the board shows without a second query.
   statusReason  String?    @map("status_reason") @db.Text
   createdById   String?    @map("created_by_id")
+  /// Who is ACCOUNTABLE for this goal landing - the line of sight from a
+  /// promise to a person. Not who created the row, and not who does the work
+  /// (that is the tasks' assignees). Null = the account manager by default.
+  ownerId       String?    @map("owner_id")
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
-  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  parent    ProjectGoal?       @relation("GoalHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children  ProjectGoal[]      @relation("GoalHierarchy")
-  createdBy Employee?          @relation("GoalCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  events    ProjectGoalEvent[]
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent       ProjectGoal?         @relation("GoalHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children     ProjectGoal[]        @relation("GoalHierarchy")
+  createdBy    Employee?            @relation("GoalCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  owner        Employee?            @relation("GoalOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  events       ProjectGoalEvent[]
+  /// The work that serves this goal. Progress derives from these when present.
+  tasks        ProjectTask[]
+  /// What this goal promises in countable output. When present, progress is
+  /// read off delivered output instead of task checkboxes.
+  targets      ProjectGoalTarget[]
+  /// Output attributed to this goal directly (not through a task).
+  deliverables ProjectDeliverable[]
 
   @@index([projectId])
   @@index([parentId])
   @@index([projectId, sortOrder])
+  @@index([ownerId])
   @@map("project_goals")
 }
 

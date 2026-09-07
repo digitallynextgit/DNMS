@@ -63,6 +63,7 @@ import { dedupeLinks, isSafeHttpUrl, linkLabel } from "@/features/projects/lib/t
 // COMPONENT, and this sheet needs two hooks.
 import { useAwayDays, useTeamAwayDays, type AwayDay } from "@/features/leave/hooks/use-away-days"
 import { followUpConflictFrom } from "@/features/projects/lib/follow-up-conflict"
+import { afterTaskPatch } from "@/features/projects/lib/after-task-patch"
 import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
 import type { ProjectTeam } from "@/features/projects/hooks/use-projects"
 
@@ -990,8 +991,10 @@ export function TasksSheetView({
       })
 
     try {
-      await send(body)
-      toast.success(label)
+      // The same three answers every other completion path gives: the shared
+      // clock, the toast, and the output prompt. This view used to drop the
+      // prompt on the floor - marking a task done here asked nothing at all.
+      afterTaskPatch(await send(body), { successMessage: label })
     } catch (e) {
       // Moving a hold follow-up whose original is already underway is a question
       // for the user, not an error - see follow-up-conflict.ts.
@@ -1000,8 +1003,9 @@ export function TasksSheetView({
         askFollowUpConflict({
           ...conflict,
           keep: async () => {
-            await send({ ...body, keepFollowUp: true })
-            toast.success(label)
+            afterTaskPatch(await send({ ...body, keepFollowUp: true }), {
+              successMessage: label,
+            })
             await qc.invalidateQueries({ queryKey: ["my-tasks"] })
           },
         })

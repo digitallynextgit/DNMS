@@ -19,6 +19,7 @@ crontab below is what turns all of this on.
 | `requirement-reminders` | 09:30 daily         | Chases requirements due/overdue                  | Yes                 |
 | `seo-daily`             | 07:00 daily         | SEO accident monitor                             | Yes                 |
 | `seo-weekly`            | Mon 06:00           | Search Console pull + audit + scorecard          | Yes                 |
+| `work-digest`           | Mon 08:00 UTC       | Last week's loose ends, to managers + assignees  | Yes                 |
 | `evaluation-autocreate` | 06:00 on 1st & 16th | Creates the period's evaluations                 | **Read note**       |
 | `leave-accrual`         | 02:00 on the 1st    | Monthly leave accrual                            | **Read note**       |
 | `leave-rollover`        | 03:00 on 1 Jan      | Carry-forward, lapses the rest                   | **Read note**       |
@@ -38,8 +39,17 @@ letting cron own it:
 curl -s -H "Authorization: Bearer $CRON_SECRET" https://dnms.digitallynext.com/api/cron/leave-accrual
 ```
 
-The other eight only send notifications or pull external data, so a surprise run costs nothing worse
+The other nine only send notifications or pull external data, so a surprise run costs nothing worse
 than a notification.
+
+### Note on `work-digest`
+
+It reports the **last complete Mon-Sun week**, so a late or repeated run says exactly the same
+thing as a punctual one. Before sending anything it claims the period with a unique insert into
+`digest_runs`; a second call for the same week returns `{"skipped":true}` and mails nobody. The
+in-process scheduler (`server/scheduler.ts`) runs it as well, from Monday 08:00 server time - the
+crontab line below is the manual trigger and the fallback, and running both is safe for the same
+reason.
 
 ## Installing
 
@@ -79,6 +89,7 @@ DNMS=https://dnms.digitallynext.com/api/cron
 0     4  *  *  *  curl -sS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" $DNMS/requirement-reminders
 # Weekly
 30    0  *  *  1  curl -sS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" $DNMS/seo-weekly
+0     8  *  *  1  curl -sS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" $DNMS/work-digest
 # Twice a month / monthly / yearly - enable only after a manual test run
 30    0  1,16 * * curl -sS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" $DNMS/evaluation-autocreate
 30    2  1  *  *  curl -sS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" $DNMS/leave-accrual
@@ -87,7 +98,9 @@ DNMS=https://dnms.digitallynext.com/api/cron
 
 IST equivalents for the daily/weekly lines above: seo-daily 07:00, birthdays 09:00,
 evaluation-autocreate 06:00 on the 1st and 16th, leave-accrual 08:00 on the 1st, leave-rollover
-09:00 on 1 Jan.
+09:00 on 1 Jan. `work-digest` at 08:00 UTC is 13:30 IST - deliberately left in UTC to match the
+in-process scheduler, which reads the server's own clock; move both together if the digest should
+land earlier in the Indian morning.
 
 The monthly and yearly jobs are scheduled for a UTC hour that still lands on the intended IST
 **date**. An early-morning IST time like 02:00 on the 1st would be 20:30 UTC on the last day of the

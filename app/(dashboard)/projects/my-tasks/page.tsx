@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Link } from "@/components/tenant-link"
-import { AlertTriangle, ChevronDown, ChevronRight, Inbox, Lock, X } from "lucide-react"
+import { AlertTriangle, ChevronDown, ChevronRight, Inbox, Lock, Target, X } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -35,6 +35,7 @@ import {
   taskEditLockReason,
 } from "@/features/projects/lib/task-permissions"
 import { TaskResources } from "@/features/projects/components/task-resources"
+import { LogDeliverableButton } from "@/features/projects/components/log-deliverable-button"
 import { cn } from "@/lib/utils"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
@@ -43,7 +44,9 @@ import { TaskHistoryDialog } from "@/features/projects/components/task-history-d
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { projectHref } from "@/features/projects/lib/project-href"
 import { followUpConflictFrom } from "@/features/projects/lib/follow-up-conflict"
+import { afterTaskPatch } from "@/features/projects/lib/after-task-patch"
 import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
+import { useOutputCaptureStore } from "@/stores/output-capture-store"
 import { apiFetch } from "@/lib/api-fetch"
 import { BlockedBadge } from "@/features/projects/components/blocked-badge"
 import { useProjects } from "@/features/projects/hooks/use-projects"
@@ -80,6 +83,12 @@ interface MyTask {
   requirement?: { id: string; title: string; status: string } | null
   /** managerId is the authority on adhoc work, which has no team manager. */
   assignee?: { id: string; firstName: string; lastName: string; managerId?: string | null } | null
+  /** The goal this work serves - shown on the row so the WHY is visible. */
+  goal?: { id: string; title: string } | null
+  producesOutput?: boolean
+  /** Set when someone answered "nothing came out of this" - the nudge stops. */
+  outputSkippedAt?: string | null
+  _count?: { deliverables: number }
 }
 
 /** "me" | "user:<id>" - see GET /api/tasks, which also still accepts "all". */
@@ -229,6 +238,7 @@ export default function MyTasksPage() {
   const viewMode = storedView === "sheet" ? "sheet" : "card"
   const qc = useQueryClient()
   const askFollowUpConflict = useFollowUpConflictStore((s) => s.ask)
+  const askOutput = useOutputCaptureStore((s) => s.ask)
 
   const { data: session } = useSession()
   const { can } = usePermissions()
@@ -316,9 +326,12 @@ export default function MyTasksPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const updateMut = useMutation({
     mutationFn: ({ id, ...body }: { id: string } & Record<string, unknown>) => updateTask(id, body),
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["my-tasks"] })
-      toast.success("Task updated")
+      // Shared clock, the toast, and the output prompt - marked done with an
+      // output expected and nothing logged asks now, while the answer is still
+      // in their head. See features/projects/lib/after-task-patch.ts.
+      afterTaskPatch(data, { successMessage: "Task updated" })
     },
     onError: (error: Error, variables) => {
       // A hold follow-up whose original is already underway: ask rather than
@@ -329,9 +342,10 @@ export default function MyTasksPage() {
         askFollowUpConflict({
           ...conflict,
           keep: async () => {
-            await updateTask(id, { ...body, keepFollowUp: true })
+            const kept = await updateTask(id, { ...body, keepFollowUp: true })
             qc.invalidateQueries({ queryKey: ["my-tasks"] })
-            toast.success("Task updated")
+            // Same status change, confirmed - so it raises the same questions.
+            afterTaskPatch(kept, { successMessage: "Task updated" })
           },
         })
         return
@@ -444,6 +458,19 @@ export default function MyTasksPage() {
         }
         actions={
           <>
+            {/* Logging output belongs next to updating tasks - same visit, no
+                trip to the project page. Own tasks only: you log what YOU made.
+                The project list comes from every task loaded, not the filtered
+                view, so a "today" filter cannot hide a project you work on. */}
+            {isMine && (
+              <LogDeliverableButton
+                projects={(Array.isArray(data?.data) ? data.data : []).flatMap((t) =>
+                  t.project ? [{ id: t.project.id, name: t.project.name }] : [],
+                )}
+                currentUserId={actor.userId}
+                className="h-8 gap-1.5"
+              />
+            )}
             {/* Only rendered for someone with anyone to look at - reports, or
                 the whole company if they administer projects. The options come
                 from the server, so the list is also the authorisation: you
@@ -676,6 +703,34 @@ export default function MyTasksPage() {
                                 </Badge>
                               )}
                               <BlockedBadge requirement={task.requirement} />
+                              {/* Finished, expected to produce something, nothing
+                                  logged. A nudge with the answer one click away -
+                                  never a block. */}
+                              {task.status === "DONE" &&
+                                task.producesOutput &&
+                                (task._count?.deliverables ?? 0) === 0 &&
+                                !task.outputSkippedAt &&
+                                task.project && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      askOutput({
+                                        taskId: task.id,
+                                        projectId: task.project!.id,
+                                        title: task.title,
+                                        links: task.links,
+                                        employeeId: task.assignee?.id ?? null,
+                                        startedOn: null,
+                                        // Nothing owed to confirm - this is the
+                                        // nudge on a task with a blank ledger.
+                                        planned: null,
+                                      })
+                                    }
+                                    className="rounded-sm border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-500 hover:bg-amber-500/20"
+                                  >
+                                    No output logged · log it
+                                  </button>
+                                )}
                               {isOverdue && (
                                 <Badge
                                   variant="outline"
@@ -686,6 +741,13 @@ export default function MyTasksPage() {
                                 </Badge>
                               )}
                             </div>
+                            {/* The WHY, under the what. */}
+                            {task.goal && (
+                              <p className="text-muted-foreground mt-0.5 flex items-center gap-1 text-[11px]">
+                                <Target className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{task.goal.title}</span>
+                              </p>
+                            )}
                             {task.rejectionReason && (
                               <p className="mt-0.5 text-[11px] text-red-700">
                                 Reason: {task.rejectionReason}

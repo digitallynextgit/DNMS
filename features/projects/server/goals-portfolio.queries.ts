@@ -4,10 +4,13 @@ import type { Session } from "next-auth"
 import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
+import { todayUtc } from "@/lib/dates"
 import {
   GOAL_ORDER,
   GOAL_SELECT_LITE,
+  loadGoalOutputs,
   summariseGoalRows,
+  targetTypeKeys,
   type GoalNode,
   type GoalRowLite,
 } from "./goals.service"
@@ -47,6 +50,12 @@ export interface ProjectGoalsRow {
   doneGoals: number
   overdueGoals: number
   atRiskGoals: number
+  /**
+   * Behind where the calendar says they should be, without anyone having said
+   * so. The early half of `overdueGoals`: by the time a goal is overdue the
+   * conversation about it is already late.
+   */
+  slippingGoals: number
   discardedGoals: number
   nextTargetDate: string | null
   /** The full tree, so the detail view needs no second request. */
@@ -143,12 +152,20 @@ export async function getGoalsPortfolio(
 
   // One `today` for the whole sweep: computing it per project would let the date
   // roll over mid-loop and mark one project's goal overdue and another's not.
-  const now = new Date()
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const today = todayUtc()
+
+  // ONE query for every project's output, not one per project. The map is keyed
+  // by goal id, so handing the same one to each group is safe - a project's
+  // summariser only ever looks up its own goals' ids. Costs nothing when no
+  // goal anywhere in scope carries a target.
+  const outputs = await loadGoalOutputs(
+    projects.map((p) => p.id),
+    targetTypeKeys(rows),
+  )
 
   const out: ProjectGoalsRow[] = []
   for (const p of projects) {
-    const summary = summariseGoalRows(byProject.get(p.id) ?? [], today)
+    const summary = summariseGoalRows(byProject.get(p.id) ?? [], today, outputs)
     out.push({
       projectId: p.id,
       projectName: p.name,
@@ -162,6 +179,9 @@ export async function getGoalsPortfolio(
       // at-risk sub-goals against a denominator of main goals could report
       // "5 at risk of 3".
       atRiskGoals: summary.goals.filter((g) => g.status === "AT_RISK").length,
+      // Flat, sub-goals included: unlike "at risk" this is not compared against
+      // a denominator of main goals, it is a count of rows worth looking at.
+      slippingGoals: summary.slippingGoals,
       discardedGoals: summary.discardedGoals,
       nextTargetDate: summary.nextTargetDate,
       goals: summary.goals,

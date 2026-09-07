@@ -15,9 +15,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { DateField } from "@/components/shared/date-field"
+import { Switch } from "@/components/ui/switch"
 import { apiFetch } from "@/lib/api-fetch"
 import { PERMISSIONS, TASK_PRIORITY_LABELS } from "@/lib/constants"
 import { useProject, useProjects, useProjectTeams } from "@/features/projects/hooks/use-projects"
+import { useProjectGoals } from "@/features/projects/hooks/use-goals"
+import { NONE_OPTION, SearchPicker } from "./search-picker"
+
+/** Radix Select cannot hold "" as a value, so "no goal" needs a sentinel. */
+const NO_GOAL = NONE_OPTION
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { useSeoSites } from "@/features/seo/hooks/use-seo"
 import {
@@ -67,11 +73,30 @@ export function TaskCreateDialog({
   const [estHours, setEstHours] = React.useState("")
   const [estMinutes, setEstMinutes] = React.useState("")
   const [seoPropertyId, setSeoPropertyId] = React.useState("")
+  // WHY this work exists. Optional: forcing a goal here produces junk goals to
+  // satisfy the form; an unlinked task is shown to the manager instead.
+  const [goalId, setGoalId] = React.useState("")
+  // Is there supposed to be a THING at the end of this? Default yes, because a
+  // wrong yes costs one nudge somebody skips and a wrong no costs output that
+  // never gets counted.
+  const [producesOutput, setProducesOutput] = React.useState(true)
 
   // Adhoc is a sentinel, not a real project id - every project-scoped fetch
   // below has to be told so, or each one fires a request for "__adhoc__".
   const isAdhoc = projectId === ADHOC_ROW_ID
   const realProjectId = isAdhoc ? "" : projectId
+
+  // The project's goals, flattened to "Goal › Milestone" so a task can be filed
+  // under either. Fetched only once a real project is picked.
+  const { data: goalsData } = useProjectGoals(realProjectId)
+  const goalOptions = React.useMemo(
+    () =>
+      (goalsData?.goals ?? []).flatMap((g) => [
+        { id: g.id, label: g.title },
+        ...g.children.map((c) => ({ id: c.id, label: `${g.title} › ${c.title}` })),
+      ]),
+    [goalsData],
+  )
 
   // Sites tracked under this project. Only offered when the project actually has
   // more than the implicit "whole project" scope.
@@ -127,6 +152,7 @@ export function TaskCreateDialog({
       setEstHours("")
       setEstMinutes("")
       setSeoPropertyId("")
+      setProducesOutput(true)
     }
   }, [open, defaultProjectId])
   React.useEffect(() => {
@@ -170,6 +196,12 @@ export function TaskCreateDialog({
       dueDate: dueDate || undefined,
       estimatedHours: estimateInHours,
       seoPropertyId: seoPropertyId || undefined,
+      // Only a goal from the project currently picked - a stale choice after
+      // switching project would 404.
+      goalId: goalOptions.some((g) => g.id === goalId) ? goalId : undefined,
+      // Adhoc work produces nothing to log by definition - a meeting is not a
+      // deliverable - and the endpoint it goes to says so itself.
+      ...(isAdhoc ? {} : { producesOutput }),
     })
   }
 
@@ -243,6 +275,23 @@ export function TaskCreateDialog({
                 Only the {selectableTeams.length === 1 ? "team" : "teams"} you belong to.
               </p>
             )}
+          </div>
+        )}
+
+        {!isAdhoc && projectId && goalOptions.length > 0 && (
+          <div className="space-y-2">
+            <Label>Goal</Label>
+            <SearchPicker
+              value={goalId || NO_GOAL}
+              onChange={(v) => setGoalId(v === NO_GOAL ? "" : v)}
+              noneLabel="Not tied to a goal"
+              searchPlaceholder="Search goals…"
+              emptyText="No goals on this project yet"
+              groups={[{ label: "", options: goalOptions }]}
+            />
+            <p className="text-muted-foreground text-xs">
+              Optional. The goal&apos;s progress moves as this task does.
+            </p>
           </div>
         )}
 
@@ -390,6 +439,26 @@ export function TaskCreateDialog({
             {estimateInHours ? `Stored as ${estimateInHours} h` : "Optional"}
           </p>
         </div>
+
+        {/* Adhoc work is a meeting or an interview - there is nothing at the end
+            of it to point at, so the question is not asked. */}
+        {!isAdhoc && (
+          <div className="flex items-center justify-between gap-3 rounded-sm border px-3 py-2.5">
+            <div className="space-y-0.5">
+              <Label htmlFor="task-produces-output" className="mb-0 cursor-pointer text-sm">
+                Produces output
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                A page, a video, a design — something to log when done.
+              </p>
+            </div>
+            <Switch
+              id="task-produces-output"
+              checked={producesOutput}
+              onCheckedChange={setProducesOutput}
+            />
+          </div>
+        )}
       </div>
     </FormDialog>
   )

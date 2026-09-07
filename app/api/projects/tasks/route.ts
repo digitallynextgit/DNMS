@@ -45,6 +45,9 @@ export const GET = withSession(
     const projectId = q.get("projectId") ?? undefined
     const assigneeId = q.get("assigneeId") ?? undefined
     const teamId = q.get("teamId") ?? undefined
+    // The goal a task serves, or the ones serving none - the manager's sort list.
+    const goalId = q.get("goalId") ?? undefined
+    const unlinked = q.get("unlinked") === "1"
     const from = q.get("from")
     const to = q.get("to")
     const limit = Math.min(MAX_LIMIT, Math.max(1, Number(q.get("limit") ?? 150) || 150))
@@ -97,6 +100,8 @@ export const GET = withSession(
         projectId ? { projectId } : {},
         assigneeId ? { assigneeId } : {},
         teamId ? { teamId } : {},
+        goalId ? { goalId } : {},
+        unlinked ? { goalId: null } : {},
         from ? { dueDate: { gte: new Date(`${from}T00:00:00.000Z`) } } : {},
         to ? { dueDate: { lte: new Date(`${to}T23:59:59.999Z`) } } : {},
       ],
@@ -125,6 +130,10 @@ export const GET = withSession(
           loggedHours: true,
           inProgressSince: true,
           holdExpectedDate: true,
+          producesOutput: true,
+          outputSkippedAt: true,
+          goal: { select: { id: true, title: true } },
+          _count: { select: { deliverables: true } },
           project: { select: { id: true, name: true, code: true, slug: true } },
           team: { select: { id: true, name: true } },
           assignee: {
@@ -154,6 +163,11 @@ export const GET = withSession(
         daysLate: late ? Math.floor((todayStart.getTime() - t.dueDate!.getTime()) / day) : 0,
         project: t.project,
         team: t.team,
+        goal: t.goal,
+        producesOutput: t.producesOutput,
+        outputs: t._count.deliverables,
+        /** Answered "nothing came out of this" - so the nudge stops asking. */
+        outputSkipped: t.outputSkippedAt != null,
         assignee: t.assignee
           ? {
               id: t.assignee.id,

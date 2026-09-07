@@ -12,6 +12,7 @@ import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
 import { uploadFile, getObjectKey, ensureBucket } from "@/lib/storage"
 import { classifyDoc, isDocTag } from "@/features/projects/lib/doc-tag"
+import { canEditDeliverable } from "@/features/projects/server/deliverables.service"
 import type { Session } from "next-auth"
 
 const MAX_SIZE_BYTES = 250 * 1024 * 1024 // 250 MB
@@ -111,6 +112,11 @@ export const POST = withSession(
       const categoryRaw = formData.get("category")
       const descriptionRaw = formData.get("description")
       const tagRaw = formData.get("tag")
+      // A file can be the OUTPUT of a logged deliverable. It is still an
+      // ordinary resource (so it shows on the Files tab), just linked back.
+      const deliverableIdRaw = formData.get("deliverableId")
+      const deliverableId =
+        typeof deliverableIdRaw === "string" && deliverableIdRaw ? deliverableIdRaw : null
 
       // Normalise form values (FormData entries are FormDataEntryValue)
       const teamId =
@@ -163,6 +169,27 @@ export const POST = withSession(
         }
       }
 
+      // 8b. A deliverable link must name an entry on THIS project that the
+      //     uploader may edit - their own, their team's, or they run the project.
+      if (deliverableId) {
+        const entry = await db.projectDeliverable.findFirst({
+          where: { id: deliverableId, projectId },
+          select: { projectId: true, employeeId: true, loggedById: true },
+        })
+        if (!entry) {
+          return NextResponse.json(
+            { error: "Deliverable not found in this project" },
+            { status: 404 },
+          )
+        }
+        if (!(await canEditDeliverable(session, entry))) {
+          return NextResponse.json(
+            { error: "You cannot attach files to that entry" },
+            { status: 403 },
+          )
+        }
+      }
+
       // 9. Make sure the storage bucket exists (no-op if it already does)
       await ensureBucket()
 
@@ -206,6 +233,7 @@ export const POST = withSession(
           objectKey,
           description: description?.trim() || null,
           uploadedById: session.user.id,
+          deliverableId,
         },
         include: {
           uploadedBy: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },

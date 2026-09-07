@@ -51,6 +51,7 @@ import {
   Search,
   HelpCircle,
   Target,
+  PackageCheck,
   Building2,
 } from "lucide-react"
 import { ProjectFormDialog } from "@/features/projects/components/project-form-dialog"
@@ -92,6 +93,10 @@ const InsightsTab = dynamic(
 const GoalsTab = dynamic(() => import("@/features/projects").then((m) => m.GoalsTab), {
   loading: tabFallback,
 })
+const DeliverablesTab = dynamic(
+  () => import("@/features/projects").then((m) => m.DeliverablesTab),
+  { loading: tabFallback },
+)
 // On Overview, but dynamic all the same: it pulls in recharts, which is far too
 // heavy to sit in this page's eager chunk for the sake of one donut.
 const GoalsOverviewCard = dynamic(
@@ -163,6 +168,7 @@ const ProjectMonitoringTab = dynamic(
 const PROJECT_TABS = [
   "overview",
   "goals",
+  "deliverables",
   "brand",
   "drive",
   "integration",
@@ -367,6 +373,7 @@ export default function ProjectDetailPage() {
             [
               { value: "overview", label: "Overview", icon: Layers },
               { value: "goals", label: "Goals", icon: Target },
+              { value: "deliverables", label: "Deliverables", icon: PackageCheck },
               { value: "brand", label: "Brand", icon: Sparkles },
               { value: "drive", label: "Files", icon: HardDrive },
               { value: "integration", label: "Integration", icon: Plug },
@@ -476,7 +483,11 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="goals" className="mt-4">
-          <GoalsTab projectId={projectRef} canManage={canManage} />
+          <GoalsTab projectId={projectRef} canManage={canManage} currentUserId={userId} />
+        </TabsContent>
+
+        <TabsContent value="deliverables" className="mt-4">
+          <DeliverablesTab projectId={projectRef} canManage={canManage} currentUserId={userId} />
         </TabsContent>
 
         <TabsContent value="brand">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
+import { projectHref } from "@/features/projects/lib/project-href"
 import { withProjectManager } from "@/features/projects/server/project-access"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
@@ -41,15 +42,19 @@ export const PATCH = withProjectManager(
 
       // Notify new manager
       try {
-        const projectName = (
-          await db.project.findUnique({ where: { id: projectId }, select: { name: true } })
-        )?.name
+        // Slug on the same read as the name - the link wants the readable one.
+        const project = await db.project.findUnique({
+          where: { id: projectId },
+          select: { name: true, slug: true },
+        })
+        const projectName = project?.name
         await createNotification({
           employeeId: member.employeeId,
           title: "Promoted to Team Manager",
           message: `You're now the manager of the "${team.name}" team in ${projectName}.`,
           type: "success",
-          link: `/projects/${projectId}`,
+          // Teams tab: the team they now manage, rather than project Overview.
+          link: projectHref({ id: projectId, slug: project?.slug }, "teams"),
         })
         addEmailJob({
           to: member.employee.email,

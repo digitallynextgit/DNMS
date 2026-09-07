@@ -24,7 +24,9 @@ export async function apiFetch<T>(input: string, init?: RequestInit): Promise<T>
     // caller that wants to ACT on a specific rejection (ask the user a question,
     // retry with a flag) otherwise has to string-match the message.
     error.status = res.status
-    error.code = body?.error?.code
+    // Routes that answer with a bare `{ error, code }` are read too - the
+    // envelope is the house style, not a guarantee.
+    error.code = body?.error?.code ?? body?.code
     error.details = body?.error?.details ?? body?.details
     throw error
   }

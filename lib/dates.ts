@@ -37,3 +37,31 @@ export function isWeekend(date: Date | string): boolean {
   const day = new Date(date).getUTCDay()
   return day === 0 || day === 6
 }
+
+/** Today as a UTC midnight - the anchor for every DATE-column comparison. */
+export function todayUtc(): Date {
+  const n = new Date()
+  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()))
+}
+
+/** `date` shifted by `days` (may be negative). Does not mutate. */
+export function addDays(date: Date, days: number): Date {
+  const d = new Date(date)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d
+}
+
+/** Whole days from `a` to `b` (b - a). Negative when `b` is earlier. */
+export function daysBetween(a: Date, b: Date): number {
+  return Math.round((startOfDayUTC(b).getTime() - startOfDayUTC(a).getTime()) / 86_400_000)
+}
+
+/**
+ * The latest calendar day currently in progress anywhere on Earth (UTC+14 is
+ * a day ahead of UTC for ten hours). A date picker is local; a "not in the
+ * future" check against plain UTC-today rejects a valid entry from Auckland
+ * or, after 18:30 UTC, from Kolkata. Use this as the upper bound instead.
+ */
+export function latestCalendarDay(today: Date = todayUtc()): Date {
+  return addDays(today, 1)
+}

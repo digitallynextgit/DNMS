@@ -14,6 +14,8 @@ import {
 import { settleRunningTasks } from "@/features/projects/server/task-clock.service"
 import { diffTaskFields } from "@/features/projects/server/task-audit"
 import { dedupeLinks, isSafeHttpUrl } from "@/features/projects/lib/task-links"
+import { projectHref } from "@/features/projects/lib/project-href"
+import { MADE_STATUSES, OPEN_STATUSES } from "@/features/projects/lib/deliverable-lifecycle"
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { hasPastTaskAccess } from "@/features/employees/server/task-access.service"
 import { createNotification } from "@/lib/notifications"
@@ -33,7 +35,17 @@ async function getTaskAuthContext(taskId: string, userId: string) {
   const task = await db.projectTask.findUnique({
     where: { id: taskId },
     include: {
-      team: { select: { id: true, managerId: true, projectId: true } },
+      // The slugs ride along on the read that already happens - notifications
+      // below link at the project by slug, and adhoc work has neither.
+      team: {
+        select: {
+          id: true,
+          managerId: true,
+          projectId: true,
+          project: { select: { slug: true } },
+        },
+      },
+      project: { select: { slug: true } },
       assignee: { select: { id: true, managerId: true } },
     },
   })
@@ -48,6 +60,42 @@ async function getTaskAuthContext(taskId: string, userId: string) {
     managerId,
     isAssignee: task.assigneeId === userId,
     isManager: !!managerId && managerId === userId,
+  }
+}
+
+// What the capture prompt needs to show a row that was already PROMISED for
+// this task, rather than a blank form beside it. Everything the deliverable
+// form seeds itself from, and nothing else.
+const PLANNED_SELECT = {
+  id: true,
+  type: true,
+  title: true,
+  quantity: true,
+  links: true,
+  notes: true,
+  employeeId: true,
+  startedOn: true,
+  dueOn: true,
+  status: true,
+} as const
+
+/** Dates as the form reads them: plain yyyy-MM-dd, no timezone to lose. */
+function toPlanned(row: {
+  id: string
+  type: string
+  title: string
+  quantity: number
+  links: string[]
+  notes: string | null
+  employeeId: string
+  startedOn: Date | null
+  dueOn: Date | null
+  status: string
+}) {
+  return {
+    ...row,
+    startedOn: row.startedOn?.toISOString().slice(0, 10) ?? null,
+    dueOn: row.dueOn?.toISOString().slice(0, 10) ?? null,
   }
 }
 
@@ -68,6 +116,9 @@ export const PATCH = withSession(
         tags,
         links,
         isMilestone,
+        goalId,
+        producesOutput,
+        outputSkipped,
         holdReason,
         holdExpectedDate,
         discardReason,
@@ -168,6 +219,11 @@ export const PATCH = withSession(
         data.status = status
         data.completedAt = status === "DONE" ? new Date() : null
 
+        // Reopening clears "nothing came out of this". The answer was about a
+        // finished piece of work; the work is no longer finished, so the
+        // question is live again.
+        if (auth.task.status === "DONE" && status !== "DONE") data.outputSkippedAt = null
+
         // Time spent is MEASURED, not typed in: the clock starts the moment a
         // task enters In Progress and the elapsed stretch is banked into
         // loggedHours when it leaves. A task can be started and stopped any
@@ -259,6 +315,34 @@ export const PATCH = withSession(
         data.links = cleaned.slice(0, 20)
       }
       if (typeof isMilestone === "boolean") data.isMilestone = isMilestone
+      if (typeof producesOutput === "boolean") data.producesOutput = producesOutput
+      // "Nothing came out of this" - the answer to the capture prompt, and a
+      // real answer rather than a dismissal: it stops the nudge, the amber
+      // label on Progress and the weekly digest all asking again. Whoever may
+      // touch this task at all may say it (the gate above is already assignee,
+      // manager or admin), and only a DONE task is ever asked - but an early
+      // one is stored rather than refused, because it costs nothing and the
+      // reopen branch above clears it anyway.
+      if (outputSkipped === true) data.outputSkippedAt = new Date()
+      // The goal this work serves. Must be a goal on THIS task's project - a
+      // valid goal id from another client is a 404, not a link. Null unlinks.
+      if (goalId !== undefined) {
+        if (goalId === null || goalId === "") {
+          data.goalId = null
+        } else {
+          const goalProjectId = auth.task.team?.projectId ?? auth.task.projectId
+          const goal = goalProjectId
+            ? await db.projectGoal.findFirst({
+                where: { id: String(goalId), projectId: goalProjectId },
+                select: { id: true },
+              })
+            : null
+          if (!goal) {
+            return NextResponse.json({ error: "Goal not found on this project" }, { status: 404 })
+          }
+          data.goalId = goal.id
+        }
+      }
 
       const prevStatus = auth.task.status
       const statusChanged = status !== undefined && status !== prevStatus
@@ -345,6 +429,7 @@ export const PATCH = withSession(
       // Null for adhoc work, which belongs to no project - there is no activity
       // feed to write to and no project page to link a notification at.
       const projectId = auth.task.team?.projectId ?? auth.task.projectId
+      const projectSlug = auth.task.team?.project?.slug ?? auth.task.project?.slug ?? null
       if (status !== undefined && status !== prevStatus) {
         if (projectId) {
           await logActivity({
@@ -388,8 +473,11 @@ export const PATCH = withSession(
             await createNotification({
               employeeId: mgrId,
               ...notif,
-              // Adhoc work has no project page; My Tasks is where it lives.
-              link: projectId ? `/projects/${projectId}` : "/projects/my-tasks",
+              // The task board is where the manager can see the status that just
+              // changed. Adhoc work has no project page; My Tasks is where it lives.
+              link: projectId
+                ? projectHref({ id: projectId, slug: projectSlug }, "tasks")
+                : "/projects/my-tasks",
             })
           }
         }
@@ -437,8 +525,34 @@ export const PATCH = withSession(
       // Returned so the client can say the stretch was SHARED. Time landing on
       // a task at half rate, with nothing on screen explaining why, is the kind
       // of thing people only notice at the end of the month.
+      // Did this completion leave an expected output unrecorded? The client
+      // opens the capture prompt on it - prefilled from the task, one click to
+      // skip. A nudge, never a block: a block teaches people to log rubbish.
+      //
+      // Two questions, one lookup. What has been MADE against this task decides
+      // whether to ask at all; what is still OWED against it decides what to
+      // ask - "is this the reel we promised?" beats a blank form that would
+      // leave the promise standing beside its own delivery.
+      const finishedNow = statusChanged && task.status === "DONE" && !!task.projectId
+      const [madeCount, planned] = finishedNow
+        ? await Promise.all([
+            db.projectDeliverable.count({
+              where: { taskId: task.id, status: { in: [...MADE_STATUSES] } },
+            }),
+            db.projectDeliverable.findFirst({
+              where: { taskId: task.id, status: { in: [...OPEN_STATUSES] } },
+              orderBy: { createdAt: "asc" },
+              select: PLANNED_SELECT,
+            }),
+          ])
+        : [0, null]
+      const needsOutput =
+        finishedNow && task.producesOutput && !task.outputSkippedAt && madeCount === 0 && !planned
+
       return NextResponse.json({
         data: task,
+        needsOutput,
+        plannedDeliverable: planned ? toPlanned(planned) : null,
         ...(sharedTasks.length > 0 ? { sharedTasks } : {}),
       })
     } catch (error) {

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+import { expectsOutput } from "@/features/projects/lib/deliverable-types"
+import { projectHref } from "@/features/projects/lib/project-href"
 import {
   canManageProject,
   resolveProjectId,
@@ -34,6 +36,8 @@ export const GET = withProjectAccess(
           assignee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
           creator: { select: { id: true, firstName: true, lastName: true } },
           requirement: { select: { id: true, title: true, status: true } },
+          goal: { select: { id: true, title: true } },
+          _count: { select: { deliverables: true } },
         },
         orderBy: [{ approvalStatus: "asc" }, { createdAt: "desc" }],
       })
@@ -63,6 +67,10 @@ export const POST = withSession(
       if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
       const body = await req.json()
       const { title, description, assigneeId, priority, dueDate, estimatedHours, tags } = body
+      const { goalId, producesOutput } = body as {
+        goalId?: string | null
+        producesOutput?: boolean
+      }
       const seoPropertyId: string | null = body.seoPropertyId || null
 
       if (!title || !title.trim()) {
@@ -71,7 +79,12 @@ export const POST = withSession(
 
       const team = await db.projectTeam.findUnique({
         where: { id: teamId },
-        include: { members: { select: { employeeId: true } } },
+        include: {
+          members: { select: { employeeId: true } },
+          // Slug only, and on the query that was already going out: the manager
+          // notification below needs a readable project link, not a second read.
+          project: { select: { slug: true } },
+        },
       })
       if (!team || team.projectId !== projectId) {
         return NextResponse.json({ error: "Team not found" }, { status: 404 })
@@ -91,6 +104,24 @@ export const POST = withSession(
 
       const isManager = team.managerId === session.user.id
       const finalAssigneeId = assigneeId || team.managerId || session.user.id
+
+      // WHY this work exists. Optional - forcing a goal at creation produces
+      // junk goals - but when given it must be a goal on THIS project.
+      const linkedGoalId = goalId
+        ? ((
+            await db.projectGoal.findFirst({
+              where: { id: goalId, projectId },
+              select: { id: true },
+            })
+          )?.id ?? null)
+        : null
+      if (goalId && !linkedGoalId) {
+        return NextResponse.json({ error: "Goal not found on this project" }, { status: 404 })
+      }
+      // Is something expected to come out of it? The team's nature decides
+      // unless the form said otherwise.
+      const outputExpected =
+        typeof producesOutput === "boolean" ? producesOutput : expectsOutput(team.name)
 
       // If assigning to someone else, must be manager OR admin
       if (finalAssigneeId !== session.user.id && !isManager && !isAdmin) {
@@ -138,6 +169,8 @@ export const POST = withSession(
           creatorId: session.user.id,
           dueDate: dueDate ? new Date(dueDate) : null,
           estimatedHours: estimatedHours ? Number(estimatedHours) : null,
+          goalId: linkedGoalId,
+          producesOutput: outputExpected,
           tags: Array.isArray(tags) ? tags : [],
           approvalStatus: "APPROVED",
           isManagerCreated,
@@ -165,7 +198,8 @@ export const POST = withSession(
             title: "New task assigned",
             message: `${task.creator.firstName} assigned you: "${task.title}"`,
             type: "info",
-            link: `/projects/${projectId}`,
+            // The member's own list is where the assigned task shows up.
+            link: "/projects/my-tasks",
           })
           addEmailJob({
             to: task.assignee.email,
@@ -181,7 +215,9 @@ export const POST = withSession(
             title: "New task in your team",
             message: `${task.creator.firstName} added a task in ${team.name}: "${task.title}"`,
             type: "info",
-            link: `/projects/${projectId}`,
+            // The manager wants the project's task board, not Overview, which
+            // says nothing about what their team just planned.
+            link: projectHref({ id: projectId, slug: team.project.slug }, "tasks"),
           })
         }
       } catch (_e) {

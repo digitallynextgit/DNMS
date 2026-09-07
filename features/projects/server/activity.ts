@@ -16,6 +16,12 @@ export type ActivityType =
   | "MILESTONE_TOGGLED"
   | "REQUIREMENT_RAISED"
   | "REQUIREMENT_STATUS_CHANGED"
+  | "DELIVERABLE_LOGGED"
+  | "DELIVERABLE_UPDATED"
+  | "DELIVERABLE_DELETED"
+  | "DELIVERABLE_STATUS_CHANGED"
+  | "DELIVERABLE_VERIFIED"
+  | "GOAL_TARGET_CHANGED"
 
 export async function logActivity(params: {
   projectId: string

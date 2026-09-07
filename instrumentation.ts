@@ -24,6 +24,7 @@ export async function register() {
         startRenewalScheduler,
         startCampaignScheduler,
         startSeoScheduler,
+        startWorkDigestScheduler,
       } = await import("@/server/scheduler")
       startTaskReminderScheduler()
       startCampaignScheduler()
@@ -33,6 +34,10 @@ export async function register() {
       startUptimeScheduler()
       startRenewalScheduler()
       startSeoScheduler()
+      // Weekly, and weekly jobs are the easiest to lose: a once-a-week timer
+      // does not survive a deploy, and nobody notices a digest that stopped
+      // arriving until a month has gone by.
+      startWorkDigestScheduler()
     }
   }
 }

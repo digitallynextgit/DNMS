@@ -16,11 +16,13 @@ import {
   STATUS_LABEL,
   STATUS_ORDER,
   STATUS_STYLE,
+  SlippingChip,
   StatusBadge,
   fmtDate,
   type GoalNode,
   type Status,
 } from "./goal-status"
+import { GoalTargetList } from "./goal-targets"
 import { Tip } from "./portfolio-charts"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,7 +54,14 @@ export interface ProjectGoalsRow {
   totalGoals: number
   doneGoals: number
   overdueGoals: number
+  /** Flagged at risk by a person - a judgement someone made and wrote down. */
   atRiskGoals: number
+  /**
+   * Behind where the calendar says they should be, without anyone having said
+   * so. The early half of `overdueGoals`: by the time a goal is overdue, the
+   * conversation about it is already late.
+   */
+  slippingGoals: number
   discardedGoals: number
   nextTargetDate: string | null
   goals: GoalNode[]
@@ -184,6 +193,7 @@ export function GoalTree({ goals }: { goals: GoalNode[] }) {
                 <TriangleAlert className="h-3 w-3" /> Past target
               </span>
             )}
+            {goal.slipping && <SlippingChip />}
             {goal.tags.map((t) => (
               <span
                 key={t}
@@ -200,12 +210,23 @@ export function GoalTree({ goals }: { goals: GoalNode[] }) {
             </span>
             {goal.progressIsDerived && (
               <span className="tabular-nums">
-                {goal.doneChildren} of {goal.countableChildren} sub-goals done · {goal.progress}%
+                {goal.doneChildren} of {goal.countableChildren} done · {goal.progress}%
               </span>
             )}
+            {goal.tasks.length > 0 && (
+              <span className="tabular-nums">
+                {goal.doneTasks}/{goal.countableTasks} tasks
+                {goal.outputCount > 0 &&
+                  ` · ${goal.outputCount} output${goal.outputCount === 1 ? "" : "s"}`}
+              </span>
+            )}
+            {goal.ownerName && <span>owner {goal.ownerName}</span>}
             {goal.createdByName && <span>set by {goal.createdByName}</span>}
           </p>
           {goal.progressIsDerived && <ProgressBar value={goal.progress} className="mt-1.5 w-40" />}
+          {/* Read-only here: this is the drill-down, and what was promised is
+              changed on the project's own Goals tab where the history lives. */}
+          <GoalTargetList targets={goal.targets} className="mt-1.5" />
           {/* The reason a goal is at risk or was dropped is the most useful line
               here - it is the bit a status colour cannot carry. */}
           {goal.statusReason && (
@@ -230,6 +251,7 @@ export function GoalTree({ goals }: { goals: GoalNode[] }) {
                     {STATUS_LABEL[sub.status]}
                   </span>
                   {sub.overdue && <span className="text-destructive">past target</span>}
+                  {sub.slipping && <SlippingChip />}
                 </li>
               ))}
             </ul>
@@ -307,6 +329,18 @@ function ProjectRow({ row, onOpen }: { row: ProjectGoalsRow; onOpen: () => void 
           {row.atRiskGoals} at risk
         </span>
       )}
+      {/* Not the same thing as "at risk", and the difference is who noticed:
+          at risk is a person's call, slipping is the arithmetic's. Shown
+          separately so a project already flagged does not hide the ones
+          nobody has looked at. */}
+      {row.slippingGoals > 0 && (
+        <span
+          className="shrink-0 text-[11px] font-medium text-amber-500/90"
+          title="Behind the calendar, not yet flagged by anyone"
+        >
+          {row.slippingGoals} slipping
+        </span>
+      )}
       <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
         {row.doneGoals}/{row.totalGoals} done
       </span>
@@ -338,6 +372,7 @@ export function GoalsProgressCard({
   const t = data?.totals
   const rows = data?.projects ?? []
   const single = Boolean(projectId)
+  const slipping = rows.reduce((s, r) => s + r.slippingGoals, 0)
 
   return (
     <Card>
@@ -369,13 +404,17 @@ export function GoalsProgressCard({
             </button>
 
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
                 <Tile label="Done" value={t.doneGoals} sub={`/ ${t.totalGoals}`} />
                 <Tile
                   label="At risk"
                   value={t.atRiskGoals}
                   tone={t.atRiskGoals > 0 ? "warn" : undefined}
                 />
+                {/* Summed from the rows rather than the server's totals: the
+                    per-project figure is already on the wire, and one more
+                    roll-up field is one more thing to keep in step. */}
+                <Tile label="Slipping" value={slipping} tone={slipping > 0 ? "warn" : undefined} />
                 <Tile
                   label="Overdue"
                   value={t.overdueGoals}

@@ -14,8 +14,8 @@ import { toast } from "sonner"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
 import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
+import { afterTaskPatch } from "../lib/after-task-patch"
 import { followUpConflictFrom } from "../lib/follow-up-conflict"
-import { formatHours } from "../lib/format-hours"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -105,7 +105,15 @@ export interface ProjectTask {
   /** Set while this task is waiting on a requirement; cleared when it resolves. */
   requirementId?: string | null
   requirement?: { id: string; title: string; status: string } | null
-  _count?: { comments: number; checklistItems: number }
+  /** The goal this work serves. Null = unlinked, which the manager is shown. */
+  goalId?: string | null
+  goal?: { id: string; title: string } | null
+  /** Is something expected to come out of it? Drives the capture prompt. */
+  producesOutput?: boolean
+  /** Set when someone answered "nothing came out of this" - the prompt stops. */
+  outputSkippedAt?: string | null
+  /** deliverables = logged against it so far; drives the "no output" nudge. */
+  _count?: { comments?: number; checklistItems?: number; deliverables?: number }
 }
 
 export interface TaskComment {
@@ -530,6 +538,10 @@ export function useUpdateTask() {
     qc.invalidateQueries({ queryKey: ["team-tasks"] })
     qc.invalidateQueries({ queryKey: ["my-tasks"] })
     qc.invalidateQueries({ queryKey: ["project-all-tasks"] })
+    // A task IS a goal's progress - finishing, linking or unlinking one moves
+    // the bar on both the project's Goals tab and the portfolio card.
+    qc.invalidateQueries({ queryKey: ["project-goals"] })
+    qc.invalidateQueries({ queryKey: ["goals-portfolio"] })
   }
 
   return useMutation({
@@ -549,25 +561,10 @@ export function useUpdateTask() {
       }),
     onSuccess: (data, variables) => {
       invalidate()
-      // Several tasks may run at once, and while they do they SHARE the clock -
-      // so the stretch just ended was split between them. Said once, plainly,
-      // because time landing at half rate is otherwise only noticeable in a
-      // report next month. Silent updates stay silent for the "Updated" toast
-      // but never for this.
-      const shared = (
-        data as {
-          sharedTasks?: { title: string; creditedHours: number; sharedWith: number }[]
-        } | null
-      )?.sharedTasks
-      if (shared?.length) {
-        const n = shared[0]!.sharedWith
-        toast.info(`Time split across ${n} tasks`, {
-          description: shared
-            .map((s) => `${s.title}: +${formatHours(s.creditedHours)}`)
-            .join(" · "),
-        })
-      }
-      if (!variables.silent) toast.success("Updated")
+      // Shared clock, "Updated", and the output prompt - one helper, so every
+      // screen that moves a task says the same three things. See
+      // lib/after-task-patch.ts.
+      afterTaskPatch(data, { silent: variables.silent })
     },
     onError: (e: Error, variables) => {
       // The server refused because this is a hold follow-up whose original has
@@ -579,13 +576,15 @@ export function useUpdateTask() {
           ...conflict,
           // "Keep it" is the same request again, this time confirmed.
           keep: async () => {
-            await apiFetch(`/api/tasks/${variables.taskId}`, {
+            const kept = await apiFetch(`/api/tasks/${variables.taskId}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ ...variables.body, keepFollowUp: true }),
             })
             invalidate()
-            if (!variables.silent) toast.success("Updated")
+            // The confirmed re-send is the same status change, so it raises the
+            // same questions - answering the follow-up must not lose the prompt.
+            afterTaskPatch(kept, { silent: variables.silent })
           },
         })
         return

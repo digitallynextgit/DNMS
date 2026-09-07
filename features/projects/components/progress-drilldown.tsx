@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Clock,
   Gauge,
+  PackageCheck,
   Target,
 } from "lucide-react"
 
@@ -27,6 +28,9 @@ import { formatHours } from "../lib/format-hours"
 import { projectHref } from "../lib/project-href"
 import { SeoRow } from "./project-progress-detail"
 import { GoalTree, useGoalsPortfolio, type ProjectGoalsRow } from "./goals-progress-card"
+import { useDeliverablesOverview } from "../hooks/use-deliverables"
+import { DeliverableRowView, DeliverablesExportMenu } from "./deliverables-tab"
+import { TypeDonut } from "./deliverables-output-card"
 import { fmtDate } from "./goal-status"
 import {
   PaceLine,
@@ -89,7 +93,7 @@ export interface DrillPerson {
   name: string
   profilePhoto?: string | null
 }
-export type ClientTab = "overview" | "tasks" | "people" | "goals" | "hours"
+export type ClientTab = "overview" | "tasks" | "people" | "goals" | "deliverables" | "hours"
 
 export type Drill =
   | {
@@ -118,6 +122,15 @@ export type Drill =
       range?: DrillRange
     }
   | { kind: "goals"; projectId?: string }
+  | {
+      kind: "deliverables"
+      projectId?: string
+      employeeId?: string
+      teamId?: string
+      type?: string
+      range?: DrillRange
+      title?: string
+    }
 
 /** "due 31 Aug - 6 Sep" or "all time". */
 export function rangeLabel(r?: DrillRange): string {
@@ -383,6 +396,7 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
               ["tasks", `Tasks${s ? ` (${s.assigned})` : ""}`],
               ["people", `People${perf.data ? ` (${perf.data.byEmployee.length})` : ""}`],
               ["goals", `Goals${goalRow ? ` (${goalRow.totalGoals})` : ""}`],
+              ["deliverables", "Deliverables"],
               ["hours", "Hours"],
             ] as [ClientTab, string][]
           ).map(([k, label]) => (
@@ -669,6 +683,9 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
           </Section>
         )}
       </TabsContent>
+      <TabsContent value="deliverables" className="m-0">
+        <DeliverablesView d={{ kind: "deliverables", projectId: d.project.id, range: d.range }} />
+      </TabsContent>
     </Tabs>
   )
 }
@@ -779,6 +796,22 @@ function PersonView({ d }: { d: Extract<Drill, { kind: "person" }> }) {
             />
           </div>
         </div>
+      </div>
+
+      {/* The third column for a person: not what they are doing, what they
+          MADE. Same scope as the tasks above it. */}
+      <div className="border-border/60 -mx-5 border-t">
+        <p className="flex items-center gap-1.5 px-5 pt-4 text-sm font-medium">
+          <PackageCheck className="h-4 w-4" /> What they made
+        </p>
+        <DeliverablesView
+          d={{
+            kind: "deliverables",
+            employeeId: d.person.id,
+            projectId: d.projectId,
+            range: d.range,
+          }}
+        />
       </div>
     </div>
   )
@@ -921,6 +954,112 @@ function GoalsView({ d, push }: { d: Extract<Drill, { kind: "goals" }>; push: Pu
   )
 }
 
+/**
+ * What was made, in a scope: the type mix and the entries, with their links and
+ * files. Serves the Output card's clicks, the client popup's tab and the person
+ * popup's section from one component, so "3 reels" opens the same three rows
+ * wherever it was clicked.
+ */
+function DeliverablesView({ d }: { d: Extract<Drill, { kind: "deliverables" }> }) {
+  const [type, setType] = React.useState<string | null>(d.type ?? null)
+  const { data, isLoading } = useDeliverablesOverview({
+    projectId: d.projectId,
+    employeeId: d.employeeId,
+    teamId: d.teamId,
+    from: d.range?.from,
+    to: d.range?.to,
+  })
+  if (isLoading || !data) return <Skeleton className="m-5 h-64 rounded-sm" />
+  if (data.entries === 0) {
+    return (
+      <p className="text-muted-foreground py-10 text-center text-sm">
+        Nothing logged in this scope.
+      </p>
+    )
+  }
+  const rows = type
+    ? data.rows.filter((r) => r.type.toLowerCase() === type.toLowerCase())
+    : data.rows
+  const groupBy = d.projectId ? "person" : "project"
+  const groups = new Map<string, { label: string; rows: typeof rows; count: number }>()
+  for (const r of rows) {
+    const key = groupBy === "project" ? r.project.id : r.employee.id
+    const label = groupBy === "project" ? r.project.name : r.employee.name
+    const g = groups.get(key) ?? { label, rows: [], count: 0 }
+    g.rows.push(r)
+    g.count += r.quantity
+    groups.set(key, g)
+  }
+  const ordered = [...groups.values()].sort((a, b) => b.count - a.count)
+
+  return (
+    <div className="space-y-4 p-5">
+      <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
+        <Section title="By type" sub="Click to filter the list">
+          <div className="p-3">
+            <TypeDonut
+              byType={data.byType}
+              total={data.total}
+              height={170}
+              onPick={(t) => setType(type?.toLowerCase() === t.toLowerCase() ? null : t)}
+            />
+          </div>
+        </Section>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Tile label="Made" value={String(data.total)} sub={`${data.entries} entries`} />
+            <Tile label="People" value={String(data.byPerson.length)} />
+            {type && (
+              <button
+                type="button"
+                onClick={() => setType(null)}
+                className="text-muted-foreground hover:text-foreground text-[11px] underline underline-offset-4"
+              >
+                Showing only {type} · clear
+              </button>
+            )}
+            {/* Exports exactly what is on screen, filters and all - a popup
+                opened from "3 reels" downloads those three, not the ledger. */}
+            <DeliverablesExportMenu
+              className="ml-auto"
+              filters={{
+                projectId: d.projectId,
+                employeeId: d.employeeId,
+                teamId: d.teamId,
+                type: type ?? undefined,
+                from: d.range?.from,
+                to: d.range?.to,
+              }}
+            />
+          </div>
+          <div className="border-border/60 divide-border/60 divide-y overflow-hidden rounded-sm border">
+            {ordered.map((g) => (
+              <section key={g.label}>
+                <p className="bg-muted/40 px-4 py-1.5 text-[11px] font-medium">
+                  {g.label}
+                  <span className="text-muted-foreground ml-2 tabular-nums">
+                    {g.count} made · {g.rows.length} {g.rows.length === 1 ? "entry" : "entries"}
+                  </span>
+                </p>
+                <ul className="divide-border/60 divide-y">
+                  {g.rows.map((r) => (
+                    <DeliverableRowView key={r.id} r={r} showProject={groupBy !== "project"} />
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+          {data.truncated && (
+            <p className="text-muted-foreground text-[11px]">
+              Listing the latest {data.rows.length} of {data.entries}. The counts cover all of them.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // The shell
 // ─────────────────────────────────────────────────────────────────────────────
@@ -979,6 +1118,17 @@ function Header({ d }: { d: Drill }) {
           </div>
         </div>
       )
+    case "deliverables":
+      return (
+        <div>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <PackageCheck className="h-4 w-4" /> {d.title ?? "Deliverables"}
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            What was made, {rangeLabel(d.range).replace(/^due /, "completed ")}
+          </DialogDescription>
+        </div>
+      )
     case "goals":
       return (
         <div>
@@ -1005,6 +1155,8 @@ function Body({ d, push }: { d: Drill; push: Push }) {
       return <PersonView d={d} />
     case "goals":
       return <GoalsView d={d} push={push} />
+    case "deliverables":
+      return <DeliverablesView d={d} />
   }
 }
 

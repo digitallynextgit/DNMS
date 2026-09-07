@@ -4,6 +4,7 @@ import {
   resolveProjectId,
   withProjectAccess,
 } from "@/features/projects/server/project-access"
+import { projectHref } from "@/features/projects/lib/project-href"
 import { syncProjectFolderAccessAsync } from "@/features/projects/server/project-drive.service"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
@@ -123,10 +124,13 @@ export const POST = withSession(
         return member
       })
 
-      // Notify the added employee
-      const projectName = (
-        await db.project.findUnique({ where: { id: projectId }, select: { name: true } })
-      )?.name
+      // Notify the added employee. Slug comes off the same read as the name so
+      // the link can be the readable one.
+      const project = await db.project.findUnique({
+        where: { id: projectId },
+        select: { name: true, slug: true },
+      })
+      const projectName = project?.name
       try {
         await createNotification({
           employeeId,
@@ -135,7 +139,8 @@ export const POST = withSession(
             ? `You've been added to "${team.name}" team in ${projectName} and made the team manager.`
             : `You've been added to the "${team.name}" team in ${projectName}.`,
           type: "info",
-          link: `/projects/${projectId}`,
+          // Teams tab: the only page that shows the team they were just put on.
+          link: projectHref({ id: projectId, slug: project?.slug }, "teams"),
         })
         addEmailJob({
           to: employee.email,

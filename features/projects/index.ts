@@ -34,6 +34,23 @@ export * from "./brand"
 export { GoalsTab } from "./components/goals-tab"
 export { GoalsOverviewCard } from "./components/goals-overview-card"
 export { GoalsProgressCard } from "./components/goals-progress-card"
+export { GoalTargets, GoalTargetList, GoalTargetRow } from "./components/goal-targets"
+export {
+  DeliverablesTab,
+  DeliverableRowView,
+  DeliverablesExportMenu,
+} from "./components/deliverables-tab"
+export { DeliverablesOutputCard } from "./components/deliverables-output-card"
+export { DeliverableFormDialog } from "./components/deliverable-form-dialog"
+export {
+  DeliverableHistoryDialog,
+  DeliverableStatusPill,
+} from "./components/deliverable-history-dialog"
+export { LogDeliverableButton } from "./components/log-deliverable-button"
+export * from "./hooks/use-deliverables"
+// The lifecycle's own definition rather than the hook's re-export: a consumer
+// that only needs the type should not have to reach through the data layer.
+export type { DeliverableStatus } from "./lib/deliverable-lifecycle"
 export * from "./components/progress-drilldown"
 export * from "./components/progress-task-list"
 export { formatHours } from "./lib/format-hours"

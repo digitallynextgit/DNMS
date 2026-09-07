@@ -1,6 +1,9 @@
 "use client"
 
+import { TrendingDown } from "lucide-react"
+
 import { cn } from "@/lib/utils"
+import type { GoalNode } from "../lib/goal-derivation"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The shared vocabulary of a goal: its shape on the wire, its five states, and
@@ -26,27 +29,19 @@ export interface GoalEvent {
   at: string
 }
 
-export interface GoalNode {
-  id: string
-  title: string
-  /** As stored on a leaf; rolled up from its sub-goals on a parent. */
-  status: Status
-  statusReason: string | null
-  progress: number
-  targetDate: string | null
-  /** Free text, as typed. Deduplicated case-insensitively by the server. */
-  tags: string[]
-  isActive: boolean
-  createdByName: string | null
-  children: GoalNode[]
-  progressIsDerived: boolean
-  countableChildren: number
-  /** Of `countableChildren`, how many are done. Counted server-side over ALL
-   *  sub-goals, so a filtered board cannot under-report it. */
-  doneChildren: number
-  overdue: boolean
-  events: GoalEvent[]
-}
+/**
+ * The goal tree, taken from the server's own definition rather than mirrored.
+ *
+ * These two used to be hand-copied here, which is exactly the drift the note at
+ * the top warns about: every field added server-side (targets, slipping,
+ * weight) had to be re-typed in a second place, and until somebody did, the
+ * board could not see it. The derivation module they come from
+ * (../lib/goal-derivation.ts) is PURE - no Prisma client, no server-only - so
+ * a client component can take its types without dragging the server in. The
+ * re-export keeps every existing `import type { GoalNode } from "./goal-status"`
+ * working.
+ */
+export type { GoalNode, GoalTaskLink, GoalTarget } from "../lib/goal-derivation"
 
 export interface GoalsSummary {
   goals: GoalNode[]
@@ -59,9 +54,15 @@ export interface GoalsSummary {
   discardedGoals: number
   inactiveGoals: number
   overdueGoals: number
+  /** Flagged at risk by a person - a judgement, not arithmetic. */
+  atRiskGoals: number
+  /** Behind the calendar without anyone having said so yet. Derived. */
+  slippingGoals: number
   nextTargetDate: string | null
   /** Every tag in use on the project, for the filter list and the type-ahead. */
   allTags: string[]
+  /** Open tasks serving no goal - shown to the manager as work to sort. */
+  unlinkedOpenTasks: number
 }
 
 /**
@@ -76,8 +77,11 @@ export const EMPTY_SUMMARY: GoalsSummary = {
   discardedGoals: 0,
   inactiveGoals: 0,
   overdueGoals: 0,
+  atRiskGoals: 0,
+  slippingGoals: 0,
   nextTargetDate: null,
   allTags: [],
+  unlinkedOpenTasks: 0,
 }
 
 export const STATUS_LABEL: Record<Status, string> = {
@@ -204,6 +208,29 @@ export function fmtWhen(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   })
+}
+
+/**
+ * Behind the calendar, and nobody has said so yet.
+ *
+ * NOT a status - it is derived every time the tree is read and clears itself
+ * the moment the work catches up, so it rides BESIDE the status badge rather
+ * than replacing it. Amber like AT_RISK on purpose: they mean the same thing
+ * to a reader, the difference being only whether a person or the arithmetic
+ * noticed first. The title says which.
+ */
+export function SlippingChip({ className }: { className?: string }) {
+  return (
+    <span
+      title="Behind where the calendar says it should be - nobody has flagged it yet"
+      className={cn(
+        "inline-flex items-center gap-1 rounded-sm bg-amber-500/12 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-500 uppercase",
+        className,
+      )}
+    >
+      <TrendingDown className="h-3 w-3" /> Slipping
+    </span>
+  )
 }
 
 export function StatusBadge({ status }: { status: Status }) {

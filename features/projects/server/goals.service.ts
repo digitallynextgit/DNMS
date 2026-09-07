@@ -3,40 +3,36 @@ import "server-only"
 import type { Prisma } from "@prisma/client"
 import { db } from "@/server/db"
 import { ValidationError, NotFoundError } from "@/lib/errors"
+import { todayUtc } from "@/lib/dates"
+import {
+  EMPTY_OUTPUTS,
+  GOAL_ORDER,
+  GOAL_SELECT,
+  normaliseType,
+  summariseGoalRows,
+  targetTypeKeys,
+  ymd,
+  type GoalOutput,
+  type GoalOutputMap,
+  type GoalStatusValue,
+  type ProjectGoalsSummary,
+} from "../lib/goal-derivation"
 
 // =============================================================================
-// Project goals.
+// Project goals: reading, writing, and the history behind both.
 //
 // A project has main goals; a main goal has sub-goals. ONE level, and no more.
 // Arbitrary nesting reads fine in a schema and badly on a screen, so the depth
 // limit is enforced here rather than left to whoever calls it.
 //
-// ── PROGRESS IS DERIVED FROM COMPLETION, NEVER TYPED IN ──────────────────────
-//
-//   a leaf   -> 100 when DONE, 0 otherwise
-//   a parent -> the share of its COUNTABLE sub-goals that are DONE
-//
-// COUNTABLE excludes two things, and both matter:
-//
-//   deactivated - soft-deleted. "We stopped tracking this." It should not drag
-//                 a project down, and it should not flatter it either, so it
-//                 leaves the sum entirely rather than counting as done.
-//   DISCARDED   - abandoned on purpose, with a reason. Same maths, but it stays
-//                 VISIBLE: a goal that was dropped, and why, is part of the
-//                 project's record in a way a hidden row is not.
-//
-// A parent whose sub-goals are all discarded or deactivated has nothing left to
-// measure, so it reports 0 rather than dividing by zero.
-//
-// A parent's STATUS is derived the same way (see parentStatus). A goal with
-// sub-goals has no status control of its own - the sub-goals are its status -
-// so the stored value would otherwise freeze at whatever it was when the first
-// sub-goal was added.
-//
-// ── A SUB-GOAL IS PART OF ITS PARENT, NOT A GOAL BESIDE IT ───────────────────
-// totalGoals and doneGoals count MAIN goals only. "Launch the storefront" with
-// three sub-goals is one goal, not four, and a summary that said "1 of 4 done"
-// would be counting the same work twice.
+// ── THE ARITHMETIC LIVES NEXT DOOR ───────────────────────────────────────────
+// Everything that turns rows into numbers - the SELECT shapes, the weighting,
+// the derived status, the slipping check - is in ../lib/goal-derivation.ts,
+// which is PURE and therefore testable and shareable with the portfolio
+// roll-up. This file is the half that needs a database: it fetches, validates
+// and writes. The whole derivation module is re-exported below so the existing
+// importers of this file (the API routes, goals-portfolio.queries.ts) did not
+// have to move.
 //
 // ── HISTORY IS APPEND-ONLY ───────────────────────────────────────────────────
 // Every status change, deactivation and edit writes a ProjectGoalEvent. The
@@ -58,16 +54,16 @@ import { ValidationError, NotFoundError } from "@/lib/errors"
 // like a typo.
 // =============================================================================
 
-export type GoalStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "AT_RISK" | "DONE" | "DISCARDED"
+// The derivation module, re-exported wholesale. Callers ask this file for
+// GOAL_SELECT, GoalNode, summariseGoalRows and friends exactly as they always
+// did; where those live is an implementation detail of the feature.
+export * from "../lib/goal-derivation"
 
 /** Statuses that must be accompanied by a reason. */
 const REASON_REQUIRED: ReadonlySet<GoalStatusValue> = new Set<GoalStatusValue>([
   "AT_RISK",
   "DISCARDED",
 ])
-
-/** Statuses that take a goal out of the progress calculation. */
-const NOT_COUNTABLE: ReadonlySet<GoalStatusValue> = new Set<GoalStatusValue>(["DISCARDED"])
 
 /** Long enough for "quarterly review", short enough to stay a chip on a row. */
 const MAX_TAG_LENGTH = 24
@@ -108,180 +104,76 @@ function normaliseTags(raw: unknown): string[] {
   return out
 }
 
-/**
- * Every distinct tag in use on a project, for the filter list and the
- * type-ahead on the add-goal row.
- *
- * Deduped the same way a single goal's tags are - one entry per tag regardless
- * of how it was capitalised - and sorted case-insensitively so the list reads
- * alphabetically rather than putting every capitalised tag first.
- */
-function collectTags(rows: { tags: string[] }[]): string[] {
-  const seen = new Map<string, string>()
-  for (const row of rows) {
-    for (const tag of row.tags) {
-      const key = tag.toLowerCase()
-      if (!seen.has(key)) seen.set(key, tag)
-    }
-  }
-  return [...seen.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
-}
-
-export interface GoalEvent {
-  id: string
-  type: "CREATED" | "STATUS_CHANGED" | "DEACTIVATED" | "REACTIVATED" | "EDITED"
-  fromStatus: GoalStatusValue | null
-  toStatus: GoalStatusValue | null
-  reason: string | null
-  actorName: string | null
-  at: string
-}
-
-export interface GoalNode {
-  id: string
-  title: string
-  description: string | null
-  /** As stored on a leaf; rolled up from countable children on a parent. */
-  status: GoalStatusValue
-  statusReason: string | null
-  /** 0-100. Derived from countable children when there are any. */
-  progress: number
-  targetDate: string | null
-  /** Free text, as typed. Deduplicated case-insensitively, order preserved. */
-  tags: string[]
-  sortOrder: number
-  isActive: boolean
-  createdByName: string | null
-  children: GoalNode[]
-  progressIsDerived: boolean
-  /** How many children actually counted towards `progress`. */
-  countableChildren: number
-  /**
-   * How many of those are DONE - the numerator behind `progress`.
-   *
-   * Sent rather than left to the board to count, because the board may be
-   * showing a FILTERED subset of a goal's sub-goals and counting the rows on
-   * screen would report "1 of 4 done" for a goal that has three done sub-goals
-   * outside the current date range.
-   */
-  doneChildren: number
-  overdue: boolean
-  events: GoalEvent[]
-}
-
-export interface ProjectGoalsSummary {
-  goals: GoalNode[]
-  overallProgress: number
-  /** Countable MAIN goals. Sub-goals belong to their parent and are not added. */
-  totalGoals: number
-  /** Of `totalGoals`, how many are DONE. */
-  doneGoals: number
-  /** Flat, sub-goals included: these describe rows on the board, not goals. */
-  discardedGoals: number
-  inactiveGoals: number
-  overdueGoals: number
-  /** Earliest upcoming target across every countable goal, sub-goals included. */
-  nextTargetDate: string | null
-  /**
-   * Every tag in use on this project, sub-goals included.
-   *
-   * Sent with the tree rather than fetched separately: the filter list and the
-   * type-ahead both need it the moment the board renders, and it is already in
-   * memory here. Reflects `includeInactive` - a tag that survives only on a
-   * deactivated goal appears exactly when that goal does.
-   */
-  allTags: string[]
-}
-
-const ymd = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null)
-
-function todayUtc(): Date {
-  const n = new Date()
-  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()))
-}
-
-/** Does this goal count towards its parent's progress? */
-const counts = (g: { isActive: boolean; status: GoalStatusValue }): boolean =>
-  g.isActive && !NOT_COUNTABLE.has(g.status)
+// ─────────────────────────────────────────────────────────────────────────────
+// What came OUT of a goal
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * A parent's status, read off its countable sub-goals.
+ * The columns a target tally needs, and nothing else.
  *
- * Keeps the badge on the tab, the donut on the Overview and "N of M done" all
- * telling the same story as the progress bar beside them.
- *
- * DISCARDED is left alone: a parent dropped on purpose, with a reason, stays
- * dropped however its sub-goals move. AT_RISK set on the parent itself is kept
- * too, unless every sub-goal is done - a goal whose parts are all delivered is
- * delivered, and the risk has passed.
+ * `task.goalId` is here because a deliverable can reach a goal two ways - set
+ * on the row itself, or inherited from the task it came out of - and the
+ * attribution has to happen in one place or a row that has both would be
+ * counted twice.
  */
-function parentStatus(stored: GoalStatusValue, countable: GoalNode[]): GoalStatusValue {
-  if (stored === "DISCARDED" || countable.length === 0) return stored
-  if (countable.every((k) => k.status === "DONE")) return "DONE"
-  if (stored === "AT_RISK" || countable.some((k) => k.status === "AT_RISK")) return "AT_RISK"
-  if (countable.some((k) => k.status !== "NOT_STARTED")) return "IN_PROGRESS"
-  return "NOT_STARTED"
-}
+export const GOAL_OUTPUT_SELECT = {
+  goalId: true,
+  type: true,
+  quantity: true,
+  completedOn: true,
+  task: { select: { goalId: true } },
+} satisfies Prisma.ProjectDeliverableSelect
 
 /**
- * The columns a goal summary is built from.
+ * Every delivered thing attributed to a goal on these projects, of the types
+ * some target actually measures.
  *
- * Exported so the portfolio query (goals-portfolio.queries.ts) selects EXACTLY
- * the same shape and can hand its rows to summariseGoalRows below. A second
- * hand-written select would drift, and the first symptom of drift is a progress
- * figure that differs between the Goals tab and the Progress page - two numbers
- * for one project, with no way to tell which is right.
+ * ONE QUERY FOR THE WHOLE SWEEP. The portfolio summarises dozens of projects
+ * and hands each group the SAME map, so the outcome figures cost one round trip
+ * rather than one per project. Returns an empty map the moment there is nothing
+ * to look for - a project with no targets pays nothing for the feature.
+ *
+ * ONLY DELIVERED AND ACCEPTED COUNT. A PLANNED row is a promise, not output,
+ * and counting owed work towards a target would let a goal report itself done
+ * on the strength of things nobody has made yet. REJECTED is excluded for the
+ * same reason from the other end: the client sent it back.
  */
-export const GOAL_SELECT = {
-  id: true,
-  parentId: true,
-  title: true,
-  description: true,
-  status: true,
-  statusReason: true,
-  targetDate: true,
-  tags: true,
-  sortOrder: true,
-  isActive: true,
-  createdBy: { select: { firstName: true, lastName: true } },
-  events: {
-    orderBy: { createdAt: "desc" },
-    // Enough to answer "what happened lately" without shipping a decade of rows
-    // for a goal nobody is looking at in detail.
-    take: 25,
-    select: {
-      id: true,
-      type: true,
-      fromStatus: true,
-      toStatus: true,
-      reason: true,
-      createdAt: true,
-      actor: { select: { firstName: true, lastName: true } },
+export async function loadGoalOutputs(
+  projectIds: string[],
+  typeKeys: string[],
+): Promise<GoalOutputMap> {
+  if (projectIds.length === 0 || typeKeys.length === 0) return EMPTY_OUTPUTS
+
+  const rows = await db.projectDeliverable.findMany({
+    where: {
+      projectId: { in: projectIds },
+      status: { in: ["DELIVERED", "ACCEPTED"] },
+      completedOn: { not: null },
+      // Case-insensitive because the type is free text: a target for "Reels"
+      // must find rows somebody typed as "reels".
+      type: { in: typeKeys, mode: "insensitive" },
+      OR: [{ goalId: { not: null } }, { task: { is: { goalId: { not: null } } } }],
     },
-  },
-} satisfies Prisma.ProjectGoalSelect
+    select: GOAL_OUTPUT_SELECT,
+  })
 
-export type GoalRow = Prisma.ProjectGoalGetPayload<{ select: typeof GOAL_SELECT }>
-
-/**
- * GOAL_SELECT without the history.
- *
- * The portfolio roll-up (Progress page) shows trees, never event trails, and
- * the events relation is `take: 25` PER GOAL - so asking for it there shipped
- * ~64 rows across the portfolio that nothing on the page renders, growing with
- * every status change anyone ever makes. Only the Goals tab reads history, and
- * it fetches one project at a time.
- */
-export const GOAL_SELECT_LITE = (({ events: _events, ...rest }) => rest)(GOAL_SELECT)
-
-/** A goal row with or without its history attached. */
-export type GoalRowLite = Omit<GoalRow, "events"> & { events?: GoalRow["events"] }
-
-/** The order a board reads in. Shared for the same reason GOAL_SELECT is. */
-export const GOAL_ORDER = [
-  { sortOrder: "asc" },
-  { createdAt: "asc" },
-] satisfies Prisma.ProjectGoalOrderByWithRelationInput[]
+  const map = new Map<string, GoalOutput[]>()
+  for (const r of rows) {
+    // Single attribution: the row's own goal wins, the task's goal is the
+    // fallback. This is what makes a parent's subtree tally disjoint.
+    const goalId = r.goalId ?? r.task?.goalId
+    if (!goalId || !r.completedOn) continue
+    const entry: GoalOutput = {
+      typeKey: normaliseType(r.type),
+      quantity: r.quantity,
+      completedOn: r.completedOn,
+    }
+    const list = map.get(goalId)
+    if (list) list.push(entry)
+    else map.set(goalId, [entry])
+  }
+  return map
+}
 
 /**
  * Every goal on a project, nested, with progress rolled up and history attached.
@@ -299,113 +191,20 @@ export async function getProjectGoals(
     orderBy: GOAL_ORDER,
     select: GOAL_SELECT,
   })
-  return summariseGoalRows(rows)
+  // Both extra reads depend only on the rows already in hand, so they go out
+  // together rather than one after the other.
+  const [outputs, unlinkedOpenTasks] = await Promise.all([
+    loadGoalOutputs([projectId], targetTypeKeys(rows)),
+    countUnlinkedOpenTasks(projectId),
+  ])
+  return { ...summariseGoalRows(rows, todayUtc(), outputs), unlinkedOpenTasks }
 }
 
-/**
- * Turn one project's goal rows into its summary: nest them, roll progress and
- * status up, and tally the board-level counts.
- *
- * Split out from the query so the SAME arithmetic serves one project and a whole
- * portfolio. The portfolio fetches every project's goals in a single findMany
- * and calls this per group - one query instead of one per project, and no second
- * implementation of the rollup to keep in step.
- *
- * PURE. It takes rows and returns a summary; `today` is a parameter so a caller
- * summarising many projects cannot have the date move underneath it mid-loop.
- */
-export function summariseGoalRows(rows: GoalRowLite[], today = todayUtc()): ProjectGoalsSummary {
-  const byParent = new Map<string | null, typeof rows>()
-  for (const r of rows) {
-    if (!byParent.has(r.parentId)) byParent.set(r.parentId, [])
-    byParent.get(r.parentId)!.push(r)
-  }
-
-  const name = (p: { firstName: string; lastName: string | null } | null) =>
-    p ? `${p.firstName} ${p.lastName ?? ""}`.trim() : null
-
-  const toNode = (r: (typeof rows)[number]): GoalNode => {
-    const kids = (byParent.get(r.id) ?? []).map(toNode)
-    const countable = kids.filter(counts)
-    const derived = kids.length > 0
-    const status = derived
-      ? parentStatus(r.status as GoalStatusValue, countable)
-      : (r.status as GoalStatusValue)
-    const progress = derived
-      ? countable.length === 0
-        ? 0
-        : Math.round((countable.filter((k) => k.status === "DONE").length / countable.length) * 100)
-      : status === "DONE"
-        ? 100
-        : 0
-
-    return {
-      id: r.id,
-      title: r.title,
-      description: r.description,
-      status,
-      statusReason: r.statusReason,
-      progress,
-      targetDate: ymd(r.targetDate),
-      tags: r.tags,
-      sortOrder: r.sortOrder,
-      isActive: r.isActive,
-      createdByName: name(r.createdBy),
-      children: kids,
-      progressIsDerived: derived,
-      countableChildren: countable.length,
-      doneChildren: countable.filter((k) => k.status === "DONE").length,
-      // A discarded or deactivated goal is not "late" - nobody is working on it.
-      overdue: Boolean(
-        r.targetDate &&
-        r.targetDate < today &&
-        status !== "DONE" &&
-        counts({ isActive: r.isActive, status }),
-      ),
-      // Absent when the caller selected without history (GOAL_SELECT_LITE).
-      events: (r.events ?? []).map((e) => ({
-        id: e.id,
-        type: e.type,
-        fromStatus: (e.fromStatus as GoalStatusValue) ?? null,
-        toStatus: (e.toStatus as GoalStatusValue) ?? null,
-        reason: e.reason,
-        actorName: name(e.actor),
-        at: e.createdAt.toISOString(),
-      })),
-    }
-  }
-
-  const goals = (byParent.get(null) ?? []).map(toNode)
-
-  const flat: GoalNode[] = []
-  const walk = (n: GoalNode) => {
-    flat.push(n)
-    n.children.forEach(walk)
-  }
-  goals.forEach(walk)
-
-  const countableMains = goals.filter(counts)
-  const upcoming = flat
-    .filter(counts)
-    .map((g) => g.targetDate)
-    .filter((d): d is string => Boolean(d))
-    .filter((d) => d >= ymd(today)!)
-    .sort()
-
-  return {
-    goals,
-    overallProgress:
-      countableMains.length === 0
-        ? 0
-        : Math.round(countableMains.reduce((s, g) => s + g.progress, 0) / countableMains.length),
-    totalGoals: countableMains.length,
-    doneGoals: countableMains.filter((g) => g.status === "DONE").length,
-    discardedGoals: flat.filter((g) => g.isActive && g.status === "DISCARDED").length,
-    inactiveGoals: flat.filter((g) => !g.isActive).length,
-    overdueGoals: flat.filter((g) => g.overdue).length,
-    nextTargetDate: upcoming[0] ?? null,
-    allTags: collectTags(rows),
-  }
+/** Open tasks on a project that serve no goal - the manager's list to sort. */
+export async function countUnlinkedOpenTasks(projectId: string): Promise<number> {
+  return db.projectTask.count({
+    where: { projectId, goalId: null, status: { notIn: ["DONE", "DISCARDED", "CANCELLED"] } },
+  })
 }
 
 export interface GoalInput {
@@ -418,6 +217,8 @@ export interface GoalInput {
   targetDate?: string | null
   /** The complete set, not a delta: what is sent replaces what is stored. */
   tags?: string[]
+  /** Who is accountable for it landing. Null = the account manager. */
+  ownerId?: string | null
 }
 
 function parseTargetDate(value: string | null | undefined): Date | null {
@@ -428,6 +229,14 @@ function parseTargetDate(value: string | null | undefined): Date | null {
   const d = new Date(`${value}T00:00:00.000Z`)
   if (Number.isNaN(d.getTime())) throw new ValidationError("That target date is not a real date.")
   return d
+}
+
+/** An owner must be a real employee; "" and null both mean "clear it". */
+async function normaliseOwner(raw: string | null | undefined): Promise<string | null> {
+  if (!raw) return null
+  const who = await db.employee.findUnique({ where: { id: raw }, select: { id: true } })
+  if (!who) throw new ValidationError("That owner is not an employee here.")
+  return who.id
 }
 
 /** Trim, cap, and insist on one where the status demands it. */
@@ -472,6 +281,7 @@ export async function createGoal(
   // Validated before the transaction opens, so a bad tag costs a 422 rather
   // than a rolled-back write.
   const tags = input.tags === undefined ? [] : normaliseTags(input.tags)
+  const ownerId = await normaliseOwner(input.ownerId)
 
   const last = await db.projectGoal.findFirst({
     where: { projectId, parentId: input.parentId ?? null },
@@ -493,6 +303,7 @@ export async function createGoal(
         tags,
         sortOrder: (last?.sortOrder ?? -1) + 1,
         createdById: actorId,
+        ownerId,
       },
       select: { id: true },
     })
@@ -511,7 +322,15 @@ export async function updateGoal(
 ): Promise<void> {
   const existing = await db.projectGoal.findFirst({
     where: { id: goalId, projectId },
-    select: { id: true, status: true, title: true, targetDate: true, tags: true },
+    select: {
+      id: true,
+      status: true,
+      title: true,
+      targetDate: true,
+      tags: true,
+      ownerId: true,
+      _count: { select: { children: true, tasks: true } },
+    },
   })
   if (!existing) throw new NotFoundError("Goal")
 
@@ -528,6 +347,21 @@ export async function updateGoal(
     }
   }
   if (input.description !== undefined) data.description = input.description?.trim() || null
+  if (input.ownerId !== undefined) {
+    const ownerId = await normaliseOwner(input.ownerId)
+    if (ownerId !== existing.ownerId) {
+      data.ownerId = ownerId
+      const who = ownerId
+        ? await db.employee.findUnique({
+            where: { id: ownerId },
+            select: { firstName: true, lastName: true },
+          })
+        : null
+      edits.push(
+        who ? `owner set to ${who.firstName} ${who.lastName ?? ""}`.trim() : "owner cleared",
+      )
+    }
+  }
   if (input.tags !== undefined) {
     const tags = normaliseTags(input.tags)
     // Compared as a set, not a list: re-saving the same tags in a different
@@ -550,6 +384,19 @@ export async function updateGoal(
   const statusChanged = input.status !== undefined && input.status !== existing.status
   let reason: string | null = null
   if (input.status !== undefined) {
+    // A DERIVED goal - one with sub-goals or linked tasks - gets NOT_STARTED /
+    // IN_PROGRESS / DONE from them, and a value set by hand would be overwritten
+    // on the next read. Refused with the reason, rather than silently ignored.
+    // AT_RISK and DISCARDED stay manual (they are judgements, not arithmetic),
+    // and clearing one of those back to a working state is allowed so the
+    // derivation can take over again.
+    const derived = existing._count.children > 0 || existing._count.tasks > 0
+    const clearingFlag = existing.status === "AT_RISK" || existing.status === "DISCARDED"
+    if (derived && !REASON_REQUIRED.has(input.status) && !clearingFlag) {
+      throw new ValidationError(
+        "This goal's status comes from its sub-goals and tasks - move those instead. You can still flag it at risk or discard it.",
+      )
+    }
     reason = normaliseReason(input.status, input.reason)
     data.status = input.status
     // The reason belongs to the status that needed it. Moving to a status that

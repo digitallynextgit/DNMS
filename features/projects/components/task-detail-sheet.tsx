@@ -1,7 +1,9 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { useProjectGoals } from "@/features/projects/hooks/use-goals"
+import { NONE_OPTION, SearchPicker } from "./search-picker"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -42,6 +44,8 @@ import {
   CalendarDays,
   Flag,
   History,
+  Package,
+  Target,
 } from "lucide-react"
 
 interface Props {
@@ -175,10 +179,13 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
             </div>
           )}
 
-          {/* Milestone toggle - managers only */}
-          {isManager && (
-            <div className="border-b px-5 py-3">
-              <MilestoneToggle task={task} />
+          {/* Milestone and goal are the manager's calls; whether the work leaves
+              something behind is the person DOING it who knows. */}
+          {(isManager || task.assigneeId === currentUserId) && (
+            <div className="space-y-2.5 border-b px-5 py-3">
+              {isManager && <MilestoneToggle task={task} />}
+              {task.projectId && <OutputToggle task={task} />}
+              {isManager && task.projectId && <GoalPicker task={task} />}
             </div>
           )}
 
@@ -205,6 +212,50 @@ export function TaskDetailSheet({ task, open, onClose, currentUserId, isManager 
     </Sheet>
   )
 }
+
+/**
+ * Which goal this task serves - the WHY. Changeable here so a task raised in a
+ * hurry can be filed later; "Not tied to a goal" is a legitimate answer that
+ * the manager sees counted on the Goals tab.
+ */
+function GoalPicker({ task }: { task: ProjectTask }) {
+  const update = useUpdateTask()
+  const { data } = useProjectGoals(task.projectId ?? "")
+  const options = React.useMemo(
+    () =>
+      (data?.goals ?? []).flatMap((g) => [
+        { id: g.id, label: g.title },
+        ...g.children.map((c) => ({ id: c.id, label: `${g.title} › ${c.title}` })),
+      ]),
+    [data],
+  )
+  const current = task.goalId ?? NO_GOAL
+  return (
+    <div className="space-y-1.5">
+      <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium tracking-wide uppercase">
+        <Target className="h-3 w-3" /> Goal
+      </p>
+      <SearchPicker
+        value={current}
+        onChange={(v) =>
+          update.mutate({
+            taskId: task.id,
+            body: { goalId: v === NO_GOAL ? null : v },
+            silent: true,
+          })
+        }
+        disabled={update.isPending}
+        noneLabel="Not tied to a goal"
+        searchPlaceholder="Search goals…"
+        emptyText="No goals on this project yet"
+        groups={[{ label: "", options }]}
+        className="h-8 text-xs"
+      />
+    </div>
+  )
+}
+
+const NO_GOAL = NONE_OPTION
 
 function MilestoneToggle({ task }: { task: ProjectTask }) {
   const update = useUpdateTask()
@@ -242,6 +293,61 @@ function MilestoneToggle({ task }: { task: ProjectTask }) {
       {active && (
         <Badge className="ml-auto h-4 border-0 bg-purple-600 px-1.5 text-[10px] text-white">
           Active
+        </Badge>
+      )}
+    </button>
+  )
+}
+
+/**
+ * Is something expected to come out of this?
+ *
+ * The one switch behind the capture prompt: on, and finishing the task asks
+ * what it produced; off, and it does not. Open to the ASSIGNEE as well as the
+ * manager, because the person doing the work is the one who knows whether there
+ * is a thing at the end of it - and a nudge they cannot turn off is a nudge
+ * they learn to answer with rubbish. Silent: the switch itself is the feedback.
+ */
+function OutputToggle({ task }: { task: ProjectTask }) {
+  const update = useUpdateTask()
+  // Undefined on rows fetched before the field existed; the server's default is
+  // "yes", so read it that way rather than showing the switch off.
+  const active = task.producesOutput !== false
+
+  return (
+    <button
+      className={cn(
+        "group flex w-full items-center gap-2.5 rounded-sm border px-3 py-2 text-sm transition-all",
+        active
+          ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30"
+          : "border-border border-dashed hover:border-emerald-300 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/10",
+      )}
+      onClick={() =>
+        update.mutate({ taskId: task.id, body: { producesOutput: !active }, silent: true })
+      }
+      disabled={update.isPending}
+    >
+      <div
+        className={cn(
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-sm",
+          active
+            ? "bg-emerald-600 text-white"
+            : "bg-muted text-muted-foreground group-hover:bg-emerald-100 group-hover:text-emerald-700",
+        )}
+      >
+        <Package className="h-3 w-3" />
+      </div>
+      <span
+        className={cn(
+          "text-left text-xs font-medium",
+          active ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground",
+        )}
+      >
+        {active ? "Produces output" : "Nothing to log for this one"}
+      </span>
+      {active && (
+        <Badge className="ml-auto h-4 border-0 bg-emerald-600 px-1.5 text-[10px] text-white">
+          Asked on done
         </Badge>
       )}
     </button>

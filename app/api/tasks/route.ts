@@ -182,6 +182,10 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
         // Drives the "Blocked" badge - a task waiting on a requirement should say
         // so wherever it is listed, not only inside the project.
         requirement: { select: { id: true, title: true, status: true } },
+        // The goal this serves, and whether it has produced anything yet - the
+        // row shows the first and nudges on the second.
+        goal: { select: { id: true, title: true } },
+        _count: { select: { deliverables: true } },
       },
     })
 
@@ -257,6 +261,8 @@ export const POST = withSession(async (req: NextRequest, _ctx: unknown, session:
         data: {
           projectId: null,
           teamId: null,
+          // Adhoc work - meetings, interviews, QC - produces nothing to log.
+          producesOutput: false,
           title,
           description: body.description?.trim() || null,
           status: "TODO",

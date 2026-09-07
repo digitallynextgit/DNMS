@@ -10,6 +10,7 @@ import {
   ListChecks,
   PauseCircle,
   Search,
+  Target,
   Timer,
   X,
 } from "lucide-react"
@@ -66,6 +67,9 @@ export interface TaskListFilters {
   projectId?: string
   assigneeId?: string
   teamId?: string
+  goalId?: string
+  /** Only tasks serving no goal. */
+  unlinked?: boolean
   from?: string | null
   to?: string | null
 }
@@ -86,6 +90,18 @@ export interface DrillTask {
   project: { id: string; name: string; code: string; slug: string | null } | null
   team: { id: string; name: string } | null
   assignee: { id: string; name: string; profilePhoto: string | null } | null
+  /** The goal it serves. Null = unlinked. */
+  goal: { id: string; title: string } | null
+  producesOutput: boolean
+  /** Deliverables logged against it. */
+  outputs: number
+  /** Answered "nothing came out of this" - a real answer, not an omission. */
+  outputSkipped: boolean
+}
+
+export interface TaskListFiltersExtra {
+  goalId?: string
+  unlinked?: boolean
 }
 
 /** The chips over a list: the five chart states plus "everything". */
@@ -103,6 +119,8 @@ export function useTaskList(filters: TaskListFilters, enabled = true, limit = PA
   if (filters.projectId) qs.set("projectId", filters.projectId)
   if (filters.assigneeId) qs.set("assigneeId", filters.assigneeId)
   if (filters.teamId) qs.set("teamId", filters.teamId)
+  if (filters.goalId) qs.set("goalId", filters.goalId)
+  if (filters.unlinked) qs.set("unlinked", "1")
   if (filters.from) qs.set("from", filters.from)
   if (filters.to) qs.set("to", filters.to)
   qs.set("limit", String(limit))
@@ -157,7 +175,14 @@ function TaskRow({
   showAssignee: boolean
 }) {
   const done = t.status === "DONE"
-  const secondLine = (showProject && t.project) || (t.status === "ON_HOLD" && t.holdExpectedDate)
+  // Finished, expected to produce something, nothing logged: the nudge.
+  const missingOutput =
+    done && t.producesOutput && t.outputs === 0 && !t.outputSkipped && t.project !== null
+  // Asked and answered - "nothing came out of this". Said quietly rather than
+  // dropped, so the row does not read as an oversight nobody has looked at.
+  const skippedOutput = done && t.producesOutput && t.outputSkipped
+  const secondLine =
+    (showProject && t.project) || (t.status === "ON_HOLD" && t.holdExpectedDate) || t.goal
   return (
     <li className="hover:bg-muted/30 flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-1.5 text-xs transition-colors">
       <div className="min-w-48 flex-1">
@@ -190,7 +215,18 @@ function TaskRow({
                 <PauseCircle className="h-3 w-3" /> resumes {formatDate(t.holdExpectedDate)}
               </span>
             )}
+            {t.goal && (
+              <span className="inline-flex items-center gap-1" title="The goal this task serves">
+                <Target className="h-3 w-3" /> {t.goal.title}
+              </span>
+            )}
           </p>
+        )}
+        {missingOutput && (
+          <p className="mt-0.5 text-[11px] text-amber-500">No output logged for this task</p>
+        )}
+        {skippedOutput && (
+          <p className="text-muted-foreground mt-0.5 text-[11px]">Nothing to log</p>
         )}
       </div>
 
