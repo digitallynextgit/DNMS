@@ -130,6 +130,8 @@ export type Drill =
       type?: string
       range?: DrillRange
       title?: string
+      /** Disambiguates a title that is only unique inside a project - "WEB". */
+      subtitle?: string
     }
 
 /** "due 31 Aug - 6 Sep" or "all time". */
@@ -1125,6 +1127,7 @@ function Header({ d }: { d: Drill }) {
             <PackageCheck className="h-4 w-4" /> {d.title ?? "Deliverables"}
           </DialogTitle>
           <DialogDescription className="text-xs">
+            {d.subtitle ? `${d.subtitle} · ` : ""}
             What was made, {rangeLabel(d.range).replace(/^due /, "completed ")}
           </DialogDescription>
         </div>

@@ -385,31 +385,70 @@ export function DeliverablesOutputCard({
               />
             </div>
 
-            <div className={cn("mt-4 grid gap-4", single ? "lg:grid-cols-3" : "lg:grid-cols-3")}>
-              <div>
-                <p className="text-muted-foreground mb-1 text-[11px] font-medium">By type</p>
+            {/* Three questions a manager actually asks of output - which
+                client, which team, which person - and the type mix behind all
+                of them. Portfolio-wide all four are shown at once; inside one
+                project the client split is the heading, so it goes. */}
+            <div
+              className={cn(
+                "mt-4 grid gap-4",
+                single ? "lg:grid-cols-3" : "lg:grid-cols-2 xl:grid-cols-4",
+              )}
+            >
+              <Panel label="By type">
                 <TypeDonut
                   byType={data.byType}
                   total={data.total}
                   onPick={(type) => onOpen({ projectId, type })}
                 />
-              </div>
-              <div>
-                <p className="text-muted-foreground mb-1 text-[11px] font-medium">
-                  {single ? "By team" : "By client"}
-                </p>
+              </Panel>
+              {!single && (
+                <Panel label="By client">
+                  <CountBars
+                    rows={data.byProject}
+                    onPick={(id) =>
+                      onOpen({
+                        projectId: id,
+                        title: data.byProject.find((p) => p.id === id)?.name ?? "Client",
+                      })
+                    }
+                  />
+                </Panel>
+              )}
+              <Panel label="By team" hint={single ? undefined : "team · client"}>
                 <CountBars
-                  rows={single ? data.byTeam : data.byProject}
-                  onPick={(id) => onOpen(single ? { projectId, teamId: id } : { projectId: id })}
+                  rows={teamBars(data.byTeam, single)}
+                  onPick={(id) => {
+                    const t = data.byTeam.find((row) => row.id === id)
+                    if (!t) return
+                    // The team's OWN project, not the current scope: portfolio-wide
+                    // every bar belongs to a different client. Teamless output has
+                    // no team to filter by, so it opens that project instead.
+                    onOpen(
+                      teamless(id)
+                        ? { projectId: t.projectId, title: `${t.projectName} · no team` }
+                        : {
+                            projectId: t.projectId,
+                            teamId: id,
+                            title: t.name,
+                            subtitle: single ? undefined : t.projectName,
+                          },
+                    )
+                  }}
                 />
-              </div>
-              <div>
-                <p className="text-muted-foreground mb-1 text-[11px] font-medium">By person</p>
+              </Panel>
+              <Panel label="By person">
                 <CountBars
                   rows={data.byPerson}
-                  onPick={(id) => onOpen({ projectId, employeeId: id })}
+                  onPick={(id) =>
+                    onOpen({
+                      projectId,
+                      employeeId: id,
+                      title: data.byPerson.find((p) => p.id === id)?.name ?? "Person",
+                    })
+                  }
                 />
-              </div>
+              </Panel>
             </div>
           </>
         )}
