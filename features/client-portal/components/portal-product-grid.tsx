@@ -209,8 +209,6 @@ export function PortalProductGrid({ projectRef }: { projectRef: string }) {
         <div className="flex items-center justify-center gap-2">
           <Button
             variant="outline"
-            size="sm"
-            className="h-8 text-xs"
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
@@ -221,8 +219,6 @@ export function PortalProductGrid({ projectRef }: { projectRef: string }) {
           </span>
           <Button
             variant="outline"
-            size="sm"
-            className="h-8 text-xs"
             disabled={page >= pagination.totalPages}
             onClick={() => setPage((p) => p + 1)}
           >

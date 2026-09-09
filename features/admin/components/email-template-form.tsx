@@ -133,7 +133,9 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       {/* Name */}
       <div className="flex flex-col gap-2">
-        <Label htmlFor="tpl-name">Name</Label>
+        <Label required htmlFor="tpl-name">
+          Name
+        </Label>
         <Input
           id="tpl-name"
           placeholder="e.g. Welcome Email"
@@ -147,7 +149,7 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
 
       {/* Slug */}
       <div className="flex flex-col gap-2">
-        <Label htmlFor="tpl-slug">
+        <Label required htmlFor="tpl-slug">
           Slug
           <span className="text-muted-foreground ml-1 text-xs">(unique identifier)</span>
         </Label>
@@ -168,7 +170,9 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
 
       {/* Subject */}
       <div className="flex flex-col gap-2">
-        <Label htmlFor="tpl-subject">Subject</Label>
+        <Label required htmlFor="tpl-subject">
+          Subject
+        </Label>
         <Input
           id="tpl-subject"
           placeholder="e.g. Welcome to {{company_name}}!"
@@ -182,7 +186,7 @@ export function EmailTemplateForm({ template, onSuccess }: EmailTemplateFormProp
 
       {/* Body HTML */}
       <div className="flex flex-col gap-2">
-        <Label htmlFor="tpl-body">
+        <Label required htmlFor="tpl-body">
           Body HTML
           <span className="text-muted-foreground ml-1 text-xs">
             (supports {"{{merge_fields}}"})

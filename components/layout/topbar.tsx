@@ -102,7 +102,7 @@ export function Topbar({ session }: { session: Session }) {
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 onClick={toggle}
                 className="text-muted-foreground hover:text-foreground hidden md:inline-flex"
                 aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -130,7 +130,7 @@ export function Topbar({ session }: { session: Session }) {
             itself still opens in that corner. */}
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           onClick={toggleAi}
           title="Ask DNMS"
           aria-label="Ask DNMS"
@@ -138,7 +138,7 @@ export function Topbar({ session }: { session: Session }) {
           className={cn(
             // 40px on touch, 32px from md up: this bar is always on screen, and
             // an icon-sm target is below the comfortable tap size on a phone.
-            "text-muted-foreground hover:text-foreground h-10 w-10 md:h-8 md:w-8",
+            "text-muted-foreground hover:text-foreground",
             aiOpen && "bg-muted text-foreground",
           )}
         >
@@ -152,9 +152,9 @@ export function Topbar({ session }: { session: Session }) {
             invalid HTML and leaves the anchor with no accessible name. */}
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           asChild
-          className="text-muted-foreground hover:text-foreground relative h-10 w-10 md:h-8 md:w-8"
+          className="text-muted-foreground hover:text-foreground relative"
         >
           <Link href="/notifications" aria-label="Notifications">
             <Bell className="h-4 w-4" />

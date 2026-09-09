@@ -203,7 +203,7 @@ export function ProjectClientsTab({
             </>
           )}
         </p>
-        <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAddOpen(true)}>
+        <Button className="gap-1.5" onClick={() => setAddOpen(true)}>
           <Plus className="h-3.5 w-3.5" />
           Add person
         </Button>
@@ -275,19 +275,13 @@ export function ProjectClientsTab({
                     />
                     <span className="text-muted-foreground text-[11px]">Access</span>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5 text-xs"
-                    onClick={() => setEditing(row)}
-                  >
+                  <Button className="gap-1.5" variant="outline" onClick={() => setEditing(row)}>
                     <Pencil className="h-3.5 w-3.5" />
                     Sections
                   </Button>
                   <Button
+                    className="gap-1.5"
                     variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5 text-xs"
                     onClick={() => {
                       setResetForceChange(true)
                       setResetting(row)
@@ -298,8 +292,7 @@ export function ProjectClientsTab({
                   </Button>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive h-8 px-2"
+                    className="text-muted-foreground hover:text-destructive px-2"
                     onClick={() => setRemoving(row)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -384,11 +377,10 @@ export function ProjectClientsTab({
           </label>
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" className="h-9 text-xs" onClick={() => setResetting(null)}>
+            <Button variant="outline" onClick={() => setResetting(null)}>
               Cancel
             </Button>
             <Button
-              className="h-9 text-xs"
               loading={resetPassword.isPending}
               disabled={resetPassword.isPending}
               onClick={() => resetting && resetPassword.mutate(resetting)}
@@ -607,8 +599,8 @@ function ClientDialogForm({
               {!usingExisting && (
                 <>
                   <div className="space-y-1.5">
-                    <Label htmlFor="client-name" className="text-xs">
-                      Full name<span className="text-destructive"> *</span>
+                    <Label required htmlFor="client-name" className="text-xs">
+                      Full name
                     </Label>
                     <Input
                       id="client-name"
@@ -620,8 +612,8 @@ function ClientDialogForm({
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="client-email" className="text-xs">
-                      Email<span className="text-destructive"> *</span>
+                    <Label required htmlFor="client-email" className="text-xs">
+                      Email
                     </Label>
                     <Input
                       id="client-email"
@@ -657,8 +649,8 @@ function ClientDialogForm({
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs">
-                  Sections they can see<span className="text-destructive"> *</span>
+                <Label required className="text-xs">
+                  Sections they can see
                 </Label>
                 {CLIENT_MODULES.map((m) => (
                   <label
@@ -718,22 +710,21 @@ function ClientDialogForm({
         <DialogFooter className="gap-2">
           {step === 1 ? (
             <>
-              <Button variant="outline" className="h-9 text-xs" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button className="h-9 text-xs" disabled={!step1Valid} onClick={() => setStep(2)}>
+              <Button disabled={!step1Valid} onClick={() => setStep(2)}>
                 Next
                 <ChevronRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </>
           ) : (
             <>
-              <Button variant="outline" className="h-9 text-xs" onClick={() => setStep(1)}>
+              <Button variant="outline" onClick={() => setStep(1)}>
                 <ChevronLeft className="mr-1 h-3.5 w-3.5" />
                 Back
               </Button>
               <Button
-                className="h-9 text-xs"
                 disabled={!step2Valid || save.isPending}
                 loading={save.isPending}
                 onClick={() => save.mutate()}

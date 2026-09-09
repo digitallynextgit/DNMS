@@ -200,7 +200,7 @@ function TagFilter({
           type="button"
           variant="outline"
           disabled={allTags.length === 0}
-          className="h-8 justify-start gap-2 px-3 text-sm font-normal"
+          className="justify-start gap-2 font-normal"
         >
           <Tags className="h-3.5 w-3.5" />
           {selected.length === 0
@@ -303,12 +303,7 @@ export function GoalFilterBar({
             Showing {shown} of {total} goal{total === 1 ? "" : "s"}
             {hiddenSubs > 0 && ` · ${hiddenSubs} sub-goal${hiddenSubs === 1 ? "" : "s"} hidden`}
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 gap-1.5"
-            onClick={() => onChange(NO_GOAL_FILTERS)}
-          >
+          <Button className="gap-1.5" variant="ghost" onClick={() => onChange(NO_GOAL_FILTERS)}>
             <X className="h-3.5 w-3.5" />
             Clear
           </Button>

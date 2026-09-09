@@ -49,7 +49,7 @@ export function ProjectSitesCard({
             </p>
           </div>
           {onOpenSeo && (
-            <Button variant="outline" size="sm" onClick={onOpenSeo}>
+            <Button variant="outline" onClick={onOpenSeo}>
               <Search className="mr-1.5 h-3.5 w-3.5" />
               Open SEO
             </Button>

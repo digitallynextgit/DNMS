@@ -258,7 +258,7 @@ export function VoiceRecorder({
       <Button
         type="button"
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         aria-label="Discard recording"
         className="text-muted-foreground hover:text-destructive shrink-0"
         onClick={discard}
@@ -285,7 +285,7 @@ export function VoiceRecorder({
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label={state === "paused" ? "Resume recording" : "Pause recording"}
           className="text-muted-foreground hover:text-foreground shrink-0"
           onClick={togglePause}
@@ -298,7 +298,7 @@ export function VoiceRecorder({
         type="button"
         size="icon"
         aria-label="Send voice message"
-        className="h-8 w-8 shrink-0 rounded-sm"
+        className="shrink-0 rounded-sm"
         onClick={finish}
         disabled={sending}
       >

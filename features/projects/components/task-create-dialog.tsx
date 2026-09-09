@@ -225,9 +225,7 @@ export function TaskCreateDialog({
       <div className="space-y-4">
         {!lockProject && (
           <div className="space-y-2">
-            <Label>
-              Project<span className="text-destructive"> *</span>
-            </Label>
+            <Label required>Project</Label>
             <Select value={projectId} onValueChange={setProjectId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a project" />
@@ -250,9 +248,7 @@ export function TaskCreateDialog({
             manager stands in for the team manager on approval. */}
         {!isAdhoc && (
           <div className="space-y-2">
-            <Label>
-              Team<span className="text-destructive"> *</span>
-            </Label>
+            <Label required>Team</Label>
             <Select value={teamId} onValueChange={setTeamId} disabled={!projectId}>
               <SelectTrigger>
                 <SelectValue placeholder={projectId ? "Select a team" : "Pick a project first"} />
@@ -297,7 +293,7 @@ export function TaskCreateDialog({
 
         {sites.length > 0 && !isAdhoc && (
           <div className="space-y-2">
-            <Label>Site</Label>
+            <Label required>Site</Label>
             <Select
               value={seoPropertyId || "all"}
               onValueChange={(v) => setSeoPropertyId(v === "all" ? "" : v)}
@@ -355,9 +351,7 @@ export function TaskCreateDialog({
         )}
 
         <div className="space-y-2">
-          <Label>
-            Title<span className="text-destructive"> *</span>
-          </Label>
+          <Label required>Title</Label>
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}

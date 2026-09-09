@@ -143,8 +143,6 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
       cell: (team) => (
         <Button
           variant="ghost"
-          size="sm"
-          className="h-7 text-xs"
           onClick={() => setCollapsed({ ...collapsed, [team.id]: !collapsed[team.id] })}
         >
           {collapsed[team.id] === false ? "Hide" : "View"}
@@ -178,7 +176,7 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
         <div className="flex items-center gap-2">
           <ViewToggle value={viewMode} onChange={setViewMode} />
           {canManage && (
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Button onClick={() => setCreateOpen(true)}>
               <Plus className="mr-1 h-4 w-4" />
               Add Team
             </Button>
@@ -305,7 +303,7 @@ function TeamCard({
               {team._count.tasks} {team._count.tasks === 1 ? "task" : "tasks"}
             </span>
             {canStaff && (
-              <Button size="sm" variant="outline" className="h-7" onClick={() => setAddOpen(true)}>
+              <Button variant="outline" onClick={() => setAddOpen(true)}>
                 <UserPlus className="mr-1 h-3.5 w-3.5" />
                 Add people
               </Button>
@@ -313,7 +311,7 @@ function TeamCard({
             {canManage && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" aria-label="More actions">
+                  <Button variant="ghost" size="icon" aria-label="More actions">
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -342,7 +340,7 @@ function TeamCard({
                     : "The team manager can add people."}
                 </p>
                 {canStaff && (
-                  <Button size="sm" className="mt-3" onClick={() => setAddOpen(true)}>
+                  <Button className="mt-3" onClick={() => setAddOpen(true)}>
                     <UserPlus className="mr-1.5 h-3.5 w-3.5" />
                     Add people
                   </Button>
@@ -440,7 +438,7 @@ function MemberRow({
       {canRemove && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="shrink-0" aria-label="More actions">
+            <Button variant="ghost" size="icon" className="shrink-0" aria-label="More actions">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -521,7 +519,9 @@ function CreateTeamDialog({
       }}
     >
       <div className="space-y-2">
-        <Label htmlFor="team-name">Team name</Label>
+        <Label required htmlFor="team-name">
+          Team name
+        </Label>
         <Input
           id="team-name"
           autoFocus

@@ -193,9 +193,8 @@ export default function RolesPage() {
               <div className="flex items-center justify-end gap-2">
                 <Button
                   variant="ghost"
-                  size="sm"
                   onClick={() => openEdit(role)}
-                  className="h-8 w-8 p-0"
+                  className="w-8 p-0"
                   aria-label={`Edit ${role.displayName}`}
                 >
                   <Pencil className="h-4 w-4" />
@@ -204,9 +203,8 @@ export default function RolesPage() {
                 {!role.isSystem && (
                   <Button
                     variant="ghost"
-                    size="sm"
                     onClick={() => setDeleteTarget(role)}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 w-8 p-0"
                     aria-label={`Delete ${role.displayName}`}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -289,18 +287,12 @@ export default function RolesPage() {
 
               {canWrite && (
                 <div className="flex flex-wrap gap-2 pt-0.5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => openEdit(role)}
-                  >
+                  <Button className="gap-1.5" variant="outline" onClick={() => openEdit(role)}>
                     <Pencil className="h-3.5 w-3.5" /> Edit
                   </Button>
                   {!role.isSystem && (
                     <Button
                       variant="outline"
-                      size="sm"
                       className="text-destructive gap-1.5"
                       onClick={() => setDeleteTarget(role)}
                     >

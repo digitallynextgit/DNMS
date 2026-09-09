@@ -196,7 +196,7 @@ export function GalleryView() {
         actions={
           // Anyone can start an album - uploads are open to everyone, and an
           // upload needs somewhere to go.
-          <Button size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
+          <Button className="gap-1.5" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
             New album
           </Button>
@@ -310,7 +310,7 @@ export function GalleryView() {
                 {canManage && (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label={`Delete ${a.title}`}
                     className="text-muted-foreground hover:text-destructive shrink-0"
                     onClick={() => setRemoving(a)}
@@ -392,8 +392,8 @@ function AlbumDialog({ onClose, onDone }: { onClose: () => void; onDone: () => v
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-xs">
-              Name<span className="text-destructive"> *</span>
+            <Label required className="text-xs">
+              Name
             </Label>
             <Input
               value={title}
@@ -418,11 +418,10 @@ function AlbumDialog({ onClose, onDone }: { onClose: () => void; onDone: () => v
           </div>
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            className="h-9 text-xs"
             disabled={title.trim().length < 2 || save.isPending}
             onClick={() => save.mutate()}
           >
@@ -518,12 +517,7 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
         actions={
           // Open to every employee: the people at the event are the ones holding
           // the photos.
-          <Button
-            size="sm"
-            className="gap-1.5"
-            disabled={uploading}
-            onClick={() => fileRef.current?.click()}
-          >
+          <Button className="gap-1.5" disabled={uploading} onClick={() => fileRef.current?.click()}>
             {uploading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -595,7 +589,7 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
             )}
 
             <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-              <Button asChild variant="secondary" size="icon-sm" title="Download">
+              <Button asChild variant="secondary" size="icon" title="Download">
                 <a href={downloadUrl(p.id)} download={p.fileName}>
                   <Download className="h-3.5 w-3.5" />
                   <span className="sr-only">Download {p.fileName}</span>
@@ -604,7 +598,7 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
               {canDelete(p) && (
                 <Button
                   variant="destructive"
-                  size="icon-sm"
+                  size="icon"
                   aria-label={`Delete ${p.fileName}`}
                   onClick={() => setRemoving(p)}
                 >
@@ -625,7 +619,7 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
           role="presentation"
         >
           <div className="absolute top-4 right-4 flex gap-2">
-            <Button asChild variant="secondary" size="icon-sm" title="Download">
+            <Button asChild variant="secondary" size="icon" title="Download">
               <a
                 href={downloadUrl(lightbox.id)}
                 download={lightbox.fileName}
@@ -637,7 +631,7 @@ export function AlbumView({ albumRef }: { albumRef: string }) {
             </Button>
             <Button
               variant="secondary"
-              size="icon-sm"
+              size="icon"
               aria-label="Close"
               onClick={() => setLightbox(null)}
             >

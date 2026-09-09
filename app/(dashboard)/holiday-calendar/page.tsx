@@ -13,7 +13,8 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { Pagination } from "@/components/shared/pagination"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import {
   Select,
   SelectContent,
@@ -168,11 +169,14 @@ export default function EmployeeHolidayCalendarPage() {
           description="Company holidays for the year, and your floating-holiday requests."
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <TabsList>
-                <TabsTrigger value="calendar">Calendar</TabsTrigger>
-                <TabsTrigger value="floating">Floating Holidays</TabsTrigger>
-                {fd?.isApprover && <TabsTrigger value="requests">Floating Requests</TabsTrigger>}
-              </TabsList>
+              <TabsBar
+                spacing="none"
+                items={[
+                  { value: "calendar", label: "Calendar" },
+                  { value: "floating", label: "Floating Holidays" },
+                  fd?.isApprover && { value: "requests", label: "Floating Requests" },
+                ]}
+              />
               <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
                 <SelectTrigger className="w-28">
                   <SelectValue />
@@ -284,7 +288,6 @@ export default function EmployeeHolidayCalendarPage() {
                         return (
                           <Button
                             variant="ghost"
-                            size="sm"
                             className="text-muted-foreground"
                             disabled={pending}
                             onClick={() => withdrawMut.mutate(h.id)}
@@ -299,7 +302,6 @@ export default function EmployeeHolidayCalendarPage() {
                       }
                       return (
                         <Button
-                          size="sm"
                           disabled={pending || !canApply || atLimit}
                           onClick={() => applyMut.mutate(h.id)}
                         >

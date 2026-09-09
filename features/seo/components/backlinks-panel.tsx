@@ -84,7 +84,6 @@ export function BacklinksPanel({
         </p>
         <div className="flex items-center gap-2">
           <Button
-            size="sm"
             variant="outline"
             onClick={() => data && exportBacklinks(data, siteLabel)}
             disabled={!has}
@@ -94,11 +93,7 @@ export function BacklinksPanel({
             Export
           </Button>
           {canManage && (
-            <Button
-              size="sm"
-              variant={open ? "secondary" : "default"}
-              onClick={() => setOpen((v) => !v)}
-            >
+            <Button variant={open ? "secondary" : "default"} onClick={() => setOpen((v) => !v)}>
               <Upload className="mr-1.5 h-3.5 w-3.5" />
               {open ? "Close" : "Import export"}
             </Button>
@@ -142,7 +137,7 @@ export function BacklinksPanel({
                 />
                 This is the complete current list (mark vanished links as lost)
               </label>
-              <Button size="sm" onClick={submit} disabled={importer.isPending || !text.trim()}>
+              <Button onClick={submit} disabled={importer.isPending || !text.trim()}>
                 {importer.isPending ? "Importing…" : "Import & diff"}
               </Button>
             </div>

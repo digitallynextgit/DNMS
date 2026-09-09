@@ -199,7 +199,7 @@ export function AccountCard({
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               className="relative z-10 shrink-0"
               aria-label="More actions"
             >
@@ -315,7 +315,7 @@ export function AccountTable({
                 <div className="flex items-center justify-end gap-0.5">
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label={`Test ${a.label}`}
                     title="Test connection"
                     disabled={testingId === a.id}
@@ -333,7 +333,7 @@ export function AccountTable({
                   {!a.isDefault && a.isActive && (
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon"
                       aria-label={`Make ${a.label} the default`}
                       title="Make default"
                       onClick={(e) => {
@@ -346,7 +346,7 @@ export function AccountTable({
                   )}
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label={`Edit ${a.label}`}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -357,7 +357,7 @@ export function AccountTable({
                   </Button>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label={`Remove ${a.label}`}
                     className="text-muted-foreground hover:text-destructive"
                     onClick={(e) => {

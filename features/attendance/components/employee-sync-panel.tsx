@@ -123,9 +123,8 @@ export function EmployeeSyncPanel({ devices }: { devices: DeviceOption[] }) {
         return (
           <div className="flex items-center justify-end gap-1.5">
             <Button
+              className="gap-1.5"
               variant="outline"
-              size="sm"
-              className="h-8 gap-1.5"
               disabled={!r.hasCode || rowBusy || !targetDevice}
               onClick={() => run(r.employeeNo, false)}
               title="Sync new days for this employee"
@@ -135,7 +134,7 @@ export function EmployeeSyncPanel({ devices }: { devices: DeviceOption[] }) {
             </Button>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               disabled={!r.hasCode || rowBusy || !targetDevice}
               onClick={() => run(r.employeeNo, true)}
               title="Full re-sync this employee's history from the device"
@@ -157,7 +156,9 @@ export function EmployeeSyncPanel({ devices }: { devices: DeviceOption[] }) {
         </h2>
         {activeDevices.length > 1 && (
           <div className="flex items-center gap-2">
-            <Label className="text-muted-foreground text-xs">Device</Label>
+            <Label required className="text-muted-foreground text-xs">
+              Device
+            </Label>
             <Select value={targetDevice} onValueChange={setDeviceId}>
               <SelectTrigger className="h-8 w-56">
                 <SelectValue placeholder="Select device" />

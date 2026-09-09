@@ -155,7 +155,7 @@ export default function RecruitmentPage() {
       setOpen(false)
       setForm(emptyForm)
     },
-    onError: () => toast.error("Failed to create job posting"),
+    onError: (error: Error) => toast.error(error.message || "Failed to create job posting"),
   })
 
   const jobActionMut = useMutation({
@@ -299,7 +299,7 @@ export default function RecruitmentPage() {
         description="Manage job postings and applicant pipeline"
         actions={
           canWrite ? (
-            <Button onClick={() => setOpen(true)} className="gap-2">
+            <Button className="gap-2" onClick={() => setOpen(true)}>
               <Plus className="h-4 w-4" /> New Job
             </Button>
           ) : undefined
@@ -406,7 +406,7 @@ export default function RecruitmentPage() {
                   </p>
                 )}
                 {/* asChild: <Link><Button> renders <a><button>, which is invalid. */}
-                <Button asChild variant="outline" size="sm" className="h-7 w-full gap-2 text-xs">
+                <Button asChild variant="outline" className="w-full">
                   <Link href={`/recruitment/jobs/${job.id}`}>
                     <ExternalLink className="h-3.5 w-3.5" /> View Pipeline
                   </Link>
@@ -415,8 +415,7 @@ export default function RecruitmentPage() {
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
-                      size="sm"
-                      className="h-7 flex-1 text-xs"
+                      className="flex-1"
                       disabled={jobActionMut.isPending}
                       onClick={() =>
                         jobActionMut.mutate({ id: job.id, action: "toggle", status: job.status })
@@ -426,8 +425,7 @@ export default function RecruitmentPage() {
                     </Button>
                     <Button
                       variant="outline"
-                      size="sm"
-                      className="text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
+                      className="text-destructive hover:bg-destructive/10 px-2"
                       disabled={jobActionMut.isPending}
                       onClick={() => setDeleteTarget(job)}
                     >
@@ -464,7 +462,7 @@ export default function RecruitmentPage() {
         onSubmit={handleCreateSubmit}
       >
         <div className="space-y-2">
-          <Label>Job Title</Label>
+          <Label required>Job Title</Label>
           <Input
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
@@ -517,8 +515,6 @@ export default function RecruitmentPage() {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="h-7 text-xs"
                 onClick={saveDeptSettings}
                 disabled={deptSaving}
                 loading={deptSaving}
@@ -635,10 +631,9 @@ export default function RecruitmentPage() {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <Button
+                className="gap-1.5"
                 type="button"
                 variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 text-xs"
                 onClick={generateWithAI}
                 disabled={aiGenerating || !form.title.trim()}
                 title={

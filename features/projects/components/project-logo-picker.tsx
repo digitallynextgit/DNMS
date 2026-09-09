@@ -131,8 +131,6 @@ export function ProjectLogoPicker({
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            className="h-8 text-xs"
             disabled={busy}
             onClick={() => inputRef.current?.click()}
           >
@@ -142,8 +140,7 @@ export function ProjectLogoPicker({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-destructive h-8 text-xs"
+              className="text-muted-foreground hover:text-destructive"
               disabled={busy}
               onClick={handleRemove}
             >

@@ -186,12 +186,16 @@ export function LeaveDecisionDialog({
   async function handleConfirm() {
     if (!request) return
     const emailBody = advisory ? undefined : body.trim() || undefined
-    if (isReject) {
-      await rejectLeave.mutateAsync({ id: request.id, rejectionReason: reason.trim(), emailBody })
-    } else {
-      await approveLeave.mutateAsync({ id: request.id, emailBody })
+    try {
+      if (isReject) {
+        await rejectLeave.mutateAsync({ id: request.id, rejectionReason: reason.trim(), emailBody })
+      } else {
+        await approveLeave.mutateAsync({ id: request.id, emailBody })
+      }
+      onOpenChange(false)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
     }
-    onOpenChange(false)
   }
 
   // ── Advisory (manager) recommendation - no email, goes to HR/admin. ──────────
@@ -212,8 +216,8 @@ export function LeaveDecisionDialog({
 
           {isReject && (
             <div className="space-y-2">
-              <Label htmlFor="leave-advisory-reason" className="text-sm">
-                Reason for recommending rejection<span className="text-destructive"> *</span>
+              <Label required htmlFor="leave-advisory-reason" className="text-sm">
+                Reason for recommending rejection
               </Label>
               <Textarea
                 id="leave-advisory-reason"
@@ -262,8 +266,8 @@ export function LeaveDecisionDialog({
 
         {isReject && (
           <div className="space-y-2">
-            <Label htmlFor="leave-reject-reason" className="text-sm">
-              Rejection Reason<span className="text-destructive"> *</span>
+            <Label required htmlFor="leave-reject-reason" className="text-sm">
+              Rejection Reason
             </Label>
             <Textarea
               id="leave-reject-reason"
@@ -279,10 +283,9 @@ export function LeaveDecisionDialog({
           <div className="flex items-center justify-between">
             <p className="text-muted-foreground text-xs font-medium">Reply preview</p>
             <Button
+              className="gap-1.5"
               type="button"
               variant="outline"
-              size="sm"
-              className="h-7 gap-1.5 text-xs"
               onClick={improveWithAI}
               disabled={polishing || !body.trim()}
             >

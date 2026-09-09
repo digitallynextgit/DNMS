@@ -148,22 +148,25 @@ export function ManualAttendanceDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    try {
+      // No explicit status - the server derives it from the punch times.
+      const payload: Record<string, unknown> = {
+        employeeId,
+        date,
+        notes: notes || null,
+        checkIn: buildDatetime(date, checkIn),
+        checkOut: buildDatetime(date, checkOut),
+      }
 
-    // No explicit status - the server derives it from the punch times.
-    const payload: Record<string, unknown> = {
-      employeeId,
-      date,
-      notes: notes || null,
-      checkIn: buildDatetime(date, checkIn),
-      checkOut: buildDatetime(date, checkOut),
+      if (isEdit && editLog) {
+        await updateLog.mutateAsync({ id: editLog.id, body: payload })
+      } else {
+        await createLog.mutateAsync(payload)
+      }
+      onOpenChange(false)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
     }
-
-    if (isEdit && editLog) {
-      await updateLog.mutateAsync({ id: editLog.id, body: payload })
-    } else {
-      await createLog.mutateAsync(payload)
-    }
-    onOpenChange(false)
   }
 
   return (
@@ -180,7 +183,7 @@ export function ManualAttendanceDialog({
     >
       {!isEdit && (
         <div className="space-y-2">
-          <Label>Employee</Label>
+          <Label required>Employee</Label>
           <EmployeeCombobox
             value={employeeId || undefined}
             onChange={(id) => setEmployeeId(id ?? "")}
@@ -191,7 +194,7 @@ export function ManualAttendanceDialog({
       )}
 
       <div className="space-y-2">
-        <Label>Date</Label>
+        <Label required>Date</Label>
         <DateField value={date} onChange={setDate} endMonth={new Date()} modal />
       </div>
 

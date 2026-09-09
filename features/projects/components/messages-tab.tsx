@@ -196,8 +196,8 @@ export function MessagesTab({ projectId, currentUserId, canManage }: Props) {
               />
             </div>
             <Button
-              size="icon-sm"
-              className="h-9 w-9 shrink-0"
+              size="icon"
+              className="shrink-0"
               title="New chat"
               onClick={() => {
                 setNewChatInitial(null)
@@ -777,7 +777,7 @@ function ChatView({
     <div className="relative flex h-full w-full flex-col">
       {/* Header */}
       <div className={cn(SPLIT_PANE_HEADER, "gap-2 px-3")}>
-        <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={onBack} title="Back">
+        <Button variant="ghost" size="icon" className="md:hidden" onClick={onBack} title="Back">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <AvatarDisplay
@@ -799,7 +799,7 @@ function ChatView({
         </div>
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label={searching ? "Close search" : "Search in chat"}
           title={searching ? "Close search" : "Search in chat"}
           className="text-muted-foreground hover:text-foreground"
@@ -816,7 +816,7 @@ function ChatView({
         {(isAuthor || canManage) && (
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             className="text-muted-foreground hover:text-foreground"
             title={thread.isPinned ? "Unpin chat" : "Pin chat"}
             onClick={() =>
@@ -830,7 +830,7 @@ function ChatView({
           <>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               className="text-muted-foreground hover:text-foreground"
               title={`Edit chat · ${formatWindowLeft(chatWindowMs)}`}
               onClick={() => setEditChatOpen(true)}
@@ -839,7 +839,7 @@ function ChatView({
             </Button>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               className="text-muted-foreground hover:text-destructive"
               title={`Delete chat · ${formatWindowLeft(chatWindowMs)}`}
               onClick={() => setConfirmDelete(true)}
@@ -1013,7 +1013,7 @@ function ChatView({
           </div>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             aria-label="Cancel reply"
             className="text-muted-foreground shrink-0"
             onClick={() => setReplyTo(null)}
@@ -1326,16 +1326,14 @@ function Bubble({
             />
             <div className="flex items-center justify-end gap-1.5">
               <Button
-                size="sm"
                 variant="ghost"
-                className={cn("h-7 px-2 text-xs", own && "text-white hover:bg-white/15")}
+                className={cn("px-2", own && "text-white hover:bg-white/15")}
                 onClick={cancelEdit}
               >
                 Cancel
               </Button>
               <Button
-                size="sm"
-                className="h-7 px-2 text-xs"
+                className="px-2"
                 disabled={!draft.trim() || draft.trim() === content}
                 onClick={saveEdit}
               >
@@ -1419,7 +1417,7 @@ function Bubble({
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 aria-label="Message options"
                 className="text-muted-foreground shrink-0"
               >
@@ -1545,7 +1543,9 @@ function EditChatDialog({
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="edit-chat-title">Subject</Label>
+          <Label required htmlFor="edit-chat-title">
+            Subject
+          </Label>
           <Input
             id="edit-chat-title"
             value={title}
@@ -1554,7 +1554,9 @@ function EditChatDialog({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="edit-chat-content">Opening message</Label>
+          <Label required htmlFor="edit-chat-content">
+            Opening message
+          </Label>
           <Textarea
             id="edit-chat-content"
             value={content}

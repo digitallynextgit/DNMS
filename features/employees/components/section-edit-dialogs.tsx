@@ -37,7 +37,7 @@ function toDateInput(iso: string | null | undefined): string {
 /** Small "Edit" pill placed in a section header. */
 function EditTrigger({ onClick }: { onClick: () => void }) {
   return (
-    <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={onClick}>
+    <Button className="gap-1.5" variant="ghost" onClick={onClick}>
       <Pencil className="h-3.5 w-3.5" />
       Edit
     </Button>
@@ -90,10 +90,7 @@ function Field({
 }) {
   return (
     <div className="space-y-2">
-      <Label>
-        {label}
-        {required && <span className="text-destructive ml-0.5">*</span>}
-      </Label>
+      <Label required={required}>{label}</Label>
       {children}
     </div>
   )

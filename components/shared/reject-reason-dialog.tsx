@@ -75,9 +75,8 @@ export function RejectReasonDialog({
           )}
         </AlertDialogHeader>
         <div className="space-y-2">
-          <Label htmlFor="reject-reason" className="text-sm">
+          <Label required={required} htmlFor="reject-reason" className="text-sm">
             {reasonLabel}
-            {required && <span className="text-destructive"> *</span>}
           </Label>
           <Textarea
             id="reject-reason"

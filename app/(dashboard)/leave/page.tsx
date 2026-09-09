@@ -9,7 +9,8 @@ import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { EmptyState } from "@/components/shared/empty-state"
 import { CardGridSkeleton, ListSkeleton } from "@/components/shared/loading-skeleton"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import { LeaveBalanceCard } from "@/features/leave"
 import { LeaveRequestTable } from "@/features/leave"
 import { useLeaveBalances, useMyLeaveRequests, useMyTeamLeaveRequests } from "@/features/leave"
@@ -122,10 +123,13 @@ export default function LeaveDashboardPage() {
           description="Your leave, and the leave requests from your team."
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <TabsList>
-                <TabsTrigger value="my-leaves">My Leaves</TabsTrigger>
-                <TabsTrigger value="requests">Leave Requests</TabsTrigger>
-              </TabsList>
+              <TabsBar
+                spacing="none"
+                items={[
+                  { value: "my-leaves", label: "My Leaves" },
+                  { value: "requests", label: "Leave Requests" },
+                ]}
+              />
               {applyButton}
             </div>
           }

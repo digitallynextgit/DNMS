@@ -261,13 +261,11 @@ export function BirthdaysCard({ days = 30 }: { days?: number }) {
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-medium">Happy Birthday!</p>
                   <Button
-                    size="sm"
                     variant="secondary"
-                    className="h-7 gap-1.5 text-[11px]"
                     disabled={wish.isPending || wished.has(p.id)}
                     onClick={() => wish.mutate(p)}
                   >
-                    <PartyPopper className="h-3.5 w-3.5" />
+                    <PartyPopper className="mr-1.5 h-3.5 w-3.5" />
                     {wished.has(p.id) ? "Wishes sent" : "Send wishes"}
                   </Button>
                 </div>

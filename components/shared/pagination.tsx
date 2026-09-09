@@ -63,9 +63,8 @@ export function Pagination({
           reach it - on every paginated page in the app. */}
       <div className="flex flex-wrap items-center justify-center gap-1">
         <Button
-          variant="outline"
-          size="sm"
           className="gap-1"
+          variant="outline"
           disabled={page <= 1}
           onClick={() => go(page - 1)}
         >
@@ -82,8 +81,8 @@ export function Pagination({
             <Button
               key={p}
               variant={p === page ? "default" : "outline"}
-              size="sm"
-              className="h-9 w-9 p-0 tabular-nums"
+              size="icon"
+              className="p-0 tabular-nums"
               aria-current={p === page ? "page" : undefined}
               onClick={() => go(p)}
             >
@@ -93,9 +92,8 @@ export function Pagination({
         )}
 
         <Button
-          variant="outline"
-          size="sm"
           className="gap-1"
+          variant="outline"
           disabled={page >= totalPages}
           onClick={() => go(page + 1)}
         >

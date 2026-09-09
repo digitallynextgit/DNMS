@@ -734,8 +734,8 @@ function Thread({
             touch devices (lg:hidden). */}
         <Button
           variant="ghost"
-          size="icon-sm"
-          className="h-10 w-10 lg:hidden"
+          size="icon"
+          className="lg:hidden"
           onClick={onBack}
           aria-label="Back to conversations"
         >
@@ -766,7 +766,7 @@ function Thread({
 
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label={conversationPinned ? "Unpin conversation" : "Pin conversation"}
           title={conversationPinned ? "Unpin conversation" : "Pin to top of your chat list"}
           className="text-muted-foreground hover:text-foreground ml-auto shrink-0"
@@ -778,7 +778,7 @@ function Thread({
 
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label={searching ? "Close search" : "Search in conversation"}
           className="text-muted-foreground hover:text-foreground shrink-0"
           onClick={() => {
@@ -910,7 +910,7 @@ function Thread({
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           aria-label="Message options"
                           className="text-muted-foreground shrink-0"
                         >
@@ -1041,7 +1041,7 @@ function Thread({
                       />
                       <div className="flex justify-end gap-1">
                         <Button
-                          size="icon-sm"
+                          size="icon"
                           variant="ghost"
                           aria-label="Cancel edit"
                           onClick={() => setEditing(null)}
@@ -1049,7 +1049,7 @@ function Thread({
                           <X className="h-3.5 w-3.5" />
                         </Button>
                         <Button
-                          size="icon-sm"
+                          size="icon"
                           aria-label="Save edit"
                           disabled={!editDraft.trim() || edit.isPending}
                           onClick={() => edit.mutate({ id: m.id, body: editDraft.trim() })}
@@ -1185,7 +1185,7 @@ function Thread({
           </div>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             aria-label="Cancel reply"
             className="text-muted-foreground shrink-0"
             onClick={() => setReplyTo(null)}

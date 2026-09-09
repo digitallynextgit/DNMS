@@ -11,7 +11,8 @@ import {
 } from "@/features/leave"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DeleteDialog } from "@/components/shared/delete-dialog"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -70,21 +71,33 @@ export default function LeaveTypesAndPolicyPage() {
   }
 
   async function handleToggleActive(type: LeaveType) {
-    await updateLeaveType.mutateAsync({ id: type.id, body: { isActive: !type.isActive } })
+    try {
+      await updateLeaveType.mutateAsync({ id: type.id, body: { isActive: !type.isActive } })
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
+    }
   }
 
   async function handleDelete(permanent: boolean) {
     if (!deleteId) return
-    await deleteLeaveType.mutateAsync({ id: deleteId, permanent })
-    setDeleteId(null)
+    try {
+      await deleteLeaveType.mutateAsync({ id: deleteId, permanent })
+      setDeleteId(null)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
+    }
   }
 
   async function handleBulkDeactivate() {
-    for (const id of selection.selectedIds) {
-      await deleteLeaveType.mutateAsync({ id })
+    try {
+      for (const id of selection.selectedIds) {
+        await deleteLeaveType.mutateAsync({ id })
+      }
+      selection.clear()
+      setBulkOpen(false)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
     }
-    selection.clear()
-    setBulkOpen(false)
   }
 
   if (!canManageTypes && !canManagePolicy) {
@@ -163,13 +176,13 @@ export default function LeaveTypesAndPolicyPage() {
       align: "right",
       cell: (type) => (
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="icon-sm" onClick={() => openEdit(type)} title="Edit">
+          <Button variant="ghost" size="icon" onClick={() => openEdit(type)} title="Edit">
             <Pencil className="h-4 w-4" />
             <span className="sr-only">Edit</span>
           </Button>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             onClick={() => handleToggleActive(type)}
             title={type.isActive ? "Deactivate" : "Activate"}
           >
@@ -182,7 +195,7 @@ export default function LeaveTypesAndPolicyPage() {
           </Button>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             className="text-destructive hover:text-destructive"
             onClick={() => setDeleteId(type.id)}
             title="Delete"
@@ -203,10 +216,13 @@ export default function LeaveTypesAndPolicyPage() {
           description="Configure leave types and set how many days each employment type gets per year."
           actions={
             <div className="flex items-center gap-2">
-              <TabsList>
-                {canManageTypes && <TabsTrigger value="types">Types</TabsTrigger>}
-                {canManagePolicy && <TabsTrigger value="policy">Policy</TabsTrigger>}
-              </TabsList>
+              <TabsBar
+                spacing="none"
+                items={[
+                  canManageTypes && { value: "types", label: "Types" },
+                  canManagePolicy && { value: "policy", label: "Policy" },
+                ]}
+              />
               {tab === "types" && canManageTypes && (
                 <Button onClick={openCreate} className="flex items-center gap-2">
                   <Plus className="h-4 w-4" />
@@ -223,7 +239,6 @@ export default function LeaveTypesAndPolicyPage() {
             <BulkActionBar count={selection.count} onClear={selection.clear}>
               <Button
                 variant="destructive"
-                size="sm"
                 onClick={() => setBulkOpen(true)}
                 disabled={deleteLeaveType.isPending}
               >

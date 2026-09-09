@@ -204,7 +204,7 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
             </Select>
           </div>
         </div>
-        <Button size="sm" onClick={() => setUploadOpen(true)}>
+        <Button onClick={() => setUploadOpen(true)}>
           <Upload className="mr-1 h-4 w-4" />
           Upload File
         </Button>
@@ -255,13 +255,13 @@ function ResourceActions({
 
   return (
     <>
-      <Button variant="ghost" size="icon-sm" onClick={handleDownload} aria-label="Download">
+      <Button variant="ghost" size="icon" onClick={handleDownload} aria-label="Download">
         <Download className="h-3.5 w-3.5" />
       </Button>
       {canDelete && (
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           className="text-muted-foreground hover:text-destructive"
           onClick={() => setConfirmOpen(true)}
         >
@@ -345,7 +345,7 @@ function UploadDialog({
       }}
     >
       <div className="space-y-2">
-        <Label>File (max 100 MB)</Label>
+        <Label required>File (max 100 MB)</Label>
         <input
           ref={fileInput}
           type="file"

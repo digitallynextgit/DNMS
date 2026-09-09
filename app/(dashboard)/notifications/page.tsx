@@ -107,8 +107,8 @@ export default function NotificationsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notifications"] })
     },
-    onError: () => {
-      toast.error("Failed to mark notifications as read")
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to mark notifications as read")
     },
   })
 
@@ -122,7 +122,7 @@ export default function NotificationsPage() {
       return res.json()
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
-    onError: () => toast.error("Couldn't delete the notification"),
+    onError: (error: Error) => toast.error(error.message || "Couldn't delete the notification"),
   })
 
   const handleMarkAllRead = () => {

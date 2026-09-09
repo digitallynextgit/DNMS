@@ -120,11 +120,11 @@ export default function FloatingHolidaysPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => changeYear(year - 1)}>
+          <Button variant="outline" onClick={() => changeYear(year - 1)}>
             &larr; {year - 1}
           </Button>
           <span className="bg-muted rounded-sm px-3 py-1 text-sm font-medium">{year}</span>
-          <Button variant="outline" size="sm" onClick={() => changeYear(year + 1)}>
+          <Button variant="outline" onClick={() => changeYear(year + 1)}>
             {year + 1} &rarr;
           </Button>
         </div>

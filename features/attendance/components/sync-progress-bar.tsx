@@ -65,7 +65,7 @@ export function SyncProgressBar({
             <span className="text-sm font-semibold tabular-nums">{progress.percent}%</span>
           )}
           {running && onCancel && (
-            <Button variant="ghost" size="icon-sm" onClick={onCancel} title="Cancel sync">
+            <Button variant="ghost" size="icon" onClick={onCancel} title="Cancel sync">
               <X />
             </Button>
           )}

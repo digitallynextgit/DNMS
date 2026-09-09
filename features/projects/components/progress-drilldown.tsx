@@ -18,7 +18,8 @@ import {
 import { Link } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { apiFetch } from "@/lib/api-fetch"
@@ -391,26 +392,23 @@ function ClientView({ d, push }: { d: Extract<Drill, { kind: "client" }>; push: 
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(v as ClientTab)}>
       <div className="border-border/60 border-b px-5">
-        <TabsList className="h-9 bg-transparent p-0">
-          {(
-            [
-              ["overview", "Overview"],
-              ["tasks", `Tasks${s ? ` (${s.assigned})` : ""}`],
-              ["people", `People${perf.data ? ` (${perf.data.byEmployee.length})` : ""}`],
-              ["goals", `Goals${goalRow ? ` (${goalRow.totalGoals})` : ""}`],
-              ["deliverables", "Deliverables"],
-              ["hours", "Hours"],
-            ] as [ClientTab, string][]
-          ).map(([k, label]) => (
-            <TabsTrigger
-              key={k}
-              value={k}
-              className="data-[state=active]:border-foreground rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              {label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <TabsBar
+          spacing="none"
+          items={[
+            { value: "overview", label: "Overview" },
+            // The counts hang off queries that are still loading, so they stay
+            // inside the label rather than using `count`, which would render
+            // "(0)" until the data lands.
+            { value: "tasks", label: `Tasks${s ? ` (${s.assigned})` : ""}` },
+            {
+              value: "people",
+              label: `People${perf.data ? ` (${perf.data.byEmployee.length})` : ""}`,
+            },
+            { value: "goals", label: `Goals${goalRow ? ` (${goalRow.totalGoals})` : ""}` },
+            { value: "deliverables", label: "Deliverables" },
+            { value: "hours", label: "Hours" },
+          ]}
+        />
       </div>
 
       <TabsContent value="overview" className="m-0 space-y-4 p-5">
@@ -1095,7 +1093,7 @@ function Header({ d }: { d: Drill }) {
               Tasks {rangeLabel(d.range)} · overdue and goals as of today
             </DialogDescription>
           </div>
-          <Button asChild size="sm" variant="outline" className="h-8 shrink-0 gap-1.5">
+          <Button asChild variant="outline" className="shrink-0 gap-1.5">
             <Link href={projectHref({ id: d.project.id, slug: d.project.slug })}>
               Open project <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
@@ -1179,7 +1177,7 @@ function DrillStack({ root }: { root: Drill }) {
         {stack.length > 1 && (
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             onClick={back}
             aria-label="Back"
             className="text-muted-foreground hover:text-foreground shrink-0"

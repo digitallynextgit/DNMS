@@ -115,7 +115,7 @@ export function ProfileSelfActions({
       {/* Edit Profile Photo */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" disabled={photoBusy}>
+          <Button variant="outline" disabled={photoBusy}>
             {photoBusy ? (
               <Spinner size="sm" className="mr-1.5" />
             ) : (
@@ -178,7 +178,6 @@ export function ProfileSelfActions({
           </Badge>
           <Button
             variant="outline"
-            size="sm"
             disabled={cancelMut.isPending}
             onClick={withdraw}
             loading={cancelMut.isPending}
@@ -189,7 +188,6 @@ export function ProfileSelfActions({
       ) : (
         <Button
           variant="outline"
-          size="sm"
           className="text-destructive hover:bg-destructive/10"
           onClick={() => setResignOpen(true)}
         >
@@ -212,7 +210,9 @@ export function ProfileSelfActions({
         }}
       >
         <div className="space-y-2">
-          <Label htmlFor="res-reason">Reason</Label>
+          <Label required htmlFor="res-reason">
+            Reason
+          </Label>
           <Textarea
             id="res-reason"
             rows={6}
@@ -222,7 +222,7 @@ export function ProfileSelfActions({
           />
         </div>
         <div className="space-y-2">
-          <Label>Requested Last Working Day</Label>
+          <Label required>Requested Last Working Day</Label>
           <DateField value={lastWorkingDate} onChange={setLastWorkingDate} />
         </div>
         <p className="text-muted-foreground text-xs">

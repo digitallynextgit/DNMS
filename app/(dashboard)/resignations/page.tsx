@@ -159,7 +159,6 @@ export default function ResignationsPage() {
 
                 <div className="flex shrink-0 items-center gap-2">
                   <Button
-                    size="sm"
                     variant="outline"
                     className="text-destructive hover:bg-destructive/10"
                     disabled={reviewMut.isPending}
@@ -168,11 +167,7 @@ export default function ResignationsPage() {
                     <X className="mr-1.5 h-3.5 w-3.5" />
                     Decline
                   </Button>
-                  <Button
-                    size="sm"
-                    disabled={reviewMut.isPending}
-                    onClick={() => setApproveTarget(r)}
-                  >
+                  <Button disabled={reviewMut.isPending} onClick={() => setApproveTarget(r)}>
                     <Check className="mr-1.5 h-3.5 w-3.5" />
                     Approve
                   </Button>

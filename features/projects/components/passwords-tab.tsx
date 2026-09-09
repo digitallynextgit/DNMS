@@ -61,7 +61,7 @@ export function PasswordsTab({ projectId, currentUserId, canManage }: Props) {
             </Badge>
           )}
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
+        <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1.5 h-4 w-4" />
           Add Entry
         </Button>
@@ -197,7 +197,7 @@ function PasswordRow({
               </code>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 className="text-muted-foreground hover:text-foreground"
                 onClick={handleReveal}
                 disabled={reveal.isPending}
@@ -207,7 +207,7 @@ function PasswordRow({
               </Button>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 className="text-muted-foreground hover:text-foreground"
                 onClick={handleCopy}
                 title="Copy password"
@@ -231,7 +231,7 @@ function PasswordRow({
             {(isOwner || canManage) && (
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 className="text-muted-foreground hover:text-foreground"
                 onClick={() => setEditOpen(true)}
               >
@@ -241,7 +241,7 @@ function PasswordRow({
             {(isOwner || canManage) && (
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 className="text-muted-foreground hover:text-destructive"
                 onClick={() => setConfirmOpen(true)}
               >

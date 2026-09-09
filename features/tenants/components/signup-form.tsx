@@ -266,7 +266,7 @@ export function SignupForm() {
 
         <Button
           type="submit"
-          className="h-11 w-full rounded-sm text-sm"
+          className="w-full rounded-sm"
           disabled={isSubmitting || slugState.available === false}
           loading={isSubmitting}
         >

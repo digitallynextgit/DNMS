@@ -104,7 +104,7 @@ export function AttachmentMenu({
             variant="ghost"
             size="icon"
             aria-label="Attach"
-            className="text-muted-foreground hover:text-foreground h-9 w-9 shrink-0"
+            className="text-muted-foreground hover:text-foreground shrink-0"
             disabled={disabled}
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-5 w-5" />}
@@ -281,11 +281,10 @@ function CameraDialog({
         <div className="flex items-center justify-between gap-2">
           {shot ? (
             <>
-              <Button variant="ghost" size="sm" onClick={retake}>
+              <Button variant="ghost" onClick={retake}>
                 Retake
               </Button>
               <Button
-                size="sm"
                 onClick={() =>
                   onCapture(
                     new File([shot.blob], `photo-${shot.blob.size}.jpg`, { type: "image/jpeg" }),
@@ -299,7 +298,7 @@ function CameraDialog({
             <>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 aria-label="Switch camera"
                 title="Switch camera"
                 onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))}
@@ -307,13 +306,13 @@ function CameraDialog({
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
-              <Button size="sm" onClick={capture} disabled={!!error}>
+              <Button onClick={capture} disabled={!!error}>
                 <Camera className="mr-2 h-4 w-4" />
                 Take photo
               </Button>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 aria-label="Close"
                 onClick={() => onOpenChange(false)}
               >

@@ -175,7 +175,7 @@ export function LeaveRequestTable({
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     className="text-muted-foreground hover:text-destructive"
                     disabled={cancelLeave.isPending}
                     onClick={() => cancelLeave.mutate(request.id)}
@@ -195,7 +195,7 @@ export function LeaveRequestTable({
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon"
                       className="text-muted-foreground hover:text-green-600"
                       onClick={() => setDecision({ action: "APPROVE", request })}
                     >
@@ -209,7 +209,7 @@ export function LeaveRequestTable({
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon"
                       className="text-muted-foreground hover:text-destructive"
                       onClick={() => setDecision({ action: "REJECT", request })}
                     >
@@ -299,15 +299,13 @@ export function LeaveRequestTable({
                   {canAct && (
                     <>
                       <Button
-                        size="sm"
-                        variant="outline"
                         className="gap-1.5"
+                        variant="outline"
                         onClick={() => setDecision({ action: "APPROVE", request })}
                       >
                         <Check className="h-3.5 w-3.5" /> Approve
                       </Button>
                       <Button
-                        size="sm"
                         variant="outline"
                         className="text-destructive gap-1.5"
                         onClick={() => setDecision({ action: "REJECT", request })}
@@ -318,7 +316,6 @@ export function LeaveRequestTable({
                   )}
                   {isOwn && request.status === "PENDING" && (
                     <Button
-                      size="sm"
                       variant="outline"
                       className="text-destructive gap-1.5"
                       disabled={cancelLeave.isPending}

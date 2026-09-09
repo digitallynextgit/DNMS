@@ -495,7 +495,7 @@ export default function MyTasksPage() {
                 </SelectContent>
               </Select>
             )}
-            <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+            <Button className="gap-1.5" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" /> New Task
             </Button>
           </>
@@ -572,7 +572,7 @@ export default function MyTasksPage() {
                 {dateFilter && (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     title="Show all dates"
                     aria-label="Show all dates"
                     onClick={() => setDateFilter("")}

@@ -199,9 +199,8 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className={cn(error && "text-destructive")}>
+      <Label required={required} className={cn(error && "text-destructive")}>
         {label}
-        {required && <span className="text-destructive ml-0.5">*</span>}
       </Label>
       {children}
       {error && <p className="text-destructive text-xs">{error}</p>}

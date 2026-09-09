@@ -251,8 +251,8 @@ function AccountDialog({
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-xs">
-              Name<span className="text-destructive"> *</span>
+            <Label required className="text-xs">
+              Name
             </Label>
             <Input
               value={label}
@@ -265,8 +265,8 @@ function AccountDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">
-                Endpoint<span className="text-destructive"> *</span>
+              <Label required className="text-xs">
+                Endpoint
               </Label>
               <Input
                 value={endpoint}
@@ -275,8 +275,8 @@ function AccountDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">
-                Region<span className="text-destructive"> *</span>
+              <Label required className="text-xs">
+                Region
               </Label>
               <Input
                 value={region}
@@ -285,8 +285,8 @@ function AccountDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">
-                Bucket<span className="text-destructive"> *</span>
+              <Label required className="text-xs">
+                Bucket
               </Label>
               <Input
                 value={bucket}
@@ -295,8 +295,8 @@ function AccountDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">
-                Key ID<span className="text-destructive"> *</span>
+              <Label required className="text-xs">
+                Key ID
               </Label>
               <Input
                 value={keyId}
@@ -307,8 +307,8 @@ function AccountDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">
-              Application key{!editing && <span className="text-destructive"> *</span>}
+            <Label required={!editing} className="text-xs">
+              Application key
             </Label>
             <Input
               type="password"
@@ -331,11 +331,10 @@ function AccountDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            className="h-9 text-xs"
             disabled={
               label.trim().length < 2 ||
               !endpoint.trim() ||

@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
@@ -111,7 +112,6 @@ export default function MyWfhPage() {
         r.status === "PENDING" ? (
           <Button
             variant="ghost"
-            size="sm"
             className="text-destructive hover:text-destructive"
             onClick={() => cancel.mutate(r.id)}
             disabled={cancel.isPending}
@@ -192,7 +192,6 @@ export default function MyWfhPage() {
         <BulkActionBar count={selection.count} onClear={selection.clear}>
           <Button
             variant="destructive"
-            size="sm"
             onClick={() => setBulkOpen(true)}
             disabled={bulkPending || pendingSelectedCount === 0}
           >
@@ -248,7 +247,6 @@ export default function MyWfhPage() {
                 {r.status === "PENDING" && (
                   <Button
                     variant="outline"
-                    size="sm"
                     className="text-destructive gap-1.5"
                     onClick={() => cancel.mutate(r.id)}
                     disabled={cancel.isPending}
@@ -310,10 +308,13 @@ export default function MyWfhPage() {
           description="Your WFH, and the WFH requests awaiting your decision."
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <TabsList>
-                <TabsTrigger value="my-wfh">My WFH</TabsTrigger>
-                <TabsTrigger value="requests">WFH Requests</TabsTrigger>
-              </TabsList>
+              <TabsBar
+                spacing="none"
+                items={[
+                  { value: "my-wfh", label: "My WFH" },
+                  { value: "requests", label: "WFH Requests" },
+                ]}
+              />
               {applyButton}
             </div>
           }

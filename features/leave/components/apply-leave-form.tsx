@@ -130,19 +130,22 @@ export function ApplyLeaveForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!leaveTypeId || !startDate || !reason.trim()) return
+    try {
+      await applyLeave.mutateAsync({
+        leaveTypeId,
+        startDate,
+        endDate: isShortLeave ? startDate : endDate,
+        reason: reason.trim(),
+        isHalfDay: isHalfDay || isShortLeave,
+        // The subject + letter exactly as shown/edited in the preview.
+        emailBody: emailBodyRef.current.trim() || undefined,
+        emailSubject: emailSubjectRef.current.trim() || undefined,
+      })
 
-    await applyLeave.mutateAsync({
-      leaveTypeId,
-      startDate,
-      endDate: isShortLeave ? startDate : endDate,
-      reason: reason.trim(),
-      isHalfDay: isHalfDay || isShortLeave,
-      // The subject + letter exactly as shown/edited in the preview.
-      emailBody: emailBodyRef.current.trim() || undefined,
-      emailSubject: emailSubjectRef.current.trim() || undefined,
-    })
-
-    router.push(tp("/leave"))
+      router.push(tp("/leave"))
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
+    }
   }
 
   // Record the current reason as a history checkpoint and set a new value.
@@ -207,7 +210,9 @@ export function ApplyLeaveForm() {
       <div className="space-y-6">
         {/* Leave Type */}
         <div className="space-y-2">
-          <Label htmlFor="leave-type">Leave Type</Label>
+          <Label required htmlFor="leave-type">
+            Leave Type
+          </Label>
           <Select
             value={leaveTypeId}
             onValueChange={(v) => {
@@ -254,7 +259,7 @@ export function ApplyLeaveForm() {
         {!isShortLeave ? (
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Start Date</Label>
+              <Label required>Start Date</Label>
               <DateField
                 value={startDate}
                 onChange={(v) => {
@@ -275,7 +280,7 @@ export function ApplyLeaveForm() {
           </div>
         ) : (
           <div className="space-y-2">
-            <Label>Date</Label>
+            <Label required>Date</Label>
             <DateField
               value={startDate}
               onChange={setStartDate}
@@ -336,15 +341,15 @@ export function ApplyLeaveForm() {
         {/* Reason (required) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="reason">
-              Reason <span className="text-destructive text-xs">*</span>
+            <Label required htmlFor="reason">
+              Reason
             </Label>
             <div className="flex items-center gap-0.5">
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground h-7 w-7"
+                size="icon"
+                className="text-muted-foreground"
                 disabled={!canUndo}
                 title="Undo"
                 onClick={undoReason}
@@ -354,8 +359,8 @@ export function ApplyLeaveForm() {
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground h-7 w-7"
+                size="icon"
+                className="text-muted-foreground"
                 disabled={!canRedo}
                 title="Redo"
                 onClick={redoReason}
@@ -365,8 +370,6 @@ export function ApplyLeaveForm() {
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
                 disabled={!reason.trim() || polishing}
                 title="Suggest clearer wording. Pick one, or undo."
                 onClick={suggestReasons}

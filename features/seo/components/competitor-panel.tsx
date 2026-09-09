@@ -69,7 +69,6 @@ export function CompetitorPanel({
         </p>
         <div className="flex items-center gap-2">
           <Button
-            size="sm"
             variant="outline"
             onClick={() => audit && exportCompetitors(audit, siteLabel)}
             disabled={!audit || audit.gaps.length === 0}
@@ -80,7 +79,6 @@ export function CompetitorPanel({
           </Button>
           {canManage && (
             <Button
-              size="sm"
               onClick={() => propertyId && run.mutate(propertyId)}
               disabled={run.isPending || !propertyId || !hasCompetitors}
               title={hasCompetitors ? "Crawl competitors now" : "Add competitors first"}
@@ -108,17 +106,12 @@ export function CompetitorPanel({
               <span className="text-muted-foreground text-xs">none set yet</span>
             )}
             <div className="ml-auto flex gap-1.5">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs"
-                onClick={() => setAiOpen(true)}
-              >
+              <Button variant="outline" onClick={() => setAiOpen(true)}>
                 <Sparkles className="mr-1 h-3 w-3" />
                 Suggest with AI
               </Button>
               {onEditSite && (
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onEditSite}>
+                <Button variant="outline" onClick={onEditSite}>
                   <Settings2 className="mr-1 h-3 w-3" />
                   Edit
                 </Button>

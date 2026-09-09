@@ -206,21 +206,21 @@ export function AdminDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button asChild variant="outline" className="h-9 w-full justify-start gap-2 text-sm">
+            <Button asChild variant="outline" className="w-full justify-start gap-2">
               <Link href="/employees/new">
                 <UserCircle className="text-muted-foreground h-4 w-4" />
                 <span>Add New Employee</span>
               </Link>
             </Button>
 
-            <Button asChild variant="outline" className="h-9 w-full justify-start gap-2 text-sm">
+            <Button asChild variant="outline" className="w-full justify-start gap-2">
               <Link href="/documents">
                 <Upload className="text-muted-foreground h-4 w-4" />
                 <span>Upload Document</span>
               </Link>
             </Button>
 
-            <Button asChild variant="outline" className="h-9 w-full justify-start gap-2 text-sm">
+            <Button asChild variant="outline" className="w-full justify-start gap-2">
               <Link href="/admin/audit-log">
                 <ClipboardList className="text-muted-foreground h-4 w-4" />
                 <span>View Audit Log</span>

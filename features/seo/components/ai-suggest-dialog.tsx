@@ -170,7 +170,6 @@ export function AiSuggestDialog({
               </p>
               {onEditSite && (
                 <Button
-                  size="sm"
                   variant="outline"
                   className="mt-3"
                   onClick={() => {

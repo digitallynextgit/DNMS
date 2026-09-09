@@ -30,7 +30,7 @@ export function PayslipView({ open, onOpenChange, record }: PayslipViewProps) {
               labelMap={PAYROLL_STATUS_LABELS}
             />
           </SheetTitle>
-          <Button size="sm" onClick={() => window.print()} className="mr-8 gap-2">
+          <Button onClick={() => window.print()} className="mr-8 gap-2">
             <Download className="h-4 w-4" />
             Download PDF
           </Button>

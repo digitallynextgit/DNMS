@@ -75,7 +75,7 @@ export function LogDeliverableButton({
 
   return (
     <>
-      <Button size="sm" variant="outline" className={className} onClick={start}>
+      <Button variant="outline" className={className} onClick={start}>
         <PackageCheck className="h-3.5 w-3.5" />
         Log what you delivered
       </Button>

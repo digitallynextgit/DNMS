@@ -189,7 +189,9 @@ function TargetForm({
     <div className="border-border/60 bg-background/60 space-y-2 rounded-sm border p-2">
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-36 flex-1 space-y-1">
-          <Label className="text-muted-foreground text-[10px]">Type</Label>
+          <Label required className="text-muted-foreground text-[10px]">
+            Type
+          </Label>
           <Input
             autoFocus
             list={listId}
@@ -208,7 +210,9 @@ function TargetForm({
           </datalist>
         </div>
         <div className="w-20 space-y-1">
-          <Label className="text-muted-foreground text-[10px]">How many</Label>
+          <Label required className="text-muted-foreground text-[10px]">
+            How many
+          </Label>
           <Input
             type="number"
             min={1}
@@ -237,10 +241,10 @@ function TargetForm({
             className="h-8 text-xs"
           />
         </div>
-        <Button size="sm" className="h-8" onClick={submit} disabled={!valid || pending}>
+        <Button onClick={submit} disabled={!valid || pending}>
           {initial ? "Save" : "Add"}
         </Button>
-        <Button size="sm" variant="ghost" className="h-8" onClick={onCancel}>
+        <Button variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
       </div>
@@ -358,14 +362,13 @@ export function GoalTargets({
           ) : (
             <Button
               variant="ghost"
-              size="sm"
-              className="text-muted-foreground h-6 gap-1 px-1.5 text-[11px]"
+              className="text-muted-foreground px-1.5"
               onClick={() => {
                 setEditingId(null)
                 setAdding(true)
               }}
             >
-              <Plus className="h-3 w-3" /> Target
+              <Plus className="mr-1.5 h-3 w-3" /> Target
             </Button>
           )}
         </div>

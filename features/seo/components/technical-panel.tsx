@@ -75,7 +75,6 @@ export function TechnicalPanel({
         </p>
         <div className="flex items-center gap-2">
           <Button
-            size="sm"
             variant="outline"
             onClick={() => audit && exportTechnical(audit, siteLabel)}
             disabled={!audit}
@@ -86,7 +85,6 @@ export function TechnicalPanel({
           </Button>
           {canManage && (
             <Button
-              size="sm"
               onClick={() => propertyId && run.mutate(propertyId)}
               disabled={run.isPending || !propertyId}
             >

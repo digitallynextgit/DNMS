@@ -125,7 +125,6 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
           <div className="flex items-center justify-end gap-1">
             <Button
               variant="ghost"
-              size="sm"
               className="text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
               disabled={approve.isPending}
               onClick={() => approve.mutate(r.id)}
@@ -135,7 +134,6 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
             </Button>
             <Button
               variant="ghost"
-              size="sm"
               className="text-destructive hover:bg-destructive/10"
               disabled={reject.isPending}
               onClick={() => setRejectId(r.id)}
@@ -220,16 +218,14 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
             {r.status === "PENDING" && (
               <div className="flex flex-wrap gap-2 pt-0.5">
                 <Button
-                  size="sm"
-                  variant="outline"
                   className="gap-1.5"
+                  variant="outline"
                   disabled={approve.isPending}
                   onClick={() => approve.mutate(r.id)}
                 >
                   <Check className="h-3.5 w-3.5" /> Approve
                 </Button>
                 <Button
-                  size="sm"
                   variant="outline"
                   className="text-destructive gap-1.5"
                   onClick={() => setRejectId(r.id)}

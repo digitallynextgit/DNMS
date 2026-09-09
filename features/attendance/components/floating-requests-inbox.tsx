@@ -157,7 +157,6 @@ export function FloatingRequestsInbox() {
         <div className="flex items-center justify-end gap-1">
           <Button
             variant="ghost"
-            size="sm"
             className="text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
             disabled={reviewMut.isPending}
             onClick={() => reviewMut.mutate({ id: r.id, action: "APPROVE" })}
@@ -167,7 +166,6 @@ export function FloatingRequestsInbox() {
           </Button>
           <Button
             variant="ghost"
-            size="sm"
             className="text-destructive hover:bg-destructive/10"
             disabled={reviewMut.isPending}
             onClick={() => setRejectId(r.id)}

@@ -71,15 +71,19 @@ export default function ApplyWfhPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    await apply.mutateAsync({
-      date,
-      reason: reason.trim() || undefined,
-      isEmergency: mustBeEmergency ? true : isEmergency,
-      // The subject + letter exactly as shown/edited in the preview.
-      emailBody: emailBodyRef.current.trim() || undefined,
-      emailSubject: emailSubjectRef.current.trim() || undefined,
-    })
-    router.push(tp("/wfh"))
+    try {
+      await apply.mutateAsync({
+        date,
+        reason: reason.trim() || undefined,
+        isEmergency: mustBeEmergency ? true : isEmergency,
+        // The subject + letter exactly as shown/edited in the preview.
+        emailBody: emailBodyRef.current.trim() || undefined,
+        emailSubject: emailSubjectRef.current.trim() || undefined,
+      })
+      router.push(tp("/wfh"))
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
+    }
   }
 
   return (
@@ -140,7 +144,7 @@ export default function ApplyWfhPage() {
           ) : null}
 
           <div className="space-y-2">
-            <Label>WFH Date</Label>
+            <Label required>WFH Date</Label>
             <DateField
               value={date}
               onChange={setDate}
@@ -188,11 +192,9 @@ export default function ApplyWfhPage() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="reason">
+            <Label required={mustBeEmergency} htmlFor="reason">
               Reason{" "}
-              {mustBeEmergency ? (
-                <span className="text-destructive text-xs">*</span>
-              ) : (
+              {!mustBeEmergency && (
                 <span className="text-muted-foreground font-normal">(optional)</span>
               )}
             </Label>

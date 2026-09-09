@@ -272,7 +272,7 @@ export function ProjectFormDialog({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-10 shrink-0 gap-1"
+                    className="shrink-0 gap-1"
                     onClick={() => setNewClientOpen(true)}
                   >
                     <Plus className="h-4 w-4" /> New

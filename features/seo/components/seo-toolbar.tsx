@@ -40,9 +40,7 @@ export function TabHeader({
         {children}
         {onExport && (
           <Button
-            size="sm"
             variant="outline"
-            className="h-8"
             onClick={onExport}
             disabled={exportDisabled}
             title={exportDisabled ? "Nothing to export yet" : "Download as CSV"}
@@ -79,13 +77,7 @@ export function AiExplain({
 
   if (!text) {
     return (
-      <Button
-        size="sm"
-        variant="outline"
-        className={cn("h-8", className)}
-        onClick={ask}
-        disabled={ai.isPending}
-      >
+      <Button variant="outline" className={className} onClick={ask} disabled={ai.isPending}>
         <Sparkles className={cn("mr-1.5 h-3.5 w-3.5", ai.isPending && "animate-pulse")} />
         {ai.isPending ? "Reading the data…" : "Explain with AI"}
       </Button>
@@ -101,16 +93,10 @@ export function AiExplain({
             What this means
           </p>
           <div className="flex items-center gap-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 text-xs"
-              onClick={ask}
-              disabled={ai.isPending}
-            >
+            <Button variant="ghost" onClick={ask} disabled={ai.isPending}>
               Re-ask
             </Button>
-            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setText(null)}>
+            <Button size="icon" variant="ghost" onClick={() => setText(null)}>
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>

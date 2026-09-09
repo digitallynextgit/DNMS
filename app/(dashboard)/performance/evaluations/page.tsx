@@ -41,9 +41,8 @@ function GenerateEvaluationsButton() {
   return (
     <>
       <Button
-        variant="outline"
-        size="sm"
         className="gap-1.5"
+        variant="outline"
         onClick={() => setConfirm(true)}
         disabled={generate.isPending}
       >
@@ -103,7 +102,7 @@ function NewEvaluationDialog() {
 
   return (
     <>
-      <Button size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
+      <Button className="gap-1.5" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" /> New Evaluation
       </Button>
       <FormDialog
@@ -132,7 +131,7 @@ function NewEvaluationDialog() {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Reviewing Manager</Label>
+          <Label required>Reviewing Manager</Label>
           <Select value={managerId} onValueChange={setManagerId}>
             <SelectTrigger>
               <SelectValue placeholder="Auto: employee's manager" />
@@ -259,13 +258,12 @@ export default function EvaluationsPage() {
       align: "right",
       cell: (ev) => (
         <div className="flex items-center justify-end gap-1">
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline">
             <Link href={`/performance/evaluations/${ev.id}`}>Open</Link>
           </Button>
           {canReview && (
             <Button
               variant="ghost"
-              size="sm"
               className="text-destructive hover:bg-destructive/10"
               onClick={() => setDeleteTarget(ev)}
             >
@@ -289,7 +287,7 @@ export default function EvaluationsPage() {
         actions={
           canReview ? (
             <div className="flex items-center gap-2">
-              <Button asChild variant="outline" size="sm">
+              <Button asChild variant="outline">
                 <Link href="/performance/kpi-profiles">KPI Profiles</Link>
               </Button>
               <GenerateEvaluationsButton />

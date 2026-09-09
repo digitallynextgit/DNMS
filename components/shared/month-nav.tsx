@@ -59,7 +59,7 @@ export function MonthNav({
       <div className="flex items-center gap-1">
         <Button
           variant="outline"
-          size="icon-sm"
+          size="icon"
           onClick={onPrev}
           disabled={!canPrev}
           aria-label="Previous month"
@@ -68,7 +68,7 @@ export function MonthNav({
         </Button>
         <Button
           variant="outline"
-          size="icon-sm"
+          size="icon"
           onClick={onNext}
           disabled={!canNext}
           aria-label="Next month"

@@ -79,9 +79,11 @@ export function DateRangePicker({
           <Button
             type="button"
             variant="outline"
-            size="sm"
             className={cn(
-              "h-auto rounded-sm px-2.5 py-1 text-xs font-medium",
+              // The default rung is 36px tall, so it lines up with the
+              // SegmentedControl / Input it sits beside in a filter row - see
+              // components/shared/segmented-control.
+              "rounded-sm px-3 font-medium",
               value && "border-primary/50 bg-muted",
               // Square off the inner edge so the button and the Clear control
               // next to it read as one control, not two.
@@ -114,10 +116,9 @@ export function DateRangePicker({
         <Button
           type="button"
           variant="outline"
-          size="sm"
           aria-label="Clear custom date range"
           onClick={onClear}
-          className="border-primary/50 bg-muted h-auto rounded-sm rounded-l-none px-1.5 py-1"
+          className="border-primary/50 bg-muted rounded-sm rounded-l-none px-2"
         >
           <X className="h-3.5 w-3.5" />
         </Button>

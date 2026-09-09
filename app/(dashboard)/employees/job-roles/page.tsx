@@ -109,12 +109,12 @@ export default function JobRolesPage() {
             align: "right" as const,
             cell: (r: JobRole) => (
               <div className="flex items-center justify-end gap-1">
-                <Button variant="ghost" size="icon-sm" title="Edit" onClick={() => openEdit(r)}>
+                <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(r)}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   title={r.isActive ? "Deactivate" : "Activate"}
                   disabled={updateRole.isPending}
                   onClick={() => updateRole.mutate({ id: r.id, body: { isActive: !r.isActive } })}
@@ -124,7 +124,7 @@ export default function JobRolesPage() {
                 {r._count.employees === 0 && (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     className="text-destructive hover:bg-destructive/10"
                     title="Delete permanently"
                     disabled={deleteRole.isPending}
@@ -147,7 +147,7 @@ export default function JobRolesPage() {
         description="Specific roles within each department (e.g. Web Development → Full Stack Developer)."
         actions={
           canWrite ? (
-            <Button onClick={openCreate} className="gap-2" disabled={departments.length === 0}>
+            <Button className="gap-2" onClick={openCreate} disabled={departments.length === 0}>
               <Plus className="h-4 w-4" />
               Add Role
             </Button>
@@ -205,7 +205,9 @@ export default function JobRolesPage() {
         onSubmit={save}
       >
         <div className="space-y-2">
-          <Label htmlFor="jr-dept">Department</Label>
+          <Label required htmlFor="jr-dept">
+            Department
+          </Label>
           <Select value={departmentId} onValueChange={setDepartmentId}>
             <SelectTrigger id="jr-dept">
               <SelectValue placeholder="Select department" />
@@ -220,7 +222,9 @@ export default function JobRolesPage() {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="jr-name">Role name</Label>
+          <Label required htmlFor="jr-name">
+            Role name
+          </Label>
           <Input
             id="jr-name"
             value={name}

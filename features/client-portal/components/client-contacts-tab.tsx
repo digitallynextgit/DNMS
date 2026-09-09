@@ -185,7 +185,7 @@ export function ClientContactsTab({
           Each sees only the projects and sections granted to them.
         </p>
         {canWrite && (
-          <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAddOpen(true)}>
+          <Button className="gap-1.5" onClick={() => setAddOpen(true)}>
             <Plus className="h-3.5 w-3.5" />
             Add contact
           </Button>
@@ -246,19 +246,13 @@ export function ClientContactsTab({
 
                 {canWrite && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5 text-xs"
-                      onClick={() => setEditing(c)}
-                    >
+                    <Button className="gap-1.5" variant="outline" onClick={() => setEditing(c)}>
                       <Pencil className="h-3.5 w-3.5" />
                       Edit
                     </Button>
                     <Button
+                      className="gap-1.5"
                       variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5 text-xs"
                       onClick={() => {
                         setResetForce(true)
                         setResetting(c)
@@ -269,16 +263,14 @@ export function ClientContactsTab({
                     </Button>
                     <Button
                       variant="ghost"
-                      size="sm"
                       className={cn(
-                        "h-8 gap-1.5 text-xs",
                         c.isActive ? "text-muted-foreground hover:text-destructive" : "",
                       )}
                       title={c.isActive ? "Disable login" : "Enable login"}
                       disabled={toggleLogin.isPending}
                       onClick={() => toggleLogin.mutate(c)}
                     >
-                      <Power className="h-3.5 w-3.5" />
+                      <Power className="mr-1.5 h-3.5 w-3.5" />
                       {c.isActive ? "Disable" : "Enable"}
                     </Button>
                   </div>
@@ -295,8 +287,7 @@ export function ClientContactsTab({
                   {canWrite && grantable.length > 0 && (
                     <Button
                       variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground h-7 gap-1 text-xs"
+                      className="text-muted-foreground gap-1"
                       onClick={() => setGranting(c)}
                     >
                       <Plus className="h-3 w-3" />
@@ -340,7 +331,7 @@ export function ClientContactsTab({
                           </div>
                           <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon"
                             title="Sections"
                             aria-label={`Sections for ${g.project.name}`}
                             onClick={() => setEditingGrant({ contact: c, grant: g })}
@@ -349,7 +340,7 @@ export function ClientContactsTab({
                           </Button>
                           <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon"
                             className="text-muted-foreground hover:text-destructive"
                             title="Remove project"
                             aria-label={`Remove ${g.project.name}`}
@@ -438,11 +429,10 @@ export function ClientContactsTab({
             </span>
           </label>
           <DialogFooter className="gap-2">
-            <Button variant="outline" className="h-9 text-xs" onClick={() => setResetting(null)}>
+            <Button variant="outline" onClick={() => setResetting(null)}>
               Cancel
             </Button>
             <Button
-              className="h-9 text-xs"
               loading={resetPassword.isPending}
               disabled={resetPassword.isPending}
               onClick={() => resetting && resetPassword.mutate(resetting)}
@@ -619,8 +609,8 @@ function ContactForm({
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="contact-name" className="text-xs">
-              Full name<span className="text-destructive"> *</span>
+            <Label required htmlFor="contact-name" className="text-xs">
+              Full name
             </Label>
             <Input
               id="contact-name"
@@ -631,8 +621,8 @@ function ContactForm({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="contact-email" className="text-xs">
-              Email<span className="text-destructive"> *</span>
+            <Label required htmlFor="contact-email" className="text-xs">
+              Email
             </Label>
             <Input
               id="contact-email"
@@ -675,8 +665,8 @@ function ContactForm({
                 )}
                 {projectId && (
                   <div className="pt-1">
-                    <Label className="mb-2 block text-xs">
-                      Sections they can see<span className="text-destructive"> *</span>
+                    <Label required className="mb-2 block text-xs">
+                      Sections they can see
                     </Label>
                     <ModulePicker value={modules} onChange={setModules} />
                   </div>
@@ -703,11 +693,10 @@ function ContactForm({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            className="h-9 text-xs"
             disabled={!identityValid || !grantValid || save.isPending}
             loading={save.isPending}
             onClick={() => save.mutate()}
@@ -795,8 +784,8 @@ function GrantForm({
         <div className="space-y-4">
           {!isEdit && (
             <div className="space-y-1.5">
-              <Label className="text-xs">
-                Project<span className="text-destructive"> *</span>
+              <Label required className="text-xs">
+                Project
               </Label>
               <ProjectSelect
                 value={projectId}
@@ -807,19 +796,18 @@ function GrantForm({
             </div>
           )}
           <div>
-            <Label className="mb-2 block text-xs">
-              Sections<span className="text-destructive"> *</span>
+            <Label required className="mb-2 block text-xs">
+              Sections
             </Label>
             <ModulePicker value={modules} onChange={setModules} />
           </div>
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            className="h-9 text-xs"
             disabled={(!isEdit && !projectId) || modules.length === 0 || save.isPending}
             loading={save.isPending}
             onClick={() => save.mutate()}

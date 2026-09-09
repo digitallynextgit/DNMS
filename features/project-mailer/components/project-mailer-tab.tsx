@@ -45,7 +45,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Progress } from "@/components/ui/progress"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import {
   Dialog,
   DialogContent,
@@ -244,24 +245,15 @@ export function ProjectMailerTab({
 
   return (
     <Tabs defaultValue="campaigns" className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="campaigns" className="gap-1.5 text-xs">
-          <Send className="h-3.5 w-3.5" />
-          Campaigns
-        </TabsTrigger>
-        <TabsTrigger value="templates" className="gap-1.5 text-xs">
-          <FileText className="h-3.5 w-3.5" />
-          Templates
-        </TabsTrigger>
-        <TabsTrigger value="recipients" className="gap-1.5 text-xs">
-          <Users className="h-3.5 w-3.5" />
-          Recipients
-        </TabsTrigger>
-        <TabsTrigger value="settings" className="gap-1.5 text-xs">
-          <Server className="h-3.5 w-3.5" />
-          Accounts
-        </TabsTrigger>
-      </TabsList>
+      <TabsBar
+        spacing="none"
+        items={[
+          { value: "campaigns", label: "Campaigns", icon: Send },
+          { value: "templates", label: "Templates", icon: FileText },
+          { value: "recipients", label: "Recipients", icon: Users },
+          { value: "settings", label: "Accounts", icon: Server },
+        ]}
+      />
 
       <TabsContent value="campaigns">
         <CampaignsSection
@@ -364,7 +356,7 @@ function AccountsSection({
         <p className="text-muted-foreground text-xs">
           A project can hold several sending accounts - a campaign picks which one to send from.
         </p>
-        <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAdding(true)}>
+        <Button className="gap-1.5" onClick={() => setAdding(true)}>
           <Plus className="h-3.5 w-3.5" />
           Add account
         </Button>
@@ -427,9 +419,8 @@ function AccountsSection({
 
               <div className="flex items-center gap-2">
                 <Button
+                  className="gap-1.5"
                   variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5 text-xs"
                   onClick={() => {
                     setTestTo("")
                     setTesting(m)
@@ -438,19 +429,13 @@ function AccountsSection({
                   <MailCheck className="h-3.5 w-3.5" />
                   Test
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5 text-xs"
-                  onClick={() => setEditing(m)}
-                >
+                <Button className="gap-1.5" variant="outline" onClick={() => setEditing(m)}>
                   <Pencil className="h-3.5 w-3.5" />
                   Edit
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-destructive h-8 px-2"
+                  className="text-muted-foreground hover:text-destructive px-2"
                   onClick={() => setRemoving(m)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -495,11 +480,10 @@ function AccountsSection({
             />
           </FormRow>
           <DialogFooter className="gap-2">
-            <Button variant="outline" className="h-9 text-xs" onClick={() => setTesting(null)}>
+            <Button variant="outline" onClick={() => setTesting(null)}>
               Cancel
             </Button>
             <Button
-              className="h-9 text-xs"
               disabled={!/\S+@\S+\.\S+/.test(testTo) || test.isPending}
               loading={test.isPending}
               onClick={() => testing && test.mutate(testing)}
@@ -716,11 +700,10 @@ function AccountDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            className="h-9 text-xs"
             disabled={!valid || save.isPending}
             loading={save.isPending}
             onClick={() => save.mutate()}
@@ -773,7 +756,7 @@ function TemplatesSection({
           Reusable bodies. Any <span className="font-mono">{"{{variable}}"}</span> is substituted
           per recipient.
         </p>
-        <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAdding(true)}>
+        <Button className="gap-1.5" onClick={() => setAdding(true)}>
           <Plus className="h-3.5 w-3.5" />
           New template
         </Button>
@@ -801,7 +784,7 @@ function TemplatesSection({
               <div className="flex items-center gap-0.5">
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   aria-label={`Edit ${t.name}`}
                   onClick={() => setEditing(t)}
                 >
@@ -809,7 +792,7 @@ function TemplatesSection({
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   className="text-muted-foreground hover:text-destructive"
                   aria-label={`Delete ${t.name}`}
                   onClick={() => setRemoving(t)}
@@ -957,11 +940,10 @@ function TemplateDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            className="h-9 text-xs"
             disabled={!valid || save.isPending}
             loading={save.isPending}
             onClick={() => save.mutate()}
@@ -1094,16 +1076,11 @@ function RecipientsSection({
           {recipientCount} on the list.
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs"
-            onClick={() => setSheetOpen(true)}
-          >
+          <Button className="gap-1.5" variant="outline" onClick={() => setSheetOpen(true)}>
             <FileSpreadsheet className="h-3.5 w-3.5" />
             Upload sheet
           </Button>
-          <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setImportOpen(true)}>
+          <Button className="gap-1.5" onClick={() => setImportOpen(true)}>
             <Plus className="h-3.5 w-3.5" />
             Add recipients
           </Button>
@@ -1204,7 +1181,7 @@ function RecipientsSection({
                   <td className="px-3 py-2.5 text-right">
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon"
                       className="text-muted-foreground hover:text-destructive"
                       aria-label={`Remove ${r.email}`}
                       onClick={() => setRemoving(r)}
@@ -1368,14 +1345,7 @@ function ImportDialog({
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-muted-foreground text-[11px]">Existing:</span>
                   {unusedTags.slice(0, 10).map((t) => (
-                    <Button
-                      key={t}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-[11px]"
-                      onClick={() => addTag(t)}
-                    >
+                    <Button key={t} type="button" variant="outline" onClick={() => addTag(t)}>
                       + {t}
                     </Button>
                   ))}
@@ -1386,11 +1356,10 @@ function ImportDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            className="h-9 text-xs"
             disabled={raw.trim().length < 3 || add.isPending}
             loading={add.isPending}
             onClick={() => add.mutate()}
@@ -1535,12 +1504,7 @@ function CampaignsSection({
           Every recipient gets their own separate email - nobody sees anyone else&apos;s address.
           Sending drains in the background, so you can close this tab.
         </p>
-        <Button
-          size="sm"
-          className="h-8 gap-1.5 text-xs"
-          disabled={!ready}
-          onClick={() => setComposeOpen(true)}
-        >
+        <Button className="gap-1.5" disabled={!ready} onClick={() => setComposeOpen(true)}>
           <Send className="h-3.5 w-3.5" />
           New campaign
         </Button>
@@ -1607,8 +1571,7 @@ function CampaignsSection({
                 {live ? (
                   <Button
                     variant="outline"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive h-8 gap-1.5 text-xs"
+                    className="text-muted-foreground hover:text-destructive gap-1.5"
                     onClick={() => setCancelling(c)}
                   >
                     <Ban className="h-3.5 w-3.5" />
@@ -1619,7 +1582,7 @@ function CampaignsSection({
                   // previously no way to clear one without a database query.
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label={`Delete ${c.name}`}
                     title="Delete this campaign"
                     className="text-muted-foreground hover:text-destructive"
@@ -1892,11 +1855,11 @@ function ComposeDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            className="h-9 gap-1.5 text-xs"
+            className="gap-1.5"
             disabled={!valid || send.isPending}
             loading={send.isPending}
             onClick={() => send.mutate()}
@@ -1925,9 +1888,8 @@ function FormRow({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs">
+      <Label required={required} className="text-xs">
         {label}
-        {required && <span className="text-destructive"> *</span>}
       </Label>
       {children}
       {hint && <p className="text-muted-foreground text-[11px]">{hint}</p>}

@@ -168,10 +168,10 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={loadDefaults}>
+        <Button className="gap-1.5" variant="outline" onClick={loadDefaults}>
           <Sparkles className="h-4 w-4" /> Load sheet defaults
         </Button>
-        <Button size="sm" className="gap-1.5" onClick={handleSave} disabled={save.isPending}>
+        <Button className="gap-1.5" onClick={handleSave} disabled={save.isPending}>
           <Save className="h-4 w-4" /> {save.isPending ? "Saving…" : "Save profile"}
         </Button>
       </div>
@@ -218,7 +218,7 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
                         </div>
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           className="text-destructive hover:bg-destructive/10 shrink-0"
                           onClick={() => removeRow(idx)}
                           aria-label="Remove"
@@ -229,7 +229,6 @@ function ProfileEditor({ employeeId }: { employeeId: string }) {
                     ))}
                     <Button
                       variant="ghost"
-                      size="sm"
                       className="text-muted-foreground w-full justify-start gap-1.5"
                       onClick={() => addRow(side.key, sec.key)}
                     >
@@ -416,7 +415,7 @@ export default function KpiProfilesPage() {
           {/* Same back control as every other page - `onBack` renders the identical
               button as `backHref`, it just calls back instead of navigating. */}
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" className="group" onClick={() => setSelected(null)}>
+            <Button variant="outline" className="group" onClick={() => setSelected(null)}>
               <ArrowLeft className="transition-transform group-hover:-translate-x-0.5" />
               All employees
             </Button>

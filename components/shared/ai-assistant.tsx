@@ -90,12 +90,7 @@ export function AiAssistant() {
             </div>
             <div className="flex items-center gap-1">
               {messages.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setMessages([])}
-                >
+                <Button variant="ghost" onClick={() => setMessages([])}>
                   Clear
                 </Button>
               )}
@@ -177,7 +172,7 @@ export function AiAssistant() {
               />
               <Button
                 size="icon"
-                className="h-9 w-9 shrink-0"
+                className="shrink-0"
                 disabled={pending || !input.trim()}
                 onClick={() => void send(input)}
                 aria-label="Send"

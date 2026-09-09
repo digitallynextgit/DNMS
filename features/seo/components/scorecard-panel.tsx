@@ -89,7 +89,6 @@ export function ScorecardPanel({
       <div className="flex flex-wrap justify-end gap-2">
         <Button
           variant="outline"
-          size="sm"
           onClick={() => card && exportScorecard(card, siteLabel)}
           disabled={!card}
           title={card ? "Download as CSV" : "Generate the scorecard first"}
@@ -101,7 +100,6 @@ export function ScorecardPanel({
           <>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => propertyId && runVitals.mutate(propertyId)}
               disabled={runVitals.isPending || !propertyId}
             >
@@ -109,7 +107,6 @@ export function ScorecardPanel({
               {runVitals.isPending ? "Measuring…" : "Measure vitals + traffic"}
             </Button>
             <Button
-              size="sm"
               onClick={() => propertyId && rebuild.mutate(propertyId)}
               disabled={rebuild.isPending || !propertyId}
             >

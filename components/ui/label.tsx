@@ -12,12 +12,32 @@ const labelVariants = cva(
   "mb-2 block text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
 )
 
+/**
+ * The one red asterisk for compulsory fields. `<Label required>` renders it;
+ * reach for it directly only on a label that cannot be a `<Label>`.
+ */
+function RequiredMark() {
+  return (
+    <span aria-hidden="true" className="text-destructive">
+      {" "}
+      *
+    </span>
+  )
+}
+
 const Label = React.forwardRef<
   React.ElementRef<typeof LabelPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root> & VariantProps<typeof labelVariants>
->(({ className, ...props }, ref) => (
-  <LabelPrimitive.Root ref={ref} className={cn(labelVariants(), className)} {...props} />
+  React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root> &
+    VariantProps<typeof labelVariants> & {
+      /** The field is compulsory: show the standard red asterisk after the text. */
+      required?: boolean
+    }
+>(({ className, required, children, ...props }, ref) => (
+  <LabelPrimitive.Root ref={ref} className={cn(labelVariants(), className)} {...props}>
+    {children}
+    {required && <RequiredMark />}
+  </LabelPrimitive.Root>
 ))
 Label.displayName = LabelPrimitive.Root.displayName
 
-export { Label }
+export { Label, RequiredMark }

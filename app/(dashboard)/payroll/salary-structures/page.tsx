@@ -94,8 +94,12 @@ export default function SalaryStructuresPage() {
 
   async function handleDeleteConfirm() {
     if (!deleteId) return
-    await deleteMutation.mutateAsync(deleteId)
-    setDeleteId(null)
+    try {
+      await deleteMutation.mutateAsync(deleteId)
+      setDeleteId(null)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
+    }
   }
 
   const columns: DataTableColumn<SalaryStructure>[] = [
@@ -151,7 +155,7 @@ export default function SalaryStructuresPage() {
               <div className="flex items-center justify-end gap-1">
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   onClick={() => handleEdit(structure)}
                   title="Edit"
                 >
@@ -159,7 +163,7 @@ export default function SalaryStructuresPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   className="text-destructive hover:text-destructive"
                   onClick={() => setDeleteId(structure.id)}
                   title="Delete"
@@ -180,7 +184,7 @@ export default function SalaryStructuresPage() {
         description="Configure employee salary components and deductions"
         actions={
           can(PERMISSIONS.PAYROLL_WRITE) ? (
-            <Button onClick={handleAdd} className="gap-2">
+            <Button className="gap-2" onClick={handleAdd}>
               <Plus className="h-4 w-4" />
               Add Structure
             </Button>

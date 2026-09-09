@@ -289,14 +289,13 @@ export function TasksTab({ projectId, currentUserId, isAdmin = false }: Props) {
         {/* Second entry point for requirements: you notice the blocker while
             looking at the week, not while browsing a separate tab. */}
         <Button
-          size="sm"
           variant="outline"
           className="ml-auto gap-1.5"
           onClick={() => setRequirementOpen(true)}
         >
           <HelpCircle className="h-4 w-4" /> Raise requirement
         </Button>
-        <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+        <Button className="gap-1.5" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" /> New Task
         </Button>
       </div>

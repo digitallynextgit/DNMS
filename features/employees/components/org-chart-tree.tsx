@@ -173,7 +173,7 @@ export function OrgChartTree({ nodes }: OrgChartTreeProps) {
       <div className="bg-card/90 absolute top-3 right-3 z-10 flex items-center gap-0.5 rounded-sm border p-0.5 shadow-sm backdrop-blur">
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           onClick={() => setManualScale(Math.max(0.3, Math.round((scale - 0.1) * 10) / 10))}
           title="Zoom out"
         >
@@ -184,7 +184,7 @@ export function OrgChartTree({ nodes }: OrgChartTreeProps) {
         </span>
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           onClick={() => setManualScale(Math.min(1.5, Math.round((scale + 0.1) * 10) / 10))}
           title="Zoom in"
         >
@@ -192,7 +192,7 @@ export function OrgChartTree({ nodes }: OrgChartTreeProps) {
         </Button>
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           onClick={() => setManualScale(null)}
           title="Fit to screen"
         >

@@ -132,12 +132,12 @@ function MetaConnectionCard({
 
           {canManage && !editing && (
             <div className="flex items-center gap-1.5">
-              <Button size="sm" variant="outline" onClick={startEdit} loading={loadingCreds}>
+              <Button variant="outline" onClick={startEdit} loading={loadingCreds}>
                 <Pencil className="mr-1.5 h-3.5 w-3.5" /> {connected ? "Edit" : "Connect"}
               </Button>
               {connected && (
                 <Button
-                  size="icon-sm"
+                  size="icon"
                   variant="ghost"
                   title="Disconnect"
                   onClick={() => setDisconnectOpen(true)}
@@ -157,9 +157,8 @@ function MetaConnectionCard({
               <span>Last synced {new Date(data.lastSyncedAt).toLocaleString("en-IN")}</span>
             )}
             <Button
-              size="sm"
               variant="ghost"
-              className="ml-auto h-7"
+              className="ml-auto"
               onClick={() => sync.mutate(undefined)}
               loading={sync.isPending}
             >
@@ -270,9 +269,8 @@ function Field({
   const filled = value.trim().length > 0
   return (
     <div className={className}>
-      <Label className="flex items-center gap-1.5 text-xs">
+      <Label required={required && !filled} className="flex items-center gap-1.5 text-xs">
         {label}
-        {required && !filled && <span className="text-destructive">*</span>}
         {filled && <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />}
       </Label>
       <Input

@@ -109,13 +109,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
         backHref="/payroll/payroll-directory"
         backLabel="Back to Payroll"
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!r}
-            onClick={() => window.print()}
-            className="gap-2"
-          >
+          <Button className="gap-2" variant="outline" disabled={!r} onClick={() => window.print()}>
             <Download className="h-4 w-4" /> Download PDF
           </Button>
         }
@@ -132,11 +126,7 @@ export default function PayrollRecordPage({ params }: { params: Promise<{ id: st
           <Skeleton className="h-5 w-20 rounded-sm" />
         )}
         {r && canProcess && next && (
-          <Button
-            size="sm"
-            disabled={patchMut.isPending}
-            onClick={() => patchMut.mutate({ status: next })}
-          >
+          <Button disabled={patchMut.isPending} onClick={() => patchMut.mutate({ status: next })}>
             {patchMut.isPending && <Spinner className="mr-2" />}
             Mark {PAYROLL_STATUS_LABELS[next] ?? next}
           </Button>

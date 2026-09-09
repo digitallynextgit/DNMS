@@ -735,6 +735,8 @@ model Employee {
   managedTeams           ProjectTeam[]          @relation("TeamManager")
   projectTeamMemberships ProjectTeamMember[]    @relation("ProjectTeamMembership")
   uploadedResources      ProjectResource[]      @relation("ResourceUploader")
+  createdFolders         ProjectFolder[]        @relation("FolderCreator")
+  createdLinks           ProjectLink[]          @relation("LinkCreator")
   taskComments           TaskComment[]          @relation("CommentAuthor")
   projectActivities      ProjectActivity[]      @relation("ActivityActor")
   projectMessages        ProjectMessage[]       @relation("MessageAuthor")
@@ -1531,6 +1533,8 @@ model Project {
   teams           ProjectTeam[] // v2 - primary structure
   tasks           ProjectTask[]
   resources       ProjectResource[]
+  folders         ProjectFolder[]
+  links           ProjectLink[]
   deliverables    ProjectDeliverable[]
   timesheets      Timesheet[]
   activities      ProjectActivity[]
@@ -1984,20 +1988,83 @@ model ProjectResource {
   /// Set when the file is the output of a logged deliverable. SetNull on the
   /// entry's deletion: a wrong log line must not destroy real work product.
   deliverableId String?          @map("deliverable_id")
+  /// Folder in the project's Files tree; null = the project's top level.
+  /// SetNull on folder deletion is a safety net only - the service refuses to
+  /// delete a folder that still has anything in it.
+  folderId      String?          @map("folder_id")
   createdAt     DateTime         @default(now()) @map("created_at")
 
   project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   team        ProjectTeam?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
   uploadedBy  Employee            @relation("ResourceUploader", fields: [uploadedById], references: [id])
   deliverable ProjectDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
+  folder      ProjectFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([teamId])
   @@index([category])
   @@index([tag])
   @@index([deliverableId])
+  @@index([projectId, folderId])
   @@index([tenantId])
   @@map("project_resources")
+}
+
+/// A folder in a project's Files tab. The tree is the app's own (it is what
+/// holds Backblaze files and links); when Google Drive is configured each
+/// folder also owns a mirrored Drive sub-folder (`driveFolderId`), so Drive
+/// files live in the same tree instead of a separate flat list. Drive
+/// sub-folders that people create in Drive itself are ADOPTED on read (a row
+/// is created for them), which keeps one tree whichever side a folder came from.
+/// Nesting is by `parentId`; null = the project's top level.
+model ProjectFolder {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId      String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id            String   @id @default(uuid()) @map("id")
+  projectId     String   @map("project_id")
+  parentId      String?  @map("parent_id")
+  name          String   @map("name")
+  driveFolderId String?  @unique @map("drive_folder_id")
+  createdById   String   @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    ProjectFolder?    @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  ProjectFolder[]   @relation("FolderTree")
+  createdBy Employee          @relation("FolderCreator", fields: [createdById], references: [id])
+  resources ProjectResource[]
+  links     ProjectLink[]
+
+  @@index([projectId, parentId])
+  @@index([tenantId])
+  @@map("project_folders")
+}
+
+/// A URL saved into a project's Files tree next to the files: a Figma board,
+/// a Notion page, a client's live site. Same folder tree and the same DocTag
+/// vocabulary as files, so the tab's filters treat both alike.
+model ProjectLink {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String   @id @default(uuid()) @map("id")
+  projectId   String   @map("project_id")
+  folderId    String?  @map("folder_id")
+  title       String   @map("title")
+  url         String   @map("url")
+  tag         DocTag?  @map("tag")
+  description String?  @map("description")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder    ProjectFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  createdBy Employee       @relation("LinkCreator", fields: [createdById], references: [id])
+
+  @@index([projectId, folderId])
+  @@index([tenantId])
+  @@map("project_links")
 }
 
 /// Something a person PRODUCED for a project: a video, a set of product pages,

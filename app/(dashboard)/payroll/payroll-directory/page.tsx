@@ -205,7 +205,7 @@ export default function PayrollPage() {
         >
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             onClick={() => router.push(`/payroll/records/${record.id}`)}
             title="View"
           >
@@ -214,7 +214,7 @@ export default function PayrollPage() {
           {can(PERMISSIONS.PAYROLL_PROCESS) && record.status === "DRAFT" && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               className="text-destructive hover:text-destructive"
               onClick={() => setDeleteId(record.id)}
               title="Delete"
@@ -234,7 +234,7 @@ export default function PayrollPage() {
         description={`${MONTHS[Number(month) - 1] ?? "All months"} ${year}`}
         actions={
           can(PERMISSIONS.PAYROLL_PROCESS) ? (
-            <Button onClick={() => setGenerateOpen(true)} className="gap-2">
+            <Button className="gap-2" onClick={() => setGenerateOpen(true)}>
               <Play className="h-4 w-4" />
               Generate Payroll
             </Button>
@@ -347,7 +347,7 @@ export default function PayrollPage() {
         <BulkActionBar count={count} onClear={clear}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" disabled={bulkStatusPending} className="gap-1.5">
+              <Button className="gap-1.5" variant="outline" disabled={bulkStatusPending}>
                 Update Status
                 <ChevronDown className="h-3.5 w-3.5" />
               </Button>

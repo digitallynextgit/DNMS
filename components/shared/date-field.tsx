@@ -88,9 +88,9 @@ export function DateField({
           type="button"
           variant="outline"
           className={cn(
-            // Matches Input/Select exactly (h-9, radius var) so a date field lines
-            // up with the fields beside it.
-            "border-input h-9 w-full justify-start rounded-sm px-3 text-left font-normal",
+            // The default Button size is 36px tall, matching Input/Select exactly,
+            // so a date field lines up with the fields beside it.
+            "border-input w-full justify-start rounded-sm px-3 text-left font-normal",
             !value && "text-muted-foreground",
             className,
           )}

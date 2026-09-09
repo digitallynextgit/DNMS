@@ -80,12 +80,11 @@ export function ContentBriefPanel({
               aria-label="Target query for a new page, e.g. “best crm for startups”"
               className="h-9 min-w-[240px] flex-1"
             />
-            <Button size="sm" onClick={submit} disabled={create.isPending || !query.trim()}>
+            <Button onClick={submit} disabled={create.isPending || !query.trim()}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               New brief
             </Button>
             <Button
-              size="sm"
               variant="outline"
               onClick={() => exportBriefs(briefs ?? [], siteLabel)}
               disabled={(briefs?.length ?? 0) === 0}
@@ -205,7 +204,6 @@ function BriefCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
                 onClick={() => remove.mutate({ propertyId, briefId: brief.id })}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -261,7 +259,6 @@ function BriefCard({
                     className="h-8 min-w-[220px] flex-1 text-xs"
                   />
                   <Button
-                    size="sm"
                     variant="outline"
                     onClick={runQa}
                     disabled={update.isPending || !url.trim()}

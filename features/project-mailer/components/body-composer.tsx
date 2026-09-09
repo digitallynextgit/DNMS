@@ -86,8 +86,8 @@ export function BodyComposer({
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <Label className="text-xs">
-          Subject<span className="text-destructive"> *</span>
+        <Label required className="text-xs">
+          Subject
         </Label>
         <Input
           value={subject}
@@ -103,8 +103,8 @@ export function BodyComposer({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Label className="text-xs">
-          Body<span className="text-destructive"> *</span>
+        <Label required className="text-xs">
+          Body
         </Label>
         <div className="bg-muted inline-flex rounded-sm p-0.5">
           {(
@@ -117,10 +117,9 @@ export function BodyComposer({
               key={m.value}
               type="button"
               variant="ghost"
-              size="sm"
               onClick={() => onModeChange(m.value)}
               className={cn(
-                "h-7 gap-1.5 rounded-sm px-2.5 text-xs",
+                "gap-1.5 rounded-sm px-2.5",
                 mode === m.value && "bg-background text-foreground shadow-sm",
               )}
             >
@@ -153,10 +152,9 @@ export function BodyComposer({
             />
             {onUploadImage && (
               <Button
+                className="gap-1.5"
                 type="button"
                 variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 text-xs"
                 disabled={uploading}
                 onClick={() => fileRef.current?.click()}
               >

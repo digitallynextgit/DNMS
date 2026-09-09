@@ -55,26 +55,29 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    try {
+      const payload: Record<string, unknown> = {
+        name,
+        deviceSerial,
+        ipAddress,
+        port: Number(port),
+        username,
+        location: location || null,
+      }
+      // Only send the password when the user actually typed one, so editing a
+      // device without retyping it keeps the stored credential instead of wiping it.
+      if (password) payload.password = password
 
-    const payload: Record<string, unknown> = {
-      name,
-      deviceSerial,
-      ipAddress,
-      port: Number(port),
-      username,
-      location: location || null,
+      if (isEdit && editDevice) {
+        await updateDevice.mutateAsync({ id: editDevice.id, body: payload })
+      } else {
+        await createDevice.mutateAsync(payload)
+      }
+
+      onOpenChange(false)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
     }
-    // Only send the password when the user actually typed one, so editing a
-    // device without retyping it keeps the stored credential instead of wiping it.
-    if (password) payload.password = password
-
-    if (isEdit && editDevice) {
-      await updateDevice.mutateAsync({ id: editDevice.id, body: payload })
-    } else {
-      await createDevice.mutateAsync(payload)
-    }
-
-    onOpenChange(false)
   }
 
   return (
@@ -91,7 +94,9 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
     >
       {/* Name */}
       <div className="space-y-2">
-        <Label htmlFor="device-name">Device Name</Label>
+        <Label required htmlFor="device-name">
+          Device Name
+        </Label>
         <Input
           id="device-name"
           placeholder="e.g. Main Entrance"
@@ -103,7 +108,9 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
 
       {/* Device Serial */}
       <div className="space-y-2">
-        <Label htmlFor="device-serial">Device Serial</Label>
+        <Label required htmlFor="device-serial">
+          Device Serial
+        </Label>
         <Input
           id="device-serial"
           placeholder="e.g. DS-K1T671TM-A12345"
@@ -116,7 +123,9 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
       {/* IP + Port */}
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2 space-y-1.5">
-          <Label htmlFor="ip-address">IP Address</Label>
+          <Label required htmlFor="ip-address">
+            IP Address
+          </Label>
           <Input
             id="ip-address"
             placeholder="192.168.1.100"
@@ -126,7 +135,9 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="port">Port</Label>
+          <Label required htmlFor="port">
+            Port
+          </Label>
           <Input
             id="port"
             type="number"
@@ -141,7 +152,9 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
 
       {/* Username */}
       <div className="space-y-2">
-        <Label htmlFor="username">Username</Label>
+        <Label required htmlFor="username">
+          Username
+        </Label>
         <Input
           id="username"
           placeholder="admin"
@@ -153,7 +166,9 @@ export function DeviceFormDialog({ open, onOpenChange, editDevice }: DeviceFormD
 
       {/* Password */}
       <div className="space-y-2">
-        <Label htmlFor="device-password">Password</Label>
+        <Label required htmlFor="device-password">
+          Password
+        </Label>
         <div className="relative">
           <Input
             id="device-password"

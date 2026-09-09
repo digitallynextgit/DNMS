@@ -631,17 +631,21 @@ export function useUploadResource(projectId: string) {
         teamId,
         category,
         description,
+        folderId,
       }: {
         file: File
         teamId?: string | null
         category: string
         description?: string
+        /** Files-tab folder to land in; omit/null for the project's top level. */
+        folderId?: string | null
       }) => {
         const fd = new FormData()
         fd.append("file", file)
         if (teamId) fd.append("teamId", teamId)
         fd.append("category", category)
         if (description) fd.append("description", description)
+        if (folderId) fd.append("folderId", folderId)
         const res = await fetch(`/api/projects/${projectId}/resources`, {
           method: "POST",
           body: fd,
@@ -664,7 +668,10 @@ export function useUploadResource(projectId: string) {
         }
         return res.json()
       },
-      invalidate: [["project-resources", projectId]],
+      invalidate: [
+        ["project-resources", projectId],
+        ["project-files", projectId],
+      ],
       // No per-file toast: uploads are batched and the caller shows one summary.
     }),
   )
@@ -676,7 +683,10 @@ export function useDeleteResource(projectId: string) {
     mutationWithToast(qc, {
       mutationFn: (fileId: string) =>
         apiFetch(`/api/projects/${projectId}/resources/${fileId}`, { method: "DELETE" }),
-      invalidate: [["project-resources", projectId]],
+      invalidate: [
+        ["project-resources", projectId],
+        ["project-files", projectId],
+      ],
       success: "File deleted",
     }),
   )
@@ -711,7 +721,10 @@ export function useUpdateResourceTag(projectId: string) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tag }),
         }),
-      invalidate: [["project-resources", projectId]],
+      invalidate: [
+        ["project-resources", projectId],
+        ["project-files", projectId],
+      ],
       success: "Tag updated",
     }),
   )

@@ -35,9 +35,15 @@ export interface ProjectTabItem {
   badgeClassName?: string
 }
 
-/** Matches TabsTrigger's box exactly, so the hidden row measures true widths. */
+/**
+ * Matches TabsTrigger's box exactly, so the hidden row measures true widths.
+ *
+ * `[&_svg]:size-4` is load-bearing, not cosmetic: TabsTrigger sizes its icons
+ * that way, and a bare lucide icon defaults to 24px. Without it every tab
+ * measures ~8px too wide here and the bar spills onto its second strip early.
+ */
 const MEASURE_ITEM =
-  "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold whitespace-nowrap"
+  "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold whitespace-nowrap [&_svg]:size-4 [&_svg]:shrink-0"
 
 /** Mirrors TabsList's own padding (p-1) and the gap-1 between triggers. */
 const TRACK_PADDING = 8
@@ -100,8 +106,8 @@ export function ProjectTabsBar({ items }: { items: ProjectTabItem[] }) {
   const renderTrigger = (item: ProjectTabItem) => {
     const Icon = item.icon
     return (
-      <TabsTrigger key={item.value} value={item.value} className="gap-1.5">
-        <Icon className="h-3.5 w-3.5" />
+      <TabsTrigger key={item.value} value={item.value}>
+        <Icon />
         {item.label}
         {!!item.badge && item.badge > 0 && (
           <Badge count={item.badge} className={item.badgeClassName} />
@@ -125,7 +131,7 @@ export function ProjectTabsBar({ items }: { items: ProjectTabItem[] }) {
           const Icon = item.icon
           return (
             <span key={item.value} className={MEASURE_ITEM}>
-              <Icon className="h-3.5 w-3.5" />
+              <Icon />
               {item.label}
               {!!item.badge && item.badge > 0 && (
                 <Badge count={item.badge} className={item.badgeClassName} />
@@ -135,19 +141,16 @@ export function ProjectTabsBar({ items }: { items: ProjectTabItem[] }) {
         })}
       </div>
 
-      {/* sm:justify-start looks redundant beside justify-start, and is not: the
-          base TabsList sets `sm:justify-center`, and tailwind-merge keeps a
-          breakpoint variant and its unprefixed form as SEPARATE classes. Without
-          the variant here these strips were left-aligned on a phone and centred
-          on every larger screen, which showed as a half-empty second row
-          floating in the middle. */}
-      <TabsList className="h-auto min-h-10 w-full justify-start gap-1 sm:justify-start">
+      {/* w-full, so these strips DO need an explicit alignment: an inline-flex
+          track hugs its content, but a full-width one would otherwise centre
+          its tabs and leave a half-empty second row floating in the middle. */}
+      <TabsList className="h-auto min-h-9 w-full justify-start gap-1">
         {primary.map(renderTrigger)}
       </TabsList>
 
       {/* Second strip appears ONLY when something actually overflows. */}
       {overflow.length > 0 && (
-        <TabsList className="h-auto min-h-10 w-full justify-start gap-1 sm:justify-start">
+        <TabsList className="h-auto min-h-9 w-full justify-start gap-1">
           {overflow.map(renderTrigger)}
         </TabsList>
       )}

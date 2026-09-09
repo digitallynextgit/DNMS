@@ -150,7 +150,7 @@ export function ClientsDirectory() {
       align: "right",
       cell: (c) => (
         <div className="flex items-center justify-end gap-0.5">
-          <Button variant="ghost" size="icon-sm" asChild title="Open">
+          <Button variant="ghost" size="icon" asChild title="Open">
             <Link href={clientHref(c)} aria-label={`Open ${c.name}`}>
               <Eye className="h-4 w-4" />
             </Link>
@@ -158,7 +158,7 @@ export function ClientsDirectory() {
           {canWrite && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               title="Edit"
               aria-label={`Edit ${c.name}`}
               onClick={() => setEditing(c)}
@@ -178,7 +178,7 @@ export function ClientsDirectory() {
         description="The companies your projects are delivered for, their projects and portal contacts."
         actions={
           canWrite ? (
-            <Button onClick={() => setCreateOpen(true)} className="gap-2">
+            <Button className="gap-2" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" /> New Client
             </Button>
           ) : undefined

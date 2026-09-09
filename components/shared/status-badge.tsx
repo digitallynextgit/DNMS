@@ -13,8 +13,8 @@ interface StatusBadgeProps {
   labelMap?: Record<string, string>
   /** Override the displayed text (wins over labelMap/status). */
   label?: string
-  /** "sm"/"xs" = the classic pill. "button" = a squared chip the same height and
-   *  radius as a `size="sm"` Button, for sitting in a row of buttons. */
+  /** "sm"/"xs" = the classic pill. "button" = a squared chip the same height
+   *  (36px) and radius as a Button, for sitting in a row of buttons. */
   size?: "sm" | "xs" | "button"
   /** Classes used when `status` is not in `colorMap`. */
   fallbackColor?: string

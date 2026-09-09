@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { LayoutGrid, List, Kanban, Table2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { TAB_TRACK, TAB_TRIGGER, TAB_TRIGGER_ACTIVE, TAB_TRIGGER_IDLE } from "@/components/ui/tabs"
 
 export type ViewMode = "card" | "table" | "kanban" | "sheet"
 
@@ -29,9 +30,11 @@ export function ViewToggle({
 }: Props) {
   return (
     <div
-      // h-9 + p-1 leaves exactly h-7 inside, so this lines up with a default
-      // (h-9) Button sitting next to it.
-      className={cn("bg-card inline-flex h-9 items-center rounded-sm border p-1", className)}
+      // Same track and same option styling as a real tab strip - see the class
+      // constants in components/ui/tabs.tsx. No TAB_TRACK_SCROLL: two to four
+      // icons never overflow, and a scroll container here would swallow the
+      // rounded corners.
+      className={cn(TAB_TRACK, className)}
       role="tablist"
       aria-label="View mode"
     >
@@ -43,13 +46,13 @@ export function ViewToggle({
         aria-label="Card view"
         onClick={() => onChange("card")}
         className={cn(
-          "flex h-8 w-9 items-center justify-center rounded-sm transition-colors",
-          value === "card"
-            ? "bg-muted text-foreground"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+          TAB_TRIGGER,
+          // Icon-only, so a square-ish box rather than the text px-3.
+          "w-9 px-0",
+          value === "card" ? TAB_TRIGGER_ACTIVE : TAB_TRIGGER_IDLE,
         )}
       >
-        <LayoutGrid className="h-3.5 w-3.5" />
+        <LayoutGrid />
       </button>
       {showTable && (
         <button
@@ -60,13 +63,12 @@ export function ViewToggle({
           aria-label="Table view"
           onClick={() => onChange("table")}
           className={cn(
-            "flex h-8 w-9 items-center justify-center rounded-sm transition-colors",
-            value === "table"
-              ? "bg-muted text-foreground"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+            TAB_TRIGGER,
+            "w-9 px-0",
+            value === "table" ? TAB_TRIGGER_ACTIVE : TAB_TRIGGER_IDLE,
           )}
         >
-          <List className="h-3.5 w-3.5" />
+          <List />
         </button>
       )}
       {showKanban && (
@@ -78,13 +80,12 @@ export function ViewToggle({
           aria-label="Board view"
           onClick={() => onChange("kanban")}
           className={cn(
-            "flex h-8 w-9 items-center justify-center rounded-sm transition-colors",
-            value === "kanban"
-              ? "bg-muted text-foreground"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+            TAB_TRIGGER,
+            "w-9 px-0",
+            value === "kanban" ? TAB_TRIGGER_ACTIVE : TAB_TRIGGER_IDLE,
           )}
         >
-          <Kanban className="h-3.5 w-3.5" />
+          <Kanban />
         </button>
       )}
       {showSheet && (
@@ -96,13 +97,12 @@ export function ViewToggle({
           aria-label="Sheet view"
           onClick={() => onChange("sheet")}
           className={cn(
-            "flex h-8 w-9 items-center justify-center rounded-sm transition-colors",
-            value === "sheet"
-              ? "bg-muted text-foreground"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+            TAB_TRIGGER,
+            "w-9 px-0",
+            value === "sheet" ? TAB_TRIGGER_ACTIVE : TAB_TRIGGER_IDLE,
           )}
         >
-          <Table2 className="h-3.5 w-3.5" />
+          <Table2 />
         </button>
       )}
     </div>

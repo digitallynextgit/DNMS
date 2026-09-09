@@ -349,7 +349,7 @@ export default function ProjectDetailPage() {
               size="button"
             />
             {canManage && (
-              <Button variant="outline" size="sm" className="h-8" onClick={() => setEditOpen(true)}>
+              <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-1 h-3.5 w-3.5" />
                 Edit
               </Button>

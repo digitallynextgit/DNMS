@@ -155,7 +155,9 @@ export function PollComposer({
 
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Question</Label>
+            <Label required className="text-xs">
+              Question
+            </Label>
             <Input
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
@@ -167,7 +169,9 @@ export function PollComposer({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Options</Label>
+            <Label required className="text-xs">
+              Options
+            </Label>
             {options.map((opt, i) => (
               <div key={opt.id} className="flex items-center gap-1.5">
                 <Input
@@ -192,7 +196,7 @@ export function PollComposer({
                 {options.length > 2 && (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label={`Remove option ${i + 1}`}
                     className="text-muted-foreground hover:text-destructive shrink-0"
                     onClick={() => setOptions((list) => list.filter((o) => o.id !== opt.id))}
@@ -204,9 +208,8 @@ export function PollComposer({
             ))}
             {options.length < 12 && (
               <Button
+                className="gap-1.5"
                 variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 text-xs"
                 onClick={() => setOptions((list) => [...list, newOption()])}
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -225,10 +228,10 @@ export function PollComposer({
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button size="sm" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
+          <Button disabled={!valid || create.isPending} onClick={() => create.mutate()}>
             Send poll
           </Button>
         </div>
@@ -418,7 +421,9 @@ export function EventComposer({
 
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Title</Label>
+            <Label required className="text-xs">
+              Title
+            </Label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -430,7 +435,9 @@ export function EventComposer({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Starts</Label>
+              <Label required className="text-xs">
+                Starts
+              </Label>
               {/* modal: the popover has to layer above the dialog it sits in. */}
               <DateField value={startDate} onChange={setStartDate} modal />
               <TimeField value={startTime} onChange={setStartTime} modal />
@@ -478,10 +485,10 @@ export function EventComposer({
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button size="sm" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
+          <Button disabled={!valid || create.isPending} onClick={() => create.mutate()}>
             Send event
           </Button>
         </div>

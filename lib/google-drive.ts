@@ -77,6 +77,10 @@ export interface DriveFile {
   webViewLink: string | null
   iconLink: string | null
   modifiedTime: string | null
+  /** Display name of whoever last touched it in Drive; the Files tab's "Added by". */
+  modifiedBy: string | null
+  /** The containing folder (Drive files have exactly one parent inside a Shared Drive). */
+  parentId: string | null
   isFolder: boolean
 }
 
@@ -89,11 +93,14 @@ function toFile(f: drive_v3.Schema$File): DriveFile {
     webViewLink: f.webViewLink ?? null,
     iconLink: f.iconLink ?? null,
     modifiedTime: f.modifiedTime ?? null,
+    modifiedBy: f.lastModifyingUser?.displayName ?? null,
+    parentId: f.parents?.[0] ?? null,
     isFolder: f.mimeType === DRIVE_FOLDER_MIME,
   }
 }
 
-const FILE_FIELDS = "id,name,mimeType,size,webViewLink,iconLink,modifiedTime"
+const FILE_FIELDS =
+  "id,name,mimeType,size,webViewLink,iconLink,modifiedTime,parents,lastModifyingUser(displayName)"
 
 // In-process guard: two requests for the same project (e.g. two members opening the
 // Files tab at once) must not each create a folder. They share one in-flight promise.
@@ -214,6 +221,78 @@ export async function createGoogleFile(
 export async function trashDriveFile(fileId: string): Promise<void> {
   const { drive } = await getDrive()
   await drive.files.update({ fileId, ...SD, requestBody: { trashed: true } })
+}
+
+/** Create a sub-folder inside `parentId`. */
+export async function createDriveFolder(parentId: string, name: string): Promise<DriveFile> {
+  const { drive } = await getDrive()
+  const res = await drive.files.create({
+    ...SD,
+    requestBody: { name, mimeType: DRIVE_FOLDER_MIME, parents: [parentId] },
+    fields: FILE_FIELDS,
+  })
+  return toFile(res.data)
+}
+
+export async function renameDriveFile(fileId: string, name: string): Promise<DriveFile> {
+  const { drive } = await getDrive()
+  const res = await drive.files.update({
+    fileId,
+    ...SD,
+    requestBody: { name },
+    fields: FILE_FIELDS,
+  })
+  return toFile(res.data)
+}
+
+/** Re-parent a file/folder. Drive needs the old parent named explicitly. */
+export async function moveDriveFile(
+  fileId: string,
+  fromParentId: string,
+  toParentId: string,
+): Promise<DriveFile> {
+  const { drive } = await getDrive()
+  const res = await drive.files.update({
+    fileId,
+    ...SD,
+    addParents: toParentId,
+    removeParents: fromParentId,
+    fields: FILE_FIELDS,
+  })
+  return toFile(res.data)
+}
+
+/** One file's metadata, or null when it is gone/trashed/not visible. */
+export async function getDriveFile(fileId: string): Promise<DriveFile | null> {
+  const { drive } = await getDrive()
+  try {
+    const res = await drive.files.get({ fileId, ...SD, fields: `${FILE_FIELDS},trashed` })
+    if (res.data.trashed) return null
+    return toFile(res.data)
+  } catch (e) {
+    const status =
+      (e as { code?: number; status?: number }).code ?? (e as { status?: number }).status
+    if (status === 404) return null
+    throw e
+  }
+}
+
+/**
+ * Is `fileId` somewhere under `rootId` (any depth)? Walks up the parent chain.
+ * This is the ownership check behind every write to a Drive file: the service
+ * account can see every project's folder, so without it a member of one
+ * project could rename/move/trash another project's files by id (SEC-07).
+ */
+export async function isUnderFolder(fileId: string, rootId: string): Promise<boolean> {
+  if (fileId === rootId) return true
+  let current: string | null = fileId
+  for (let depth = 0; depth < 25 && current; depth++) {
+    const f = await getDriveFile(current)
+    if (!f) return false
+    if (f.parentId === rootId) return true
+    current = f.parentId
+  }
+  return false
 }
 
 // ── Per-file permission sync (item-level sharing inside the Shared Drive) ──────

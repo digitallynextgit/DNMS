@@ -27,9 +27,11 @@ export function useProjectDrive(projectId: string) {
 export function useUploadDriveFile(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (file: File) => {
+    /** `folderId` is a Files-tab folder (its Drive mirror is created on demand); null = project root. */
+    mutationFn: async ({ file, folderId }: { file: File; folderId?: string | null }) => {
       const fd = new FormData()
       fd.append("file", file)
+      if (folderId) fd.append("folderId", folderId)
       return apiFetch<{ data: DriveFile }>(`/api/projects/${projectId}/drive`, {
         method: "POST",
         body: fd,
@@ -40,6 +42,7 @@ export function useUploadDriveFile(projectId: string) {
     // WHICH file failed, and why, is worth the noise.
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: key(projectId) })
+      qc.invalidateQueries({ queryKey: ["project-files", projectId] })
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Upload failed"),
   })
@@ -48,7 +51,7 @@ export function useUploadDriveFile(projectId: string) {
 export function useCreateDriveFile(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: { kind: "doc" | "sheet"; name: string }) =>
+    mutationFn: (input: { kind: "doc" | "sheet"; name: string; folderId?: string | null }) =>
       apiFetch<{ data: DriveFile }>(`/api/projects/${projectId}/drive/new`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -57,6 +60,7 @@ export function useCreateDriveFile(projectId: string) {
     onSuccess: (f) => {
       toast.success(`Created "${f.name}"`)
       qc.invalidateQueries({ queryKey: key(projectId) })
+      qc.invalidateQueries({ queryKey: ["project-files", projectId] })
       if (f.webViewLink) window.open(f.webViewLink, "_blank")
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Create failed"),
@@ -75,6 +79,7 @@ export function useDeleteDriveFile(projectId: string) {
     onSuccess: () => {
       toast.success("Moved to trash")
       qc.invalidateQueries({ queryKey: key(projectId) })
+      qc.invalidateQueries({ queryKey: ["project-files", projectId] })
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Delete failed"),
   })

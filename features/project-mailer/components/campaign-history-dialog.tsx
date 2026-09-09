@@ -189,9 +189,8 @@ export function CampaignHistoryDialog({
             />
           </div>
           <Button
+            className="gap-1.5"
             variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs"
             disabled={rows.length === 0}
             onClick={exportCsv}
           >

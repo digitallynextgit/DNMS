@@ -23,7 +23,8 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import {
   Select,
   SelectContent,
@@ -34,10 +35,10 @@ import {
 import { StatCard } from "@/components/shared/stat-card"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { SegmentedControl } from "@/components/shared/segmented-control"
 import { SearchInput } from "@/components/shared/search-input"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
-import { cn } from "@/lib/utils"
 import { TONE } from "@/lib/constants"
 import { CHART_TOOLTIP_STYLE, CHART_TOOLTIP_LABEL_STYLE } from "@/lib/chart-theme"
 import { FacebookIcon, inr, compact, CAMPAIGN_STATUS_COLORS } from "./meta-shared"
@@ -51,18 +52,21 @@ import { useProjectIntegration, useSyncMeta } from "../hooks/use-integration"
 export function InsightsTab({ projectId, canManage }: { projectId: string; canManage: boolean }) {
   return (
     <Tabs defaultValue="meta" className="mt-4 space-y-4">
-      <TabsList>
-        <TabsTrigger value="meta" className="gap-1.5">
-          <FacebookIcon className="h-3.5 w-3.5 text-[#1877F2]" />
-          Meta Ads
-        </TabsTrigger>
-      </TabsList>
+      <TabsBar spacing="none" items={[{ value: "meta", label: "Meta Ads", icon: MetaAdsIcon }]} />
       <TabsContent value="meta">
         <MetaInsights projectId={projectId} canManage={canManage} />
       </TabsContent>
     </Tabs>
   )
 }
+
+/** Meta blue is part of the platform's identity, so the tab icon keeps it. */
+function MetaAdsIcon() {
+  return <FacebookIcon className="text-[#1877F2]" />
+}
+
+/** The "no day limit" option's value - see the SegmentedControl below. */
+const ALL_RANGE = "all"
 
 const RANGES: { label: string; days?: number }[] = [
   { label: "7d", days: 7 },
@@ -168,27 +172,23 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
     <div className="space-y-4">
       {/* Date range + sync */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="bg-card inline-flex items-center rounded-sm border p-0.5 text-xs">
-          {RANGES.map((r) => (
-            <button
-              key={r.label}
-              onClick={() => {
-                setRangeDays(r.days)
-                setCustomRange(undefined)
-                setPage(1)
-              }}
-              className={cn(
-                "rounded-sm px-2.5 py-1 font-medium transition-colors",
-                // A preset is only "on" when no custom span is overriding it.
-                !customRange && rangeDays === r.days
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          aria-label="Date range"
+          // "All" carries no day count, so it needs a sentinel rather than
+          // String(undefined) - Number() of that is NaN, not "no limit".
+          value={rangeDays === undefined ? ALL_RANGE : String(rangeDays)}
+          // A preset is only "on" when no custom span is overriding it.
+          muted={Boolean(customRange)}
+          onChange={(days) => {
+            setRangeDays(days === ALL_RANGE ? undefined : Number(days))
+            setCustomRange(undefined)
+            setPage(1)
+          }}
+          options={RANGES.map((r) => ({
+            value: r.days === undefined ? ALL_RANGE : String(r.days),
+            label: r.label,
+          }))}
+        />
 
         <DateRangePicker
           value={customRange}
@@ -208,7 +208,6 @@ function MetaInsights({ projectId, canManage }: { projectId: string; canManage: 
         )}
         {canManage && (
           <Button
-            size="sm"
             variant="outline"
             className="ml-auto"
             onClick={() => sync.mutate(undefined)}

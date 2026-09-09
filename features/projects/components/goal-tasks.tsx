@@ -275,14 +275,10 @@ function AddTaskForm({
         />
         Produces output
       </label>
-      <Button
-        size="sm"
-        onClick={() => create.mutate()}
-        disabled={!title.trim() || create.isPending}
-      >
+      <Button onClick={() => create.mutate()} disabled={!title.trim() || create.isPending}>
         Add
       </Button>
-      <Button size="sm" variant="ghost" onClick={onDone}>
+      <Button variant="ghost" onClick={onDone}>
         Cancel
       </Button>
     </div>
@@ -441,16 +437,14 @@ export function GoalTasks({
             <div className="flex flex-wrap gap-1">
               <Button
                 variant="ghost"
-                size="sm"
-                className="text-muted-foreground h-7 gap-1"
+                className="text-muted-foreground gap-1"
                 onClick={() => setAdding(true)}
               >
                 <Plus className="h-3.5 w-3.5" /> Add task
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
-                className="text-muted-foreground h-7 gap-1"
+                className="text-muted-foreground gap-1"
                 onClick={() => setLinking(true)}
               >
                 <Link2 className="h-3.5 w-3.5" /> Link tasks

@@ -296,7 +296,7 @@ function UptimeSection({
             Checked every 5 minutes. Alerts escalate every 30 minutes until acknowledged.
           </p>
         </div>
-        <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAdding(true)}>
+        <Button className="gap-1.5" onClick={() => setAdding(true)}>
           <Plus className="h-3.5 w-3.5" />
           Watch a URL
         </Button>
@@ -339,19 +339,13 @@ function UptimeSection({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5 text-xs"
-                    onClick={() => setEditing(m)}
-                  >
+                  <Button className="gap-1.5" variant="outline" onClick={() => setEditing(m)}>
                     <Pencil className="h-3.5 w-3.5" />
                     Edit
                   </Button>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive h-8 px-2"
+                    className="text-muted-foreground hover:text-destructive px-2"
                     onClick={() => setRemoving(m)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -376,8 +370,7 @@ function UptimeSection({
                   </div>
                   {!incident.acknowledgedAt && (
                     <Button
-                      size="sm"
-                      className="h-8 gap-1.5 text-xs"
+                      className="gap-1.5"
                       loading={ack.isPending}
                       disabled={ack.isPending}
                       onClick={() => ack.mutate(incident.id)}
@@ -476,7 +469,7 @@ function RenewalsSection({
             skip them.
           </p>
         </div>
-        <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAdding(true)}>
+        <Button className="gap-1.5" onClick={() => setAdding(true)}>
           <Plus className="h-3.5 w-3.5" />
           Add renewal
         </Button>
@@ -542,7 +535,7 @@ function RenewalsSection({
                       <div className="flex items-center justify-end gap-0.5">
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           aria-label={`Edit ${a.name}`}
                           onClick={() => setEditing(a)}
                         >
@@ -550,7 +543,7 @@ function RenewalsSection({
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           className="text-muted-foreground hover:text-destructive"
                           aria-label={`Remove ${a.name}`}
                           onClick={() => setRemoving(a)}
@@ -771,13 +764,12 @@ function MonitorDialog({
         </Form>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
             type="submit"
             form="monitor-form"
-            className="h-9 text-xs"
             disabled={save.isPending}
             loading={save.isPending}
           >
@@ -1064,13 +1056,12 @@ function AssetDialog({
         </Form>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
             type="submit"
             form="asset-form"
-            className="h-9 text-xs"
             disabled={save.isPending}
             loading={save.isPending}
           >

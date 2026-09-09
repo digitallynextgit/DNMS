@@ -100,7 +100,7 @@ export function WeeklyHoursCard() {
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
-            size="icon-sm"
+            size="icon"
             aria-label="Previous week"
             onClick={() => setWeekStart(toDayKey(addDays(fromDayKey(weekStart), -7)))}
           >
@@ -108,8 +108,6 @@ export function WeeklyHoursCard() {
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            className="h-8 text-xs"
             disabled={weekStart === thisMonday}
             onClick={() => setWeekStart(thisMonday)}
           >
@@ -117,7 +115,7 @@ export function WeeklyHoursCard() {
           </Button>
           <Button
             variant="outline"
-            size="icon-sm"
+            size="icon"
             aria-label="Next week"
             onClick={() => setWeekStart(toDayKey(addDays(fromDayKey(weekStart), 7)))}
           >

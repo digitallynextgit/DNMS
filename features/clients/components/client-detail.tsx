@@ -26,7 +26,8 @@ import { PERMISSIONS, CLIENT_STATUS_LABELS, CLIENT_STATUS_COLORS } from "@/lib/c
 import { Link, useTenantPath } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import { PageHeader } from "@/components/shared/page-header"
 import { StatStrip } from "@/components/shared/stat-strip"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -144,7 +145,7 @@ export function ClientDetail({ clientRef }: { clientRef: string }) {
               size="button"
             />
             {canWrite && (
-              <Button variant="outline" size="sm" className="h-8" onClick={() => setEditOpen(true)}>
+              <Button variant="outline" onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-1 h-3.5 w-3.5" />
                 Edit
               </Button>
@@ -152,8 +153,7 @@ export function ClientDetail({ clientRef }: { clientRef: string }) {
             {canDelete && (
               <Button
                 variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-destructive h-8"
+                className="text-muted-foreground hover:text-destructive"
                 onClick={() => setDeleteOpen(true)}
               >
                 <Trash2 className="mr-1 h-3.5 w-3.5" />
@@ -185,26 +185,27 @@ export function ClientDetail({ clientRef }: { clientRef: string }) {
       />
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="overview" className="gap-1.5">
-            <Layers className="h-3.5 w-3.5" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="projects" className="gap-1.5">
-            <FolderKanban className="h-3.5 w-3.5" />
-            Projects
-            <Count n={client.stats.projects} />
-          </TabsTrigger>
-          <TabsTrigger value="contacts" className="gap-1.5">
-            <Users className="h-3.5 w-3.5" />
-            Contacts
-            <Count n={client.stats.contacts} />
-          </TabsTrigger>
-          <TabsTrigger value="activity" className="gap-1.5">
-            <Activity className="h-3.5 w-3.5" />
-            Activity
-          </TabsTrigger>
-        </TabsList>
+        <TabsBar
+          spacing="none"
+          items={[
+            { value: "overview", label: "Overview", icon: Layers },
+            {
+              value: "projects",
+              label: "Projects",
+              icon: FolderKanban,
+              badge: client.stats.projects,
+              badgeClassName: COUNT_BADGE,
+            },
+            {
+              value: "contacts",
+              label: "Contacts",
+              icon: Users,
+              badge: client.stats.contacts,
+              badgeClassName: COUNT_BADGE,
+            },
+            { value: "activity", label: "Activity", icon: Activity },
+          ]}
+        />
 
         <TabsContent value="overview" className="mt-4 space-y-4">
           <Card>
@@ -334,12 +335,9 @@ export function ClientDetail({ clientRef }: { clientRef: string }) {
   )
 }
 
-/** A small count beside a tab label. Hidden at zero - "Projects 0" reads as a warning. */
-function Count({ n }: { n: number }) {
-  if (n === 0) return null
-  return (
-    <span className="bg-muted text-muted-foreground ml-1 rounded-sm px-1.5 py-0.5 text-[10px] tabular-nums">
-      {n}
-    </span>
-  )
-}
+/**
+ * The pill beside a tab label. TabsBar hides it at zero - "Projects 0" reads as
+ * a warning - and these counts are informational, so they stay muted rather
+ * than taking the loud default.
+ */
+const COUNT_BADGE = "bg-muted text-muted-foreground tabular-nums"

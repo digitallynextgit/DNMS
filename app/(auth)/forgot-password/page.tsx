@@ -126,7 +126,7 @@ export default function ForgotPasswordPage() {
           className="space-y-4"
         >
           <div className="space-y-2">
-            <Label htmlFor="email" className="mb-2 block text-sm font-medium">
+            <Label required htmlFor="email" className="mb-2 block text-sm font-medium">
               Email address
             </Label>
             <Input
@@ -145,7 +145,7 @@ export default function ForgotPasswordPage() {
           )}
           <Button
             type="submit"
-            className="h-11 w-full gap-2 text-sm"
+            className="w-full gap-2"
             disabled={requestOtp.isPending || !emailValid}
           >
             {requestOtp.isPending ? <Spinner /> : <Mail className="h-4 w-4" />}
@@ -164,7 +164,7 @@ export default function ForgotPasswordPage() {
           className="space-y-4"
         >
           <div className="space-y-2">
-            <Label htmlFor="otp" className="mb-2 block text-sm font-medium">
+            <Label required htmlFor="otp" className="mb-2 block text-sm font-medium">
               Verification code
             </Label>
             <Input
@@ -185,7 +185,7 @@ export default function ForgotPasswordPage() {
           )}
           <Button
             type="submit"
-            className="h-11 w-full gap-2 text-sm"
+            className="w-full gap-2"
             disabled={verifyOtp.isPending || otp.length !== 6}
           >
             {verifyOtp.isPending ? <Spinner /> : <KeyRound className="h-4 w-4" />}
@@ -219,7 +219,7 @@ export default function ForgotPasswordPage() {
           className="space-y-4"
         >
           <div className="space-y-2">
-            <Label htmlFor="password" className="mb-2 block text-sm font-medium">
+            <Label required htmlFor="password" className="mb-2 block text-sm font-medium">
               New password
             </Label>
             <div className="relative">
@@ -246,7 +246,7 @@ export default function ForgotPasswordPage() {
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirm" className="mb-2 block text-sm font-medium">
+            <Label required htmlFor="confirm" className="mb-2 block text-sm font-medium">
               Confirm password
             </Label>
             <Input
@@ -268,7 +268,7 @@ export default function ForgotPasswordPage() {
           )}
           <Button
             type="submit"
-            className="h-11 w-full gap-2 text-sm"
+            className="w-full gap-2"
             disabled={
               resetPassword.isPending || password.length < 8 || passwordsMismatch || !confirm
             }

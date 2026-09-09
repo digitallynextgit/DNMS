@@ -101,7 +101,7 @@ export function AnnouncementsBoard() {
         description="Company-wide notices and updates"
         actions={
           canManage ? (
-            <Button size="sm" className="gap-1.5" onClick={() => setComposing("new")}>
+            <Button className="gap-1.5" onClick={() => setComposing("new")}>
               <Plus className="h-4 w-4" />
               New announcement
             </Button>
@@ -201,7 +201,7 @@ export function AnnouncementsBoard() {
                 <div className="flex shrink-0 gap-1">
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label={`Edit ${a.title}`}
                     onClick={() => setComposing(a)}
                   >
@@ -209,7 +209,7 @@ export function AnnouncementsBoard() {
                   </Button>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     aria-label={`Delete ${a.title}`}
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => setRemoving(a)}
@@ -302,8 +302,8 @@ function ComposeDialog({
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-xs">
-              Title<span className="text-destructive"> *</span>
+            <Label required className="text-xs">
+              Title
             </Label>
             <Input
               value={title}
@@ -315,8 +315,8 @@ function ComposeDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">
-              Message<span className="text-destructive"> *</span>
+            <Label required className="text-xs">
+              Message
             </Label>
             <Textarea
               value={body}
@@ -330,7 +330,9 @@ function ComposeDialog({
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Category</Label>
+              <Label required className="text-xs">
+                Category
+              </Label>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger className="h-9 text-xs">
                   <SelectValue />
@@ -381,11 +383,10 @@ function ComposeDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            className="h-9 text-xs"
             disabled={title.trim().length < 3 || body.trim().length < 3 || save.isPending}
             onClick={() => save.mutate()}
           >

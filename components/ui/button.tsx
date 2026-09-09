@@ -2,11 +2,25 @@ import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Loader2 } from "lucide-react"
-import { Spinner } from "@/components/shared/spinner"
 import { cn } from "@/lib/utils"
 
+// ── ONE BUTTON, ONE HEIGHT ──────────────────────────────────────────────────
+// Every button in the app is 36px tall (h-9) with 14px text - the same height
+// as an Input, a SelectTrigger, the TabsBar track and the SegmentedControl -
+// so a row of controls always lines up, and two buttons on one page can never
+// disagree.
+//
+// There is deliberately NO `sm` / `lg`. The moment a second height exists it
+// ends up beside the first one: this app had seven heights (h-6 to h-11.5)
+// and a Profile header at 32px over a 36px submit. `size` only decides the
+// shape: `default` for text, `icon` for a lone glyph (a 36px square).
+//
+// Do NOT put h-*, py-*, size-*, min-h-* or text-* in `className`. If a button
+// looks too big for its spot, the spot wants a chip (StatusBadge) or a plain
+// link, not a smaller Button.
+// ─────────────────────────────────────────────────────────────────────────────
 const buttonVariants = cva(
-  "focus-visible:ring-ring inline-flex items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "focus-visible:ring-ring inline-flex h-9 items-center justify-center gap-2 rounded-sm px-4 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -18,22 +32,17 @@ const buttonVariants = cva(
           "border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground border shadow-sm",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/70",
         ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
-        link: "text-foreground h-auto p-0 underline-offset-4 hover:underline",
+        link: "text-foreground underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 rounded-sm px-4 py-2",
-        sm: "h-8 rounded-sm px-3 text-xs",
-        lg: "h-10 rounded-sm px-6",
-        // Two sanctioned icon sizes - never override these with a className.
-        // `icon`     - standalone icon button, pairs with a default (h-9) Button.
-        // `icon-sm`  - compact row/toolbar action, pairs with a `sm` (h-8) Button.
-        // rounded-[2px], not bare `rounded` (4px): every other size here uses
-        // 2px, so a standalone icon button was visibly rounder than the default
-        // Button sitting next to it - straight out of the core primitive.
-        icon: "h-9 w-9 rounded-sm",
-        "icon-sm": "h-8 w-8 rounded-sm [&_svg]:size-3.5",
+        default: "",
+        // Square. Same 36px, so it sits flush beside a text button.
+        icon: "w-9 px-0",
       },
     },
+    // A link is inline text, not a control: it takes the height of the line it
+    // sits in. Declared here (after the variants) so it wins over the base h-9.
+    compoundVariants: [{ variant: "link", class: "h-auto px-0" }],
     defaultVariants: {
       variant: "default",
       size: "default",

@@ -94,7 +94,9 @@ export function DocumentUploadDialog({
       contentClassName="sm:max-w-130"
     >
       <div className="flex flex-col gap-2">
-        <Label htmlFor="doc-file">File</Label>
+        <Label required htmlFor="doc-file">
+          File
+        </Label>
         <FileUpload
           accept={ACCEPTED_TYPES}
           maxSize={MAX_FILE_SIZE}
@@ -104,7 +106,9 @@ export function DocumentUploadDialog({
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="doc-title">Title</Label>
+        <Label required htmlFor="doc-title">
+          Title
+        </Label>
         <Input
           id="doc-title"
           placeholder="Document title"

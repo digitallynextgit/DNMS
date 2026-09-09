@@ -118,6 +118,13 @@ export const POST = withSession(
       const deliverableId =
         typeof deliverableIdRaw === "string" && deliverableIdRaw ? deliverableIdRaw : null
 
+      // Files-tab folder to land in; absent/"null" = the project's top level.
+      const folderIdRaw = formData.get("folderId")
+      const folderId =
+        typeof folderIdRaw === "string" && folderIdRaw && folderIdRaw !== "null"
+          ? folderIdRaw
+          : null
+
       // Normalise form values (FormData entries are FormDataEntryValue)
       const teamId =
         typeof teamIdRaw === "string" && teamIdRaw && teamIdRaw !== "null" ? teamIdRaw : null
@@ -166,6 +173,17 @@ export const POST = withSession(
         const team = await db.projectTeam.findUnique({ where: { id: teamId } })
         if (!team || team.projectId !== projectId) {
           return NextResponse.json({ error: "Team not found in this project" }, { status: 404 })
+        }
+      }
+
+      // 8a. The folder, if any, must be one of this project's.
+      if (folderId) {
+        const folder = await db.projectFolder.findFirst({
+          where: { id: folderId, projectId },
+          select: { id: true },
+        })
+        if (!folder) {
+          return NextResponse.json({ error: "Folder not found in this project" }, { status: 404 })
         }
       }
 
@@ -234,6 +252,7 @@ export const POST = withSession(
           description: description?.trim() || null,
           uploadedById: session.user.id,
           deliverableId,
+          folderId,
         },
         include: {
           uploadedBy: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },

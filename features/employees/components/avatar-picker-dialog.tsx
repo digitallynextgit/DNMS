@@ -144,7 +144,7 @@ export function AvatarPickerDialog({
 
         <DialogFooter className="border-t pt-3 sm:justify-between">
           <div className="flex items-center gap-3">
-            <Button type="button" variant="ghost" size="sm" onClick={surpriseMe}>
+            <Button type="button" variant="ghost" onClick={surpriseMe}>
               <Shuffle className="mr-1.5 h-3.5 w-3.5" />
               Surprise me
             </Button>

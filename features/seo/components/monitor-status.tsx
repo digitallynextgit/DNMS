@@ -71,9 +71,8 @@ export function MonitorStatus({
 
       {canManage && (
         <Button
-          size="sm"
           variant="ghost"
-          className="ml-auto h-6 px-2 text-xs"
+          className="ml-auto px-2"
           onClick={() => propertyId && run.mutate(propertyId)}
           disabled={run.isPending || !propertyId}
         >

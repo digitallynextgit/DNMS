@@ -110,7 +110,7 @@ export function ThemePicker() {
             <DialogTrigger asChild>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 className="text-muted-foreground hover:text-foreground"
                 aria-label="Choose theme"
               >
@@ -146,7 +146,7 @@ export function ThemePicker() {
                   <TooltipTrigger asChild>
                     <Button
                       variant={theme === m.key && !paletteId ? "secondary" : "ghost"}
-                      size="icon-sm"
+                      size="icon"
                       onClick={() => {
                         clearPalette()
                         setTheme(m.key)
@@ -161,9 +161,8 @@ export function ThemePicker() {
               ))}
             </div>
             <Button
+              className="gap-1.5"
               variant="outline"
-              size="sm"
-              className="h-8 gap-1.5"
               onClick={() => clearPalette()}
               disabled={!paletteId}
             >

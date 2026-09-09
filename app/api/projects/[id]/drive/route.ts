@@ -34,14 +34,19 @@ export const POST = withProjectAccess(
         return NextResponse.json({ error: "No file uploaded" }, { status: 400 })
       }
       if (file.size > MAX_BYTES) {
-        return NextResponse.json({ error: "File must be 100 MB or smaller" }, { status: 413 })
+        return NextResponse.json({ error: "File must be 250 MB or smaller" }, { status: 413 })
       }
+      // Files-tab folder to land in (its Drive mirror is created on demand);
+      // absent = the project's root folder.
+      const folderIdRaw = form.get("folderId")
+      const folderId = typeof folderIdRaw === "string" && folderIdRaw ? folderIdRaw : null
       const buffer = Buffer.from(await file.arrayBuffer())
       const uploaded = await uploadProjectFile(
         ctx.params.id,
         file.name,
         file.type || "application/octet-stream",
         buffer,
+        folderId,
       )
       return NextResponse.json({ data: uploaded })
     } catch (error) {

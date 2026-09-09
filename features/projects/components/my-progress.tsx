@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
 import { StatusBadge } from "@/components/shared/status-badge"
+import { SegmentedControl } from "@/components/shared/segmented-control"
 import { apiFetch } from "@/lib/api-fetch"
 import { cn, formatDate } from "@/lib/utils"
 import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
@@ -237,25 +238,17 @@ export function MyProgress() {
       {/* Filters in ONE row above the charts, so the whole page reads as being
           about the selected period. */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="bg-card inline-flex items-center rounded-sm border p-0.5 text-xs">
-          {PRESETS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => {
-                setPreset(p.key)
-                setCustom(undefined)
-              }}
-              className={cn(
-                "rounded-sm px-2.5 py-1 font-medium transition-colors",
-                !custom && preset === p.key
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          aria-label="Date range"
+          value={preset}
+          // A preset is only "on" when no custom span is overriding it.
+          muted={Boolean(custom)}
+          onChange={(key) => {
+            setPreset(key)
+            setCustom(undefined)
+          }}
+          options={PRESETS.map((p) => ({ value: p.key, label: p.label }))}
+        />
         <DateRangePicker value={custom} onChange={setCustom} onClear={() => setCustom(undefined)} />
         {view.undated > 0 && (
           <span className="text-muted-foreground text-xs">

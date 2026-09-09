@@ -58,24 +58,28 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const payload = {
-      name: form.name.trim(),
-      code: form.code.trim().toUpperCase(),
-      description: form.description.trim() || undefined,
-      isPaid: form.isPaid,
-      maxDaysPerYear: Number(form.maxDaysPerYear),
-      carryForward: form.carryForward,
-      maxCarryDays: form.carryForward ? Number(form.maxCarryDays) : 0,
-      requiresApproval: form.requiresApproval,
-    }
+    try {
+      const payload = {
+        name: form.name.trim(),
+        code: form.code.trim().toUpperCase(),
+        description: form.description.trim() || undefined,
+        isPaid: form.isPaid,
+        maxDaysPerYear: Number(form.maxDaysPerYear),
+        carryForward: form.carryForward,
+        maxCarryDays: form.carryForward ? Number(form.maxCarryDays) : 0,
+        requiresApproval: form.requiresApproval,
+      }
 
-    if (isEditing && leaveType) {
-      await updateLeaveType.mutateAsync({ id: leaveType.id, body: payload })
-    } else {
-      await createLeaveType.mutateAsync(payload)
-    }
+      if (isEditing && leaveType) {
+        await updateLeaveType.mutateAsync({ id: leaveType.id, body: payload })
+      } else {
+        await createLeaveType.mutateAsync(payload)
+      }
 
-    onOpenChange(false)
+      onOpenChange(false)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
+    }
   }
 
   const isPending = createLeaveType.isPending || updateLeaveType.isPending
@@ -99,7 +103,9 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
     >
       {/* Name */}
       <div className="space-y-2">
-        <Label htmlFor="lt-name">Name</Label>
+        <Label required htmlFor="lt-name">
+          Name
+        </Label>
         <Input
           id="lt-name"
           value={form.name}
@@ -111,7 +117,9 @@ export function LeaveTypeForm({ open, onOpenChange, leaveType }: LeaveTypeFormPr
 
       {/* Code */}
       <div className="space-y-2">
-        <Label htmlFor="lt-code">Code</Label>
+        <Label required htmlFor="lt-code">
+          Code
+        </Label>
         <Input
           id="lt-code"
           value={form.code}

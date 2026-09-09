@@ -292,13 +292,13 @@ export function PricingContent() {
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row lg:shrink-0">
-                <Button asChild size="lg">
+                <Button asChild>
                   <Link href="/signup">
                     Start free
                     <ArrowRight className="ml-1 h-4 w-4" />
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="outline">
+                <Button asChild variant="outline">
                   <a href={demoHref}>Book a demo</a>
                 </Button>
               </div>

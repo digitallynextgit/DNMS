@@ -88,8 +88,8 @@ export function TaskStatusReasonDialog({
 
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-sm">
-              Reason<span className="text-destructive"> *</span>
+            <Label required className="text-sm">
+              Reason
             </Label>
             <Textarea
               value={reason}
@@ -100,8 +100,8 @@ export function TaskStatusReasonDialog({
           </div>
           {mode === "ON_HOLD" && (
             <div className="space-y-1.5">
-              <Label className="text-sm">
-                Expected completion date<span className="text-destructive"> *</span>
+              <Label required className="text-sm">
+                Expected completion date
               </Label>
               {/* A date the work is expected to be finished by can only be in
                   the future, so past days are not selectable. */}

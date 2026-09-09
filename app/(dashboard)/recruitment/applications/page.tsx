@@ -167,13 +167,13 @@ export default function CareerApplicationsPage() {
       align: "right",
       cell: (a) => (
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="sm" onClick={() => setSelected(a)}>
+          <Button variant="ghost" onClick={() => setSelected(a)}>
             View
           </Button>
           {canDelete && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               className="text-muted-foreground hover:text-destructive"
               title="Delete application"
               onClick={() => setToDelete(a)}
@@ -408,7 +408,6 @@ function ApplicationSheet({
               aria-label="Notes for the hiring team"
             />
             <Button
-              size="sm"
               variant="outline"
               loading={update.isPending}
               onClick={() => update.mutate({ id: a.id, body: { hrNotes: notes } })}

@@ -69,8 +69,8 @@ export default function EmailTemplatesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["email-templates"] })
     },
-    onError: () => {
-      toast.error("Failed to update template status")
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update template status")
     },
   })
 
@@ -150,7 +150,7 @@ export default function EmailTemplatesPage() {
             headClassName: "w-[60px]",
             cell: (template: EmailTemplate) => (
               <Button
-                size="icon-sm"
+                size="icon"
                 variant="ghost"
                 onClick={() => handleEdit(template)}
                 aria-label={`Edit ${template.name}`}
@@ -212,7 +212,7 @@ export default function EmailTemplatesPage() {
                   />
                   {canWrite && (
                     <Button
-                      size="icon-sm"
+                      size="icon"
                       variant="ghost"
                       onClick={() => handleEdit(template)}
                       aria-label={`Edit ${template.name}`}

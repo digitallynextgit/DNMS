@@ -103,7 +103,7 @@ export function ClientProjectsTab({ client }: { client: ClientRecord }) {
       header: "Actions",
       align: "right",
       cell: (p) => (
-        <Button variant="ghost" size="icon-sm" asChild title="Open">
+        <Button variant="ghost" size="icon" asChild title="Open">
           <Link href={projectHref(p)} aria-label={`Open ${p.name}`}>
             <Eye className="h-4 w-4" />
           </Link>
@@ -121,7 +121,7 @@ export function ClientProjectsTab({ client }: { client: ClientRecord }) {
             : `${client.projects.length} project${client.projects.length === 1 ? "" : "s"}, ${client.stats.activeProjects} active.`}
         </p>
         {canCreate && (
-          <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setCreateOpen(true)}>
+          <Button className="gap-1.5" onClick={() => setCreateOpen(true)}>
             <Plus className="h-3.5 w-3.5" />
             New project
           </Button>

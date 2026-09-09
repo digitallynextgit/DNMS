@@ -23,6 +23,7 @@ import {
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { SegmentedControl } from "@/components/shared/segmented-control"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { SearchInput } from "@/components/shared/search-input"
 import { Pagination } from "@/components/shared/pagination"
@@ -235,7 +236,7 @@ export function StorageManager({
         }
         actions={
           (data?.orphanCount ?? 0) > 0 ? (
-            <Button variant="outline" size="sm" onClick={() => setCleanupOpen(true)}>
+            <Button variant="outline" onClick={() => setCleanupOpen(true)}>
               <Trash2 className="mr-1.5 h-3.5 w-3.5" />
               Clean up {data?.orphanCount} orphan{data?.orphanCount === 1 ? "" : "s"}
             </Button>
@@ -323,22 +324,16 @@ export function StorageManager({
           placeholder="Search files or owner..."
           className="max-w-xs"
         />
-        <div className="bg-card inline-flex items-center rounded-sm border p-0.5 text-xs">
-          {(["all", "live", "orphan"] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatus(s)}
-              className={cn(
-                "rounded-sm px-2.5 py-1 font-medium transition-colors",
-                status === s
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {s === "all" ? "All" : s === "live" ? "In use" : "Orphaned"}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          aria-label="File status"
+          value={status}
+          onChange={setStatus}
+          options={[
+            { value: "all", label: "All" },
+            { value: "live", label: "In use" },
+            { value: "orphan", label: "Orphaned" },
+          ]}
+        />
       </div>
 
       {/* Files */}

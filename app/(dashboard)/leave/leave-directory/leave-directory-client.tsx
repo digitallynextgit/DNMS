@@ -13,7 +13,8 @@ import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Pagination } from "@/components/shared/pagination"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import {
   Select,
   SelectContent,
@@ -191,11 +192,14 @@ export function LeaveDirectoryClient() {
           title="Leave Directory"
           description="Review leave requests and see who's on leave across the company."
           actions={
-            <TabsList>
-              <TabsTrigger value="requests">Requests</TabsTrigger>
-              <TabsTrigger value="on-leave">On Leave</TabsTrigger>
-              <TabsTrigger value="balances">Balances</TabsTrigger>
-            </TabsList>
+            <TabsBar
+              spacing="none"
+              items={[
+                { value: "requests", label: "Requests" },
+                { value: "on-leave", label: "On Leave" },
+                { value: "balances", label: "Balances" },
+              ]}
+            />
           }
         />
 
@@ -296,7 +300,7 @@ export function LeaveDirectoryClient() {
           )}
 
           {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+            <Button className="gap-1" variant="ghost" onClick={clearFilters}>
               <X className="h-3.5 w-3.5" />
               Clear
             </Button>

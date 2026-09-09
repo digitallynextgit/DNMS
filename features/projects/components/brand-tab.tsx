@@ -45,7 +45,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { DateField } from "@/components/shared/date-field"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -84,14 +85,13 @@ interface Props {
 export function BrandTab({ projectId, canManage }: Props) {
   return (
     <Tabs defaultValue="strategy" className="mt-4 space-y-5">
-      <TabsList>
-        <TabsTrigger value="strategy" className="gap-1.5">
-          <Sparkles className="h-3.5 w-3.5" /> Strategy
-        </TabsTrigger>
-        <TabsTrigger value="calendar" className="gap-1.5">
-          <Table2 className="h-3.5 w-3.5" /> Content Calendar
-        </TabsTrigger>
-      </TabsList>
+      <TabsBar
+        spacing="none"
+        items={[
+          { value: "strategy", label: "Strategy", icon: Sparkles },
+          { value: "calendar", label: "Content Calendar", icon: Table2 },
+        ]}
+      />
       <TabsContent value="strategy">
         <StrategySection projectId={projectId} canManage={canManage} />
       </TabsContent>
@@ -154,9 +154,8 @@ function SectionCard({
               </span>
             )}
             <Button
-              size="sm"
+              className="gap-1.5"
               variant={dirty ? "default" : "outline"}
-              className="h-8 gap-1.5"
               disabled={!dirty || saving}
               onClick={onSave}
             >
@@ -398,7 +397,6 @@ function StrategySection({ projectId, canManage }: Props) {
         {canManage && (
           <Button
             variant="outline"
-            size="sm"
             className="mt-3 gap-1.5"
             onClick={() =>
               setObjectives((p) => [
@@ -590,8 +588,7 @@ function StrategySection({ projectId, canManage }: Props) {
               {canManage && (
                 <Button
                   variant="outline"
-                  size="sm"
-                  className="h-11.5 gap-1.5 border-dashed"
+                  className="gap-1.5 border-dashed px-3"
                   onClick={() =>
                     setGuidelines((g) => ({
                       ...g,
@@ -761,8 +758,7 @@ function AssetRow({
             />
             <Button
               variant="outline"
-              size="sm"
-              className="h-8 w-full gap-1.5 border-dashed"
+              className="w-full gap-1.5 border-dashed"
               disabled={uploading}
               onClick={() => inputRef.current?.click()}
             >

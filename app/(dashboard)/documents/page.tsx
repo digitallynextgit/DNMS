@@ -6,7 +6,8 @@ import { Upload } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import { DocumentList } from "@/features/documents"
 import { DocumentUploadDialog } from "@/features/documents"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
@@ -50,13 +51,7 @@ export default function CompanyDocumentsPage() {
       />
 
       <Tabs value={selectedCategory} onValueChange={handleCategoryChange} className="w-full">
-        <TabsList className="mb-2">
-          {CATEGORY_TABS.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <TabsBar items={CATEGORY_TABS} />
       </Tabs>
 
       <DocumentList

@@ -334,8 +334,7 @@ export function RecipientImportDialog({
               </span>
               <Button
                 variant="ghost"
-                size="sm"
-                className="text-muted-foreground ml-auto h-7 gap-1.5 text-xs"
+                className="text-muted-foreground ml-auto gap-1.5"
                 onClick={reset}
               >
                 <X className="h-3.5 w-3.5" />
@@ -419,14 +418,7 @@ export function RecipientImportDialog({
                   className="h-8 max-w-[200px] text-xs"
                 />
                 {unusedTags.slice(0, 8).map((t) => (
-                  <Button
-                    key={t}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-[11px]"
-                    onClick={() => addTag(t)}
-                  >
+                  <Button key={t} type="button" variant="outline" onClick={() => addTag(t)}>
                     + {t}
                   </Button>
                 ))}
@@ -523,11 +515,11 @@ export function RecipientImportDialog({
         />
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-9 text-xs" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            className="h-9 gap-1.5 text-xs"
+            className="gap-1.5"
             disabled={!mapped || mapped.rows.length === 0 || overLimit || run.isPending}
             onClick={() => run.mutate()}
           >
@@ -563,9 +555,8 @@ function ColumnPicker({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs">
+      <Label required={required} className="text-xs">
         {label}
-        {required && <span className="text-destructive"> *</span>}
       </Label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger

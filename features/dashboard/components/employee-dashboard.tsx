@@ -182,31 +182,31 @@ export function EmployeeDashboard() {
 
       {/* Quick actions */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <Button asChild variant="outline" className="h-9 min-w-0 justify-start gap-2 text-sm">
+        <Button asChild variant="outline" className="min-w-0 justify-start gap-2">
           <Link href="/projects/my-tasks">
             <ListTodo className="text-muted-foreground h-4 w-4" />
             <span className="truncate">My Tasks</span>
           </Link>
         </Button>
-        <Button asChild variant="outline" className="h-9 min-w-0 justify-start gap-2 text-sm">
+        <Button asChild variant="outline" className="min-w-0 justify-start gap-2">
           <Link href="/leave/apply">
             <Plus className="text-muted-foreground h-4 w-4" />
             <span className="truncate">Apply Leave</span>
           </Link>
         </Button>
-        <Button asChild variant="outline" className="h-9 min-w-0 justify-start gap-2 text-sm">
+        <Button asChild variant="outline" className="min-w-0 justify-start gap-2">
           <Link href="/wfh/apply">
             <Laptop className="text-muted-foreground h-4 w-4" />
             <span className="truncate">Apply WFH</span>
           </Link>
         </Button>
-        <Button asChild variant="outline" className="h-9 min-w-0 justify-start gap-2 text-sm">
+        <Button asChild variant="outline" className="min-w-0 justify-start gap-2">
           <Link href="/attendance/me">
             <Clock className="text-muted-foreground h-4 w-4" />
             <span className="truncate">My Attendance</span>
           </Link>
         </Button>
-        <Button asChild variant="outline" className="h-9 min-w-0 justify-start gap-2 text-sm">
+        <Button asChild variant="outline" className="min-w-0 justify-start gap-2">
           <Link href="/payroll/me">
             <DollarSign className="text-muted-foreground h-4 w-4" />
             <span className="truncate">My Payslips</span>
@@ -224,7 +224,7 @@ export function EmployeeDashboard() {
             <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
               Today&apos;s Work
             </CardTitle>
-            <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-xs">
+            <Button className="gap-1" asChild variant="ghost">
               <Link href="/projects/my-tasks">
                 View all <ArrowRight className="h-3 w-3" />
               </Link>
@@ -311,7 +311,7 @@ export function EmployeeDashboard() {
             <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
               My Clients
             </CardTitle>
-            <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-xs">
+            <Button className="gap-1" asChild variant="ghost">
               <Link href="/projects/my-projects">
                 View all <ArrowRight className="h-3 w-3" />
               </Link>
@@ -356,7 +356,7 @@ export function EmployeeDashboard() {
           <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
             My Leave Balances
           </CardTitle>
-          <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-xs">
+          <Button className="gap-1" asChild variant="ghost">
             <Link href="/leave">
               View all <ArrowRight className="h-3 w-3" />
             </Link>
@@ -391,7 +391,7 @@ export function EmployeeDashboard() {
             <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
               Latest Payslip
             </CardTitle>
-            <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-xs">
+            <Button className="gap-1" asChild variant="ghost">
               <Link href="/payroll/me">
                 View all <ArrowRight className="h-3 w-3" />
               </Link>
@@ -432,7 +432,7 @@ export function EmployeeDashboard() {
             <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
               Upcoming Holidays
             </CardTitle>
-            <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-xs">
+            <Button className="gap-1" asChild variant="ghost">
               <Link href="/holiday-calendar">
                 View all <ArrowRight className="h-3 w-3" />
               </Link>

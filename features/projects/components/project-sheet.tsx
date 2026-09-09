@@ -919,37 +919,25 @@ export function ProjectSheetSection({
             {s.name}
           </button>
         ))}
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 gap-1 px-2 text-xs"
-          onClick={() => setNewSheetOpen(true)}
-        >
+        <Button variant="ghost" className="gap-1 px-2" onClick={() => setNewSheetOpen(true)}>
           <Plus className="h-3.5 w-3.5" /> New sheet
         </Button>
 
         <div className="ml-auto flex items-center gap-1">
           <Button
-            size="sm"
             variant="ghost"
-            className="h-7 gap-1 px-2 text-xs"
+            className="gap-1 px-2"
             onClick={() => setColumnDialog({ column: null })}
           >
             <Plus className="h-3.5 w-3.5" /> Column
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 gap-1 px-2 text-xs"
-            onClick={() => setHistoryOpen(true)}
-          >
+          <Button variant="ghost" className="gap-1 px-2" onClick={() => setHistoryOpen(true)}>
             <History className="h-3.5 w-3.5" /> History
           </Button>
           {canManage && active && (
             <Button
-              size="sm"
               variant="ghost"
-              className="text-muted-foreground hover:text-destructive h-7 gap-1 px-2 text-xs"
+              className="text-muted-foreground hover:text-destructive gap-1 px-2"
               onClick={() => setConfirm({ kind: "sheet", id: active.id, label: active.name })}
             >
               <Trash2 className="h-3.5 w-3.5" /> Delete sheet

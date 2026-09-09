@@ -33,7 +33,7 @@ export default async function MorePage() {
         <p className="text-muted-foreground max-w-sm text-sm">
           This menu exists for phone screens. On a wider screen use the navigation on the left.
         </p>
-        <Button asChild variant="outline" size="sm">
+        <Button asChild variant="outline">
           <Link href="/dashboard">Go to dashboard</Link>
         </Button>
       </div>

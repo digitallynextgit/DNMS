@@ -451,7 +451,7 @@ function ChecklistSection({ taskId }: { taskId: string }) {
               </span>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 className="text-muted-foreground hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100"
                 onClick={() => del.mutate(item.id)}
               >
@@ -474,9 +474,9 @@ function ChecklistSection({ taskId }: { taskId: string }) {
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
         />
         <Button
-          size="sm"
+          size="icon"
           variant="secondary"
-          className="h-9 w-9 shrink-0 p-0"
+          className="shrink-0 p-0"
           onClick={handleAdd}
           disabled={!text.trim() || add.isPending}
         >
@@ -593,7 +593,7 @@ function CommentsSection({ taskId, currentUserId }: { taskId: string; currentUse
             }}
           />
           <Button
-            size="icon-sm"
+            size="icon"
             className="absolute right-2.5 bottom-2.5"
             onClick={handlePost}
             disabled={!text.trim() || add.isPending}

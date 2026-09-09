@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react"
 import { ArrowRight, Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 
 type Status = "idle" | "loading" | "success" | "error"
 
@@ -60,14 +61,10 @@ export function NewsletterForm({ className }: { className?: string }) {
           aria-label="Email address"
           className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary/50 min-w-0 flex-1 rounded-sm border px-3 py-2.5 text-sm shadow-sm outline-none sm:border-0 sm:bg-transparent sm:py-1.5 sm:shadow-none"
         />
-        <button
-          type="submit"
-          disabled={status === "loading"}
-          className="bg-primary text-primary-foreground inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-sm px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-60 sm:w-auto sm:py-1.5"
-        >
+        <Button type="submit" disabled={status === "loading"} className="w-full shrink-0 sm:w-auto">
           {status === "loading" ? "Subscribing…" : "Subscribe"}
-          <ArrowRight className="h-4 w-4" />
-        </button>
+          <ArrowRight />
+        </Button>
       </div>
       {status === "error" ? (
         <p className="text-destructive mt-2 text-xs">Something went wrong. Please try again.</p>

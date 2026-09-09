@@ -25,7 +25,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PageHeader } from "@/components/shared/page-header"
@@ -248,28 +249,15 @@ export default function ProfilePage() {
 
       {/* Tabs */}
       <Tabs defaultValue="info">
-        <TabsList className="mb-4">
-          <TabsTrigger value="info" className="flex items-center gap-1.5">
-            <Users className="h-4 w-4" />
-            Info
-          </TabsTrigger>
-          <TabsTrigger value="documents" className="flex items-center gap-1.5">
-            <FileText className="h-4 w-4" />
-            Documents
-          </TabsTrigger>
-          <TabsTrigger value="roles" className="flex items-center gap-1.5">
-            <ShieldCheck className="h-4 w-4" />
-            Roles
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-1.5">
-            <Shield className="h-4 w-4" />
-            Security
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-1.5">
-            <Bell className="h-4 w-4" />
-            Notifications
-          </TabsTrigger>
-        </TabsList>
+        <TabsBar
+          items={[
+            { value: "info", label: "Info", icon: Users },
+            { value: "documents", label: "Documents", icon: FileText },
+            { value: "roles", label: "Roles", icon: ShieldCheck },
+            { value: "security", label: "Security", icon: Shield },
+            { value: "notifications", label: "Notifications", icon: Bell },
+          ]}
+        />
 
         {/* Info tab */}
         <TabsContent value="info" className="space-y-6">
@@ -374,7 +362,7 @@ export default function ProfilePage() {
                   <FileText className="h-4 w-4" />
                   My Documents
                 </CardTitle>
-                <Button size="sm" onClick={() => setDocUploadOpen(true)}>
+                <Button onClick={() => setDocUploadOpen(true)}>
                   <Upload className="mr-1.5 h-3.5 w-3.5" />
                   Upload Document
                 </Button>
@@ -432,19 +420,34 @@ export default function ProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* autoComplete="new-password" on ALL THREE, including the
+                  current one. The honest value there is "current-password",
+                  but that is precisely what invites the browser to fill it in
+                  from its saved credentials - and a current-password box the
+                  browser fills is not asking anybody anything. The field exists
+                  to re-authenticate whoever is at the keyboard right now, so
+                  that an unlocked laptop is not a password change waiting to
+                  happen. autoComplete="off" does not do it: Chrome ignores it
+                  on password inputs, and "new-password" is the one value it
+                  honours. */}
               <div className="space-y-2">
-                <Label>Current Password</Label>
+                <Label required htmlFor="current-password">
+                  Current Password
+                </Label>
                 <div className="relative">
                   <Input
+                    id="current-password"
                     type={showPw ? "text" : "password"}
+                    autoComplete="new-password"
                     value={pwForm.currentPassword}
                     onChange={(e) => setPwForm((f) => ({ ...f, currentPassword: e.target.value }))}
                     placeholder="••••••••"
-                    aria-label="••••••••"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPw((s) => !s)}
+                    aria-label={showPw ? "Hide passwords" : "Show passwords"}
+                    title={showPw ? "Hide passwords" : "Show passwords"}
                     className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
                   >
                     {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -452,23 +455,29 @@ export default function ProfilePage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>New Password</Label>
+                <Label required htmlFor="new-password">
+                  New Password
+                </Label>
                 <Input
+                  id="new-password"
                   type={showPw ? "text" : "password"}
+                  autoComplete="new-password"
                   value={pwForm.newPassword}
                   onChange={(e) => setPwForm((f) => ({ ...f, newPassword: e.target.value }))}
                   placeholder="Min. 8 characters"
-                  aria-label="Min. 8 characters"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Confirm New Password</Label>
+                <Label required htmlFor="confirm-password">
+                  Confirm New Password
+                </Label>
                 <Input
+                  id="confirm-password"
                   type={showPw ? "text" : "password"}
+                  autoComplete="new-password"
                   value={pwForm.confirmPassword}
                   onChange={(e) => setPwForm((f) => ({ ...f, confirmPassword: e.target.value }))}
                   placeholder="Repeat new password"
-                  aria-label="Repeat new password"
                 />
                 {pwForm.confirmPassword && pwForm.newPassword !== pwForm.confirmPassword && (
                   <p className="text-destructive text-xs">Passwords do not match</p>
@@ -512,17 +521,16 @@ export default function ProfilePage() {
                     <span>App Password is set.</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setGmailConfirm("change")}>
-                      <Pencil className="mr-2 h-3.5 w-3.5" />
+                    <Button variant="outline" onClick={() => setGmailConfirm("change")}>
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
                       Change
                     </Button>
                     <Button
                       variant="outline"
-                      size="sm"
                       onClick={() => setGmailConfirm("delete")}
                       className="text-destructive hover:text-destructive"
                     >
-                      <Trash2 className="mr-2 h-3.5 w-3.5" />
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                       Delete
                     </Button>
                   </div>

@@ -150,7 +150,7 @@ function SettingsGroupCard({
           </TooltipProvider>
         </div>
         {!editing && (
-          <Button variant="outline" size="sm" onClick={() => setConfirmOpen(true)}>
+          <Button variant="outline" onClick={() => setConfirmOpen(true)}>
             <Pencil className="mr-1.5 h-3.5 w-3.5" />
             Edit
           </Button>
@@ -251,9 +251,8 @@ function FieldInput({
   const nativeRequired = field.required && !(field.secret && meta?.isSet)
   return (
     <div>
-      <Label htmlFor={field.key}>
+      <Label required={field.required} htmlFor={field.key}>
         {field.label}
-        {field.required && <span className="text-destructive ml-0.5">*</span>}
       </Label>
       <Input
         id={field.key}

@@ -202,13 +202,13 @@ export function AboutContent() {
             Run your company on it too
           </h2>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Button asChild size="lg">
+            <Button asChild>
               <Link href="/signup">
                 Start free
                 <ArrowRight className="ml-1 h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline">
+            <Button asChild variant="outline">
               <a href={demoHref}>Book a demo</a>
             </Button>
           </div>

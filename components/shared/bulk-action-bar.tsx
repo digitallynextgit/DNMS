@@ -40,7 +40,7 @@ export function BulkActionBar({
         <span className="font-medium">
           {count} {label}
         </span>
-        <Button variant="ghost" size="sm" onClick={onClear} className="h-7 gap-1">
+        <Button className="gap-1" variant="ghost" onClick={onClear}>
           <X className="h-3.5 w-3.5" />
           Clear
         </Button>

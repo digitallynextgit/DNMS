@@ -99,7 +99,6 @@ export function KeywordBacklog({
         </p>
         <div className="flex items-center gap-2">
           <Button
-            size="sm"
             variant="outline"
             onClick={() => exportKeywords(keywords ?? [], siteLabel)}
             disabled={(keywords?.length ?? 0) === 0}
@@ -110,7 +109,6 @@ export function KeywordBacklog({
           </Button>
           {canManage && (
             <Button
-              size="sm"
               variant="outline"
               onClick={() => propertyId && mine.mutate(propertyId)}
               disabled={mine.isPending || !propertyId}
@@ -122,7 +120,6 @@ export function KeywordBacklog({
           )}
           {canManage && (
             <Button
-              size="sm"
               onClick={() => propertyId && generate.mutate(propertyId)}
               disabled={generate.isPending || !propertyId}
             >

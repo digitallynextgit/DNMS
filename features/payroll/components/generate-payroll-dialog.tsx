@@ -36,11 +36,15 @@ export function GeneratePayrollDialog({ open, onOpenChange }: GeneratePayrollDia
   const generateMutation = useGeneratePayroll()
 
   async function handleConfirm() {
-    await generateMutation.mutateAsync({
-      month: Number(month),
-      year: Number(year),
-    })
-    onOpenChange(false)
+    try {
+      await generateMutation.mutateAsync({
+        month: Number(month),
+        year: Number(year),
+      })
+      onOpenChange(false)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
+    }
   }
 
   return (
@@ -58,7 +62,9 @@ export function GeneratePayrollDialog({ open, onOpenChange }: GeneratePayrollDia
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="gen-month">Month</Label>
+                  <Label required htmlFor="gen-month">
+                    Month
+                  </Label>
                   <Select value={month} onValueChange={setMonth}>
                     <SelectTrigger id="gen-month">
                       <SelectValue />
@@ -74,7 +80,9 @@ export function GeneratePayrollDialog({ open, onOpenChange }: GeneratePayrollDia
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="gen-year">Year</Label>
+                  <Label required htmlFor="gen-year">
+                    Year
+                  </Label>
                   <Input
                     id="gen-year"
                     type="number"

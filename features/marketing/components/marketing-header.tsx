@@ -111,17 +111,17 @@ export function MarketingHeader() {
         {/* Right: theme toggle + login (desktop) + hamburger (mobile) */}
         <div className="flex items-center gap-1.5 justify-self-end sm:gap-2">
           {authed ? (
-            <Button asChild size="sm" className="hidden md:inline-flex">
+            <Button asChild className="hidden md:inline-flex">
               <Link href={appHref}>Dashboard</Link>
             </Button>
           ) : (
             <>
               {/* Log in is the quieter of the two: most people arriving on the
                   marketing page do not have an account yet. */}
-              <Button asChild size="sm" variant="ghost" className="hidden md:inline-flex">
+              <Button asChild variant="ghost" className="hidden md:inline-flex">
                 <Link href="/login">Log in</Link>
               </Button>
-              <Button asChild size="sm" className="hidden md:inline-flex">
+              <Button asChild className="hidden md:inline-flex">
                 <Link href="/signup">Start free</Link>
               </Button>
             </>
@@ -153,19 +153,19 @@ export function MarketingHeader() {
               </a>
             ))}
             {authed ? (
-              <Button asChild size="sm" className="mt-2 w-full">
+              <Button asChild className="mt-2 w-full">
                 <Link href={appHref} onClick={() => setMenuOpen(false)}>
                   Dashboard
                 </Link>
               </Button>
             ) : (
               <>
-                <Button asChild size="sm" className="mt-2 w-full">
+                <Button asChild className="mt-2 w-full">
                   <Link href="/signup" onClick={() => setMenuOpen(false)}>
                     Start free
                   </Link>
                 </Button>
-                <Button asChild size="sm" variant="outline" className="mt-1.5 w-full">
+                <Button asChild variant="outline" className="mt-1.5 w-full">
                   <Link href="/login" onClick={() => setMenuOpen(false)}>
                     Log in
                   </Link>

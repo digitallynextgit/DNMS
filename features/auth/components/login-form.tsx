@@ -182,7 +182,7 @@ export function LoginForm() {
 
           <Button
             type="submit"
-            className="h-11 w-full rounded-sm text-sm"
+            className="w-full rounded-sm"
             disabled={isSubmitting}
             loading={isSubmitting}
           >
@@ -205,7 +205,7 @@ export function LoginForm() {
       <Button
         type="button"
         variant="outline"
-        className="h-11 w-full text-sm"
+        className="w-full"
         onClick={handleGoogleSignIn}
         disabled={isGoogleLoading || isSubmitting}
       >

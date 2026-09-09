@@ -46,7 +46,7 @@ export default function MyPayslipPage({ params }: { params: Promise<{ id: string
             ) : (
               <Skeleton className="h-5 w-20 rounded-sm" />
             )}
-            <Button size="sm" disabled={!record} onClick={() => window.print()} className="gap-2">
+            <Button className="gap-2" disabled={!record} onClick={() => window.print()}>
               <Download className="h-4 w-4" />
               Download PDF
             </Button>

@@ -284,20 +284,14 @@ export default function ProjectProgressPage() {
             </Select>
             <DateRangeField value={range} onChange={setRange} />
             {oneProject && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => openClient(projectId)}
-              >
+              <Button className="gap-1.5" variant="outline" onClick={() => openClient(projectId)}>
                 <LayoutDashboard className="h-3.5 w-3.5" />
                 Details
               </Button>
             )}
             <Button
-              size="sm"
+              className="gap-1.5"
               variant={currentReport ? "default" : "outline"}
-              className="h-8 gap-1.5"
               onClick={() => setInsightsOpen(true)}
             >
               <Sparkles className="h-3.5 w-3.5" />
@@ -493,9 +487,8 @@ export default function ProjectProgressPage() {
           </SheetHeader>
           <div className="mt-4 flex gap-2">
             <Button
-              size="sm"
-              variant="ghost"
               className="gap-1.5"
+              variant="ghost"
               onClick={() => setOptionsOpen(true)}
               disabled={report.isPending}
             >
@@ -503,7 +496,6 @@ export default function ProjectProgressPage() {
               Options
             </Button>
             <Button
-              size="sm"
               className="gap-1.5"
               onClick={() => report.mutate(reportConfig)}
               disabled={report.isPending}

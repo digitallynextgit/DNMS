@@ -111,26 +111,29 @@ export function SalaryStructureForm({ open, onOpenChange, editData }: SalaryStru
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
+    try {
+      const payload = {
+        employeeId: selectedEmployeeId,
+        basicSalary: amounts.basic,
+        hra: amounts.hra,
+        conveyance: amounts.transport,
+        medicalAllowance: amounts.medical,
+        telephoneAllowance: amounts.telephone,
+        otherAllowances: amounts.special,
+        // No user-facing "effective from" - default to today on create, leave
+        // the existing date untouched on edit.
+        ...(isEdit ? {} : { effectiveFrom: new Date().toISOString().split("T")[0] }),
+      }
 
-    const payload = {
-      employeeId: selectedEmployeeId,
-      basicSalary: amounts.basic,
-      hra: amounts.hra,
-      conveyance: amounts.transport,
-      medicalAllowance: amounts.medical,
-      telephoneAllowance: amounts.telephone,
-      otherAllowances: amounts.special,
-      // No user-facing "effective from" - default to today on create, leave
-      // the existing date untouched on edit.
-      ...(isEdit ? {} : { effectiveFrom: new Date().toISOString().split("T")[0] }),
+      if (isEdit && editData) {
+        await updateMutation.mutateAsync({ id: editData.id, body: payload })
+      } else {
+        await createMutation.mutateAsync(payload)
+      }
+      onOpenChange(false)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
     }
-
-    if (isEdit && editData) {
-      await updateMutation.mutateAsync({ id: editData.id, body: payload })
-    } else {
-      await createMutation.mutateAsync(payload)
-    }
-    onOpenChange(false)
   }
 
   return (

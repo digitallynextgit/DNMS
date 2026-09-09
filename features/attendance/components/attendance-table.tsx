@@ -137,7 +137,7 @@ export function AttendanceTable({
               log.isManual && onEdit ? (
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   onClick={() => onEdit(log)}
                   title="Edit attendance record"
                 >
@@ -190,7 +190,7 @@ export function AttendanceTable({
                 {canEdit && log.isManual && onEdit && (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     onClick={() => onEdit(log)}
                     title="Edit attendance record"
                   >

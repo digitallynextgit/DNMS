@@ -300,7 +300,7 @@ export function AttachmentPreview({
           aria-label="Send"
           disabled={sending}
           onClick={() => void onSend(list, caption.trim())}
-          className="h-11 w-11 shrink-0 rounded-sm"
+          className="shrink-0 rounded-sm"
         >
           {sending ? (
             <Loader2 className="h-5 w-5 animate-spin" />

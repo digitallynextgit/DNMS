@@ -1086,7 +1086,7 @@ export function TasksSheetView({
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
-            size="icon-sm"
+            size="icon"
             aria-label="Previous week"
             onClick={() => setWeekStart(toKey(addDays(fromKey(weekStart), -7)))}
           >
@@ -1094,8 +1094,6 @@ export function TasksSheetView({
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            className="h-8 text-xs"
             disabled={weekStart === thisMonday}
             onClick={() => setWeekStart(thisMonday)}
           >
@@ -1103,7 +1101,7 @@ export function TasksSheetView({
           </Button>
           <Button
             variant="outline"
-            size="icon-sm"
+            size="icon"
             aria-label="Next week"
             onClick={() => setWeekStart(toKey(addDays(fromKey(weekStart), 7)))}
           >

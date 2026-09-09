@@ -17,7 +17,8 @@ import { SearchInput } from "@/components/shared/search-input"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import { RoleBadge } from "@/features/docs"
 
 // ---------------------------------------------------------------------------
@@ -133,13 +134,7 @@ export default function DocsPage() {
           className="w-full sm:max-w-xs"
         />
         <Tabs value={activeRole} onValueChange={(v) => setActiveRole(v as RoleFilter)}>
-          <TabsList>
-            {ROLE_TABS.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value}>
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <TabsBar spacing="none" items={ROLE_TABS} />
         </Tabs>
       </div>
 
@@ -200,7 +195,7 @@ function ModuleCardItem({ card, onRead }: { card: ModuleCard; onRead: () => void
               <RoleBadge key={tag} role={tag as "employee" | "manager" | "hr" | "admin"} />
             ))}
           </div>
-          <Button size="sm" variant="outline" onClick={onRead} className="shrink-0">
+          <Button variant="outline" onClick={onRead} className="shrink-0">
             Read Guide
           </Button>
         </div>

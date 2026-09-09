@@ -23,12 +23,7 @@ export function LeavePolicyActions({ editor }: { editor: LeavePolicyEditor }) {
     editor
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setResyncOpen(true)}
-        disabled={resyncPending}
-      >
+      <Button variant="outline" onClick={() => setResyncOpen(true)} disabled={resyncPending}>
         {resyncPending ? (
           <Spinner size="sm" className="mr-1.5" />
         ) : (
@@ -36,7 +31,7 @@ export function LeavePolicyActions({ editor }: { editor: LeavePolicyEditor }) {
         )}
         Sync balances
       </Button>
-      <Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
+      <Button onClick={handleSave} disabled={!dirty || saving}>
         {saving ? (
           <Spinner size="sm" className="mr-1.5" />
         ) : (

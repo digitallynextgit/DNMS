@@ -398,7 +398,7 @@ export function ImageEditor({
           </Button>
         </div>
 
-        <Button size="sm" className="gap-1.5" disabled={!base || saving} onClick={save}>
+        <Button className="gap-1.5" disabled={!base || saving} onClick={save}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           Done
         </Button>
@@ -505,10 +505,10 @@ export function ImageEditor({
               <p className="text-muted-foreground flex-1 text-xs">
                 Drag on the image to choose what to keep.
               </p>
-              <Button variant="outline" size="sm" onClick={() => setCrop(null)}>
+              <Button variant="outline" onClick={() => setCrop(null)}>
                 Reset
               </Button>
-              <Button size="sm" disabled={!crop || crop.w < 8} onClick={applyCrop}>
+              <Button disabled={!crop || crop.w < 8} onClick={applyCrop}>
                 Apply crop
               </Button>
             </div>

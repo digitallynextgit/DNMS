@@ -351,9 +351,8 @@ function FormField({
 }) {
   return (
     <div className="space-y-2">
-      <Label className="mb-2 block text-sm font-medium">
+      <Label required={required} className="mb-2 block text-sm font-medium">
         {label}
-        {required && <span className="text-destructive ml-0.5">*</span>}
       </Label>
       {children}
       {error && <p className="text-destructive text-xs">{error}</p>}
@@ -761,38 +760,48 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
   }
 
   async function onSubmit(data: FormData) {
-    // Only the final step may actually create/save. Guards against any stray
-    // submit before review (e.g. Enter pressed in a field) - treat it as "Next".
-    if (currentStep < STEPS.length) {
-      await goNext()
-      return
-    }
+    try {
+      // Only the final step may actually create/save. Guards against any stray
+      // submit before review (e.g. Enter pressed in a field) - treat it as "Next".
+      if (currentStep < STEPS.length) {
+        await goNext()
+        return
+      }
 
-    const payload = {
-      employeeNo: data.employeeNo?.trim() || undefined,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-      personalEmail: data.personalEmail || undefined,
-      phone: data.phone || undefined,
-      personalPhone: data.personalPhone || undefined,
-      dateOfBirth: data.dateOfBirth || undefined,
-      gender: data.gender || undefined,
-      nationality: data.nationality || undefined,
-      bloodGroup: data.bloodGroup || undefined,
-      departmentId: data.departmentId || undefined,
-      designationId: data.designationId || undefined,
-      jobRoleId: data.jobRoleId || undefined,
-      managerId: data.managerId || undefined,
-      employmentType: data.employmentType,
-      dateOfJoining: data.dateOfJoining || undefined,
-      probationEndDate: data.probationEndDate || undefined,
-      onProbation: data.onProbation ?? true,
-      probationMonths: data.probationMonths ? Number(data.probationMonths) : undefined,
-      workLocation: data.workLocation || undefined,
-      deviceId: data.deviceId || undefined,
-      currentAddress:
-        data.currentLine1 || data.currentCity
+      const payload = {
+        employeeNo: data.employeeNo?.trim() || undefined,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        personalEmail: data.personalEmail || undefined,
+        phone: data.phone || undefined,
+        personalPhone: data.personalPhone || undefined,
+        dateOfBirth: data.dateOfBirth || undefined,
+        gender: data.gender || undefined,
+        nationality: data.nationality || undefined,
+        bloodGroup: data.bloodGroup || undefined,
+        departmentId: data.departmentId || undefined,
+        designationId: data.designationId || undefined,
+        jobRoleId: data.jobRoleId || undefined,
+        managerId: data.managerId || undefined,
+        employmentType: data.employmentType,
+        dateOfJoining: data.dateOfJoining || undefined,
+        probationEndDate: data.probationEndDate || undefined,
+        onProbation: data.onProbation ?? true,
+        probationMonths: data.probationMonths ? Number(data.probationMonths) : undefined,
+        workLocation: data.workLocation || undefined,
+        deviceId: data.deviceId || undefined,
+        currentAddress:
+          data.currentLine1 || data.currentCity
+            ? {
+                line1: data.currentLine1,
+                line2: data.currentLine2,
+                city: data.currentCity,
+                state: data.currentState,
+                zip: data.currentZip,
+              }
+            : undefined,
+        permanentAddress: data.sameAsCurrent
           ? {
               line1: data.currentLine1,
               line2: data.currentLine2,
@@ -800,52 +809,49 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               state: data.currentState,
               zip: data.currentZip,
             }
-          : undefined,
-      permanentAddress: data.sameAsCurrent
-        ? {
-            line1: data.currentLine1,
-            line2: data.currentLine2,
-            city: data.currentCity,
-            state: data.currentState,
-            zip: data.currentZip,
-          }
-        : data.permanentLine1 || data.permanentCity
+          : data.permanentLine1 || data.permanentCity
+            ? {
+                line1: data.permanentLine1,
+                line2: data.permanentLine2,
+                city: data.permanentCity,
+                state: data.permanentState,
+                zip: data.permanentZip,
+              }
+            : undefined,
+        emergencyContact: data.emergencyName
           ? {
-              line1: data.permanentLine1,
-              line2: data.permanentLine2,
-              city: data.permanentCity,
-              state: data.permanentState,
-              zip: data.permanentZip,
+              name: data.emergencyName,
+              relation: data.emergencyRelation,
+              phone: data.emergencyPhone,
             }
           : undefined,
-      emergencyContact: data.emergencyName
-        ? {
-            name: data.emergencyName,
-            relation: data.emergencyRelation,
-            phone: data.emergencyPhone,
-          }
-        : undefined,
-      // Send only when the user typed something. Empty on edit = "leave unchanged".
-      gmailAppPassword: data.gmailAppPassword?.replace(/\s+/g, "") || undefined,
-      // Login password (create only). The form always supplies one (auto-filled),
-      // so the server uses it instead of generating its own.
-      password: mode === "create" ? data.password || undefined : undefined,
-      mustChangePassword: mode === "create" ? (data.mustChangePassword ?? true) : undefined,
-    }
-
-    if (mode === "create") {
-      const result = await createEmployee.mutateAsync(payload as Record<string, unknown>)
-      const created = result?.data
-      if (created?.id) {
-        // Upload any staged documents before redirecting.
-        if (pendingDocs.length > 0) await uploadPendingDocs(created.id)
-        const slug = employeeSlug(created.employeeNo, created.firstName, created.lastName)
-        goToProfile(slug, created)
+        // Send only when the user typed something. Empty on edit = "leave unchanged".
+        gmailAppPassword: data.gmailAppPassword?.replace(/\s+/g, "") || undefined,
+        // Login password (create only). The form always supplies one (auto-filled),
+        // so the server uses it instead of generating its own.
+        password: mode === "create" ? data.password || undefined : undefined,
+        mustChangePassword: mode === "create" ? (data.mustChangePassword ?? true) : undefined,
       }
-    } else if (mode === "edit" && employeeId) {
-      await updateEmployee.mutateAsync({ id: employeeId, body: payload as Record<string, unknown> })
-      if (pendingDocs.length > 0) await uploadPendingDocs(employeeId)
-      goToProfile(employeeSlug(data.employeeNo, data.firstName, data.lastName))
+
+      if (mode === "create") {
+        const result = await createEmployee.mutateAsync(payload as Record<string, unknown>)
+        const created = result?.data
+        if (created?.id) {
+          // Upload any staged documents before redirecting.
+          if (pendingDocs.length > 0) await uploadPendingDocs(created.id)
+          const slug = employeeSlug(created.employeeNo, created.firstName, created.lastName)
+          goToProfile(slug, created)
+        }
+      } else if (mode === "edit" && employeeId) {
+        await updateEmployee.mutateAsync({
+          id: employeeId,
+          body: payload as Record<string, unknown>,
+        })
+        if (pendingDocs.length > 0) await uploadPendingDocs(employeeId)
+        goToProfile(employeeSlug(data.employeeNo, data.firstName, data.lastName))
+      }
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
     }
   }
 
@@ -1099,7 +1105,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                 />
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button type="button" variant="outline" className="h-10 shrink-0 gap-1.5 px-3">
+                    <Button type="button" variant="outline" className="shrink-0 gap-1.5 px-3">
                       <List className="h-4 w-4" />
                       View codes
                     </Button>
@@ -1310,7 +1316,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-10 shrink-0 gap-1.5 px-3"
+                      className="shrink-0 gap-1.5 px-3"
                       onClick={() => {
                         setShowPassword(true)
                         setValue("password", generatePassword(), { shouldValidate: true })
@@ -1446,7 +1452,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                     <Button
                       type="button"
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon"
                       className="text-destructive hover:text-destructive shrink-0"
                       onClick={() => deleteExistingDoc(doc.id)}
                       aria-label="Remove document"
@@ -1472,7 +1478,6 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
               {pendingDocs.length > 0 && (
                 <Button
                   type="button"
-                  size="sm"
                   variant="outline"
                   className="shrink-0 gap-1.5"
                   onClick={() => document.getElementById("emp-doc-input")?.click()}
@@ -1515,7 +1520,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           className="text-muted-foreground hover:text-destructive shrink-0"
                           onClick={() => removePendingDoc(doc.uid)}
                           aria-label="Remove file"
@@ -1900,11 +1905,11 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
       {/* ── Navigation ────────────────────────────────────────────────────── */}
       <div className="mt-8 flex items-center justify-between">
         <Button
+          className="gap-1.5"
           type="button"
           variant="outline"
           onClick={goPrev}
           disabled={currentStep === 1}
-          className="gap-1.5"
         >
           <ChevronLeft className="h-4 w-4" />
           Previous
@@ -1918,7 +1923,7 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
             // *during* the click event, so the browser's default action then sees
             // type="submit" and submits the form - auto-saving without a second
             // click. Separate keys force a fresh node, so the click can't submit.
-            <Button key="nav-next" type="button" onClick={goNext} className="gap-1.5">
+            <Button className="gap-1.5" key="nav-next" type="button" onClick={goNext}>
               Next
               <ChevronRight className="h-4 w-4" />
             </Button>

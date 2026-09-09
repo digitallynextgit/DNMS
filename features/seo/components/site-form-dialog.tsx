@@ -76,7 +76,9 @@ export function SiteFormDialog({
 
         <div className="space-y-4 py-1">
           <div className="space-y-1.5">
-            <Label htmlFor="new-site-label">Name</Label>
+            <Label required htmlFor="new-site-label">
+              Name
+            </Label>
             <Input
               id="new-site-label"
               value={label}
@@ -91,7 +93,9 @@ export function SiteFormDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="new-site-domain">Domain</Label>
+            <Label required htmlFor="new-site-domain">
+              Domain
+            </Label>
             <Input
               id="new-site-domain"
               value={domain}

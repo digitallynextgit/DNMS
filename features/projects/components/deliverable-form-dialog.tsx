@@ -292,7 +292,9 @@ export function DeliverableFormDialog({
 
           <div className="grid gap-3 sm:grid-cols-[1fr_96px]">
             <div className="space-y-1.5">
-              <Label className="text-muted-foreground text-[11px]">Type</Label>
+              <Label required className="text-muted-foreground text-[11px]">
+                Type
+              </Label>
               <Input
                 list={typeListId}
                 value={type}
@@ -323,7 +325,9 @@ export function DeliverableFormDialog({
               )}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-muted-foreground text-[11px]">Quantity</Label>
+              <Label required className="text-muted-foreground text-[11px]">
+                Quantity
+              </Label>
               <Input
                 type="number"
                 min={1}
@@ -336,7 +340,9 @@ export function DeliverableFormDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-muted-foreground text-[11px]">Title</Label>
+            <Label required className="text-muted-foreground text-[11px]">
+              Title
+            </Label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -454,8 +460,7 @@ export function DeliverableFormDialog({
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="h-9"
+                size="icon"
                 onClick={addLink}
                 disabled={!isSafeHttpUrl(linkDraft)}
               >
@@ -551,8 +556,7 @@ export function DeliverableFormDialog({
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="h-8 w-full gap-1.5 border-dashed"
+                className="w-full gap-1.5 border-dashed"
                 disabled={m.upload.isPending}
                 onClick={() => fileInput.current?.click()}
               >

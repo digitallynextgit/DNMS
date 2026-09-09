@@ -16,7 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -173,7 +174,7 @@ function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label="Actions">
+        <Button variant="ghost" size="icon" aria-label="Actions">
           <MoreVertical className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -293,7 +294,7 @@ function GroupDialog({
     >
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Code</Label>
+          <Label required>Code</Label>
           <Input
             value={code}
             onChange={(e) => setCode(e.target.value)}
@@ -313,11 +314,11 @@ function GroupDialog({
         </div>
       </div>
       <div>
-        <Label>Title</Label>
+        <Label required>Title</Label>
         <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
       </div>
       <div>
-        <Label>Jobs label</Label>
+        <Label required>Jobs label</Label>
         <Input value={jobsLabel} onChange={(e) => setJobsLabel(e.target.value)} required />
       </div>
       <ToneStatusFields
@@ -380,7 +381,7 @@ function SubDeptDialog({
       onSubmit={submit}
     >
       <div>
-        <Label>Title</Label>
+        <Label required>Title</Label>
         <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
       </div>
       <div>
@@ -393,7 +394,7 @@ function SubDeptDialog({
         />
       </div>
       <div>
-        <Label>Jobs label</Label>
+        <Label required>Jobs label</Label>
         <Input value={jobsLabel} onChange={(e) => setJobsLabel(e.target.value)} required />
       </div>
       <ToneStatusFields
@@ -467,7 +468,7 @@ function RoleDialog({
     >
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Title</Label>
+          <Label required>Title</Label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
         <div>
@@ -521,7 +522,7 @@ function RoleDialog({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   className="shrink-0"
                   onClick={() => removeOpening.mutate(op.id)}
                   disabled={removeOpening.isPending}
@@ -545,7 +546,6 @@ function RoleDialog({
             <Button
               type="button"
               variant="outline"
-              size="sm"
               disabled={!newOpening.trim() || addOpening.isPending}
               onClick={() =>
                 addOpening.mutate(
@@ -747,7 +747,7 @@ function ModePanel({ groups, mode }: { groups: AdminCareerGroup[]; mode: CareerD
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {breadcrumb}
-          <Button size="sm" onClick={() => setAddRole(true)}>
+          <Button onClick={() => setAddRole(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> Add role
           </Button>
         </div>
@@ -776,7 +776,7 @@ function ModePanel({ groups, mode }: { groups: AdminCareerGroup[]; mode: CareerD
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {breadcrumb}
-          <Button size="sm" onClick={() => setAddSub(true)}>
+          <Button onClick={() => setAddSub(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> Add sub-department
           </Button>
         </div>
@@ -802,7 +802,7 @@ function ModePanel({ groups, mode }: { groups: AdminCareerGroup[]; mode: CareerD
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         {breadcrumb}
-        <Button size="sm" onClick={() => setAddGroup(true)}>
+        <Button onClick={() => setAddGroup(true)}>
           <Plus className="mr-1.5 h-4 w-4" /> Add group
         </Button>
       </div>
@@ -863,10 +863,13 @@ export function CareersManager() {
         description="Manage the careers tree shown on the public site. Only PUBLISHED items are served."
       />
       <Tabs defaultValue="full-time">
-        <TabsList>
-          <TabsTrigger value="full-time">Full-time ({fullTime.length})</TabsTrigger>
-          <TabsTrigger value="internship">Internships ({internship.length})</TabsTrigger>
-        </TabsList>
+        <TabsBar
+          spacing="none"
+          items={[
+            { value: "full-time", label: "Full-time", count: fullTime.length },
+            { value: "internship", label: "Internships", count: internship.length },
+          ]}
+        />
         <TabsContent value="full-time" className="mt-4">
           <ModePanel groups={fullTime} mode="FULL_TIME" />
         </TabsContent>

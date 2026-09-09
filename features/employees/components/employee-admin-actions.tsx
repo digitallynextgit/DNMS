@@ -110,11 +110,7 @@ export function EmployeeAdminActions({
         <>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={photoMut.isPending || removePhotoMut.isPending}
-              >
+              <Button variant="outline" disabled={photoMut.isPending || removePhotoMut.isPending}>
                 {photoMut.isPending || removePhotoMut.isPending ? (
                   <Spinner size="sm" className="mr-1.5" />
                 ) : (
@@ -166,7 +162,6 @@ export function EmployeeAdminActions({
       {isSelf && status !== "RESIGNED" && status !== "TERMINATED" && (
         <Button
           variant="outline"
-          size="sm"
           className="text-destructive hover:bg-destructive/10"
           onClick={() => setResignOpen(true)}
         >
@@ -188,7 +183,9 @@ export function EmployeeAdminActions({
         }}
       >
         <div className="space-y-2">
-          <Label htmlFor="res-reason">Reason</Label>
+          <Label required htmlFor="res-reason">
+            Reason
+          </Label>
           <Textarea
             id="res-reason"
             rows={3}
@@ -198,7 +195,7 @@ export function EmployeeAdminActions({
           />
         </div>
         <div className="space-y-2">
-          <Label>Requested Last Working Day</Label>
+          <Label required>Requested Last Working Day</Label>
           <DateField value={lastWorkingDate} onChange={setLastWorkingDate} />
         </div>
         <p className="text-muted-foreground text-xs">

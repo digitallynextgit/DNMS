@@ -123,7 +123,7 @@ export function GoalsOverviewCard({
               </p>
             </div>
           </div>
-          <Button size="sm" variant="outline" onClick={onOpen}>
+          <Button variant="outline" onClick={onOpen}>
             Add goals
           </Button>
         </CardContent>
@@ -143,7 +143,7 @@ export function GoalsOverviewCard({
             <Target className="text-muted-foreground h-4 w-4" />
             <h3 className="text-sm font-semibold">Goals</h3>
           </div>
-          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={onOpen}>
+          <Button variant="ghost" className="gap-1 px-2" onClick={onOpen}>
             Open goals
             <ArrowRight className="h-3.5 w-3.5" />
           </Button>

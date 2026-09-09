@@ -122,7 +122,7 @@ export function DateRangeField({
         <Button
           type="button"
           variant="outline"
-          className={cn("h-8 justify-start gap-2 px-3 text-sm font-normal", className)}
+          className={cn("justify-start gap-2 font-normal", className)}
         >
           <CalendarIcon className="h-3.5 w-3.5" />
           {summarise(value)}
@@ -188,10 +188,10 @@ export function DateRangeField({
             {incomplete ? "Pick an end date" : summarise(draft)}
           </span>
           <div className="flex gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="button" size="sm" disabled={incomplete} onClick={apply}>
+            <Button type="button" disabled={incomplete} onClick={apply}>
               Apply
             </Button>
           </div>

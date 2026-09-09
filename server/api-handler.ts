@@ -66,9 +66,29 @@ async function resolveParams(context: NextRouteContext): Promise<any> {
   return raw && typeof (raw as Promise<unknown>).then === "function" ? await raw : (raw ?? {})
 }
 
+/**
+ * The first zod issue as a sentence the UI can toast as-is - "Title is
+ * required", "Email: Invalid email" - instead of a bare "Invalid input" with
+ * the reason buried in `details`.
+ */
+function zodMessage(err: ZodError): string {
+  const issue = err.issues[0]
+  if (!issue) return "Invalid input"
+  const leaf = issue.path.filter((p): p is string => typeof p === "string").pop()
+  if (!leaf) return issue.message
+  const field = leaf
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase())
+  if (/^required$/i.test(issue.message) || /expected \w+, received undefined/i.test(issue.message))
+    return `${field} is required`
+  return `${field}: ${issue.message}`
+}
+
 function handleError(err: unknown): NextResponse {
   if (err instanceof ZodError) {
-    return fail("VALIDATION_ERROR", "Invalid input", 422, err.flatten())
+    return fail("VALIDATION_ERROR", zodMessage(err), 422, err.flatten())
   }
   if (err instanceof AppError) {
     return fail(err.code, err.message, err.statusCode, err.details)

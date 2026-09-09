@@ -160,7 +160,7 @@ export function AttendanceDirectoryClient() {
         description="Who's in today - one row per employee. Correct punch in / out times here."
         actions={
           canWrite ? (
-            <Button onClick={() => setCorrectOpen(true)} className="gap-2">
+            <Button className="gap-2" onClick={() => setCorrectOpen(true)}>
               <Pencil className="h-4 w-4" />
               Correct Punch
             </Button>

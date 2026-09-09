@@ -239,12 +239,12 @@ export default function DesignationsPage() {
               <div
                 className={cn("flex items-center justify-end gap-1", !d.isActive && "opacity-60")}
               >
-                <Button variant="ghost" size="icon-sm" title="Edit" onClick={() => openEdit(d)}>
+                <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(d)}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   title={d.isActive ? "Deactivate" : "Activate"}
                   disabled={activeMut.isPending}
                   onClick={() => activeMut.mutate({ id: d.id, isActive: !d.isActive })}
@@ -254,7 +254,7 @@ export default function DesignationsPage() {
                 {d._count.employees === 0 && (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     className="text-destructive hover:bg-destructive/10"
                     title="Delete permanently"
                     disabled={purgeMut.isPending}
@@ -277,7 +277,7 @@ export default function DesignationsPage() {
         description={`${designations.length} designation${designations.length !== 1 ? "s" : ""} total`}
         actions={
           canWrite ? (
-            <Button onClick={openCreate} className="gap-2">
+            <Button className="gap-2" onClick={openCreate}>
               <Plus className="h-4 w-4" />
               Add Designation
             </Button>
@@ -294,12 +294,7 @@ export default function DesignationsPage() {
 
       {canWrite && (
         <BulkActionBar count={selection.count} onClear={selection.clear}>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setBulkOpen(true)}
-            disabled={bulkPending}
-          >
+          <Button variant="destructive" onClick={() => setBulkOpen(true)} disabled={bulkPending}>
             <Power className="mr-1.5 h-3.5 w-3.5" />
             Deactivate
           </Button>
@@ -348,7 +343,9 @@ export default function DesignationsPage() {
         onSubmit={handleSubmit}
       >
         <div className="space-y-2">
-          <Label htmlFor="desig-title">Title</Label>
+          <Label required htmlFor="desig-title">
+            Title
+          </Label>
           <Input
             id="desig-title"
             value={title}

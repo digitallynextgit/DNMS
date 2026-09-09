@@ -284,7 +284,7 @@ export function RichTextEditor({
             key={t.label}
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             title={t.label}
             aria-label={t.label}
             // onMouseDown + preventDefault: a click would blur the editable and
@@ -302,7 +302,7 @@ export function RichTextEditor({
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             title="Insert image"
             aria-label="Insert image"
             disabled={uploading}
@@ -324,7 +324,7 @@ export function RichTextEditor({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 text-xs">
+            <Button className="gap-1.5" type="button" variant="ghost">
               <Braces className="h-3.5 w-3.5" />
               Variable
             </Button>
@@ -378,8 +378,7 @@ export function RichTextEditor({
             <Button
               type="button"
               variant="secondary"
-              size="sm"
-              className="h-7 gap-1.5 text-xs shadow-md"
+              className="gap-1.5 shadow-md"
               onMouseDown={(e) => {
                 e.preventDefault()
                 linkPicked()
@@ -391,8 +390,7 @@ export function RichTextEditor({
             <Button
               type="button"
               variant="destructive"
-              size="sm"
-              className="h-7 gap-1.5 text-xs shadow-md"
+              className="gap-1.5 shadow-md"
               onMouseDown={(e) => {
                 e.preventDefault()
                 removePicked()

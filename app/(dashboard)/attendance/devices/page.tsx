@@ -106,11 +106,15 @@ export default function DevicesPage() {
   }
 
   async function handleBulkDelete() {
-    for (const id of selection.selectedIds) {
-      await deleteDevice.mutateAsync(id)
+    try {
+      for (const id of selection.selectedIds) {
+        await deleteDevice.mutateAsync(id)
+      }
+      selection.clear()
+      setBulkOpen(false)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
     }
-    selection.clear()
-    setBulkOpen(false)
   }
 
   const columns: DataTableColumn<HikvisionDevice>[] = [
@@ -166,9 +170,8 @@ export default function DevicesPage() {
             cell: (device: HikvisionDevice) => (
               <div className="flex items-center justify-end gap-1.5">
                 <Button
+                  className="gap-1.5"
                   variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5"
                   onClick={() => handleTest(device.id)}
                   disabled={testingId === device.id || !device.isActive}
                   title="Test connection"
@@ -181,9 +184,8 @@ export default function DevicesPage() {
                   Test
                 </Button>
                 <Button
+                  className="gap-1.5"
                   variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5"
                   onClick={() => handleSync(device.id)}
                   disabled={syncingId === device.id || !device.isActive}
                   title="Sync device"
@@ -197,7 +199,7 @@ export default function DevicesPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   onClick={() => setFullSyncId(device.id)}
                   disabled={syncingId === device.id || !device.isActive}
                   title="Full re-sync (rebuild all history from device)"
@@ -206,7 +208,7 @@ export default function DevicesPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   onClick={() => handleEdit(device)}
                   title="Edit device"
                 >
@@ -214,7 +216,7 @@ export default function DevicesPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   className="text-destructive hover:text-destructive"
                   onClick={() => setDeleteId(device.id)}
                   title="Delete device"
@@ -236,11 +238,11 @@ export default function DevicesPage() {
         actions={
           canWrite ? (
             <Button
+              className="gap-2"
               onClick={() => {
                 setEditDevice(null)
                 setFormOpen(true)
               }}
-              className="gap-2"
             >
               <Plus className="h-4 w-4" />
               Add Device
@@ -253,7 +255,6 @@ export default function DevicesPage() {
         <BulkActionBar count={selection.count} onClear={selection.clear}>
           <Button
             variant="destructive"
-            size="sm"
             onClick={() => setBulkOpen(true)}
             disabled={deleteDevice.isPending}
           >

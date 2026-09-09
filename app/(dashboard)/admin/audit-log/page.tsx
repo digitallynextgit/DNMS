@@ -210,7 +210,7 @@ export default function AuditLogPage() {
         title="Audit Log"
         description="Track all actions performed in the system"
         actions={
-          <Button variant="outline" size="sm" onClick={fetchEntries}>
+          <Button variant="outline" onClick={fetchEntries}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
@@ -273,7 +273,7 @@ export default function AuditLogPage() {
 
         {/* Clear filters */}
         {(moduleFilter || actionFilter || dateFrom || dateTo) && (
-          <Button variant="ghost" size="sm" onClick={handleClearFilters}>
+          <Button variant="ghost" onClick={handleClearFilters}>
             Clear filters
           </Button>
         )}

@@ -38,7 +38,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import {
   Select,
   SelectContent,
@@ -317,7 +318,7 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
 
         {canManage && (
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => setFormOpen(true)}>
+            <Button variant="outline" onClick={() => setFormOpen(true)}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Add site
             </Button>
@@ -332,7 +333,7 @@ export function SeoTab({ projectId, canManage }: { projectId: string; canManage:
                 onDelete={() => setConfirmDelete(current.id)}
               />
             ) : (
-              <Button size="sm" onClick={() => syncAll.mutate()} disabled={syncAll.isPending}>
+              <Button onClick={() => syncAll.mutate()} disabled={syncAll.isPending}>
                 <RefreshCw
                   className={cn("mr-1.5 h-3.5 w-3.5", syncAll.isPending && "animate-spin")}
                 />
@@ -429,20 +430,19 @@ function SiteActions({
     <>
       <Button
         variant="outline"
-        size="sm"
         onClick={() => sync.mutate({ propertyId: site, backfill: true })}
         disabled={sync.isPending}
       >
         Backfill 8 weeks
       </Button>
-      <Button variant="outline" size="sm" onClick={onEdit}>
+      <Button variant="outline" onClick={onEdit}>
         <Pencil className="mr-1.5 h-3.5 w-3.5" />
         Edit
       </Button>
-      <Button variant="outline" size="sm" onClick={onDelete}>
+      <Button variant="outline" onClick={onDelete}>
         <Trash2 className="h-3.5 w-3.5" />
       </Button>
-      <Button size="sm" onClick={() => sync.mutate({ propertyId: site })} disabled={sync.isPending}>
+      <Button onClick={() => sync.mutate({ propertyId: site })} disabled={sync.isPending}>
         <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", sync.isPending && "animate-spin")} />
         Sync
       </Button>
@@ -698,8 +698,7 @@ function PeriodFilter({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            size="sm"
-            className="h-8 justify-start text-xs font-normal"
+            className="justify-start font-normal"
             title={
               o.period
                 ? `Showing ${formatRange(o.period.start, o.period.end)}${
@@ -719,8 +718,6 @@ function PeriodFilter({
             <span className="text-xs font-medium">Pick any week</span>
             <Button
               variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
               onClick={() => {
                 onPeriodEnd(null)
                 onWeeks(1)
@@ -853,23 +850,26 @@ function SiteReport({
       <Tabs value={active} onValueChange={setTab} className="space-y-4">
         {/* Tabs on the left, period filter on the right, sharing one row. */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <TabsList className="flex-wrap">
-            {TABS.map(({ value, label, Icon }) => (
-              <TabsTrigger key={value} value={value} className="gap-1.5">
-                <Icon className="h-3.5 w-3.5" /> {label}
-                {value === "start" && needsSetup && (
-                  <span className="bg-primary text-primary-foreground ml-0.5 rounded-sm px-1.5 text-[10px] leading-4">
-                    {setup!.total - setup!.completed}
-                  </span>
-                )}
-                {value === "work" && o.tasks.length > 0 && (
-                  <span className="bg-muted ml-0.5 rounded-sm px-1.5 text-[10px] leading-4">
-                    {o.tasks.length}
-                  </span>
-                )}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <TabsBar
+            spacing="none"
+            className="flex-wrap"
+            items={TABS.map(({ value, label, Icon }) => ({
+              value,
+              label,
+              icon: Icon,
+              // Only two of the seven carry a number, and they say different
+              // things: steps still to do (loud) vs tasks that exist (quiet).
+              ...(value === "start" && needsSetup
+                ? {
+                    badge: setup!.total - setup!.completed,
+                    badgeClassName: "bg-primary text-primary-foreground",
+                  }
+                : {}),
+              ...(value === "work"
+                ? { badge: o.tasks.length, badgeClassName: "bg-muted text-muted-foreground" }
+                : {}),
+            }))}
+          />
 
           <PeriodFilter
             overview={o}
@@ -1170,7 +1170,7 @@ function MoneyKeywords({ o, onEditSite }: { o: SeoOverview; onEditSite?: () => v
             </p>
           </div>
           {onEditSite && (
-            <Button size="sm" variant="outline" onClick={onEditSite}>
+            <Button variant="outline" onClick={onEditSite}>
               <Pencil className="mr-1.5 h-3.5 w-3.5" />
               Add keywords
             </Button>

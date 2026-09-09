@@ -72,7 +72,7 @@ export default function MyPayslipsPage() {
       align: "right",
       cell: (payslip) => (
         <div className="flex items-center justify-end gap-1">
-          <Button variant="outline" size="sm" asChild className="gap-1.5">
+          <Button className="gap-1.5" variant="outline" asChild>
             <Link href={`/payroll/me/${payslip.id}`}>
               <Download className="h-3.5 w-3.5" />
               View
@@ -140,7 +140,7 @@ export default function MyPayslipsPage() {
                     {fmt(payslip.totalDeductions)}
                   </p>
                 </div>
-                <Button variant="outline" size="sm" asChild className="ml-auto gap-1.5">
+                <Button variant="outline" asChild className="ml-auto gap-1.5">
                   <Link href={`/payroll/me/${payslip.id}`}>
                     <Download className="h-3.5 w-3.5" />
                     View

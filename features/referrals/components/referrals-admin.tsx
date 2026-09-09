@@ -135,7 +135,6 @@ export function ReferralsAdmin() {
                       the act of confirming the hire. */}
                   {!r.hire && (
                     <Button
-                      size="sm"
                       variant="outline"
                       onClick={() => {
                         setHireId("")
@@ -147,7 +146,7 @@ export function ReferralsAdmin() {
                     </Button>
                   )}
                   {r.reward.state === "due" && (
-                    <Button size="sm" onClick={() => setPaying(r)}>
+                    <Button onClick={() => setPaying(r)}>
                       <IndianRupee className="mr-1.5 h-3.5 w-3.5" />
                       Mark paid
                     </Button>

@@ -27,7 +27,8 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { DateField } from "@/components/shared/date-field"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { useRowSelection } from "@/hooks/use-row-selection"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import {
   Select,
   SelectContent,
@@ -153,25 +154,37 @@ export default function HolidayCalendarPage() {
   async function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault()
     const body = { name, date, description: description || null, isOptional }
-    if (editing) await updateHoliday.mutateAsync({ id: editing.id, body })
-    else await createHoliday.mutateAsync(body)
-    setFormOpen(false)
-    setEditing(null)
-    resetForm()
+    try {
+      if (editing) await updateHoliday.mutateAsync({ id: editing.id, body })
+      else await createHoliday.mutateAsync(body)
+      setFormOpen(false)
+      setEditing(null)
+      resetForm()
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
+    }
   }
 
   async function handleConfirmDelete() {
     if (!deleteId) return
-    await deleteHoliday.mutateAsync(deleteId)
-    setDeleteId(null)
+    try {
+      await deleteHoliday.mutateAsync(deleteId)
+      setDeleteId(null)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
+    }
   }
 
   async function handleBulkDelete() {
-    for (const id of selection.selectedIds) {
-      await deleteHoliday.mutateAsync(id)
+    try {
+      for (const id of selection.selectedIds) {
+        await deleteHoliday.mutateAsync(id)
+      }
+      selection.clear()
+      setBulkOpen(false)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
     }
-    selection.clear()
-    setBulkOpen(false)
   }
 
   const columns: DataTableColumn<HolidayRow>[] = [
@@ -205,7 +218,7 @@ export default function HolidayCalendarPage() {
               <div className="flex items-center justify-end gap-1">
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   onClick={() => openEdit(h)}
                   title="Edit holiday"
                 >
@@ -214,7 +227,7 @@ export default function HolidayCalendarPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   className="text-destructive hover:text-destructive"
                   onClick={() => setDeleteId(h.id)}
                   title="Delete holiday"
@@ -242,11 +255,14 @@ export default function HolidayCalendarPage() {
           description="Company holidays and optional days off - list and month view."
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <TabsList>
-                <TabsTrigger value="table">Table</TabsTrigger>
-                <TabsTrigger value="calendar">Calendar</TabsTrigger>
-                {canWrite && <TabsTrigger value="requests">Floating Requests</TabsTrigger>}
-              </TabsList>
+              <TabsBar
+                spacing="none"
+                items={[
+                  { value: "table", label: "Table" },
+                  { value: "calendar", label: "Calendar" },
+                  canWrite && { value: "requests", label: "Floating Requests" },
+                ]}
+              />
               <Select value={String(year)} onValueChange={(v) => changeYear(Number(v))}>
                 <SelectTrigger className="w-28">
                   <SelectValue />
@@ -260,7 +276,7 @@ export default function HolidayCalendarPage() {
                 </SelectContent>
               </Select>
               {canWrite && (
-                <Button onClick={openAdd} className="gap-2">
+                <Button className="gap-2" onClick={openAdd}>
                   <Plus className="h-4 w-4" />
                   Add Holiday
                 </Button>
@@ -300,7 +316,6 @@ export default function HolidayCalendarPage() {
             <BulkActionBar count={selection.count} onClear={selection.clear}>
               <Button
                 variant="destructive"
-                size="sm"
                 onClick={() => setBulkOpen(true)}
                 disabled={deleteHoliday.isPending}
               >
@@ -378,7 +393,9 @@ export default function HolidayCalendarPage() {
         onSubmit={handleFormSubmit}
       >
         <div className="space-y-2">
-          <Label htmlFor="holiday-name">Holiday Name</Label>
+          <Label required htmlFor="holiday-name">
+            Holiday Name
+          </Label>
           <Input
             id="holiday-name"
             placeholder="e.g. Republic Day"
@@ -389,7 +406,7 @@ export default function HolidayCalendarPage() {
         </div>
 
         <div className="space-y-2">
-          <Label>Date</Label>
+          <Label required>Date</Label>
           {/* Bounded to the year in view when adding; when editing, the holiday's
               own year, so a row opened from another year is still reachable. */}
           <DateField

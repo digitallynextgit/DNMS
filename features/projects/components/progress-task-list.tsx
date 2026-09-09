@@ -421,8 +421,7 @@ export function TaskRows({
             {groups.length > 1 && (
               <Button
                 variant="ghost"
-                size="sm"
-                className="text-muted-foreground h-7 gap-1 px-2 text-[11px]"
+                className="text-muted-foreground px-2"
                 onClick={() =>
                   setCollapsed(allCollapsed ? new Set() : new Set(visible.map((g) => g.key)))
                 }
@@ -575,13 +574,7 @@ export function TaskList({
           <p className="text-muted-foreground text-[11px]">
             Showing {data.data.length} of {data.total}
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-[11px]"
-            disabled={isFetching}
-            onClick={() => setPage((p) => p + PAGE)}
-          >
+          <Button variant="outline" disabled={isFetching} onClick={() => setPage((p) => p + PAGE)}>
             {isFetching ? "Loading…" : `Show ${Math.min(PAGE, data.total - data.data.length)} more`}
           </Button>
         </div>

@@ -28,6 +28,7 @@ export * from "./components/teams-tab"
 export * from "./hooks/use-projects"
 export * from "./hooks/use-brand"
 export * from "./hooks/use-project-drive"
+export * from "./hooks/use-project-files"
 export * from "./hooks/use-integration"
 export * from "./brand"
 

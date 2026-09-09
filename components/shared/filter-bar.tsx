@@ -32,7 +32,7 @@ export function FilterToolbar({
     <div className={cn("flex flex-wrap items-center gap-3", className)}>
       {children}
       {hasActiveFilters && onClear && (
-        <Button variant="ghost" size="sm" onClick={onClear} className="h-9 gap-1.5">
+        <Button className="gap-1.5" variant="ghost" onClick={onClear}>
           <X className="h-3.5 w-3.5" />
           Clear
         </Button>

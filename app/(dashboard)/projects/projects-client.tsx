@@ -186,7 +186,7 @@ export function ProjectsClient() {
       align: "right",
       cell: (p) => (
         <div className="flex items-center justify-end gap-0.5">
-          <Button variant="ghost" size="icon-sm" asChild title="View details">
+          <Button variant="ghost" size="icon" asChild title="View details">
             <Link href={projectHref(p)} aria-label={`View ${p.name}`}>
               <Eye className="h-4 w-4" />
             </Link>
@@ -194,7 +194,7 @@ export function ProjectsClient() {
           {canManageProject(p) && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               title="Edit"
               aria-label={`Edit ${p.name}`}
               onClick={() => setEditing(p)}
@@ -216,7 +216,7 @@ export function ProjectsClient() {
           <div className="flex items-center gap-2">
             <ViewToggle value={viewMode} onChange={setViewMode} />
             {canWrite && (
-              <Button onClick={() => setCreateOpen(true)} className="gap-2">
+              <Button className="gap-2" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4" /> New Project
               </Button>
             )}
@@ -309,7 +309,7 @@ export function ProjectsClient() {
                               <DropdownMenuTrigger asChild>
                                 <Button
                                   variant="ghost"
-                                  size="icon-sm"
+                                  size="icon"
                                   className="relative z-10 shrink-0"
                                   aria-label="More actions"
                                 >

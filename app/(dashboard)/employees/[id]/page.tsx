@@ -24,7 +24,8 @@ import { DocumentUploadDialog } from "@/features/documents"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { PageHeader } from "@/components/shared/page-header"
@@ -140,7 +141,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
               {/* Full edit form (every field, same as create) - the per-section
                   "Edit" buttons below are the quick path. */}
               {canEdit && (
-                <Button asChild variant="outline" size="sm" className="gap-1.5">
+                <Button className="gap-1.5" asChild variant="outline">
                   <Link href={`/employees/${emp.id}/edit`}>
                     <Pencil className="h-3.5 w-3.5" /> Edit full profile
                   </Link>
@@ -236,36 +237,18 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
 
       {/* Tabs */}
       <Tabs defaultValue="info">
-        <TabsList className="mb-4">
-          <TabsTrigger value="info" className="flex items-center gap-1.5">
-            <Users className="h-4 w-4" />
-            Info
-          </TabsTrigger>
-          <TabsTrigger value="documents" className="flex items-center gap-1.5">
-            <FileText className="h-4 w-4" />
-            Documents
-          </TabsTrigger>
-          <TabsTrigger value="leave" className="flex items-center gap-1.5">
-            <CalendarDays className="h-4 w-4" />
-            Leave
-          </TabsTrigger>
-          <TabsTrigger value="salary" className="flex items-center gap-1.5">
-            <Wallet className="h-4 w-4" />
-            Salary
-          </TabsTrigger>
-          <TabsTrigger value="roles" className="flex items-center gap-1.5">
-            <ShieldCheck className="h-4 w-4" />
-            Roles
-          </TabsTrigger>
-          {/* HR only: the API behind it is employee:write, so showing the tab to
-              anyone else would only ever produce a 403. */}
-          {canEdit && (
-            <TabsTrigger value="access" className="flex items-center gap-1.5">
-              <History className="h-4 w-4" />
-              Task Access
-            </TabsTrigger>
-          )}
-        </TabsList>
+        <TabsBar
+          items={[
+            { value: "info", label: "Info", icon: Users },
+            { value: "documents", label: "Documents", icon: FileText },
+            { value: "leave", label: "Leave", icon: CalendarDays },
+            { value: "salary", label: "Salary", icon: Wallet },
+            { value: "roles", label: "Roles", icon: ShieldCheck },
+            // HR only: the API behind it is employee:write, so showing the tab to
+            // anyone else would only ever produce a 403.
+            canEdit && { value: "access", label: "Task Access", icon: History },
+          ]}
+        />
 
         {/* ── Info Tab ─────────────────────────────────────────────────────── */}
         <TabsContent value="info" className="space-y-6">
@@ -386,7 +369,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
                   Documents
                 </CardTitle>
                 {canUploadDocs && (
-                  <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+                  <Button variant="outline" onClick={() => setUploadOpen(true)}>
                     <Upload className="mr-2 h-3.5 w-3.5" />
                     Upload
                   </Button>

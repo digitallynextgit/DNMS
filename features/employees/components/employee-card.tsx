@@ -76,7 +76,7 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                   aria-label="More actions"
                 >
@@ -149,7 +149,7 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
               />
             )}
           </div>
-          <Button variant="outline" size="sm" className="h-7 px-2 text-xs" asChild>
+          <Button variant="outline" className="px-2" asChild>
             <Link
               href={`/employees/${employeeSlug(employee.employeeNo, employee.firstName, employee.lastName)}`}
             >

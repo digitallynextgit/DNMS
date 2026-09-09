@@ -93,7 +93,7 @@ export function ReactionButton({
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label="React"
           title="React"
           className={cn("text-muted-foreground hover:text-foreground shrink-0", className)}

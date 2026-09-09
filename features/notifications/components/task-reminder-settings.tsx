@@ -102,7 +102,6 @@ export function TaskReminderSettings() {
                 <Button
                   key={preset}
                   type="button"
-                  size="sm"
                   variant={form.leadMinutes === preset ? "default" : "outline"}
                   onClick={() => set("leadMinutes", preset)}
                 >

@@ -131,8 +131,12 @@ export function EmployeeDirectoryClient() {
   // ── Row action handlers ───────────────────────────────────────────────────
   async function confirmHardDelete() {
     if (!hardDeleteId) return
-    await hardDeleteEmployee.mutateAsync(hardDeleteId)
-    setHardDeleteId(null)
+    try {
+      await hardDeleteEmployee.mutateAsync(hardDeleteId)
+      setHardDeleteId(null)
+    } catch {
+      // the mutation hook already toasts the error; just keep the form open
+    }
   }
 
   // ── Selection helpers ─────────────────────────────────────────────────────
@@ -259,7 +263,7 @@ export function EmployeeDirectoryClient() {
             <Button
               asChild
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               className="text-muted-foreground hover:text-foreground"
               title="View"
             >
@@ -275,7 +279,7 @@ export function EmployeeDirectoryClient() {
                 {can(PERMISSIONS.EMPLOYEE_DELETE) && (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => deactivateEmployee.mutate(emp.id)}
                     disabled={deactivateEmployee.isPending}
@@ -291,7 +295,7 @@ export function EmployeeDirectoryClient() {
                 {can(PERMISSIONS.EMPLOYEE_WRITE) && (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     className="text-green-600 hover:bg-green-500/10 hover:text-green-600 dark:text-green-400 dark:hover:text-green-400"
                     onClick={() => activateEmployee.mutate(emp.id)}
                     disabled={activateEmployee.isPending}
@@ -304,7 +308,7 @@ export function EmployeeDirectoryClient() {
                 {can(PERMISSIONS.EMPLOYEE_DELETE) && (
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => setHardDeleteId(emp.id)}
                     title="Delete permanently"
@@ -395,16 +399,15 @@ export function EmployeeDirectoryClient() {
       {/* Bulk action bar - visible when at least one row is selected */}
       {viewMode === "table" && (
         <BulkActionBar count={count} onClear={clear}>
-          <Button variant="outline" size="sm" onClick={exportSelectedCsv} className="gap-1.5">
+          <Button className="gap-1.5" variant="outline" onClick={exportSelectedCsv}>
             <Download className="h-3.5 w-3.5" />
             Export CSV
           </Button>
           {can(PERMISSIONS.EMPLOYEE_DELETE) && (
             <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setBulkDeleteOpen(true)}
               className="gap-1.5"
+              variant="destructive"
+              onClick={() => setBulkDeleteOpen(true)}
             >
               <Trash2 className="h-3.5 w-3.5" />
               Terminate

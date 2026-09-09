@@ -357,7 +357,7 @@ export function DeliverablesExportMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className={cn("h-8 gap-1.5", className)}>
+          <Button variant="outline" className={cn("gap-1.5", className)}>
             <Download className="h-3.5 w-3.5" /> Export CSV
           </Button>
         </DropdownMenuTrigger>
@@ -387,7 +387,9 @@ export function DeliverablesExportMenu({
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-muted-foreground text-[11px]">From</Label>
+              <Label required className="text-muted-foreground text-[11px]">
+                From
+              </Label>
               <DateField
                 value={range.from}
                 onChange={(from) => setRange((r) => ({ ...r, from }))}
@@ -395,7 +397,9 @@ export function DeliverablesExportMenu({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-muted-foreground text-[11px]">To</Label>
+              <Label required className="text-muted-foreground text-[11px]">
+                To
+              </Label>
               <DateField
                 value={range.to}
                 onChange={(to) => setRange((r) => ({ ...r, to }))}
@@ -579,9 +583,8 @@ export function DeliverableRowView({
             {moves.map((to) => (
               <Button
                 key={to}
-                size="sm"
                 variant={to === "ACCEPTED" ? "default" : "outline"}
-                className="h-6 px-2 text-[11px]"
+                className="gap-1.5 px-2"
                 onClick={() => onStatus?.(to)}
               >
                 {actionLabel(r.status, to)}
@@ -606,7 +609,7 @@ export function DeliverableRowView({
           {onVerify && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               aria-label={r.verified ? "Remove verification" : "Verify"}
               title={r.verified ? "Remove verification" : "Verify - you have looked at it"}
               onClick={() => onVerify(!r.verified)}
@@ -621,7 +624,7 @@ export function DeliverableRowView({
           {onHistory && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               aria-label="History"
               title="History"
               onClick={onHistory}
@@ -633,7 +636,7 @@ export function DeliverableRowView({
           {onEdit && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               aria-label="Edit"
               title="Edit"
               onClick={onEdit}
@@ -645,7 +648,7 @@ export function DeliverableRowView({
           {onDelete && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               aria-label="Remove"
               title="Remove"
               onClick={onDelete}
@@ -844,9 +847,8 @@ export function DeliverablesTab({
               <DeliverablesExportMenu filters={{ ...filters, projectId }} />
               {canStaff && (
                 <Button
-                  size="sm"
+                  className="gap-1.5"
                   variant="outline"
-                  className="h-8 gap-1.5"
                   onClick={() => {
                     setEditingId(null)
                     setPlanning(true)
@@ -857,8 +859,7 @@ export function DeliverablesTab({
                 </Button>
               )}
               <Button
-                size="sm"
-                className="h-8 gap-1.5"
+                className="gap-1.5"
                 onClick={() => {
                   setEditingId(null)
                   setPlanning(false)
@@ -1006,8 +1007,6 @@ export function DeliverablesTab({
         {(teamId !== ALL || employeeId !== ALL || type || statuses.length > 0) && (
           <Button
             variant="ghost"
-            size="sm"
-            className="h-8 text-xs"
             onClick={() => {
               setTeamId(ALL)
               setEmployeeId(ALL)

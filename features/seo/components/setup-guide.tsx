@@ -115,12 +115,7 @@ export function SetupGuide({
               {setup.lockedPoints} scorecard points locked
             </Badge>
           )}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto h-7 text-xs"
-            onClick={() => onGoToTab("start")}
-          >
+          <Button variant="ghost" className="ml-auto" onClick={() => onGoToTab("start")}>
             Continue setup <ArrowRight className="ml-1 h-3 w-3" />
           </Button>
         </CardContent>
@@ -310,9 +305,8 @@ function StepCard({
           <div className="mt-1 flex items-center gap-1.5 border-t pt-2.5">
             {onAi && !step.done && (
               <Button
-                size="sm"
                 variant="outline"
-                className="h-7 flex-1 text-xs"
+                className="flex-1"
                 // Without this the card's own click handler would fire too.
                 onClick={(e) => {
                   e.stopPropagation()
@@ -324,9 +318,8 @@ function StepCard({
               </Button>
             )}
             <Button
-              size="sm"
               variant={step.done ? "ghost" : isNext ? "default" : "outline"}
-              className={cn("h-7 text-xs", !onAi || step.done ? "w-full" : "flex-1")}
+              className={!onAi || step.done ? "w-full" : "flex-1"}
               onClick={(e) => {
                 e.stopPropagation()
                 onRun()

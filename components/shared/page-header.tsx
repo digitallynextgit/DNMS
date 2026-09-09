@@ -61,14 +61,14 @@ export function PageHeader({
   return (
     <div className={cn("space-y-2 py-4", className)}>
       {backHref ? (
-        <Button variant="outline" size="sm" asChild className="group w-fit">
+        <Button variant="outline" asChild className="group w-fit">
           <Link href={backHref}>
             <ChevronLeft className="transition-transform group-hover:-translate-x-0.5" />
             {backLabel}
           </Link>
         </Button>
       ) : onBack ? (
-        <Button variant="outline" size="sm" onClick={onBack} className="group w-fit">
+        <Button variant="outline" onClick={onBack} className="group w-fit">
           <ChevronLeft className="transition-transform group-hover:-translate-x-0.5" />
           {backLabel}
         </Button>

@@ -7,12 +7,12 @@ import { Star, ChevronRight } from "lucide-react"
 
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
 import {
   Select,
   SelectContent,
@@ -104,7 +104,7 @@ export default function MyPerformancePage() {
       cell: (ev) => {
         const selfPending = !ev.selfSubmittedAt
         return (
-          <Button asChild size="sm" variant={selfPending ? "default" : "outline"}>
+          <Button asChild variant={selfPending ? "default" : "outline"}>
             <Link href={`/performance/evaluations/${ev.id}`}>
               {selfPending ? "Fill self-evaluation" : "Open"}
               <ChevronRight className="ml-1 h-4 w-4" />
@@ -165,7 +165,7 @@ export default function MyPerformancePage() {
       cell: (ev) => {
         const done = ev.managerId === myId ? ev.managerSubmittedAt : ev.controllerSubmittedAt
         return (
-          <Button asChild size="sm" variant={done ? "outline" : "default"}>
+          <Button asChild variant={done ? "outline" : "default"}>
             <Link href={`/performance/evaluations/${ev.id}`}>
               {done ? "Open" : "Give rating"}
               <ChevronRight className="ml-1 h-4 w-4" />
@@ -216,17 +216,13 @@ export default function MyPerformancePage() {
 
       <Tabs defaultValue="mine" className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <TabsList>
-            <TabsTrigger value="mine">My Evaluations</TabsTrigger>
-            <TabsTrigger value="review" className="gap-1.5">
-              To Review
-              {pendingReview > 0 && (
-                <Badge className="bg-destructive h-4 min-w-4 px-1 text-[10px] text-white">
-                  {pendingReview}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
+          <TabsBar
+            spacing="none"
+            items={[
+              { value: "mine", label: "My Evaluations" },
+              { value: "review", label: "To Review", badge: pendingReview },
+            ]}
+          />
           {(mine.length > 0 || toReview.length > 0) && filters}
         </div>
 

@@ -118,7 +118,7 @@ export function RequirementsTab({
         <p className="text-muted-foreground text-xs">
           Things a team needs from someone else before work can continue.
         </p>
-        <Button size="sm" className="gap-1.5" onClick={() => setRaiseOpen(true)}>
+        <Button className="gap-1.5" onClick={() => setRaiseOpen(true)}>
           <Plus className="h-4 w-4" /> Raise requirement
         </Button>
       </div>
@@ -230,9 +230,7 @@ export function RequirementsTab({
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
                     {canAct && r.status === "OPEN" && (
                       <Button
-                        size="sm"
                         variant="outline"
-                        className="h-7 text-xs"
                         onClick={() =>
                           update.mutate({ requirementId: r.id, status: "IN_PROGRESS" })
                         }
@@ -243,16 +241,14 @@ export function RequirementsTab({
                     {canAct && OPEN.includes(r.status) && (
                       <>
                         <Button
-                          size="sm"
-                          className="h-7 gap-1 text-xs"
+                          className="gap-1"
                           onClick={() => update.mutate({ requirementId: r.id, status: "PROVIDED" })}
                         >
                           <Check className="h-3.5 w-3.5" /> Mark provided
                         </Button>
                         <Button
-                          size="sm"
                           variant="outline"
-                          className="text-muted-foreground hover:text-destructive h-7 gap-1 text-xs"
+                          className="text-muted-foreground hover:text-destructive gap-1"
                           onClick={() => {
                             setRejectReason("")
                             setRejecting(r)
@@ -264,9 +260,7 @@ export function RequirementsTab({
                     )}
                     {!OPEN.includes(r.status) && canAct && (
                       <Button
-                        size="sm"
                         variant="ghost"
-                        className="h-7 text-xs"
                         onClick={() => update.mutate({ requirementId: r.id, status: "OPEN" })}
                       >
                         Reopen
@@ -274,9 +268,9 @@ export function RequirementsTab({
                     )}
                     {canRemove && (
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
-                        className="text-muted-foreground hover:text-destructive ml-auto h-7 w-7 p-0"
+                        className="text-muted-foreground hover:text-destructive ml-auto p-0"
                         title="Delete requirement"
                         onClick={() => setDeleting(r)}
                       >
@@ -319,8 +313,8 @@ export function RequirementsTab({
         }}
       >
         <div className="space-y-2">
-          <Label htmlFor="reject-reason">
-            Reason<span className="text-destructive"> *</span>
+          <Label required htmlFor="reject-reason">
+            Reason
           </Label>
           <Input
             id="reject-reason"

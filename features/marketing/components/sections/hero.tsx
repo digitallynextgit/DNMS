@@ -118,10 +118,10 @@ export function Hero() {
             >
               {authed ? (
                 <>
-                  <Button asChild size="lg" variant="outline">
+                  <Button asChild variant="outline">
                     <a href="#modules">Browse modules</a>
                   </Button>
-                  <Button asChild size="lg">
+                  <Button asChild>
                     <Link href={appHref}>
                       Go to dashboard
                       <ArrowRight className="ml-1 h-4 w-4" />
@@ -130,13 +130,13 @@ export function Hero() {
                 </>
               ) : (
                 <>
-                  <Button asChild size="lg">
+                  <Button asChild>
                     <Link href="/signup">
                       Start free
                       <ArrowRight className="ml-1 h-4 w-4" />
                     </Link>
                   </Button>
-                  <Button asChild size="lg" variant="outline">
+                  <Button asChild variant="outline">
                     <a href="#modules">Browse modules</a>
                   </Button>
                 </>

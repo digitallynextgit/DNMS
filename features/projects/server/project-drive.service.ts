@@ -7,6 +7,10 @@ import {
   uploadToFolder,
   createGoogleFile,
   trashDriveFile,
+  renameDriveFile,
+  moveDriveFile,
+  getDriveFile,
+  isUnderFolder,
   listPermissions,
   grantAccess,
   revokeAccess,
@@ -124,35 +128,78 @@ export async function getProjectDrive(projectId: string): Promise<ProjectDriveDa
   }
 }
 
+/**
+ * The Drive folder a write should land in: the app folder's mirrored Drive
+ * sub-folder (created on demand), or the project root when no app folder is
+ * given. Throws when the app folder is not this project's.
+ */
+async function driveTargetFor(projectId: string, appFolderId: string | null): Promise<string> {
+  const root = await ensureProjectFolder(projectId)
+  if (!appFolderId) return root.id
+  const { ensureDriveMirror } = await import("./folders.service")
+  const mirror = await ensureDriveMirror(projectId, appFolderId)
+  return mirror ?? root.id
+}
+
 export async function uploadProjectFile(
   projectId: string,
   name: string,
   mimeType: string,
   body: Buffer,
+  appFolderId: string | null = null,
 ): Promise<DriveFile> {
-  const folder = await ensureProjectFolder(projectId)
-  return uploadToFolder(folder.id, name, mimeType, body)
+  const target = await driveTargetFor(projectId, appFolderId)
+  return uploadToFolder(target, name, mimeType, body)
 }
 
 export async function createProjectDoc(
   projectId: string,
   name: string,
   kind: "doc" | "sheet",
+  appFolderId: string | null = null,
 ): Promise<DriveFile> {
-  const folder = await ensureProjectFolder(projectId)
-  return createGoogleFile(folder.id, name, kind)
+  const target = await driveTargetFor(projectId, appFolderId)
+  return createGoogleFile(target, name, kind)
 }
 
 /**
- * Trash a file, but ONLY if it actually lives under THIS project's Drive folder
- * (SEC-07). The service account can see every project's folder, so without this
- * check a manager of one project could pass any fileId and trash another
- * project's files. Returns false when the file is not a member (caller 404s).
+ * Does this Drive file live under THIS project's folder (any depth)? The
+ * service account can see every project's folder, so every write below checks
+ * this first - without it a member of one project could pass any fileId and
+ * rename/move/trash another project's files (SEC-07).
  */
+async function ownsDriveFile(projectId: string, fileId: string): Promise<boolean> {
+  const root = await ensureProjectFolder(projectId)
+  if (fileId === root.id) return false // the project root itself is never a target
+  return isUnderFolder(fileId, root.id)
+}
+
+/** Trash a file (recoverable). Returns false when it is not this project's (caller 404s). */
 export async function trashProjectFile(projectId: string, fileId: string): Promise<boolean> {
-  const folder = await ensureProjectFolder(projectId)
-  const files = await listFolder(folder.id)
-  if (!files.some((f) => f.id === fileId)) return false
+  if (!(await ownsDriveFile(projectId, fileId))) return false
   await trashDriveFile(fileId)
   return true
+}
+
+export async function renameProjectDriveFile(
+  projectId: string,
+  fileId: string,
+  name: string,
+): Promise<DriveFile | null> {
+  if (!(await ownsDriveFile(projectId, fileId))) return null
+  return renameDriveFile(fileId, name)
+}
+
+/** Move a Drive file into an app folder's mirror (null = project root). */
+export async function moveProjectDriveFile(
+  projectId: string,
+  fileId: string,
+  appFolderId: string | null,
+): Promise<DriveFile | null> {
+  if (!(await ownsDriveFile(projectId, fileId))) return null
+  const current = await getDriveFile(fileId)
+  if (!current?.parentId) return null
+  const target = await driveTargetFor(projectId, appFolderId)
+  if (target === current.parentId) return current
+  return moveDriveFile(fileId, current.parentId, target)
 }

@@ -199,7 +199,9 @@ function EditDialog({
 
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-muted-foreground text-[11px]">Title</Label>
+            <Label required className="text-muted-foreground text-[11px]">
+              Title
+            </Label>
             <Input
               autoFocus
               value={title}
@@ -610,7 +612,7 @@ export function GoalsTab({
       {canManage && goal.isActive && (
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label={`Edit ${goal.title}`}
           title="Edit"
           onClick={() => setEditing(goal)}
@@ -630,7 +632,7 @@ export function GoalsTab({
       )}
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         aria-label={`History for ${goal.title}`}
         title="History"
         onClick={() => setHistoryFor(goal)}
@@ -642,7 +644,7 @@ export function GoalsTab({
         (goal.isActive ? (
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             aria-label={`Remove ${goal.title}`}
             title="Remove"
             // The UNFILTERED node: the dialog warns how many sub-goals go with
@@ -657,7 +659,7 @@ export function GoalsTab({
         ) : (
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             aria-label={`Restore ${goal.title}`}
             title="Restore"
             onClick={() => restore.mutate(goal.id)}
@@ -774,7 +776,7 @@ export function GoalsTab({
               suggestions={full.allTags}
               className="w-56"
             />
-            <Button onClick={addMain} disabled={!newGoal.trim() || create.isPending} size="sm">
+            <Button onClick={addMain} disabled={!newGoal.trim() || create.isPending}>
               <Plus className="h-4 w-4" /> Add goal
             </Button>
           </CardContent>
@@ -816,7 +818,6 @@ export function GoalsTab({
                 </p>
                 <Button
                   variant="outline"
-                  size="sm"
                   className="mt-4"
                   onClick={() => setFilters(NO_GOAL_FILTERS)}
                 >
@@ -1043,22 +1044,17 @@ export function GoalsTab({
                           suggestions={full.allTags}
                           className="w-52"
                         />
-                        <Button
-                          size="sm"
-                          onClick={() => addSub(goal.id)}
-                          disabled={!subTitle.trim()}
-                        >
+                        <Button onClick={() => addSub(goal.id)} disabled={!subTitle.trim()}>
                           Add
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setSubFor(null)}>
+                        <Button variant="ghost" onClick={() => setSubFor(null)}>
                           Cancel
                         </Button>
                       </div>
                     ) : (
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground h-7"
+                        className="text-muted-foreground"
                         onClick={() => {
                           setSubFor(goal.id)
                           setSubTitle("")

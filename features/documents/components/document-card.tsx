@@ -194,7 +194,7 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
         {/* Actions */}
         <div className="flex shrink-0 items-center gap-1">
           <Button
-            size="icon-sm"
+            size="icon"
             variant="ghost"
             onClick={handleView}
             disabled={viewLoading}
@@ -205,7 +205,7 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
           </Button>
 
           <Button
-            size="icon-sm"
+            size="icon"
             variant="ghost"
             onClick={handleDownload}
             disabled={downloadLoading}
@@ -217,7 +217,7 @@ export function DocumentCard({ document, onDelete, canDelete, employeeId }: Docu
 
           {canDelete && onDelete && (
             <Button
-              size="icon-sm"
+              size="icon"
               variant="ghost"
               className="text-muted-foreground hover:text-destructive"
               onClick={() => setConfirmOpen(true)}

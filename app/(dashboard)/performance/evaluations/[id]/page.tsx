@@ -399,7 +399,6 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
           actions={
             <Button
               variant="outline"
-              size="sm"
               className="no-print gap-1.5"
               disabled={!ev}
               onClick={() => window.print()}

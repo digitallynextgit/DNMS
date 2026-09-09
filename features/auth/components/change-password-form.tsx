@@ -122,12 +122,7 @@ export function ChangePasswordForm() {
           )}
         />
 
-        <Button
-          type="submit"
-          className="h-11 w-full text-sm"
-          disabled={isSubmitting}
-          loading={isSubmitting}
-        >
+        <Button type="submit" className="w-full" disabled={isSubmitting} loading={isSubmitting}>
           {isSubmitting ? "Saving…" : "Set password & continue"}
         </Button>
 

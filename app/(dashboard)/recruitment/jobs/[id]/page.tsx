@@ -269,7 +269,7 @@ export default function JobPipelinePage() {
       setAddOpen(false)
       setForm(emptyApplicantForm)
     },
-    onError: () => toast.error("Failed to add applicant"),
+    onError: (error: Error) => toast.error(error.message || "Failed to add applicant"),
   })
 
   const stageMut = useMutation({
@@ -278,7 +278,7 @@ export default function JobPipelinePage() {
       qc.invalidateQueries({ queryKey: ["job", params.id] })
       toast.success("Stage updated")
     },
-    onError: () => toast.error("Failed to update stage"),
+    onError: (error: Error) => toast.error(error.message || "Failed to update stage"),
   })
 
   const interviewMut = useMutation({
@@ -289,7 +289,7 @@ export default function JobPipelinePage() {
       setInterviewOpen(false)
       setIForm(emptyInterviewForm)
     },
-    onError: () => toast.error("Failed to schedule interview"),
+    onError: (error: Error) => toast.error(error.message || "Failed to schedule interview"),
   })
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
@@ -347,7 +347,7 @@ export default function JobPipelinePage() {
             )
           }
           actions={
-            <Button onClick={() => setAddOpen(true)} disabled={!job} className="gap-2">
+            <Button className="gap-2" onClick={() => setAddOpen(true)} disabled={!job}>
               <Plus className="h-4 w-4" /> Add Applicant
             </Button>
           }
@@ -458,14 +458,14 @@ export default function JobPipelinePage() {
         >
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>First Name</Label>
+              <Label required>First Name</Label>
               <Input
                 value={form.firstName}
                 onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
-              <Label>Last Name</Label>
+              <Label required>Last Name</Label>
               <Input
                 value={form.lastName}
                 onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
@@ -473,7 +473,7 @@ export default function JobPipelinePage() {
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label required>Email</Label>
             <Input
               type="email"
               value={form.email}
@@ -535,7 +535,7 @@ export default function JobPipelinePage() {
         >
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Type</Label>
+              <Label required>Type</Label>
               <Select
                 value={iForm.type}
                 onValueChange={(v) => setIForm((f) => ({ ...f, type: v }))}
@@ -553,7 +553,7 @@ export default function JobPipelinePage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Date & Time</Label>
+              <Label required>Date & Time</Label>
               <Input
                 type="datetime-local"
                 value={iForm.scheduledAt}

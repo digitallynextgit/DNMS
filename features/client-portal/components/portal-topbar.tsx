@@ -62,7 +62,7 @@ export function PortalTopbar({
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 onClick={toggle}
                 // No rail to collapse on a phone - the tab bar is the nav there.
                 className="text-muted-foreground hover:text-foreground hidden md:inline-flex"
@@ -91,7 +91,7 @@ export function PortalTopbar({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 gap-2 px-2">
+            <Button variant="ghost" className="gap-2 px-2">
               <span className="bg-muted text-foreground flex h-6 w-6 items-center justify-center rounded-sm text-[11px] font-semibold">
                 {initials}
               </span>

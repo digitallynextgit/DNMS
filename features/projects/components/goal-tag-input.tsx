@@ -194,7 +194,7 @@ export function GoalTagEditor({
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label={`Tags for ${goalTitle}`}
           title="Tags"
           className={cn(
@@ -212,11 +212,10 @@ export function GoalTagEditor({
         </p>
         <GoalTagInput value={draft} onChange={setDraft} suggestions={suggestions} autoFocus />
         <div className="flex justify-end gap-2 pt-1">
-          <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          <Button variant="ghost" onClick={() => setOpen(false)}>
             Cancel
           </Button>
           <Button
-            size="sm"
             disabled={!changed || pending}
             onClick={() => {
               onSave(draft)

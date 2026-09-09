@@ -124,8 +124,8 @@ export function RequirementDialog({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="req-title">
-            What do you need<span className="text-destructive"> *</span>
+          <Label required htmlFor="req-title">
+            What do you need
           </Label>
           <Input
             id="req-title"

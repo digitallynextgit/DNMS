@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react"
 import { ArrowRight, Check, AlertCircle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 
 type Status = "idle" | "loading" | "success" | "error"
 
@@ -151,14 +152,10 @@ export function ContactForm({ className }: { className?: string }) {
       )}
 
       <div className="flex flex-wrap items-center gap-4 pt-1">
-        <button
-          type="submit"
-          disabled={status === "loading"}
-          className="bg-primary text-primary-foreground inline-flex items-center justify-center gap-1.5 rounded-sm px-5 py-2.5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
-        >
+        <Button type="submit" disabled={status === "loading"} className="px-5">
           {status === "loading" ? "Sending…" : "Send message"}
-          <ArrowRight className="h-4 w-4" />
-        </button>
+          <ArrowRight />
+        </Button>
         <p className="text-muted-foreground text-xs">
           We use your details only to reply. See our privacy policy.
         </p>
