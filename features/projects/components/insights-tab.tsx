@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import {
   RefreshCw,
+  Plug,
   IndianRupee,
   Eye,
   MousePointerClick,
@@ -25,6 +26,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TabsBar } from "@/components/shared/tabs-bar"
+import { IntegrationDialog } from "./integration-tab"
 import {
   Select,
   SelectContent,
@@ -50,12 +52,27 @@ import { useProjectIntegration, useSyncMeta } from "../hooks/use-integration"
  * the Integration tab; this only reads and renders what's been synced.
  */
 export function InsightsTab({ projectId, canManage }: { projectId: string; canManage: boolean }) {
+  const [connections, setConnections] = useState(false)
   return (
     <Tabs defaultValue="meta" className="mt-4 space-y-4">
-      <TabsBar spacing="none" items={[{ value: "meta", label: "Meta Ads", icon: MetaAdsIcon }]} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <TabsBar spacing="none" items={[{ value: "meta", label: "Meta Ads", icon: MetaAdsIcon }]} />
+        {/* The connections manager lives here rather than in a tab of its own:
+            it exists only to feed these charts, and it is opened once and
+            dismissed rather than read. */}
+        <Button variant="outline" className="gap-1.5" onClick={() => setConnections(true)}>
+          <Plug className="h-3.5 w-3.5" /> Connections
+        </Button>
+      </div>
       <TabsContent value="meta">
         <MetaInsights projectId={projectId} canManage={canManage} />
       </TabsContent>
+      <IntegrationDialog
+        projectId={projectId}
+        canManage={canManage}
+        open={connections}
+        onOpenChange={setConnections}
+      />
     </Tabs>
   )
 }

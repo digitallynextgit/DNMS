@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withProjectAccess, withProjectManager } from "@/features/projects/server/project-access"
+import { withProjectManager } from "@/features/projects/server/project-access"
 import { encrypt } from "@/lib/crypto"
 import type { Session } from "next-auth"
 
@@ -13,7 +13,12 @@ const CREATOR_SELECT = {
 
 // GET /api/projects/[id]/passwords
 // Returns entries WITHOUT the decrypted password (use single-entry GET for reveal)
-export const GET = withProjectAccess(
+//
+// withProjectManager, not withProjectAccess: a client's live logins are not
+// something every member of the project needs, and the tab being hidden in the
+// UI would restrict nobody who can type a URL. Account Manager or project
+// admin, the same rule that already governed adding and editing them.
+export const GET = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId } = await ctx.params

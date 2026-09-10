@@ -47,7 +47,6 @@ import {
   Palette,
   CalendarDays,
   HardDrive,
-  Plug,
   BarChart3,
   Search,
   HelpCircle,
@@ -83,12 +82,6 @@ const ContentCalendarTab = dynamic(
 )
 const DriveTab = dynamic(
   () => import("@/features/projects/components/drive-tab").then((m) => m.DriveTab),
-  {
-    loading: tabFallback,
-  },
-)
-const IntegrationTab = dynamic(
-  () => import("@/features/projects/components/integration-tab").then((m) => m.IntegrationTab),
   {
     loading: tabFallback,
   },
@@ -181,7 +174,6 @@ const PROJECT_TABS = [
   "calendar",
   "deliverables",
   "repository",
-  "integration",
   "insights",
   "seo",
   "teams",
@@ -213,7 +205,10 @@ export default function ProjectDetailPage() {
   // "drive" is what this tab was called until it became Repository; links and
   // bookmarks made under the old name still land on it.
   const rawTab = searchParams.get("tab")
-  const tabParam = rawTab === "drive" ? "repository" : rawTab
+  // Two tabs that moved. "drive" was renamed Repository; "integration" became
+  // the Connections dialog inside Insights, which is where its links now land.
+  const tabParam =
+    rawTab === "drive" ? "repository" : rawTab === "integration" ? "insights" : rawTab
   const activeTab = PROJECT_TABS.includes(tabParam as (typeof PROJECT_TABS)[number])
     ? (tabParam as string)
     : "overview"
@@ -261,6 +256,16 @@ export default function ProjectDetailPage() {
   // Admins/PMs with project:write can manage any project; the project's ACCOUNT
   // MANAGER (owner) can fully manage their own project too.
   const canManage = can(PERMISSIONS.PROJECT_WRITE) || (!!project && project.owner.id === userId)
+
+  /**
+   * A bookmarked ?tab=passwords, opened by somebody who may not see it.
+   *
+   * Only meaningful once the project has LOADED: canManage is false while the
+   * fetch is in flight, and acting on that would throw the account manager off
+   * their own bookmark half a second before it became true.
+   */
+  const shownTab =
+    Boolean(project) && !canManage && activeTab === "passwords" ? "overview" : activeTab
 
   const [editOpen, setEditOpen] = useState(false)
 
@@ -377,7 +382,7 @@ export default function ProjectDetailPage() {
         </p>
       )}
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs value={shownTab} onValueChange={handleTabChange}>
         {/* Tabs are DATA now, not markup: ProjectTabsBar measures them to decide
             where the bar runs out of room, and renders whatever doesn't fit on a
             second strip. Order here is the order on screen. */}
@@ -390,7 +395,6 @@ export default function ProjectDetailPage() {
               { value: "calendar", label: "Calendars", icon: CalendarDays },
               { value: "deliverables", label: "Deliverables", icon: PackageCheck },
               { value: "repository", label: "Repository", icon: HardDrive },
-              { value: "integration", label: "Integration", icon: Plug },
               { value: "insights", label: "Insights", icon: BarChart3 },
               { value: "seo", label: "SEO", icon: Search },
               { value: "teams", label: "Teams", icon: Users },
@@ -404,12 +408,17 @@ export default function ProjectDetailPage() {
               },
               {
                 value: "messages",
-                label: "Messages",
+                label: "Chats",
                 icon: MessageSquare,
                 badge: unreadMessages,
               },
               { value: "activity", label: "Activity", icon: Activity },
-              { value: "passwords", label: "Passwords", icon: KeyRound },
+              // A client's live logins: Account Manager and project admins only,
+              // matching the guard on every /passwords route. Spread rather than a
+              // falsy entry because the bar takes a plain array.
+              ...(canManage
+                ? [{ value: "passwords" as const, label: "Passwords", icon: KeyRound }]
+                : []),
               // Open to the whole project team. The people who need to know a site
               // is down, or who write the campaigns, are the ones working on it -
               // not only whoever happens to own the project.
@@ -517,10 +526,6 @@ export default function ProjectDetailPage() {
           <DriveTab projectId={projectRef} canManage={canManage} />
         </TabsContent>
 
-        <TabsContent value="integration">
-          <IntegrationTab projectId={projectRef} canManage={canManage} />
-        </TabsContent>
-
         <TabsContent value="insights">
           <InsightsTab projectId={projectRef} canManage={canManage} />
         </TabsContent>
@@ -549,9 +554,11 @@ export default function ProjectDetailPage() {
           <ActivityTab projectId={projectRef} />
         </TabsContent>
 
-        <TabsContent value="passwords" className="mt-4">
-          <PasswordsTab projectId={projectRef} currentUserId={userId} canManage={canManage} />
-        </TabsContent>
+        {canManage && (
+          <TabsContent value="passwords" className="mt-4">
+            <PasswordsTab projectId={projectRef} currentUserId={userId} canManage={canManage} />
+          </TabsContent>
+        )}
 
         <TabsContent value="clients" className="mt-4">
           <ProjectClientsTab projectRef={projectRef} canManage={canManage} />

@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -21,9 +28,42 @@ import {
 } from "../hooks/use-integration"
 
 /**
- * Integration tab = CONNECTIONS MANAGER. Connect/manage each ad platform here;
- * the synced data is shown in the Insights tab (with a sub-tab per platform).
+ * The CONNECTIONS MANAGER, opened from Insights.
+ *
+ * A dialog rather than a tab of its own: connecting a platform is a task you
+ * finish and dismiss, not a place you go to read something - and doing it
+ * here means the numbers it feeds are on screen behind you, filling in as
+ * soon as the sync lands, instead of a page away.
  */
+export function IntegrationDialog({
+  projectId,
+  canManage,
+  open,
+  onOpenChange,
+}: {
+  projectId: string
+  canManage: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Connections</DialogTitle>
+          <DialogDescription>
+            Connect this project&apos;s ad platforms. What syncs shows up in the charts behind this
+            dialog.
+          </DialogDescription>
+        </DialogHeader>
+        {/* Only while open, so each opening re-reads the connection state. */}
+        {open && <IntegrationTab projectId={projectId} canManage={canManage} />}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** The list itself. Exported for tests; the app opens it through the dialog. */
 export function IntegrationTab({
   projectId,
   canManage,
@@ -33,15 +73,12 @@ export function IntegrationTab({
 }) {
   const { data, isLoading } = useProjectIntegration(projectId)
 
-  if (isLoading) return <ListSkeleton rows={3} height="h-24" className="mt-4" />
+  if (isLoading) return <ListSkeleton rows={3} height="h-24" />
 
+  // No leading paragraph: the dialog header above it already says what this
+  // is, and saying it twice in one box reads as a mistake.
   return (
-    <div className="mt-4 space-y-3">
-      <p className="text-muted-foreground text-sm">
-        Connect this project&apos;s ad platforms. Once connected, the performance data shows in the{" "}
-        <span className="text-foreground font-medium">Insights</span> tab.
-      </p>
-
+    <div className="space-y-3">
       <MetaConnectionCard projectId={projectId} canManage={canManage} data={data} />
 
       {/* Future platforms - shown so the multi-integration structure is visible. */}

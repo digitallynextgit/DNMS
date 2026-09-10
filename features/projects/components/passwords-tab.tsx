@@ -68,8 +68,8 @@ export function PasswordsTab({ projectId, currentUserId, canManage }: Props) {
       </div>
 
       <p className="text-muted-foreground text-xs">
-        Passwords are AES-256 encrypted at rest. Only team members can view entries for this
-        project.
+        Passwords are AES-256 encrypted at rest. Only the Account Manager and project admins can see
+        this tab, or read an entry through the API.
       </p>
 
       {entries.length === 0 ? (

@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import {
-  canManageProject,
-  withProjectAccess,
-  withProjectManager,
-} from "@/features/projects/server/project-access"
+import { canManageProject, withProjectManager } from "@/features/projects/server/project-access"
 import { encrypt, tryDecrypt } from "@/lib/crypto"
 import type { Session } from "next-auth"
 
 // GET /api/projects/[id]/passwords/[entryId] - returns decrypted password
-export const GET = withProjectAccess(
+//
+// The reveal endpoint, so if anything on this route is manager-only it is this
+// one. Same guard as the list above and as every write.
+export const GET = withProjectManager(
   async (_req: NextRequest, ctx: { params: Record<string, string> }, _session: Session) => {
     try {
       const { id: projectId, entryId } = ctx.params
-      // Scope to the guarded project: withProjectAccess only proved access to
+      // Scope to the guarded project: withProjectManager only proved rights over
       // THIS project, so an entry id from another project must 404 here rather
       // than have its password decrypted (SEC-02).
       const entry = await db.projectPasswordEntry.findFirst({
