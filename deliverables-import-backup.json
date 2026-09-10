@@ -1,0 +1,818 @@
+{
+ "at": "2026-09-10T10:28:37.002Z",
+ "period": [
+  "2026-09-07",
+  "2026-09-11"
+ ],
+ "madeTeams": [
+  "KNOW YOUR GENES -> MAP",
+  "REALTY CANVAS -> MAP"
+ ],
+ "created": [
+  {
+   "id": "662fffb5-8c51-4ef9-bd67-bf186186456c",
+   "project": "KNOW YOUR GENES",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Main Website go live - All pages mapped with user journey (Wellness tests)"
+  },
+  {
+   "id": "52c28b63-d5f6-44c5-b0e3-8598e9388b5d",
+   "project": "KNOW YOUR GENES",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Blogs"
+  },
+  {
+   "id": "f2995756-73a5-4d86-a7d5-888b44f37f1c",
+   "project": "KNOW YOUR GENES",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Maintenance of 13+1 domain"
+  },
+  {
+   "id": "06d7b929-56b7-46fd-9103-043b77947c22",
+   "project": "HARD2SOFT",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Edit on new page:"
+  },
+  {
+   "id": "1b06260d-41b9-49c7-8162-0c5dfc7e4957",
+   "project": "HARD2SOFT",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Main product page"
+  },
+  {
+   "id": "619aa2e1-661d-4836-89a9-3db3df3219cb",
+   "project": "HARD2SOFT",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Blogs"
+  },
+  {
+   "id": "e27386cd-bce8-4681-b4f9-16dba465a05f",
+   "project": "HARD2SOFT",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "AEO/GEO checks"
+  },
+  {
+   "id": "ac0dfb1f-4c01-4a3e-b8e8-d87a708f75ec",
+   "project": "HARD2SOFT",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "FAQ checks and Changes"
+  },
+  {
+   "id": "9bfed212-cdb2-47ef-ab67-bb63f49d2c3b",
+   "project": "HARD2SOFT",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Website Changes (Pricing) | Packaging Change"
+  },
+  {
+   "id": "c21a68df-3efa-4f2b-9bad-cb929f25e453",
+   "project": "HARD2SOFT",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "HDFC Payment Integration"
+  },
+  {
+   "id": "40859bae-3a61-443c-bf1b-3a7237651aae",
+   "project": "REALTY CANVAS",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Main Website Audit"
+  },
+  {
+   "id": "f36cad38-70fd-49a5-b763-7638626d589d",
+   "project": "TALENTIFI-X",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "SEO/GEO Checks"
+  },
+  {
+   "id": "2fce0e41-77fc-4f0a-a843-30276d9442f7",
+   "project": "TALENTIFI-X",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Blog updates"
+  },
+  {
+   "id": "f0eaaf7a-0d42-4b3d-a114-91ee659b610f",
+   "project": "TALENTIFI-X",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "SEO/AEO Pages"
+  },
+  {
+   "id": "2fbb467e-52f5-48b0-b752-4f55c8b131c3",
+   "project": "TALENTIFI-X",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Website edits - add media section, ISO certification"
+  },
+  {
+   "id": "4f8bcee7-8b85-4e30-9954-5cbdf6777d13",
+   "project": "TALENTIFI-X",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Chet Website LIVE"
+  },
+  {
+   "id": "e7947666-f856-4826-8a48-f015c357fd66",
+   "project": "DIGITALLY NEXT",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "SEO/GEO Checks"
+  },
+  {
+   "id": "35470eb2-aeea-40a1-b17a-1e9b9b572c39",
+   "project": "DIGITALLY NEXT",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Blog updates"
+  },
+  {
+   "id": "43acbfcb-de15-4621-8fbe-3be8b224147c",
+   "project": "DIGITALLY NEXT",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "SEO/AEO Pages"
+  },
+  {
+   "id": "861ac77d-340c-4c23-843d-98a08c2be4c4",
+   "project": "DIGITALLY NEXT",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Main Website case study pages"
+  },
+  {
+   "id": "fa1e932b-ddd8-4062-a241-6b46bd20797c",
+   "project": "RUDIONE / LEOCYM",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Website Development (Rudione)"
+  },
+  {
+   "id": "89643470-25b8-48e0-9ddd-0ce671f2f287",
+   "project": "RUDIONE / LEOCYM",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Website Development (Leocym)"
+  },
+  {
+   "id": "da315eb5-10a9-4e49-8640-3d0f282140e0",
+   "project": "RUDIONE / LEOCYM",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Payment Gateway Intigation (Testing)"
+  },
+  {
+   "id": "ecc968a9-659a-44d0-b665-aad4ea9ad0db",
+   "project": "RUDIONE / LEOCYM",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Shipping Intigation"
+  },
+  {
+   "id": "afbc654a-2eee-4b6c-866f-088478f879b2",
+   "project": "RUDIONE / LEOCYM",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Sitemap"
+  },
+  {
+   "id": "a2ca6a6e-f46e-421d-ab8d-1e8c3e4553d3",
+   "project": "HAPPY GANGA",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Website Development"
+  },
+  {
+   "id": "ba8dc81d-0cb5-4adc-8265-46468e81e097",
+   "project": "HAPPY GANGA",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Payment Gateway Intigation (Testing)"
+  },
+  {
+   "id": "365eb623-d03c-4294-997f-03b9541a8b42",
+   "project": "HAPPY GANGA",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Shipping Intigation"
+  },
+  {
+   "id": "001ddfb3-72bd-47f0-aacb-7bd9c0116850",
+   "project": "HAPPY GANGA",
+   "team": "WEB",
+   "tab": "Website",
+   "title": "Sitemap"
+  },
+  {
+   "id": "ca033f8a-2751-4d08-8ddc-78e146d625f6",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "B2B Brochure"
+  },
+  {
+   "id": "baa7f106-332d-4483-b588-6fcb56d595f4",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "D2C Brochure"
+  },
+  {
+   "id": "34e540ad-2355-4d62-818a-944f5e2d02db",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Test Cards & Infographics: With and without Pricing"
+  },
+  {
+   "id": "17fe1caf-3008-4a22-a015-56cfeb57ce81",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Segment-wise package cards"
+  },
+  {
+   "id": "535c8d8c-2da8-4828-82ec-1f0500e203b0",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Offer cards"
+  },
+  {
+   "id": "bc4af474-c383-4c43-919f-6e0b78c8efbe",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Combo/family package cards"
+  },
+  {
+   "id": "e4fbb746-58e9-44e0-a011-c934a73ff381",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "How Genetic Testing Works?"
+  },
+  {
+   "id": "96011812-03d9-48d2-8789-8d178039facb",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Explainer infographic"
+  },
+  {
+   "id": "28b83c38-e218-48fb-b9f2-40c253d7d526",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Website section visual"
+  },
+  {
+   "id": "e4930d25-8e0d-4232-a01f-ba08d1499500",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Standees (Walk-in, Event centric)"
+  },
+  {
+   "id": "aa8ae0d9-a7f6-4126-95d5-41c784cc17d4",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Certificate template"
+  },
+  {
+   "id": "ce258003-6c1a-4bfd-abf9-9e242c9baf21",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Stamp Design"
+  },
+  {
+   "id": "f0b29f9f-0ac3-42b8-8b82-1c65dd45a265",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Report template"
+  },
+  {
+   "id": "16521b4a-86c8-4e1a-bb85-2ce4270c694a",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Review template"
+  },
+  {
+   "id": "7dc43f68-ce84-4246-8b10-98bdf020eae7",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Coupon/offers templates"
+  },
+  {
+   "id": "22e8ed75-de7f-4bad-b4d8-67f209853eac",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Social media"
+  },
+  {
+   "id": "7f2b6479-8f9e-46ce-9c6b-2b7fc25ab75f",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Images for 13 additional domains"
+  },
+  {
+   "id": "407c464a-7279-4c9d-9282-f286e83b7f23",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Blog Images"
+  },
+  {
+   "id": "b03cc662-6a8b-44be-afe4-6a27896fcc72",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "UI/UX of main website (9 pages)"
+  },
+  {
+   "id": "0b4cd085-ce8c-46e1-a648-5ca5baafaecb",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Comic Strips"
+  },
+  {
+   "id": "1feabfe9-a8d8-4b11-828b-2c39532bf7e1",
+   "project": "KNOW YOUR GENES",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Packaging"
+  },
+  {
+   "id": "3d90caf7-afc5-45ee-b0e5-88be5193380e",
+   "project": "HARD2SOFT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Social Media Assets + festival creatives and website banner"
+  },
+  {
+   "id": "4e53adb1-4241-4468-a64f-82efb4d74e32",
+   "project": "HARD2SOFT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Paid Ads assets"
+  },
+  {
+   "id": "f3cdbe3f-8b84-4c37-9170-a2d054e21005",
+   "project": "HARD2SOFT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Blog Images and QC of blog images"
+  },
+  {
+   "id": "15bb4a14-8565-4af7-8986-177a6983c30c",
+   "project": "HARD2SOFT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Website Images | Banners | UI/UX"
+  },
+  {
+   "id": "b2ad1bfc-3d6d-4154-b6e4-b780f8c55013",
+   "project": "HARD2SOFT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Certifiacte Campaigns"
+  },
+  {
+   "id": "378bf533-9c04-497f-bc34-75abda5b3275",
+   "project": "HARD2SOFT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Refer n Earn | Time to Buy New Campaign"
+  },
+  {
+   "id": "4eaafbc7-475e-4857-9d46-b827fc105ea0",
+   "project": "HARD2SOFT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Price change Banner and creatives"
+  },
+  {
+   "id": "7f3cc230-aeea-40d3-9196-c63d6c15963e",
+   "project": "HARD2SOFT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "New Packaging"
+  },
+  {
+   "id": "bd691639-08c6-4d08-aff6-a7b1a0a1d21b",
+   "project": "REALTY CANVAS",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Social Media Assets"
+  },
+  {
+   "id": "d32b03f9-74d8-4191-a7b3-138d00092d31",
+   "project": "REALTY CANVAS",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Website Images and Banners"
+  },
+  {
+   "id": "d45415bf-3fe8-49d1-9ded-fd757a37c3c8",
+   "project": "TALENTIFI-X",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Social Media Calendar Assets(TX and Chet)"
+  },
+  {
+   "id": "6957c0a3-7c34-4406-a52b-bb20ba11cc33",
+   "project": "TALENTIFI-X",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Blog Images"
+  },
+  {
+   "id": "04cbe218-a480-45ae-bfcc-fb2335ed0587",
+   "project": "TALENTIFI-X",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Website new pages UI"
+  },
+  {
+   "id": "76f14ebc-3965-471d-8a8d-3f605240bc21",
+   "project": "DIGITALLY NEXT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Social Media Calendar Assets"
+  },
+  {
+   "id": "98cb7f58-61b7-493a-bff5-f61d055d9b86",
+   "project": "DIGITALLY NEXT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Blog Images"
+  },
+  {
+   "id": "197be6ff-2142-441f-9e41-bfdea2b88dba",
+   "project": "DIGITALLY NEXT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Website new pages UI"
+  },
+  {
+   "id": "4187a08c-2f1d-43af-80a0-5e97b821d5aa",
+   "project": "DIGITALLY NEXT",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Case study pages and Assets"
+  },
+  {
+   "id": "4dd772e6-a1dd-4008-8183-670eb3fe1078",
+   "project": "RUDIONE / LEOCYM",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Packaging (5 excluding Drain ordkill)"
+  },
+  {
+   "id": "f2166bdb-294a-4558-8feb-a004081021b4",
+   "project": "RUDIONE / LEOCYM",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "UI/UX"
+  },
+  {
+   "id": "85598a23-7b7c-403b-b5ea-6d8e9afac226",
+   "project": "RUDIONE / LEOCYM",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Wireframe"
+  },
+  {
+   "id": "b5c776f1-f185-4e5d-9609-3e1083c5c53f",
+   "project": "HAPPY GANGA",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Packaging (3 product packaging)"
+  },
+  {
+   "id": "b2a7a981-3473-46ef-b9f4-c399d4e492be",
+   "project": "HAPPY GANGA",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "UI/UX"
+  },
+  {
+   "id": "bf829bae-8551-4704-888a-5b2eb27e1971",
+   "project": "HAPPY GANGA",
+   "team": "DESIGN",
+   "tab": "Graphics",
+   "title": "Social media assets"
+  },
+  {
+   "id": "aa1d41d7-c5d4-421d-bd67-f92d47610f31",
+   "project": "KNOW YOUR GENES",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Video on how to collect your sample"
+  },
+  {
+   "id": "fd09c094-098d-44ac-a7cc-ec01fd3aeb8c",
+   "project": "KNOW YOUR GENES",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Intro Video: Main Brand Launch Video"
+  },
+  {
+   "id": "66ee1a66-71a6-4b67-91bb-623b98e473de",
+   "project": "KNOW YOUR GENES",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "How Genetic Testing Works?"
+  },
+  {
+   "id": "e251540d-2b2b-4f37-89e4-507c04988cf2",
+   "project": "KNOW YOUR GENES",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Motion video YT videos"
+  },
+  {
+   "id": "1ec8c866-e595-4d34-82fc-bc52fe990ea8",
+   "project": "KNOW YOUR GENES",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Social Media with logo changes in old videos"
+  },
+  {
+   "id": "ce6faad0-7ce2-45b2-9c19-9996f44f2233",
+   "project": "KNOW YOUR GENES",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Intro video (View reference video)"
+  },
+  {
+   "id": "fffb58a7-f174-46c5-a38c-b69fe3becece",
+   "project": "HARD2SOFT",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Meta (Social Media)"
+  },
+  {
+   "id": "b3a5678f-79fb-4569-9051-cf9586a8f9f3",
+   "project": "HARD2SOFT",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "YouTube Strategy"
+  },
+  {
+   "id": "a7384a2f-17f4-4b62-a96f-4a0754813004",
+   "project": "HARD2SOFT",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Paid Ads"
+  },
+  {
+   "id": "166fb07c-72f2-4d62-b710-6f550a41ac27",
+   "project": "HARD2SOFT",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Website"
+  },
+  {
+   "id": "92e89ebe-a5b9-44d3-914b-3e78209e5d25",
+   "project": "HARD2SOFT",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Critique Video"
+  },
+  {
+   "id": "9024d7fd-f178-4c44-b446-07b7ec3a5cbd",
+   "project": "REALTY CANVAS",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Meta (Social Media)"
+  },
+  {
+   "id": "40468269-fc9e-40ab-ba0f-71f8b20a79a1",
+   "project": "REALTY CANVAS",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "YouTube"
+  },
+  {
+   "id": "776a581d-3ef9-4d00-871f-45dd69d783c5",
+   "project": "TALENTIFI-X",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Chet's videos"
+  },
+  {
+   "id": "0aaf569d-9e95-43c7-9e7b-67f703195df0",
+   "project": "DIGITALLY NEXT",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Meta (Social Media)"
+  },
+  {
+   "id": "cd903f53-4bc7-4b8c-bf0e-2df487edb800",
+   "project": "DIGITALLY NEXT",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Youtube strategy"
+  },
+  {
+   "id": "184374c2-6f0f-49b4-8e46-55757029163d",
+   "project": "RUDIONE / LEOCYM",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Meta (Social Media)"
+  },
+  {
+   "id": "6ed67a8a-9932-4aec-b40e-7a3f3bdb72ad",
+   "project": "RUDIONE / LEOCYM",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "YouTube"
+  },
+  {
+   "id": "96fc9f77-aff3-4287-a0d6-85958f69de73",
+   "project": "HAPPY GANGA",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "Meta (Social Media)"
+  },
+  {
+   "id": "e09aabb1-8580-42a0-b3c9-1ee60afd52b8",
+   "project": "HAPPY GANGA",
+   "team": "VIDEO",
+   "tab": "Video",
+   "title": "YouTube"
+  },
+  {
+   "id": "c6d1822d-8f9a-475d-a9d9-496a735bfcd7",
+   "project": "KNOW YOUR GENES",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Website pages"
+  },
+  {
+   "id": "323de0fa-3375-48c0-8f1e-7bde998e7bd8",
+   "project": "KNOW YOUR GENES",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Blogs"
+  },
+  {
+   "id": "f894b64a-9953-4f9e-be74-afabf959ad4b",
+   "project": "KNOW YOUR GENES",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Performance Ads"
+  },
+  {
+   "id": "8ab569f7-5a9b-479d-8d7f-9bdd4404e923",
+   "project": "KNOW YOUR GENES",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Social Media"
+  },
+  {
+   "id": "e021e079-ea6a-4a8a-8190-5a88a86a02c0",
+   "project": "KNOW YOUR GENES",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Content Audit of 13+1 domains"
+  },
+  {
+   "id": "287dc94f-543d-4090-ba6d-987127ded2a9",
+   "project": "KNOW YOUR GENES",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Quora and Reddit Calendar"
+  },
+  {
+   "id": "c85c020c-792f-4035-8df2-eee3e58d3863",
+   "project": "KNOW YOUR GENES",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Packaging (Content)"
+  },
+  {
+   "id": "845beca0-76c9-4da9-ae93-8d2a339be252",
+   "project": "HARD2SOFT",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Content Audit of website"
+  },
+  {
+   "id": "2f4633f6-0e32-4a04-9521-2a15ecb0f8f2",
+   "project": "HARD2SOFT",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Blogs"
+  },
+  {
+   "id": "7052025d-2d07-43b5-bd4f-9a8b7b409485",
+   "project": "HARD2SOFT",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Paid Ads scripts (Video)"
+  },
+  {
+   "id": "7d1d10dc-1cb3-449d-80b1-7364ec39a7ec",
+   "project": "HARD2SOFT",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Paid Ads Static (New ideas)"
+  },
+  {
+   "id": "f4d01687-8a0b-434c-8c8e-d25b2161ff34",
+   "project": "HARD2SOFT",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Quora and Reddit Calendar"
+  },
+  {
+   "id": "0b22c35d-574e-46e2-9868-23ba91940ced",
+   "project": "HARD2SOFT",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Time to Buy amother Unit Campaign (Email marketing)"
+  },
+  {
+   "id": "39253810-06ea-4d15-81df-79bf55ded377",
+   "project": "HARD2SOFT",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Refer n Earn New Campaign"
+  },
+  {
+   "id": "2ce73a2a-96b3-406f-959d-be07d670f10e",
+   "project": "HARD2SOFT",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "New Packaging content"
+  },
+  {
+   "id": "2944a29a-4b2f-4fed-a69d-cbab8ad9ec26",
+   "project": "REALTY CANVAS",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Social Media (Static and Carousel content)"
+  },
+  {
+   "id": "423c2457-a4c9-47b4-abdc-eee8fb5b68ed",
+   "project": "RUDIONE / LEOCYM",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Packaging Content"
+  },
+  {
+   "id": "cedf1530-caa9-4128-bb07-3789161dbfa7",
+   "project": "RUDIONE / LEOCYM",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Website Content"
+  },
+  {
+   "id": "fc5db271-d0b5-4907-a6c6-fdbb0e6163f2",
+   "project": "RUDIONE / LEOCYM",
+   "team": "MAP",
+   "tab": "Content",
+   "title": "Social Media (Visibility Campaign)"
+  },
+  {
+   "id": "e3770048-f8e5-47de-bff8-88116af89ee9",
+   "project": "HAPPY GANGA",
+   "team": "CONTENT",
+   "tab": "Content",
+   "title": "Packaging Content"
+  },
+  {
+   "id": "0a25bc15-6f53-4b77-abe4-e44c4385db32",
+   "project": "HAPPY GANGA",
+   "team": "CONTENT",
+   "tab": "Content",
+   "title": "Website Content"
+  },
+  {
+   "id": "891a2091-0c78-49c2-a4f1-f6bc197ed47e",
+   "project": "HAPPY GANGA",
+   "team": "CONTENT",
+   "tab": "Content",
+   "title": "Social Media"
+  }
+ ]
+}

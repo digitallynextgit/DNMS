@@ -57,6 +57,8 @@ interface Tab {
   rows: Raw[][]
 }
 type Mode = "all" | "one"
+/** Where the caller came from - see the `intent` prop. */
+type Intent = "new-tab" | "new-sheet"
 type Target = "current" | "new"
 
 const SKIP = "__skip"
@@ -261,6 +263,7 @@ export function SheetImportDialog({
   workbook,
   sheet,
   people,
+  intent,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -271,6 +274,15 @@ export function SheetImportDialog({
   sheet: ProjectSheet | null
   /** Employee id -> display name, the grid's own map for PERSON cells. */
   people: Map<string, string>
+  /**
+   * Why it was opened, which decides where the file lands.
+   *
+   * From the tab strip ("new-tab") or the New sheet dialog ("new-sheet") the
+   * answer is always NEW TABS - mapping a single-tab file into the tab you are
+   * standing on would overwrite the thing you meant to add to. Unset is the
+   * plain Import button, which keeps its own judgement.
+   */
+  intent?: Intent
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -282,6 +294,7 @@ export function SheetImportDialog({
             workbook={workbook}
             sheet={sheet}
             people={people}
+            intent={intent}
             onClose={() => onOpenChange(false)}
           />
         )}
@@ -303,12 +316,14 @@ function Body({
   workbook,
   sheet,
   people,
+  intent,
   onClose,
 }: {
   projectId: string
   workbook: SheetWorkbook | null
   sheet: ProjectSheet | null
   people: Map<string, string>
+  intent?: Intent
   onClose: () => void
 }) {
   const qc = useQueryClient()
@@ -320,7 +335,9 @@ function Body({
   const [sourceName, setSourceName] = useState<string | null>(null)
   const [tabs, setTabs] = useState<Tab[] | null>(null)
   const [mode, setMode] = useState<Mode>("one")
-  const [target, setTarget] = useState<Target>(workbook ? "current" : "new")
+  const [target, setTarget] = useState<Target>(
+    intent === "new-sheet" || !workbook ? "new" : "current",
+  )
   const [newSheetName, setNewSheetName] = useState("")
   const [tabIndex, setTabIndex] = useState(0)
   /**
@@ -359,9 +376,10 @@ function Body({
     setSourceName(name)
     setTabs(nextTabs)
     setTabIndex(0)
-    // A file with several tabs is almost always "several tabs of one sheet",
-    // not "one tab and some clutter" - so that is the default.
-    setMode(nextTabs.length > 1 || !sheet ? "all" : "one")
+    // Asked for a new tab or a new sheet, every tab in the file becomes one,
+    // however few there are. Otherwise: a file with several tabs is almost
+    // always "several tabs of one sheet", not "one tab and some clutter".
+    setMode(intent || nextTabs.length > 1 || !sheet ? "all" : "one")
     setNewSheetName(stripExt(name) || "Imported sheet")
     // Everything with rows in it, to start - the common case is "all of it",
     // and unticking two is less work than ticking six.

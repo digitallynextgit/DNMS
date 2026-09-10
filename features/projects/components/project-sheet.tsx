@@ -693,6 +693,8 @@ export function ProjectSheetSection({
   )
   const [historyOpen, setHistoryOpen] = React.useState(false)
   const [importOpen, setImportOpen] = React.useState(false)
+  /** Which dialog sent us to the importer - see SheetImportDialog. */
+  const [importIntent, setImportIntent] = React.useState<"new-tab" | "new-sheet" | undefined>()
   const [newTabOpen, setNewTabOpen] = React.useState(false)
   const [newTabName, setNewTabName] = React.useState("")
   // Find in the open tab. `matchIdx` is unbounded and wrapped at use, so a
@@ -1121,32 +1123,61 @@ export function ProjectSheetSection({
     <div className="mt-4 space-y-3">
       {/* Level 1: the sheets (workbooks). */}
       <div className="border-border flex flex-wrap items-center gap-1 border-b pb-2">
-        {workbooks.map((w) => (
-          <button
-            key={w.id}
-            type="button"
-            onClick={() => {
-              setActiveWorkbookId(w.id)
-              setActiveId(null)
-            }}
-            title={
-              w.assignedTo
-                ? `Owned by ${w.assignedTo.firstName} ${w.assignedTo.lastName}`.trim()
-                : "Unassigned"
-            }
-            className={cn(
-              "flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-sm transition-colors",
-              w.id === workbook?.id
-                ? "bg-primary/10 text-primary font-medium"
-                : "text-muted-foreground hover:text-foreground hover:bg-foreground/5",
-            )}
-          >
-            {w.name}
-            {/* Just the face on the chip: enough to see who owns each sheet
-                without opening it, and the name is one hover away. */}
-            {w.assignedTo && <PersonAvatar person={w.assignedTo} className="h-4 w-4" />}
-          </button>
-        ))}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              // No width cap and no truncation: the name of the sheet you are
+              // in is the one label on this bar that has to be readable in
+              // full. The strip wraps, so a long name costs a line, not sense.
+              className="gap-1.5 px-2.5 font-medium"
+              aria-label="Switch sheet"
+              title={workbook?.name}
+            >
+              <span className="whitespace-nowrap">{workbook?.name ?? "No sheet yet"}</span>
+              {workbook?.assignedTo && (
+                <PersonAvatar person={workbook.assignedTo} className="h-4 w-4 shrink-0" />
+              )}
+              <ChevronDown className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-[22rem]">
+            <DropdownMenuLabel className="text-muted-foreground text-[11px] font-medium">
+              {workbooks.length} {workbooks.length === 1 ? "sheet" : "sheets"}
+            </DropdownMenuLabel>
+            {workbooks.map((w) => (
+              <DropdownMenuItem
+                key={w.id}
+                onSelect={() => {
+                  setActiveWorkbookId(w.id)
+                  setActiveId(null)
+                }}
+                className={cn(
+                  "items-start gap-2",
+                  // The open sheet is marked the way every other active thing in
+                  // this file is marked, rather than by a tick in the margin:
+                  // the row itself says "you are here", which reads at a glance
+                  // down a list instead of making the eye reach the end of it.
+                  w.id === workbook?.id && "bg-primary/10 text-primary font-medium",
+                )}
+              >
+                {/* Wrapped, never truncated. Two sheets whose names differ only
+                    at the end - "…Sep-Dec2026" and "…Jan-Mar2027" - are the same
+                    sheet as far as an ellipsis is concerned. */}
+                <span className="min-w-0 flex-1 break-words whitespace-normal">{w.name}</span>
+                {/* The count says how much is inside without opening it. Opacity
+                    rather than a colour, so it stays legible on the active row. */}
+                <span className="shrink-0 text-[11px] tabular-nums opacity-60">
+                  {w.sheets.length}
+                </span>
+                {/* Just the face: who owns each sheet, name one hover away. */}
+                {w.assignedTo && (
+                  <PersonAvatar person={w.assignedTo} className="h-4 w-4 shrink-0" />
+                )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button variant="ghost" className="gap-1 px-2" onClick={() => setNewSheetOpen(true)}>
           <Plus className="h-3.5 w-3.5" /> New sheet
         </Button>
@@ -1177,15 +1208,6 @@ export function ProjectSheetSection({
           <Button
             variant="ghost"
             className="gap-1 px-2"
-            onClick={() => setImportOpen(true)}
-            disabled={!active}
-            title="Import from a CSV, Excel file or Google Sheet"
-          >
-            <Upload className="h-3.5 w-3.5" /> Import
-          </Button>
-          <Button
-            variant="ghost"
-            className="gap-1 px-2"
             onClick={() => setHistoryOpen(true)}
             disabled={!active}
           >
@@ -1207,25 +1229,27 @@ export function ProjectSheetSection({
 
       {/* Level 2: the tabs of the open sheet, the way a workbook shows its
           tabs - plus find, which searches the open tab. */}
-      <div className="flex flex-wrap items-center gap-1">
-        {(sheets ?? []).map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => setActiveId(s.id)}
-            className={cn(
-              "rounded-sm border px-2.5 py-1 text-xs transition-colors",
-              s.id === active?.id
-                ? "border-primary/40 bg-primary/10 text-primary font-medium"
-                : "text-muted-foreground hover:text-foreground hover:bg-foreground/5 border-transparent",
-            )}
-          >
-            {s.name}
-          </button>
-        ))}
+      <div className="flex items-center gap-1">
+        <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {(sheets ?? []).map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setActiveId(s.id)}
+              className={cn(
+                "shrink-0 rounded-sm border px-2.5 py-1 text-xs whitespace-nowrap transition-colors",
+                s.id === active?.id
+                  ? "border-primary/40 bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:text-foreground hover:bg-foreground/5 border-transparent",
+              )}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
         <Button
           variant="ghost"
-          className="gap-1 px-2 text-xs"
+          className="shrink-0 gap-1 px-2 text-xs"
           onClick={() => setNewTabOpen(true)}
           disabled={!workbook}
         >
@@ -1234,14 +1258,14 @@ export function ProjectSheetSection({
         {canManage && active && (sheets?.length ?? 0) > 1 && (
           <Button
             variant="ghost"
-            className="text-muted-foreground hover:text-destructive gap-1 px-2 text-xs"
+            className="text-muted-foreground hover:text-destructive shrink-0 gap-1 px-2 text-xs"
             onClick={() => setConfirm({ kind: "sheet", id: active.id, label: active.name })}
           >
             <Trash2 className="h-3.5 w-3.5" /> Delete tab
           </Button>
         )}
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <div className="relative">
             <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
             <Input
@@ -1605,6 +1629,11 @@ export function ProjectSheetSection({
         setName={setNewSheetName}
         pending={m.createWorkbook.isPending}
         onCancel={() => setNewSheetOpen(false)}
+        onUpload={() => {
+          setNewSheetOpen(false)
+          setImportIntent("new-sheet")
+          setImportOpen(true)
+        }}
         onCreate={() =>
           m.createWorkbook.mutate(
             { name: newSheetName },
@@ -1626,6 +1655,11 @@ export function ProjectSheetSection({
         setName={setNewTabName}
         pending={m.createSheet.isPending}
         onCancel={() => setNewTabOpen(false)}
+        onUpload={() => {
+          setNewTabOpen(false)
+          setImportIntent("new-tab")
+          setImportOpen(true)
+        }}
         onCreate={() => {
           if (!workbook) return
           m.createSheet.mutate(
@@ -1661,12 +1695,16 @@ export function ProjectSheetSection({
       />
 
       <SheetImportDialog
-        open={importOpen && !!active}
-        onOpenChange={setImportOpen}
+        open={importOpen && (importIntent === "new-sheet" || !!active)}
+        onOpenChange={(o) => {
+          setImportOpen(o)
+          if (!o) setImportIntent(undefined)
+        }}
         projectId={projectId}
         workbook={workbook}
         sheet={active ?? null}
         people={people}
+        intent={importIntent}
       />
       <HistoryDialog
         open={historyOpen}
@@ -1736,6 +1774,7 @@ function NewSheetDialog({
   pending,
   onCancel,
   onCreate,
+  onUpload,
 }: {
   kind: "sheet" | "tab"
   open: boolean
@@ -1744,6 +1783,8 @@ function NewSheetDialog({
   pending: boolean
   onCancel: () => void
   onCreate: () => void
+  /** Offered when the tab can come from a file instead of starting empty. */
+  onUpload?: () => void
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
@@ -1752,8 +1793,8 @@ function NewSheetDialog({
           <DialogTitle>{kind === "sheet" ? "New sheet" : "New tab"}</DialogTitle>
           <DialogDescription>
             {kind === "sheet"
-              ? "A sheet holds tabs, like a workbook. It opens with one tab; add more from the tab strip."
-              : "A new grid inside this sheet. It starts with columns A to Z - rename them as you go."}
+              ? "A sheet holds tabs, like a workbook. Name it to start empty, or build it from a file you already have."
+              : "A new grid inside this sheet. Name it to start empty, or bring one in from a file."}
           </DialogDescription>
         </DialogHeader>
         <div>
@@ -1769,13 +1810,23 @@ function NewSheetDialog({
             onKeyDown={(e) => e.key === "Enter" && name.trim() && onCreate()}
           />
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button onClick={onCreate} disabled={!name.trim()} loading={pending}>
-            Create
-          </Button>
+        <DialogFooter className={onUpload ? "sm:justify-between" : undefined}>
+          {/* The file route, where somebody who already HAS the sheet is
+              standing - not behind an Import button at the other end of the
+              toolbar, which is what they have to find today. */}
+          {onUpload && (
+            <Button variant="ghost" className="text-muted-foreground gap-1.5" onClick={onUpload}>
+              <Upload className="h-3.5 w-3.5" /> Upload a sheet instead
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button onClick={onCreate} disabled={!name.trim()} loading={pending}>
+              Create
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

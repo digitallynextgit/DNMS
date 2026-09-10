@@ -56,7 +56,6 @@ import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Link } from "@/components/tenant-link"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { EmptyState } from "@/components/shared/empty-state"
-import { SearchInput } from "@/components/shared/search-input"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DateField, toDateString } from "@/components/shared/date-field"
 import { DateRangeField, type DateRangeValue } from "@/components/shared/date-range-field"
@@ -118,8 +117,6 @@ import { formatHours } from "../lib/format-hours"
 // three facts the server checks: are they the account manager, do they manage
 // the row's team, is it their own work.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const ALL = "__all__"
 
 /** Deliverables per page. The items INSIDE one are never paged: opening a
  *  deliverable shows all of it. */
@@ -793,7 +790,10 @@ function AssignDialog({
 /** A period's name line, said the same way in both views. */
 function PeriodHeadline({ p }: { p: Period }) {
   return (
-    <span className="flex min-w-0 flex-wrap items-center gap-2">
+    // No wrapping. Beyond looking broken, a wrappable cell tells the table its
+    // minimum width is one icon - so auto-layout squeezed this column and gave
+    // the room to Teams, which is how a short date ended up on two lines.
+    <span className="flex items-center gap-2 whitespace-nowrap">
       <CalendarDays className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
       <span className="font-semibold">{p.label}</span>
       {p.overdue && <span className="text-destructive text-xs font-medium">overdue</span>}
@@ -1111,7 +1111,7 @@ function PeriodTable({
                 </td>
                 {/* The one column whose width is really variable, so it takes
                     the slack and truncates rather than pushing the numbers out. */}
-                <td className="text-muted-foreground max-w-0 truncate px-4 py-3 align-middle">
+                <td className="text-muted-foreground max-w-0 min-w-40 truncate px-4 py-3 align-middle">
                   {p.teams.join(", ") || "-"}
                 </td>
                 <td className="px-4 py-3 text-right align-middle tabular-nums">{p.planned}</td>
@@ -1245,10 +1245,6 @@ export function DeliverablesTab({
   // All time by default: a board that opens empty because nothing was made
   // THIS week teaches people the tab is empty.
   const [range, setRange] = React.useState<DateRangeValue>({ preset: "all", from: null, to: null })
-  const [teamId, setTeamId] = React.useState(ALL)
-  const [employeeId, setEmployeeId] = React.useState(ALL)
-  const [type, setType] = React.useState<string | null>(null)
-  const [statuses, setStatuses] = React.useState<DeliverableStatus[]>([])
   const [pageState, setPageState] = React.useState<{ key: string; page: number }>({
     key: "",
     page: 1,
@@ -1263,39 +1259,11 @@ export function DeliverablesTab({
   const [assigning, setAssigning] = React.useState<DeliverableRow | null>(null)
   /** The whole deliverable being removed - every item under it. */
   const [deletingPeriod, setDeletingPeriod] = React.useState<Period | null>(null)
-  const [search, setSearch] = React.useState("")
-  const q = search.trim().toLowerCase()
-  /** Everything the eye would scan for: what it is, who owes it, what team. */
-  const matches = React.useCallback(
-    (r: DeliverableRow) =>
-      !q ||
-      r.title.toLowerCase().includes(q) ||
-      r.type.toLowerCase().includes(q) ||
-      (r.team?.name ?? "").toLowerCase().includes(q) ||
-      (r.employee?.name ?? "").toLowerCase().includes(q) ||
-      (r.notes ?? "").toLowerCase().includes(q),
-    [q],
-  )
 
-  const baseFilters: DeliverableFilters = {
-    from: range.from,
-    to: range.to,
-    teamId: teamId === ALL ? undefined : teamId,
-    employeeId: employeeId === ALL ? undefined : employeeId,
-    type: type ?? undefined,
-  }
-  const filters: DeliverableFilters = {
-    ...baseFilters,
-    status: statuses.length > 0 ? statuses : undefined,
-  }
+  /** The only thing that narrows the board now: the range in the header. */
+  const filters: DeliverableFilters = { from: range.from, to: range.to }
 
   const { data, isLoading } = useProjectDeliverables(projectId, filters)
-  // The same view WITHOUT the status chips, so clicking "Accepted" narrows the
-  // list without zeroing the tile that told you to click it. When no chip is
-  // on, this is the same query key and costs nothing.
-  const { data: base } = useProjectDeliverables(projectId, baseFilters)
-  // The unfiltered view feeds the pickers, so narrowing never strands them.
-  const all = useProjectDeliverables(projectId, {})
   // Owed work, with NO date range: a planned row has no completion date and
   // would fall out of every range the board is normally read through.
   const owed = useProjectDeliverables(projectId, { status: OPEN_FILTER })
@@ -1382,31 +1350,12 @@ export function DeliverablesTab({
    */
   const allRows = React.useMemo(
     () =>
-      statuses.length === 0 && owedRows.length > 0
-        ? [...owedRows, ...rows.filter((r) => !isOpenStatus(r.status))]
-        : rows,
-    [rows, statuses, owedRows],
+      owedRows.length > 0 ? [...owedRows, ...rows.filter((r) => !isOpenStatus(r.status))] : rows,
+    [rows, owedRows],
   )
 
-  const people = React.useMemo(() => {
-    const seen = new Map<string, string>()
-    for (const p of all.data?.byPerson ?? []) seen.set(p.id, p.name)
-    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
-  }, [all.data])
-
-  const statusCount = React.useCallback(
-    (s: DeliverableStatus) => base?.byStatus.find((b) => b.status === s)?.quantity ?? 0,
-    [base],
-  )
-  const toggleStatus = (s: DeliverableStatus) =>
-    setStatuses((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]))
-
-  const plannedQty = owed.data?.planned.quantity ?? 0
   /** Is there anything on this project at all - made, or still owed? */
   const anything = (data?.entries ?? 0) > 0 || (owed.data?.planned.entries ?? 0) > 0
-  const plannedOverdue = owed.data?.planned.overdue ?? 0
-  const perUnit = base?.hours.perUnit ?? null
-  const coverage = base?.hours.coverage ?? 0
 
   // The LIVE row behind the log dialog: uploading a file refetches the list,
   // and a snapshot taken at click time would keep showing the old file set.
@@ -1414,10 +1363,7 @@ export function DeliverablesTab({
 
   const today = todayKey()
   /** The board: one deliverable per window, newest first, searched. */
-  const periods = React.useMemo(
-    () => groupIntoPeriods(allRows.filter(matches), today),
-    [allRows, matches, today],
-  )
+  const periods = React.useMemo(() => groupIntoPeriods(allRows, today), [allRows, today])
 
   /** The one deliverable this page is about, when it is a page. */
   const focused = periodKey ? (periods.find((x) => x.key === periodKey) ?? null) : null
@@ -1443,7 +1389,7 @@ export function DeliverablesTab({
   const totalPages = Math.max(1, Math.ceil(periods.length / PERIODS_PER_PAGE))
   // Derived, not synced: a page number only means anything for the list it
   // was chosen over, so it is stored WITH the filters and falls back to 1.
-  const pageKey = `${q}|${statuses.join()}|${teamId}|${employeeId}|${type ?? ""}|${range.from ?? ""}`
+  const pageKey = range.from ?? ""
   const page = pageState.key === pageKey ? Math.min(pageState.page, totalPages) : 1
   const setPage = (p: number) => setPageState({ key: pageKey, page: p })
   const pagedPeriods = React.useMemo(
@@ -1451,13 +1397,8 @@ export function DeliverablesTab({
     [periods, page],
   )
 
-  const filtersOn =
-    teamId !== ALL ||
-    employeeId !== ALL ||
-    Boolean(type) ||
-    statuses.length > 0 ||
-    Boolean(q) ||
-    Boolean(range.from)
+  /** The range in the header is the only thing left that can narrow the board. */
+  const filtersOn = Boolean(range.from)
 
   /** Members of the team an item was asked of - who it can be handed to. */
   const membersOf = React.useCallback(
@@ -1540,168 +1481,29 @@ export function DeliverablesTab({
     <div className="space-y-4">
       {!periodKey && (
         <>
-          {/* ── Header + summary ─────────────────────────────────────────── */}
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold">
-                    <PackageCheck className="text-primary h-4 w-4" /> Deliverables
-                  </h3>
-                  <p className="text-muted-foreground mt-1 text-xs">
-                    What this client is owed for each week or month, who is making it, and the link
-                    or file that shows it landed.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <DateRangeField value={range} onChange={setRange} />
-                  <DeliverablesExportMenu filters={{ ...filters, projectId }} />
-                  {/* Planning is the ACCOUNT MANAGER's act - it is a promise made to
-                  a client on the whole project's behalf, not a team's own
-                  scheduling. The server enforces the same rule; this only
-                  decides whether the button is drawn.
-                  Logging output has no button here on purpose: output is
-                  recorded against the row that was owed, or off the task that
-                  produced it, so that the evidence lands on the commitment
-                  instead of beside it. */}
-                  {canManage && (
-                    <Button className="gap-1.5" onClick={() => setPlanOpen(true)}>
-                      <Plus className="h-3.5 w-3.5" /> Plan deliverable
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* ONE strip, not tiles above chips.
-              Those were the same five statuses drawn twice - big and unclickable
-              on top, small and clickable underneath - so an empty project showed
-              ten zeros and the readable copy was the one you could not use.
-              Each segment is now the number AND the filter.
-
-              Hidden entirely when the project has nothing yet: five zeros above
-              an empty state is a worse first screen than the empty state alone. */}
-              {anything && (
-                <>
-                  <div className="mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
-                    {STATUS_ORDER.map((s) => {
-                      const on = statuses.includes(s)
-                      // Owed work has no completion date, so it falls outside every
-                      // date range - its counts come from the range-free query.
-                      const count = s === "PLANNED" ? plannedQty : statusCount(s)
-                      return (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => toggleStatus(s)}
-                          aria-pressed={on}
-                          title={`Show only ${DELIVERABLE_STATUS_LABELS[s].toLowerCase()}`}
-                          className={cn(
-                            "rounded-sm border px-3 py-2 text-left transition-colors",
-                            on
-                              ? "border-primary bg-primary/5"
-                              : "bg-muted/40 hover:bg-muted border-transparent",
-                          )}
-                        >
-                          <span className="text-muted-foreground block text-[10px] font-medium tracking-widest uppercase">
-                            {DELIVERABLE_STATUS_LABELS[s]}
-                          </span>
-                          <span className="mt-0.5 flex items-baseline gap-1.5">
-                            <span className="text-lg font-bold tabular-nums">{count}</span>
-                            {s === "PLANNED" && plannedOverdue > 0 && (
-                              <span className="text-destructive text-xs font-medium">
-                                {plannedOverdue} overdue
-                              </span>
-                            )}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  {/* Effort per unit is a RATIO, not a status - it never belonged in
-                  a row of counts you can filter by. */}
-                  {perUnit !== null && (
-                    <p className="text-muted-foreground mt-2 text-xs">
-                      ≈ <span className="text-foreground font-medium">{formatHours(perUnit)}</span>{" "}
-                      per unit, across {coverage}% of what was made
-                    </p>
-                  )}
-                </>
-              )}
-
-              {/* Type chips double as a filter - click one to see only those. */}
-              {(base?.byType.length ?? 0) > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {(base?.byType ?? []).map((t) => (
-                    <button
-                      key={t.type}
-                      type="button"
-                      onClick={() =>
-                        setType(type?.toLowerCase() === t.type.toLowerCase() ? null : t.type)
-                      }
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[11px] transition-colors",
-                        type?.toLowerCase() === t.type.toLowerCase()
-                          ? "border-foreground/40 bg-muted font-medium"
-                          : "border-border text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {t.type} <span className="tabular-nums opacity-70">{t.count}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* ── Filters ─────────────────────────────────────────────────── */}
+          {/* ── Header ───────────────────────────────────────────────────────
+              One line: what you can DO on the left, how you want to LOOK at it
+              on the right. The tab bar above already says Deliverables, so a
+              heading repeating the tab you just clicked earns no space. */}
           <div className="flex flex-wrap items-center gap-2">
-            <SearchInput
-              value={search}
-              onChange={setSearch}
-              placeholder="Search title, type, team, person..."
-              className="max-w-xs"
-            />
-            <Select value={teamId} onValueChange={setTeamId}>
-              <SelectTrigger className="h-8 w-40 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>All teams</SelectItem>
-                {(teams.data?.data ?? []).map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={employeeId} onValueChange={setEmployeeId}>
-              <SelectTrigger className="h-8 w-44 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Everyone</SelectItem>
-                {people.map(([id, name]) => (
-                  <SelectItem key={id} value={id}>
-                    {name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {(teamId !== ALL || employeeId !== ALL || type || statuses.length > 0 || q) && (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setTeamId(ALL)
-                  setEmployeeId(ALL)
-                  setType(null)
-                  setStatuses([])
-                  setSearch("")
-                }}
-              >
-                Clear
+            <DateRangeField value={range} onChange={setRange} />
+            <DeliverablesExportMenu filters={{ ...filters, projectId }} />
+            {/* Planning is the ACCOUNT MANAGER's act - it is a promise made to
+              a client on the whole project's behalf, not a team's own
+              scheduling. The server enforces the same rule; this only
+              decides whether the button is drawn.
+              Logging output has no button here on purpose: output is
+              recorded against the row that was owed, or off the task that
+              produced it, so that the evidence lands on the commitment
+              instead of beside it. */}
+            {canManage && (
+              <Button className="gap-1.5" onClick={() => setPlanOpen(true)}>
+                <Plus className="h-3.5 w-3.5" /> Plan deliverable
               </Button>
             )}
+            {/* Card or table. The filters that sat beside it are gone: the board
+                is one row per period, and a handful of periods is a list you
+                read rather than one you search. */}
             <ViewToggle value={view} onChange={setView} className="ml-auto" />
           </div>
         </>
