@@ -14,6 +14,7 @@ import {
   type SheetColumnType,
   type SheetEvent,
   type SheetEventType,
+  type SheetWorkbook,
 } from "../lib/sheet-types"
 
 // =============================================================================
@@ -125,6 +126,7 @@ type SheetRecord = Prisma.ProjectSheetGetPayload<{ include: typeof SHEET_INCLUDE
 function toSheet(s: SheetRecord): ProjectSheet {
   return {
     id: s.id,
+    workbookId: s.workbookId,
     name: s.name,
     description: s.description,
     position: s.position,
@@ -201,19 +203,133 @@ export async function sheetBelongsToProject(sheetId: string, projectId: string):
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sheets
+// Workbooks - what the UI calls a "sheet": a named set of tabs
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WORKBOOK_INCLUDE = {
+  createdBy: { select: { firstName: true, lastName: true } },
+  assignedTo: {
+    select: { id: true, firstName: true, lastName: true, profilePhoto: true },
+  },
+  // A single-key orderBy on purpose: an `as const` array is a readonly tuple,
+  // which Prisma's include type rejects. Positions are assigned in order anyway.
+  sheets: { orderBy: { position: "asc" }, include: SHEET_INCLUDE },
+} as const
+
+type WorkbookRecord = Prisma.ProjectWorkbookGetPayload<{ include: typeof WORKBOOK_INCLUDE }>
+
+function toWorkbook(w: WorkbookRecord): SheetWorkbook {
+  return {
+    id: w.id,
+    name: w.name,
+    position: w.position,
+    createdByName: name(w.createdBy),
+    assignedTo: w.assignedTo,
+    updatedAt: w.updatedAt.toISOString(),
+    sheets: w.sheets.map(toSheet),
+  }
+}
+
+/** Every workbook on the project, each with its tabs (columns and rows included). */
+export async function listWorkbooks(projectId: string): Promise<SheetWorkbook[]> {
+  const books = await db.projectWorkbook.findMany({
+    where: { projectId },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    include: WORKBOOK_INCLUDE,
+  })
+  return books.map(toWorkbook)
+}
+
+export async function workbookBelongsToProject(
+  workbookId: string,
+  projectId: string,
+): Promise<boolean> {
+  const w = await db.projectWorkbook.findUnique({
+    where: { id: workbookId },
+    select: { projectId: true },
+  })
+  return !!w && w.projectId === projectId
+}
+
+/**
+ * A workbook opens with one tab, so there is always somewhere to type: a
+ * workbook with no tabs is a name and nothing else.
+ */
+export async function createWorkbook(
+  projectId: string,
+  actorId: string,
+  input: { name: string; firstTab?: string | null },
+): Promise<SheetWorkbook> {
+  const title = input.name.trim()
+  if (!title) throw new Error("A sheet needs a name")
+  const last = await db.projectWorkbook.findFirst({
+    where: { projectId },
+    orderBy: { position: "desc" },
+    select: { position: true },
+  })
+  const book = await db.projectWorkbook.create({
+    data: { projectId, name: title, position: (last?.position ?? -1) + 1, createdById: actorId },
+  })
+  await createSheet(projectId, actorId, {
+    workbookId: book.id,
+    name: input.firstTab?.trim() || "Tab 1",
+  })
+  const full = await db.projectWorkbook.findUniqueOrThrow({
+    where: { id: book.id },
+    include: WORKBOOK_INCLUDE,
+  })
+  return toWorkbook(full)
+}
+
+export async function renameWorkbook(workbookId: string, name: string): Promise<SheetWorkbook> {
+  const title = name.trim()
+  if (!title) throw new Error("A sheet needs a name")
+  const full = await db.projectWorkbook.update({
+    where: { id: workbookId },
+    data: { name: title },
+    include: WORKBOOK_INCLUDE,
+  })
+  return toWorkbook(full)
+}
+
+/**
+ * Hand a workbook to someone, or to nobody (null). The caller decides WHO may
+ * do this and that the employee is a real, active one - this only writes it.
+ */
+export async function assignWorkbook(
+  workbookId: string,
+  employeeId: string | null,
+): Promise<SheetWorkbook> {
+  const full = await db.projectWorkbook.update({
+    where: { id: workbookId },
+    data: { assignedToId: employeeId },
+    include: WORKBOOK_INCLUDE,
+  })
+  return toWorkbook(full)
+}
+
+/** Manager-only. Cascades to every tab, their columns, rows and history. */
+export async function deleteWorkbook(workbookId: string): Promise<void> {
+  await db.projectWorkbook.delete({ where: { id: workbookId } })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sheets - one TAB of a workbook: a grid of columns and rows
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function createSheet(
   projectId: string,
   actorId: string,
-  input: { name: string; description?: string | null },
+  input: { workbookId: string; name: string; description?: string | null },
 ): Promise<ProjectSheet> {
   const title = input.name.trim()
-  if (!title) throw new Error("A sheet needs a name")
+  if (!title) throw new Error("A tab needs a name")
+  if (!(await workbookBelongsToProject(input.workbookId, projectId))) {
+    throw new Error("Sheet not found")
+  }
 
   const last = await db.projectSheet.findFirst({
-    where: { projectId },
+    where: { workbookId: input.workbookId },
     orderBy: { position: "desc" },
     select: { position: true },
   })
@@ -221,6 +337,7 @@ export async function createSheet(
   const sheet = await db.projectSheet.create({
     data: {
       projectId,
+      workbookId: input.workbookId,
       name: title,
       description: input.description?.trim() || null,
       position: (last?.position ?? -1) + 1,
@@ -538,6 +655,62 @@ export async function writeCellsAt(
     await record(sheetId, actorId, "ROW_ADDED", { rowId: row.id })
   }
   await updateCells(row.id, actorId, cells)
+}
+
+/**
+ * Append many rows at once - the file importer's path.
+ *
+ * Rows land after the last occupied position, and every value goes through
+ * the same normaliser a typed edit does. Fully empty rows are dropped (a CSV
+ * usually ends with a few). History gets one ROW_ADDED per row rather than a
+ * CELL_UPDATED per cell: a 500-row import must not write 5,000 log entries
+ * nobody will ever scroll.
+ */
+export async function importRows(
+  sheetId: string,
+  actorId: string,
+  rows: Record<string, unknown>[],
+): Promise<{ imported: number; firstPosition: number }> {
+  const columns = await db.projectSheetColumn.findMany({
+    where: { sheetId },
+    select: { id: true, type: true },
+  })
+  const typeOf = new Map(columns.map((c) => [c.id, c.type as SheetColumnType]))
+  const last = await db.projectSheetRow.findFirst({
+    where: { sheetId },
+    orderBy: { position: "desc" },
+    select: { position: true },
+  })
+  const firstPosition = (last?.position ?? -1) + 1
+  let position = firstPosition
+
+  const data: Prisma.ProjectSheetRowCreateManyInput[] = []
+  for (const raw of rows) {
+    const cells: Record<string, CellValue> = {}
+    for (const [columnId, value] of Object.entries(raw)) {
+      const type = typeOf.get(columnId)
+      if (!type) continue // stale column - same rule as updateCells
+      const next = normalizeCell(type, value)
+      if (next !== null) cells[columnId] = next
+    }
+    if (Object.keys(cells).length === 0) continue
+    data.push({
+      sheetId,
+      position: position++,
+      createdById: actorId,
+      cells: cells as Prisma.InputJsonValue,
+    })
+  }
+  if (data.length === 0) return { imported: 0, firstPosition }
+
+  await db.projectSheetRow.createMany({ data })
+  const created = await db.projectSheetRow.findMany({
+    where: { sheetId, position: { gte: firstPosition } },
+    select: { id: true },
+  })
+  for (const r of created)
+    await record(sheetId, actorId, "ROW_ADDED", { rowId: r.id, label: "Imported" })
+  return { imported: data.length, firstPosition }
 }
 
 /** Manager-only. The row's values go into the history before it goes. */

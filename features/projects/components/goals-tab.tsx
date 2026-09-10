@@ -4,8 +4,10 @@ import * as React from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Plus,
+  MoreHorizontal,
   Target,
   CalendarDays,
+  ChevronRight,
   Trash2,
   TriangleAlert,
   History,
@@ -18,6 +20,13 @@ import {
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -65,7 +74,7 @@ import {
   goalFiltersActive,
   type GoalFilters,
 } from "./goal-filters"
-import { GoalTagEditor, GoalTagInput, GoalTagList } from "./goal-tag-input"
+import { GoalTagInput, GoalTagList } from "./goal-tag-input"
 import { GoalTasks } from "./goal-tasks"
 import { GoalTargets } from "./goal-targets"
 
@@ -164,27 +173,42 @@ function EditDialog({
   onCancel,
   onSave,
   people,
+  allTags,
   pending,
 }: {
   goal: GoalNode
   onCancel: () => void
-  onSave: (patch: { title: string; targetDate: string | null; ownerId: string | null }) => void
+  onSave: (patch: {
+    title: string
+    targetDate: string | null
+    ownerId: string | null
+    tags: string[]
+  }) => void
   /** Who can own it: everyone assignable on the project. */
   people: { id: string; firstName: string; lastName: string }[]
+  /** Every tag already in use on the project, for the type-ahead. */
+  allTags: string[]
   pending: boolean
 }) {
   const [title, setTitle] = React.useState(goal.title)
   const [date, setDate] = React.useState(goal.targetDate ?? "")
   const [owner, setOwner] = React.useState(goal.ownerId ?? "")
+  const [tags, setTags] = React.useState<string[]>(goal.tags)
 
   const trimmed = title.trim()
+  const tagsChanged =
+    tags.length !== goal.tags.length ||
+    tags.some((t, i) => t.toLowerCase() !== goal.tags[i]?.toLowerCase())
   // Nothing to send is not an error, it just is not a save - the server would
   // no-op anyway, and a disabled button says so before the click.
   const changed =
-    trimmed !== goal.title || (date || null) !== goal.targetDate || (owner || null) !== goal.ownerId
+    trimmed !== goal.title ||
+    (date || null) !== goal.targetDate ||
+    (owner || null) !== goal.ownerId ||
+    tagsChanged
   const submit = () => {
     if (!trimmed || !changed) return
-    onSave({ title: trimmed, targetDate: date || null, ownerId: owner || null })
+    onSave({ title: trimmed, targetDate: date || null, ownerId: owner || null, tags })
   }
 
   return (
@@ -249,6 +273,11 @@ function EditDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-muted-foreground text-[11px]">Tags</Label>
+            <GoalTagInput value={tags} onChange={setTags} suggestions={allTags} />
           </div>
         </div>
 
@@ -508,6 +537,26 @@ export function GoalsTab({
     onSuccess: invalidate,
   })
 
+  const [adding, setAdding] = React.useState(false)
+  /** Which goal is having a target added, so the button can live in its footer. */
+  const [targetFor, setTargetFor] = React.useState<string | null>(null)
+  /** Same for work: the card offers these once, not once per row. */
+  const [taskFor, setTaskFor] = React.useState<string | null>(null)
+  const [linkFor, setLinkFor] = React.useState<string | null>(null)
+  /**
+   * Which goals are open. Collapsed by DEFAULT: the first question anybody has
+   * on this tab is "what are we tracking and how is it going", and that is a
+   * list you should be able to read in one screen. Opening a goal is the
+   * second question, asked one goal at a time.
+   */
+  const [openGoals, setOpenGoals] = React.useState<Set<string>>(new Set())
+  const toggleGoal = (id: string) =>
+    setOpenGoals((cur) => {
+      const next = new Set(cur)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   const [newGoal, setNewGoal] = React.useState("")
   const [newDate, setNewDate] = React.useState("")
   const [newTags, setNewTags] = React.useState<string[]>([])
@@ -556,6 +605,9 @@ export function GoalsTab({
     setNewGoal("")
     setNewDate("")
     setNewTags([])
+    // Closed on success: adding a goal is usually one goal, and leaving the
+    // form open put the board back below the fold again.
+    setAdding(false)
   }
   const addSub = (parentId: string) => {
     if (!subTitle.trim()) return
@@ -603,73 +655,79 @@ export function GoalsTab({
       <StatusBadge status={goal.status} />
     )
 
-  const rowActions = (goal: GoalNode) => (
-    <div className="flex shrink-0 items-center gap-0.5">
-      {/* Manage-only, and only while the goal is live: editing something that
-          has been taken off the board is a way to change a record nobody is
-          looking at. Restore it first. `canManage` is admin OR the project's
-          account manager - the same gate the server enforces on PATCH. */}
-      {canManage && goal.isActive && (
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={`Edit ${goal.title}`}
-          title="Edit"
-          onClick={() => setEditing(goal)}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-      )}
-      {canManage && goal.isActive && (
-        <GoalTagEditor
-          goalTitle={goal.title}
-          tags={goal.tags}
-          suggestions={full.allTags}
-          pending={update.isPending}
-          onSave={(tags) => update.mutate({ id: goal.id, tags })}
-        />
-      )}
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={`History for ${goal.title}`}
-        title="History"
-        onClick={() => setHistoryFor(goal)}
-        className="text-muted-foreground hover:text-foreground"
-      >
-        <History className="h-3.5 w-3.5" />
-      </Button>
-      {canManage &&
-        (goal.isActive ? (
+  /**
+   * One menu, not four icons.
+   *
+   * Edit / tag / history / remove used to be four unlabelled buttons on EVERY
+   * goal and sub-goal - on a board of four rows that is sixteen icons competing
+   * with the titles, which is most of why the tab read as cluttered. Tags moved
+   * into Edit (a goal should have one place that changes it), so what is left
+   * fits behind a single control that names its actions in words.
+   */
+  const rowActions = (goal: GoalNode) => {
+    const canEdit = canManage && goal.isActive
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            aria-label={`Remove ${goal.title}`}
-            title="Remove"
-            // The UNFILTERED node: the dialog warns how many sub-goals go with
-            // it, and a filtered card carries only the sub-goals on screen. A
-            // destructive confirmation that under-counts what it destroys is
-            // worse than no confirmation at all.
-            onClick={() => setDeleting(full.goals.find((g) => g.id === goal.id) ?? goal)}
-            className="text-muted-foreground hover:text-destructive"
+            aria-label={`Actions for ${goal.title}`}
+            title="Actions"
+            className="text-muted-foreground hover:text-foreground shrink-0"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <MoreHorizontal className="h-4 w-4" />
           </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Restore ${goal.title}`}
-            title="Restore"
-            onClick={() => restore.mutate(goal.id)}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </Button>
-        ))}
-    </div>
-  )
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          {canEdit && (
+            <DropdownMenuItem onClick={() => setEditing(goal)}>
+              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit goal
+            </DropdownMenuItem>
+          )}
+          {/* A sub-goal has no footer of its own, so its way to a target is
+              here. The parent goal offers the same thing in its footer. */}
+          {canEdit && (
+            <DropdownMenuItem onClick={() => setTargetFor(goal.id)}>
+              <Target className="mr-2 h-3.5 w-3.5" /> Add target
+            </DropdownMenuItem>
+          )}
+          {/* A sub-goal has no footer of its own, so its ways in are here. */}
+          {canStaff && goal.isActive && (
+            <>
+              <DropdownMenuItem onClick={() => setTaskFor(goal.id)}>
+                <Plus className="mr-2 h-3.5 w-3.5" /> Add task
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLinkFor(goal.id)}>
+                <ListChecks className="mr-2 h-3.5 w-3.5" /> Link tasks
+              </DropdownMenuItem>
+            </>
+          )}
+          <DropdownMenuItem onClick={() => setHistoryFor(goal)}>
+            <History className="mr-2 h-3.5 w-3.5" /> History
+          </DropdownMenuItem>
+          {canManage && <DropdownMenuSeparator />}
+          {canManage &&
+            (goal.isActive ? (
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                // The UNFILTERED node: the dialog warns how many sub-goals go
+                // with it, and a filtered card carries only the sub-goals on
+                // screen. A destructive confirmation that under-counts what it
+                // destroys is worse than no confirmation at all.
+                onClick={() => setDeleting(full.goals.find((g) => g.id === goal.id) ?? goal)}
+              >
+                <Trash2 className="mr-2 h-3.5 w-3.5" /> Remove
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={() => restore.mutate(goal.id)}>
+                <RotateCcw className="mr-2 h-3.5 w-3.5" /> Restore
+              </DropdownMenuItem>
+            ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -735,52 +793,99 @@ export function GoalsTab({
         </CardContent>
       </Card>
 
-      {/* ── Filters ───────────────────────────────────────────────────────
-          Above the add-goal row and below the numbers, because narrowing the
-          board is a reading action: it belongs with what you are reading, not
-          with what you are about to type. */}
-      <GoalFilterBar
-        value={filters}
-        onChange={setFilters}
-        allTags={full.allTags}
-        shown={summary.goals.length}
-        total={full.goals.length}
-        hiddenSubs={view.hiddenSubs}
-      />
+      {/* ── The board's own bar ──────────────────────────────────────────
+          Everything that acts on the board, in one line: what it holds and
+          whether it is open on the left, how to narrow it and how to add to it
+          on the right. The filters used to sit on a line of their own above,
+          which made a bar of two buttons floating over a bar of three. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold">
+          Goals
+          {/* Just the count. When a filter is on, the filter bar itself says
+              "Showing 3 of 5" beside its Clear button. */}
+          <span className="text-muted-foreground ml-2 text-xs font-normal tabular-nums">
+            {summary.goals.length}
+          </span>
+        </h3>
+        {summary.goals.length > 0 && (
+          <Button
+            variant="ghost"
+            className="text-muted-foreground"
+            onClick={() =>
+              setOpenGoals((cur) =>
+                cur.size > 0 ? new Set() : new Set(summary.goals.map((g) => g.id)),
+              )
+            }
+          >
+            {openGoals.size > 0 ? "Collapse all" : "Expand all"}
+          </Button>
+        )}
 
-      {/* ── Add a goal ────────────────────────────────────────────────── */}
-      {canManage && (
-        <Card>
-          <CardContent className="flex flex-wrap items-center gap-2 p-4">
-            <Input
-              value={newGoal}
-              onChange={(e) => setNewGoal(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addMain()}
-              placeholder="Add a goal, e.g. Launch the new storefront"
-              aria-label="Add a goal"
-              className="min-w-56 flex-1"
-              maxLength={200}
-            />
-            <DateField
-              value={newDate}
-              onChange={setNewDate}
-              placeholder="Target date"
-              className="w-44"
-            />
-            {/* Tagged at creation, not afterwards: a tag added on the way past is
-                a tag that exists, and the filter above is only as good as the
-                tags people actually bothered to set. */}
-            <GoalTagInput
-              value={newTags}
-              onChange={setNewTags}
-              suggestions={full.allTags}
-              className="w-56"
-            />
-            <Button onClick={addMain} disabled={!newGoal.trim() || create.isPending}>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <GoalFilterBar
+            value={filters}
+            onChange={setFilters}
+            allTags={full.allTags}
+            shown={summary.goals.length}
+            total={full.goals.length}
+            hiddenSubs={view.hiddenSubs}
+          />
+          {canManage && (
+            <Button onClick={() => setAdding(true)}>
               <Plus className="h-4 w-4" /> Add goal
             </Button>
-          </CardContent>
-        </Card>
+          )}
+        </div>
+      </div>
+
+      {canManage && adding && (
+        <Dialog open onOpenChange={(o) => !o && setAdding(false)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add a goal</DialogTitle>
+              <DialogDescription>
+                What this project is for. Break it into sub-goals once it exists.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label required className="text-muted-foreground text-[11px]">
+                  Goal
+                </Label>
+                <Input
+                  autoFocus
+                  value={newGoal}
+                  onChange={(e) => setNewGoal(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addMain()}
+                  placeholder="e.g. Launch the new storefront"
+                  aria-label="Goal title"
+                  maxLength={200}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground text-[11px]">Target date</Label>
+                <DateField value={newDate} onChange={setNewDate} placeholder="Target date" modal />
+              </div>
+              {/* Tagged at creation, not afterwards: a tag added on the way past
+                  is a tag that exists, and the filter above is only as good as
+                  the tags people actually bothered to set. */}
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground text-[11px]">Tags</Label>
+                <GoalTagInput value={newTags} onChange={setNewTags} suggestions={full.allTags} />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setAdding(false)}>
+                Cancel
+              </Button>
+              <Button onClick={addMain} disabled={!newGoal.trim() || create.isPending}>
+                <Plus className="h-4 w-4" /> Add goal
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ── Work that serves no goal ──────────────────────────────────────
@@ -838,7 +943,7 @@ export function GoalsTab({
         </Card>
       ) : (
         <div className="space-y-3">
-          {summary.goals.map((goal) => {
+          {summary.goals.map((goal, gi) => {
             // A parent stripped of every visible sub-goal by the filter IS STILL
             // A PARENT. Reading leaf-ness off `children.length` would hand it a
             // status dropdown, and the server derives a parent's status from its
@@ -846,16 +951,34 @@ export function GoalsTab({
             const isLeaf = !goal.progressIsDerived
             const hiddenHere =
               (fullChildCount.get(goal.id) ?? goal.children.length) - goal.children.length
+            const isOpen = openGoals.has(goal.id)
+            const taskCount = goal.tasks.length
             return (
               <Card key={goal.id} className={cn("overflow-hidden", !goal.isActive && "opacity-60")}>
                 <div className="flex flex-wrap items-start gap-x-4 gap-y-3 p-4 sm:p-5">
+                  {/* The whole title block toggles: a bigger target than the
+                      chevron alone, and it is the thing you were already
+                      looking at when you decided to open it. */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGoal(goal.id)}
+                    aria-expanded={isOpen}
+                    className="text-muted-foreground hover:text-foreground -ml-1 shrink-0 pt-0.5"
+                    title={isOpen ? "Collapse" : "Expand"}
+                  >
+                    <ChevronRight
+                      className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")}
+                    />
+                  </button>
                   <div className="min-w-48 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
+                      <Rung n={String(gi + 1)} />
                       <h4
                         className={cn(
-                          "leading-tight font-semibold",
+                          "cursor-pointer leading-tight font-semibold",
                           STATUS_STYLE[goal.status].title,
                         )}
+                        onClick={() => toggleGoal(goal.id)}
                       >
                         {goal.title}
                       </h4>
@@ -877,55 +1000,72 @@ export function GoalsTab({
                           pace, and a goal can be both. */}
                       {goal.slipping && <SlippingChip />}
                     </div>
-                    <p className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                      <span className="inline-flex items-center gap-1">
-                        <CalendarDays className="h-3 w-3" />
-                        {fmtDate(goal.targetDate)}
-                      </span>
-                      {!isLeaf && (
-                        <span className="tabular-nums">
-                          {goal.doneChildren} of {goal.countableChildren} done
-                          {goal.tasks.length > 0 &&
-                            goal.children.length > 0 &&
-                            " (sub-goals and tasks)"}
-                        </span>
-                      )}
-                      {hiddenHere > 0 && (
-                        <span className="italic">
-                          {hiddenHere} sub-goal{hiddenHere === 1 ? "" : "s"} hidden by filters
-                        </span>
-                      )}
-                      {goal.ownerName && (
-                        <span title="Accountable for this goal landing">
-                          owner {goal.ownerName}
-                        </span>
-                      )}
-                      {goal.createdByName && <span>set by {goal.createdByName}</span>}
+                    {/* The gist, always on: how much is under this goal and
+                        how far along it is, so a collapsed board still answers
+                        the question people open this tab with. */}
+                    <p className="text-muted-foreground mt-1 text-xs tabular-nums">
+                      {[
+                        goal.children.length > 0 &&
+                          `${goal.children.length} sub-goal${goal.children.length === 1 ? "" : "s"}`,
+                        taskCount > 0 && `${taskCount} task${taskCount === 1 ? "" : "s"}`,
+                        goal.targets.length > 0 &&
+                          `${goal.targets.length} target${goal.targets.length === 1 ? "" : "s"}`,
+                        !isLeaf && `${goal.doneChildren} of ${goal.countableChildren} done`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "nothing under it yet"}
                     </p>
-                    {/* Under the meta line, not up beside the status badge: tags
+                    {isOpen && (
+                      <>
+                        <p className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs empty:hidden">
+                          {/* Only when set. "No date" printed on every row is an
+                          empty value dressed up as information, and it was on
+                          four rows of the screenshot that started this. */}
+                          {goal.targetDate && (
+                            <span className="inline-flex items-center gap-1">
+                              <CalendarDays className="h-3 w-3" />
+                              {fmtDate(goal.targetDate)}
+                            </span>
+                          )}
+                          {hiddenHere > 0 && (
+                            <span className="italic">
+                              {hiddenHere} sub-goal{hiddenHere === 1 ? "" : "s"} hidden by filters
+                            </span>
+                          )}
+                          {goal.ownerName && (
+                            <span title="Accountable for this goal landing">
+                              owner {goal.ownerName}
+                            </span>
+                          )}
+                        </p>
+                        {/* Under the meta line, not up beside the status badge: tags
                         are how you FIND this goal again, not part of how it is
                         doing, and putting them next to the status chip makes a
                         row of coloured pills that all look like states. */}
-                    <GoalTagList
-                      tags={goal.tags}
-                      activeTags={filters.tags}
-                      onToggle={toggleTag}
-                      className="mt-1.5"
-                    />
-                    {goal.statusReason && (
-                      <p className="text-muted-foreground border-border/60 mt-2 border-l-2 pl-2 text-xs italic">
-                        {goal.statusReason}
-                      </p>
-                    )}
-                    {/* What was promised, under what it is called and above the
+                        <GoalTagList
+                          tags={goal.tags}
+                          activeTags={filters.tags}
+                          onToggle={toggleTag}
+                          className="mt-1.5"
+                        />
+                        {goal.statusReason && (
+                          <p className="text-muted-foreground border-border/60 mt-2 border-l-2 pl-2 text-xs italic">
+                            {goal.statusReason}
+                          </p>
+                        )}
+                        {/* What was promised, under what it is called and above the
                         work meant to produce it - the order somebody reads a
                         goal in. */}
-                    <GoalTargets
-                      projectId={projectId}
-                      goal={goal}
-                      canManage={canManage}
-                      className="mt-2"
-                    />
+                        <GoalTargets
+                          projectId={projectId}
+                          goal={goal}
+                          canManage={canManage}
+                          className="mt-2"
+                          adding={targetFor === goal.id}
+                          onAddingChange={(v) => setTargetFor(v ? goal.id : null)}
+                        />
+                      </>
+                    )}
                   </div>
 
                   {isLeaf ? (
@@ -958,25 +1098,42 @@ export function GoalsTab({
                   {rowActions(goal)}
                 </div>
 
-                {goal.children.length > 0 && (
+                {/* A left rail, not just an indent. Three sub-goals under one
+                    parent used to be told apart by a 6px offset and a 1.5px
+                    dot, which is not enough to read as "these belong to that"
+                    once a card is taller than the screen. */}
+                {isOpen && goal.children.length > 0 && (
                   <div className="border-border/60 bg-muted/30 divide-border/60 divide-y border-t">
-                    {goal.children.map((sub) => (
+                    {goal.children.map((sub, si) => (
                       <div key={sub.id}>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 pl-6 sm:pl-8">
+                        <div className="border-primary/25 relative ml-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-l-2 py-2.5 pr-4 pl-4 sm:ml-6">
                           <span
                             aria-hidden
                             className={cn(
-                              "h-1.5 w-1.5 shrink-0 rounded-full",
+                              "h-2 w-2 shrink-0 rounded-full ring-2",
                               STATUS_STYLE[sub.status].dot,
+                              "ring-background",
                             )}
                           />
                           <div className="min-w-36 flex-1">
-                            <p className={cn("text-sm", STATUS_STYLE[sub.status].title)}>
+                            <p
+                              className={cn(
+                                "flex items-center gap-2 text-sm",
+                                STATUS_STYLE[sub.status].title,
+                              )}
+                            >
+                              {/* 1.1, 1.2 - the rung reads as a position in the
+                                  ladder rather than just a bullet. */}
+                              <Rung sub n={`${gi + 1}.${si + 1}`} />
                               {sub.title}
                             </p>
-                            <p className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-2 text-[11px]">
-                              <CalendarDays className="h-3 w-3" />
-                              {fmtDate(sub.targetDate)}
+                            <p className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-2 text-[11px] empty:hidden">
+                              {sub.targetDate && (
+                                <span className="inline-flex items-center gap-1">
+                                  <CalendarDays className="h-3 w-3" />
+                                  {fmtDate(sub.targetDate)}
+                                </span>
+                              )}
                               {sub.overdue && (
                                 <span className="text-destructive font-medium">past target</span>
                               )}
@@ -997,6 +1154,8 @@ export function GoalsTab({
                               goal={sub}
                               canManage={canManage}
                               className="mt-1.5"
+                              adding={targetFor === sub.id}
+                              onAddingChange={(v) => setTargetFor(v ? sub.id : null)}
                             />
                           </div>
                           {statusControl(sub)}
@@ -1008,6 +1167,10 @@ export function GoalsTab({
                           canStaff={canStaff}
                           teams={myTeams}
                           compact
+                          adding={taskFor === sub.id}
+                          onAddingChange={(v) => setTaskFor(v ? sub.id : null)}
+                          linking={linkFor === sub.id}
+                          onLinkingChange={(v) => setLinkFor(v ? sub.id : null)}
                         />
                       </div>
                     ))}
@@ -1016,42 +1179,22 @@ export function GoalsTab({
 
                 {/* The work behind the goal - and where the manager breaks it
                     into work. Progress derives from these once any exist. */}
-                <GoalTasks projectId={projectId} goal={goal} canStaff={canStaff} teams={myTeams} />
+                {isOpen && (
+                  <GoalTasks
+                    projectId={projectId}
+                    goal={goal}
+                    canStaff={canStaff}
+                    teams={myTeams}
+                    adding={taskFor === goal.id}
+                    onAddingChange={(v) => setTaskFor(v ? goal.id : null)}
+                    linking={linkFor === goal.id}
+                    onLinkingChange={(v) => setLinkFor(v ? goal.id : null)}
+                  />
+                )}
 
-                {canManage && goal.isActive && (
+                {isOpen && canManage && goal.isActive && (
                   <div className="border-border/60 border-t px-4 py-2.5 sm:px-5">
-                    {subFor === goal.id ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Input
-                          autoFocus
-                          value={subTitle}
-                          onChange={(e) => setSubTitle(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && addSub(goal.id)}
-                          placeholder="What needs to happen?"
-                          aria-label="Sub-goal title"
-                          className="min-w-48 flex-1"
-                          maxLength={200}
-                        />
-                        <DateField
-                          value={subDate}
-                          onChange={setSubDate}
-                          placeholder="Target date"
-                          className="w-44"
-                        />
-                        <GoalTagInput
-                          value={subTags}
-                          onChange={setSubTags}
-                          suggestions={full.allTags}
-                          className="w-52"
-                        />
-                        <Button onClick={() => addSub(goal.id)} disabled={!subTitle.trim()}>
-                          Add
-                        </Button>
-                        <Button variant="ghost" onClick={() => setSubFor(null)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
+                    <div className="flex flex-wrap gap-1">
                       <Button
                         variant="ghost"
                         className="text-muted-foreground"
@@ -1062,9 +1205,33 @@ export function GoalsTab({
                           setSubTags([])
                         }}
                       >
-                        <Plus className="h-3.5 w-3.5" /> Add sub-goal
+                        <Plus className="h-3.5 w-3.5" /> Sub-goal
                       </Button>
-                    )}
+                      {/* ONE footer per goal holding everything you can add
+                            to it, instead of the same two task buttons under
+                            every sub-goal and again at the bottom. */}
+                      <Button
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={() => setTaskFor(goal.id)}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Task
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={() => setLinkFor(goal.id)}
+                      >
+                        <ListChecks className="h-3.5 w-3.5" /> Link tasks
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={() => setTargetFor(goal.id)}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Target
+                      </Button>
+                    </div>
                   </div>
                 )}
               </Card>
@@ -1072,6 +1239,56 @@ export function GoalsTab({
           })}
         </div>
       )}
+
+      {/* Sub-goal, in a dialog like everything else you can add to a goal. It
+          used to unfold as a row of three inputs inside the card footer, which
+          both widened the card and buried the goal you were adding it to. */}
+      <Dialog open={subFor !== null} onOpenChange={(o) => !o && setSubFor(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add a sub-goal</DialogTitle>
+            <DialogDescription>
+              A step towards &ldquo;
+              {summary.goals.find((g) => g.id === subFor)?.title ?? "this goal"}&rdquo;. The parent
+              goal&rsquo;s progress is derived from its sub-goals.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label required className="text-muted-foreground text-[11px]">
+                Sub-goal
+              </Label>
+              <Input
+                autoFocus
+                value={subTitle}
+                onChange={(e) => setSubTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && subFor && addSub(subFor)}
+                placeholder="What needs to happen?"
+                aria-label="Sub-goal title"
+                maxLength={200}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground text-[11px]">Target date</Label>
+              <DateField value={subDate} onChange={setSubDate} placeholder="Target date" modal />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground text-[11px]">Tags</Label>
+              <GoalTagInput value={subTags} onChange={setSubTags} suggestions={full.allTags} />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSubFor(null)}>
+              Cancel
+            </Button>
+            <Button onClick={() => subFor && addSub(subFor)} disabled={!subTitle.trim()}>
+              <Plus className="h-4 w-4" /> Add sub-goal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <DeleteDialog
         goal={deleting}
@@ -1089,6 +1306,7 @@ export function GoalsTab({
           key={editing.id}
           goal={editing}
           people={people.data?.data ?? []}
+          allTags={full.allTags}
           pending={update.isPending}
           onCancel={() => setEditing(null)}
           onSave={(patch) => {
@@ -1110,6 +1328,29 @@ export function GoalsTab({
         }}
       />
     </div>
+  )
+}
+
+/**
+ * The rung number - "1", or "1.2" for a sub-goal.
+ *
+ * A board of untitled-looking cards gives you no sense of HOW MANY things are
+ * being tracked, or where you are in the list. A number does both, and it also
+ * gives people something to say out loud in a stand-up: "where are we on 2.3".
+ */
+function Rung({ n, sub }: { n: string; sub?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center rounded-sm font-semibold tabular-nums",
+        sub
+          ? "text-muted-foreground min-w-8 text-[11px]"
+          : "bg-primary/10 text-primary min-w-7 px-1.5 py-0.5 text-xs",
+      )}
+    >
+      {n}
+    </span>
   )
 }
 

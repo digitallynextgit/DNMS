@@ -678,6 +678,8 @@ model Employee {
   taskStatusChanges  TaskStatusPeriod[]     @relation("TaskStatusActor")
   contentEntries     ContentCalendarEntry[] @relation("ContentAssignee")
   sheetsCreated      ProjectSheet[]         @relation("SheetAuthor")
+  workbooksCreated   ProjectWorkbook[]      @relation("WorkbookAuthor")
+  workbooksAssigned  ProjectWorkbook[]      @relation("WorkbookAssignee")
   sheetRowsCreated   ProjectSheetRow[]      @relation("SheetRowAuthor")
   sheetEvents        ProjectSheetEvent[]    @relation("SheetEventActor")
   timesheets         Timesheet[]
@@ -1545,6 +1547,7 @@ model Project {
   brandAssets     BrandAsset[]
   contentCalendar ContentCalendarEntry[]
   sheets          ProjectSheet[]
+  workbooks       ProjectWorkbook[]
   integration     ProjectIntegration?
   metaCampaigns   MetaCampaign[]
   seoProperties   SeoProperty[]
@@ -1791,20 +1794,53 @@ model ProjectSheet {
   /// before that. Positions are stable, so the map stays correct when a row
   /// is deleted. Absent = the default height.
   rowHeights  Json?    @map("row_heights")
+  /// The workbook this tab belongs to - what the Calendars UI calls a "sheet".
+  workbookId  String   @map("workbook_id")
   createdById String?  @map("created_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   project   Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workbook  ProjectWorkbook      @relation(fields: [workbookId], references: [id], onDelete: Cascade)
   createdBy Employee?            @relation("SheetAuthor", fields: [createdById], references: [id], onDelete: SetNull)
   columns   ProjectSheetColumn[]
   rows      ProjectSheetRow[]
   events    ProjectSheetEvent[]
 
-  @@unique([projectId, name])
+  @@unique([workbookId, name])
   @@index([projectId])
+  @@index([workbookId])
   @@index([tenantId])
   @@map("project_sheets")
+}
+
+/// A named set of tabs - what the Calendars UI calls a "sheet" (an Excel
+/// workbook, in effect). Each tab is a ProjectSheet with its own grid; the
+/// workbook holds only the name and the order. Deleting it takes every tab.
+model ProjectWorkbook {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id           String   @id @default(uuid()) @map("id")
+  projectId    String   @map("project_id")
+  name         String   @map("name")
+  position     Int      @default(0) @map("position")
+  createdById  String?  @map("created_by_id")
+  /// Who owns this sheet now. Distinct from createdById: a sheet changes hands,
+  /// its author does not. Null = nobody has picked it up.
+  assignedToId String?  @map("assigned_to_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy  Employee?      @relation("WorkbookAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedTo Employee?      @relation("WorkbookAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  sheets     ProjectSheet[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@index([assignedToId])
+  @@index([tenantId])
+  @@map("project_workbooks")
 }
 
 model ProjectSheetColumn {
@@ -2081,11 +2117,14 @@ model ProjectDeliverable {
   tenantId       String            @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id             String            @id @default(uuid()) @map("id")
   projectId      String            @map("project_id")
-  /// The maker's team on this project at the time of logging. Null when they
-  /// were on no team. SetNull on team deletion: the output still happened.
+  /// The team that owes it, and then made it. Set when the work is planned
+  /// for a team; otherwise taken from the maker at the time of logging. Null
+  /// when they were on no team. SetNull on team deletion: it still happened.
   teamId         String?           @map("team_id")
-  /// Who made it.
-  employeeId     String            @map("employee_id")
+  /// Who made it - null ONLY while the work is still owed and no one has
+  /// picked it up yet, in which case teamId says who owes it. A CHECK
+  /// constraint in the migration enforces that pair; Prisma cannot express it.
+  employeeId     String?           @map("employee_id")
   /// Who wrote the entry - the maker, or a manager logging on their behalf.
   loggedById     String?           @map("logged_by_id")
   /// The task it came out of, when there was one.
@@ -2125,7 +2164,7 @@ model ProjectDeliverable {
 
   project    Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   team       ProjectTeam?              @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  employee   Employee                  @relation("DeliverableMaker", fields: [employeeId], references: [id], onDelete: Cascade)
+  employee   Employee?                 @relation("DeliverableMaker", fields: [employeeId], references: [id], onDelete: Cascade)
   loggedBy   Employee?                 @relation("DeliverableLogger", fields: [loggedById], references: [id], onDelete: SetNull)
   verifiedBy Employee?                 @relation("DeliverableVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
   acceptedBy Employee?                 @relation("DeliverableAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
@@ -2139,6 +2178,7 @@ model ProjectDeliverable {
   @@index([projectId, status])
   @@index([goalId])
   @@index([teamId])
+  @@index([teamId, status])
   @@index([taskId])
   @@index([tenantId])
   @@map("project_deliverables")

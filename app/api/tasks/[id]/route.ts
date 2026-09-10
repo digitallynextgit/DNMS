@@ -87,7 +87,7 @@ function toPlanned(row: {
   quantity: number
   links: string[]
   notes: string | null
-  employeeId: string
+  employeeId: string | null
   startedOn: Date | null
   dueOn: Date | null
   status: string

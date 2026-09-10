@@ -11,6 +11,7 @@ import {
   moveDriveFile,
   getDriveFile,
   isUnderFolder,
+  exportDriveFile,
   listPermissions,
   grantAccess,
   revokeAccess,
@@ -202,4 +203,25 @@ export async function moveProjectDriveFile(
   const target = await driveTargetFor(projectId, appFolderId)
   if (target === current.parentId) return current
   return moveDriveFile(fileId, current.parentId, target)
+}
+
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+/**
+ * A Google Sheet from this project's Drive tree as an .xlsx (every tab), for
+ * the sheet importer. Null when the file is not under the project's folder -
+ * the service account can read every project's Drive, so without that check a
+ * file id from another project would export another client's data.
+ */
+export async function exportProjectDriveSheet(
+  projectId: string,
+  fileId: string,
+): Promise<{ name: string; data: Buffer } | null> {
+  if (!(await ownsDriveFile(projectId, fileId))) return null
+  const file = await getDriveFile(fileId)
+  if (!file) return null
+  if (!file.mimeType.includes("spreadsheet")) {
+    throw new Error("That Drive file is not a Google Sheet")
+  }
+  return { name: file.name, data: await exportDriveFile(fileId, XLSX_MIME) }
 }

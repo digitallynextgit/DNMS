@@ -7,6 +7,7 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors"
 import { latestCalendarDay, todayUtc } from "@/lib/dates"
 import { canAccessProject, canManageProject } from "./project-access"
 import { logActivity } from "./activity"
+import { openFirstStatusPeriod } from "./task-status-periods"
 import { dedupeLinks, isSafeHttpUrl } from "../lib/task-links"
 import { MAX_LINKS, MAX_QUANTITY, MAX_TYPE_LENGTH, cleanType } from "../lib/deliverable-types"
 import {
@@ -18,6 +19,9 @@ import {
   periodOpen,
   type DeliverableActor,
   type DeliverableStatus,
+  MAX_REPEAT,
+  repeatDueDates,
+  type RepeatEvery,
 } from "../lib/deliverable-lifecycle"
 
 // =============================================================================
@@ -57,7 +61,14 @@ import {
 // =============================================================================
 
 export interface DeliverableInput {
-  employeeId?: string
+  /**
+   * Who will make it. Omit it on an owed row to leave it to the team - the
+   * account manager commits the team, the team manager puts a name to it.
+   * Required the moment anything is actually delivered.
+   */
+  employeeId?: string | null
+  /** Which team owes it. Required when there is no employee. */
+  teamId?: string | null
   type: string
   title: string
   quantity?: number
@@ -72,6 +83,11 @@ export interface DeliverableInput {
   links?: string[]
   notes?: string | null
   taskId?: string | null
+  /**
+   * Lay the same commitment down every week (or month) from `dueOn`.
+   * Owed work only - you cannot retroactively have made a thing twelve times.
+   */
+  repeat?: { every: RepeatEvery; count: number } | null
 }
 
 export interface StatusChangeInput {
@@ -185,6 +201,46 @@ async function managesTeamOf(session: Session, projectId: string, employeeId: st
   return !!team
 }
 
+/** Does this person manage THIS team? Used for rows owed by a team, which have
+ *  no member to look the team up through. */
+async function managesTeam(session: Session, projectId: string, teamId: string) {
+  const team = await db.projectTeam.findFirst({
+    where: { id: teamId, projectId, managerId: session.user.id },
+    select: { id: true },
+  })
+  return !!team
+}
+
+/** Is this person ON that team, for this project? */
+async function isOnTeam(session: Session, projectId: string, teamId: string) {
+  const m = await db.projectTeamMember.findFirst({
+    where: { projectId, teamId, employeeId: session.user.id },
+    select: { teamId: true },
+  })
+  return !!m
+}
+
+/**
+ * Whose row is this, as far as permissions go: the assignee when there is one,
+ * otherwise the team that owes it. Every check below reads this shape so an
+ * unassigned row is never mistaken for an unowned one.
+ */
+export interface DeliverableOwner {
+  employeeId: string | null
+  teamId: string | null
+  loggedById?: string | null
+}
+
+/** Does this person manage whoever owns the row - the assignee, or the team? */
+async function managesOwner(
+  session: Session,
+  projectId: string,
+  owner: DeliverableOwner,
+): Promise<boolean> {
+  if (owner.employeeId && (await managesTeamOf(session, projectId, owner.employeeId))) return true
+  return !!owner.teamId && managesTeam(session, projectId, owner.teamId)
+}
+
 /**
  * May `session` log output on behalf of `employeeId` for this project?
  * Yourself: any member. Someone else: admin, account manager, or their team's
@@ -203,11 +259,11 @@ export async function canLogFor(
 /** May `session` change or remove this entry? */
 export async function canEditDeliverable(
   session: Session,
-  d: { projectId: string; employeeId: string; loggedById: string | null },
+  d: DeliverableOwner & { projectId: string },
 ): Promise<boolean> {
   if (d.employeeId === session.user.id || d.loggedById === session.user.id) return true
   if (await canManageProject(session, d.projectId)) return true
-  return managesTeamOf(session, d.projectId, d.employeeId)
+  return managesOwner(session, d.projectId, d)
 }
 
 /**
@@ -220,13 +276,21 @@ export async function canEditDeliverable(
 export async function resolveActor(
   session: Session,
   projectId: string,
-  employeeId: string,
-  loggedById?: string | null,
+  owner: DeliverableOwner,
 ): Promise<DeliverableActor> {
   if (await canManageProject(session, projectId)) return "project_manager"
-  if (await managesTeamOf(session, projectId, employeeId)) return "team_manager"
-  if (session.user.id === employeeId || (loggedById && session.user.id === loggedById))
+  if (await managesOwner(session, projectId, owner)) return "team_manager"
+  if (
+    (owner.employeeId && session.user.id === owner.employeeId) ||
+    (owner.loggedById && session.user.id === owner.loggedById)
+  ) {
     return "maker"
+  }
+  // Nobody has picked it up yet: anyone on the team that owes it stands where
+  // the maker would, so they can claim it and get on with it.
+  if (!owner.employeeId && owner.teamId && (await isOnTeam(session, projectId, owner.teamId))) {
+    return "maker"
+  }
   return "none"
 }
 
@@ -293,7 +357,12 @@ interface TransitionResult {
  * kept in the event's `changes` so the first attempt is not lost.
  */
 function transitionEffects(
-  existing: { status: DeliverableStatus; startedOn: Date | null; completedOn: Date | null },
+  existing: {
+    status: DeliverableStatus
+    startedOn: Date | null
+    completedOn: Date | null
+    employeeId: string | null
+  },
   to: DeliverableStatus,
   opts: {
     actorId: string
@@ -326,6 +395,14 @@ function transitionEffects(
     data.acceptanceNote = null
   }
 
+  // Nobody had picked it up and now it exists: whoever moved it made it.
+  // Without this the CHECK constraint would reject a made row with no maker,
+  // and rightly so - "delivered by nobody" is not a fact about the world.
+  if (!existing.employeeId && isMadeStatus(to)) {
+    data.employeeId = opts.actorId
+    changes.employeeId = [null, opts.actorId]
+  }
+
   if (to === "ACCEPTED") {
     data.acceptedAt = new Date()
     data.acceptedById = opts.actorId
@@ -349,6 +426,14 @@ async function assertGoalInProject(projectId: string, goalId: string): Promise<v
   if (!goal) throw new ValidationError("That goal is not on this project.")
 }
 
+async function assertTeamInProject(projectId: string, teamId: string): Promise<void> {
+  const team = await db.projectTeam.findFirst({
+    where: { id: teamId, projectId },
+    select: { id: true },
+  })
+  if (!team) throw new NotFoundError("Team")
+}
+
 async function assertTaskInProject(projectId: string, taskId: string): Promise<void> {
   const task = await db.projectTask.findFirst({
     where: { id: taskId, projectId },
@@ -363,9 +448,28 @@ export async function createDeliverable(
   session: Session,
   projectId: string,
   input: DeliverableInput,
-): Promise<{ id: string }> {
-  const employeeId = input.employeeId?.trim() || session.user.id
-  if (!(await canLogFor(session, projectId, employeeId))) {
+): Promise<{ id: string; created: number }> {
+  const status = input.status ?? "DELIVERED"
+  if (!(CREATABLE_STATUSES as readonly string[]).includes(status)) {
+    throw new ValidationError("A new entry starts as owed, in progress, or delivered.")
+  }
+
+  // "Nobody yet" is only spellable by passing employeeId: null EXPLICITLY, and
+  // only for owed work. Leaving the field out still means "me", so every
+  // existing caller keeps logging its own output.
+  const unassigned = input.employeeId === null
+  if (unassigned && !isOpenStatus(status)) {
+    throw new ValidationError("Something that has been made needs a maker.")
+  }
+  const employeeId = unassigned ? null : input.employeeId?.trim() || session.user.id
+
+  const explicitTeam = input.teamId?.trim() || null
+  if (unassigned && !explicitTeam) {
+    throw new ValidationError("Owed work with nobody on it needs a team to owe it.")
+  }
+  if (explicitTeam) await assertTeamInProject(projectId, explicitTeam)
+
+  if (employeeId && !(await canLogFor(session, projectId, employeeId))) {
     throw new ForbiddenError(
       employeeId === session.user.id
         ? "You are not on this project."
@@ -373,12 +477,7 @@ export async function createDeliverable(
     )
   }
 
-  const status = input.status ?? "DELIVERED"
-  if (!(CREATABLE_STATUSES as readonly string[]).includes(status)) {
-    throw new ValidationError("A new entry starts as owed, in progress, or delivered.")
-  }
-
-  const actor = await resolveActor(session, projectId, employeeId)
+  const actor = await resolveActor(session, projectId, { employeeId, teamId: explicitTeam })
   // Planning is a commitment made ON somebody's behalf, so it belongs to the
   // people who own the schedule, not to whoever will do the work.
   if (isOpenStatus(status) && actor !== "project_manager" && actor !== "team_manager") {
@@ -405,44 +504,74 @@ export async function createDeliverable(
   if (input.taskId) await assertTaskInProject(projectId, input.taskId)
   if (input.goalId) await assertGoalInProject(projectId, input.goalId)
 
-  const [type, teamId] = await Promise.all([
+  // An explicit team wins: it is the team that was ASKED, and it stays
+  // accountable even after a member of another team ends up doing the work.
+  const [type, memberTeam] = await Promise.all([
     canonicalType(projectId, input.type ?? ""),
-    teamOf(projectId, employeeId),
+    employeeId ? teamOf(projectId, employeeId) : Promise.resolve(null),
   ])
+  const teamId = explicitTeam ?? memberTeam
   const quantity = normaliseQuantity(input.quantity)
   const taskId = input.taskId || null
 
+  // "Three reels a week until December" is one commitment to make and twelve
+  // rows to keep - each editable on its own, which is the point of writing
+  // them down rather than deriving them.
+  const repeat = input.repeat ?? null
+  if (repeat) {
+    if (!isOpenStatus(status)) {
+      throw new ValidationError("Only owed work repeats - something made happened once.")
+    }
+    if (!dueOn) throw new ValidationError("A repeating commitment needs a first due date.")
+    if (!Number.isFinite(repeat.count) || repeat.count < 1) {
+      throw new ValidationError("Say how many times it repeats.")
+    }
+    if (repeat.count > MAX_REPEAT) {
+      throw new ValidationError(`That is more than ${MAX_REPEAT} - plan a year at a time.`)
+    }
+    if (repeat.every !== "WEEK" && repeat.every !== "MONTH") {
+      throw new ValidationError("A commitment repeats weekly or monthly.")
+    }
+  }
+  const dueDates = repeat && dueOn ? repeatDueDates(dueOn, repeat.every, repeat.count) : [dueOn]
+
   const created = await db.$transaction(async (tx) => {
-    const row = await tx.projectDeliverable.create({
-      data: {
-        projectId,
-        teamId,
-        employeeId,
-        loggedById: session.user.id,
-        taskId,
-        goalId: input.goalId || null,
-        type,
-        title,
-        quantity,
-        status,
-        startedOn,
-        completedOn,
-        dueOn,
-        links: normaliseLinks(input.links),
-        notes: input.notes?.trim() || null,
-      },
-      select: { id: true, employee: { select: { firstName: true, lastName: true } } },
-    })
-    await tx.projectDeliverableEvent.create({
-      data: {
-        deliverableId: row.id,
-        type: "CREATED",
+    const rows = await Promise.all(
+      dueDates.map((due) =>
+        tx.projectDeliverable.create({
+          data: {
+            projectId,
+            teamId,
+            employeeId,
+            loggedById: session.user.id,
+            taskId,
+            goalId: input.goalId || null,
+            type,
+            title,
+            quantity,
+            status,
+            startedOn,
+            completedOn,
+            dueOn: due,
+            links: normaliseLinks(input.links),
+            notes: input.notes?.trim() || null,
+          },
+          select: { id: true, employee: { select: { firstName: true, lastName: true } } },
+        }),
+      ),
+    )
+    const row = rows[0]!
+    // One CREATED event per row: each is its own commitment from here on.
+    await tx.projectDeliverableEvent.createMany({
+      data: rows.map((r) => ({
+        deliverableId: r.id,
+        type: "CREATED" as const,
         toStatus: status,
         actorId: session.user.id,
-      },
+      })),
     })
     if (status === "DELIVERED") await clearOutputSkip(tx, taskId)
-    return row
+    return { row, count: rows.length }
   })
 
   await logActivity({
@@ -450,19 +579,23 @@ export async function createDeliverable(
     actorId: session.user.id,
     type: "DELIVERABLE_LOGGED",
     entityType: "DELIVERABLE",
-    entityId: created.id,
+    entityId: created.row.id,
     meta: {
       title,
       type,
       quantity,
       status,
-      employeeName: `${created.employee.firstName} ${created.employee.lastName ?? ""}`.trim(),
+      employeeName: created.row.employee
+        ? `${created.row.employee.firstName} ${created.row.employee.lastName ?? ""}`.trim()
+        : null,
       completedOn: ymd(completedOn),
       dueOn: ymd(dueOn),
+      // A repeat is one decision; the feed should read as one line, not twelve.
+      repeated: created.count > 1 ? created.count : undefined,
     },
   })
 
-  return { id: created.id }
+  return { id: created.row.id, created: created.count }
 }
 
 // ─── Edit ─────────────────────────────────────────────────────────────────────
@@ -471,6 +604,7 @@ const EDIT_SELECT = {
   id: true,
   projectId: true,
   employeeId: true,
+  teamId: true,
   loggedById: true,
   taskId: true,
   goalId: true,
@@ -507,7 +641,7 @@ export async function updateDeliverable(
     throw new ForbiddenError("You can only change your own entries, or your team's.")
   }
 
-  const actor = await resolveActor(session, projectId, existing.employeeId, existing.loggedById)
+  const actor = await resolveActor(session, projectId, existing)
   const today = todayUtc()
 
   const nextStatus =
@@ -582,14 +716,35 @@ export async function updateDeliverable(
     if (noteChange(changes, "goalId", existing.goalId, g)) data.goalId = g
   }
 
-  // Reassigning the maker re-stamps the team, and needs the on-behalf right.
+  // Putting a name to the work, taking it off someone, or moving it between
+  // people. The team it was ASKED of does not move with the assignee: the
+  // account manager committed that team, and it stays accountable.
   if (input.employeeId !== undefined && input.employeeId !== existing.employeeId) {
-    if (!(await canLogFor(session, projectId, input.employeeId))) {
-      throw new ForbiddenError("You cannot move this entry to that person.")
+    const nextEmployee = input.employeeId
+    if (nextEmployee === null) {
+      if (!isOpenStatus(existing.status)) {
+        throw new ValidationError("Something that has been made keeps its maker.")
+      }
+      if (!existing.teamId) {
+        throw new ValidationError("Give it a team before taking the person off it.")
+      }
+      if (actor !== "project_manager" && actor !== "team_manager") {
+        throw new ForbiddenError("Only a project manager or the team's manager can unassign work.")
+      }
+      noteChange(changes, "employeeId", existing.employeeId, null)
+      data.employeeId = null
+    } else {
+      if (!(await canLogFor(session, projectId, nextEmployee))) {
+        throw new ForbiddenError("You cannot move this entry to that person.")
+      }
+      // Claiming unowned work is open to the team that owes it; handing it to
+      // someone else is a manager's call. resolveActor already made a member
+      // of the owed team a "maker", so this reads the same either way.
+      if (actor === "none") throw new ForbiddenError("This is not yours to assign.")
+      noteChange(changes, "employeeId", existing.employeeId, nextEmployee)
+      data.employeeId = nextEmployee
+      if (!existing.teamId) data.teamId = await teamOf(projectId, nextEmployee)
     }
-    noteChange(changes, "employeeId", existing.employeeId, input.employeeId)
-    data.employeeId = input.employeeId
-    data.teamId = await teamOf(projectId, input.employeeId)
   }
 
   const transition = nextStatus
@@ -706,6 +861,7 @@ export async function setDeliverableStatus(
       id: true,
       projectId: true,
       employeeId: true,
+      teamId: true,
       loggedById: true,
       taskId: true,
       title: true,
@@ -717,7 +873,7 @@ export async function setDeliverableStatus(
   if (!existing) throw new NotFoundError("Deliverable")
 
   const to = input.status
-  const actor = await resolveActor(session, projectId, existing.employeeId, existing.loggedById)
+  const actor = await resolveActor(session, projectId, existing)
   const check = allowedTransition(existing.status, to, actor)
   if (!check.ok) throw transitionError(check.why, check.reason)
 
@@ -796,6 +952,7 @@ export async function verifyDeliverable(
     select: {
       id: true,
       employeeId: true,
+      teamId: true,
       loggedById: true,
       title: true,
       status: true,
@@ -804,7 +961,7 @@ export async function verifyDeliverable(
   })
   if (!existing) throw new NotFoundError("Deliverable")
 
-  const actor = await resolveActor(session, projectId, existing.employeeId, existing.loggedById)
+  const actor = await resolveActor(session, projectId, existing)
   if (actor !== "project_manager" && actor !== "team_manager") {
     throw new ForbiddenError("Only a project manager or the maker's team manager can verify work.")
   }
@@ -859,6 +1016,7 @@ export async function deleteDeliverable(
       id: true,
       projectId: true,
       employeeId: true,
+      teamId: true,
       loggedById: true,
       title: true,
       status: true,
@@ -870,7 +1028,7 @@ export async function deleteDeliverable(
     throw new ForbiddenError("You can only remove your own entries, or your team's.")
   }
 
-  const actor = await resolveActor(session, projectId, existing.employeeId, existing.loggedById)
+  const actor = await resolveActor(session, projectId, existing)
   if (existing.status === "ACCEPTED" && actor !== "project_manager") {
     throw new ForbiddenError("Only a project manager can remove work the client has accepted.")
   }
@@ -887,4 +1045,122 @@ export async function deleteDeliverable(
     entityId: id,
     meta: { title: existing.title, status: existing.status },
   })
+}
+
+// ─── Starting owed work ───────────────────────────────────────────────────────
+
+/**
+ * Turn an owed row into work somebody is actually doing.
+ *
+ * One action, because it is one decision: the person claims the row if nobody
+ * had it, it moves to IN_PROGRESS, and a task appears on their list linked back
+ * to it. When they finish that task the existing capture prompt opens THIS row
+ * to record what came out, so the loop from commitment to evidence closes
+ * without anybody having to remember the connection.
+ *
+ * This is also the one place a plain member may raise a PROJECT task, and the
+ * reason is narrow: the work was already committed to them or to their team,
+ * so the task is only how they track doing it - not new scope.
+ */
+export async function startDeliverable(
+  session: Session,
+  projectId: string,
+  id: string,
+): Promise<{ taskId: string; claimed: boolean }> {
+  const existing = await db.projectDeliverable.findFirst({
+    where: { id, projectId },
+    select: {
+      id: true,
+      employeeId: true,
+      teamId: true,
+      loggedById: true,
+      status: true,
+      title: true,
+      type: true,
+      quantity: true,
+      dueOn: true,
+      goalId: true,
+      taskId: true,
+    },
+  })
+  if (!existing) throw new NotFoundError("Deliverable")
+  if (!isOpenStatus(existing.status)) {
+    throw new ValidationError("That work has already been delivered.", { code: "BAD_TRANSITION" })
+  }
+  if (existing.taskId) {
+    throw new ValidationError("That is already being tracked as a task.", {
+      code: "BAD_TRANSITION",
+    })
+  }
+
+  const actor = await resolveActor(session, projectId, existing)
+  if (actor === "none") throw new ForbiddenError("This is not yours to start.")
+
+  // A manager starting somebody else's row does not steal it; only unowned
+  // work changes hands, and it changes hands to whoever picked it up.
+  const claimed = !existing.employeeId
+  const ownerId = existing.employeeId ?? session.user.id
+  const today = todayUtc()
+
+  const taskId = await db.$transaction(async (tx) => {
+    const task = await tx.projectTask.create({
+      data: {
+        projectId,
+        teamId: existing.teamId,
+        title: existing.quantity > 1 ? `${existing.title} (${existing.quantity})` : existing.title,
+        status: "IN_PROGRESS",
+        assigneeId: ownerId,
+        creatorId: session.user.id,
+        dueDate: existing.dueOn,
+        goalId: existing.goalId,
+        // It exists to produce this exact deliverable, so the completion
+        // prompt must fire - whatever the team's usual default is.
+        producesOutput: true,
+        isManagerCreated: ownerId !== session.user.id,
+      },
+      select: { id: true },
+    })
+    await openFirstStatusPeriod(tx, {
+      taskId: task.id,
+      status: "IN_PROGRESS",
+      actorId: session.user.id,
+    })
+
+    const changes: Changes = {}
+    if (claimed) changes.employeeId = [null, ownerId]
+    if (existing.status !== "IN_PROGRESS") changes.status = [existing.status, "IN_PROGRESS"]
+    changes.taskId = [null, task.id]
+
+    await tx.projectDeliverable.update({
+      where: { id },
+      data: {
+        employeeId: ownerId,
+        status: "IN_PROGRESS",
+        startedOn: today,
+        taskId: task.id,
+      },
+    })
+    await tx.projectDeliverableEvent.create({
+      data: {
+        deliverableId: id,
+        type: "STATUS_CHANGED",
+        fromStatus: existing.status,
+        toStatus: "IN_PROGRESS",
+        changes: asJson(changes),
+        actorId: session.user.id,
+      },
+    })
+    return task.id
+  })
+
+  await logActivity({
+    projectId,
+    actorId: session.user.id,
+    type: "DELIVERABLE_STATUS_CHANGED",
+    entityType: "DELIVERABLE",
+    entityId: id,
+    meta: { title: existing.title, from: existing.status, to: "IN_PROGRESS", taskId, claimed },
+  })
+
+  return { taskId, claimed }
 }

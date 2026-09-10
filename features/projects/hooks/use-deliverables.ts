@@ -46,7 +46,8 @@ export interface DeliverableRow {
   projectId: string
   project: { id: string; name: string; code: string; slug: string | null }
   team: { id: string; name: string } | null
-  employee: { id: string; name: string; profilePhoto: string | null }
+  /** The maker. Null while the row is still owed by the team and unclaimed. */
+  employee: { id: string; name: string; profilePhoto: string | null } | null
   loggedByName: string | null
   task: { id: string; title: string } | null
   goal: { id: string; title: string } | null
@@ -145,7 +146,10 @@ export interface DeliverableFilters {
 }
 
 export interface DeliverableInput {
-  employeeId?: string
+  /** null = nobody yet; the team in `teamId` owes it. Owed work only. */
+  employeeId?: string | null
+  /** Which team owes it. Required when employeeId is null. */
+  teamId?: string | null
   type: string
   title: string
   quantity?: number
@@ -158,6 +162,8 @@ export interface DeliverableInput {
   links?: string[]
   notes?: string | null
   taskId?: string | null
+  /** Lay the same owed row down every week/month from dueOn. Owed work only. */
+  repeat?: { every: "WEEK" | "MONTH"; count: number } | null
   /** Required when a PATCH also rejects or un-accepts the row. */
   reason?: string | null
   note?: string | null
@@ -271,11 +277,14 @@ export function useDeliverableMutations(projectId: string) {
 
   const create = useMutation({
     mutationFn: (body: DeliverableInput) =>
-      apiFetch<{ data: { id: string } }>(`/api/projects/${projectId}/deliverables`, {
-        method: "POST",
-        headers: json,
-        body: JSON.stringify(body),
-      }).then((r) => r.data),
+      apiFetch<{ data: { id: string; created: number } }>(
+        `/api/projects/${projectId}/deliverables`,
+        {
+          method: "POST",
+          headers: json,
+          body: JSON.stringify(body),
+        },
+      ).then((r) => r.data),
     onSuccess: (_data, body) => {
       invalidate()
       toast.success(body.status && body.status !== "DELIVERED" ? "Planned" : "Logged")
@@ -366,4 +375,24 @@ export function useDeliverableMutations(projectId: string) {
   })
 
   return { create, update, setStatus, verify, remove, upload, removeFile }
+}
+
+/**
+ * What the signed-in person owes, across every project - their own rows plus
+ * anything their team owes that nobody has picked up.
+ *
+ * Kept out of the per-project deliverables cache on purpose: this is a
+ * cross-project inbox, and invalidating it from a single project's mutation
+ * would leave the other projects' rows stale.
+ */
+export function useMyOwedDeliverables(opts: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: ["my-owed-deliverables"],
+    queryFn: () =>
+      apiFetch<{ data: { rows: DeliverableRow[]; overdue: number; unclaimed: number } }>(
+        "/api/projects/my-deliverables",
+      ).then((r) => r.data),
+    enabled: opts.enabled ?? true,
+    staleTime: 30_000,
+  })
 }

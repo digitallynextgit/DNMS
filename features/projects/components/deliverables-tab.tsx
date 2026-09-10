@@ -10,6 +10,7 @@ import {
   FileText,
   ExternalLink,
   CalendarDays,
+  UserPlus,
   Users,
   Lock,
   ShieldCheck,
@@ -135,7 +136,9 @@ function groupKey(r: DeliverableRow, g: GroupBy): { key: string; label: string; 
       return { key: wk, label: `Week of ${formatDate(wk, "d MMM yyyy")}`, sort: wk }
     }
     case "person":
-      return { key: r.employee.id, label: r.employee.name, sort: r.employee.name }
+      return r.employee
+        ? { key: r.employee.id, label: r.employee.name, sort: r.employee.name }
+        : { key: "__unassigned", label: "Unassigned", sort: "￿" }
     case "team":
       return {
         key: r.team?.id ?? "__none",
@@ -444,6 +447,8 @@ export function DeliverableRowView({
   onStatus,
   onVerify,
   onHistory,
+  onAssign,
+  claimable,
 }: {
   r: DeliverableRow
   showProject?: boolean
@@ -454,6 +459,10 @@ export function DeliverableRowView({
   onStatus?: (to: DeliverableStatus) => void
   onVerify?: (verified: boolean) => void
   onHistory?: () => void
+  /** Put a name to work the team owes. Absent = this viewer may not. */
+  onAssign?: (r: DeliverableRow) => void
+  /** They are on the team that owes it, so the button reads "Take this". */
+  claimable?: boolean
 }) {
   const moves = onStatus ? nextActions(r.status, actor) : []
   const open = isOpenStatus(r.status)
@@ -540,7 +549,7 @@ export function DeliverableRowView({
           )}
           {r.acceptedByName && <span>accepted by {r.acceptedByName}</span>}
           {r.task && <span>from task: {r.task.title}</span>}
-          {r.loggedByName && r.loggedByName !== r.employee.name && (
+          {r.loggedByName && r.loggedByName !== r.employee?.name && (
             <span>logged by {r.loggedByName}</span>
           )}
         </p>
@@ -595,13 +604,33 @@ export function DeliverableRowView({
       </div>
 
       <span className="flex w-40 shrink-0 items-center gap-1.5">
-        <AvatarDisplay
-          src={r.employee.profilePhoto}
-          firstName={r.employee.name.split(" ")[0] ?? ""}
-          lastName={r.employee.name.split(" ").slice(1).join(" ")}
-          size="xs"
-        />
-        <span className="text-muted-foreground truncate">{r.employee.name}</span>
+        {r.employee ? (
+          <>
+            <AvatarDisplay
+              src={r.employee.profilePhoto}
+              firstName={r.employee.name.split(" ")[0] ?? ""}
+              lastName={r.employee.name.split(" ").slice(1).join(" ")}
+              size="xs"
+            />
+            <span className="text-muted-foreground truncate">{r.employee.name}</span>
+          </>
+        ) : (
+          <span className="flex min-w-0 items-center gap-1.5">
+            <UserPlus className="text-muted-foreground/60 h-4 w-4 shrink-0" />
+            {onAssign ? (
+              <button
+                type="button"
+                onClick={() => onAssign(r)}
+                className="text-primary truncate text-left hover:underline"
+                title={`Owed by ${r.team?.name ?? "the team"} - put a name to it`}
+              >
+                {claimable ? "Take this" : "Assign"}
+              </button>
+            ) : (
+              <span className="text-muted-foreground/70 truncate italic">Unassigned</span>
+            )}
+          </span>
+        )}
       </span>
 
       {(onEdit || onDelete || onVerify || onHistory) && (
@@ -733,15 +762,27 @@ export function DeliverablesTab({
       ),
     [teams.data, currentUserId],
   )
+  // Teams the viewer is ON (not just manages) - unowned work is claimable by
+  // the team it was asked of, which is how a member picks up their own share.
+  const myMemberTeamIds = React.useMemo(
+    () =>
+      new Set(
+        (teams.data?.data ?? [])
+          .filter((t) => (t.members ?? []).some((mem) => mem.employee?.id === currentUserId))
+          .map((t) => t.id),
+      ),
+    [teams.data, currentUserId],
+  )
   const canStaff = canManage || myTeamIds.size > 0
   const actorFor = React.useCallback(
     (r: DeliverableRow): DeliverableActor => {
       if (canManage) return "project_manager"
       if (r.team && myTeamIds.has(r.team.id)) return "team_manager"
-      if (r.employee.id === currentUserId) return "maker"
+      if (r.employee?.id === currentUserId) return "maker"
+      if (!r.employee && r.team && myMemberTeamIds.has(r.team.id)) return "maker"
       return "none"
     },
-    [canManage, myTeamIds, currentUserId],
+    [canManage, myTeamIds, myMemberTeamIds, currentUserId],
   )
 
   /**
@@ -770,12 +811,29 @@ export function DeliverablesTab({
     setMove({ row: r, to, needsReason, needsDate })
   }
 
+  /**
+   * The ledger below is what was MADE.
+   *
+   * Owed work has its own section above it, and when both showed everything
+   * a single owed row appeared twice - once under "Still owed" and again in
+   * the ledger under "Not delivered yet", where it was also counted as
+   * "1 made". The owed section only renders while no status chip is on, so
+   * that is exactly when the ledger hands the open rows over to it.
+   */
+  const ledgerRows = React.useMemo(
+    () =>
+      statuses.length === 0 && owedRows.length > 0
+        ? rows.filter((r) => !isOpenStatus(r.status))
+        : rows,
+    [rows, statuses, owedRows],
+  )
+
   const groups = React.useMemo(() => {
     const map = new Map<
       string,
       { label: string; sort: string; rows: DeliverableRow[]; count: number }
     >()
-    for (const r of rows) {
+    for (const r of ledgerRows) {
       const g = groupKey(r, groupBy)
       const cur = map.get(g.key) ?? { label: g.label, sort: g.sort, rows: [], count: 0 }
       cur.rows.push(r)
@@ -788,7 +846,7 @@ export function DeliverablesTab({
     else if (groupBy === "type") list.sort((a, b) => b.count - a.count)
     else list.sort((a, b) => a.sort.localeCompare(b.sort))
     return list
-  }, [rows, groupBy])
+  }, [ledgerRows, groupBy])
 
   const people = React.useMemo(() => {
     const seen = new Map<string, string>()
@@ -823,6 +881,17 @@ export function DeliverablesTab({
         }
       : undefined,
     onDelete: mayEdit(r) ? () => setDeleting(r) : undefined,
+    // Only unowned rows can be assigned, and only by somebody with standing on
+    // them - a manager hands it out, a member of the owed team takes it.
+    onAssign:
+      !r.employee && actorFor(r) !== "none"
+        ? () => {
+            setPlanning(false)
+            setEditingId(r.id)
+            setFormOpen(true)
+          }
+        : undefined,
+    claimable: !r.employee && !canStaff,
   })
 
   if (isLoading && !data) return <Skeleton className="h-64 rounded-sm" />
@@ -1020,7 +1089,7 @@ export function DeliverablesTab({
       </div>
 
       {/* ── The ledger ──────────────────────────────────────────────── */}
-      {rows.length === 0 ? (
+      {ledgerRows.length === 0 ? (
         <Card>
           <CardContent className="p-10">
             <EmptyState
@@ -1070,8 +1139,8 @@ export function DeliverablesTab({
             </div>
             {data?.truncated && (
               <p className="text-muted-foreground border-border/60 border-t px-4 py-2 text-[11px]">
-                Showing the latest {rows.length} of {data.entries} entries. Narrow the range to see
-                the rest; the counts above cover all of them.
+                Showing the latest {ledgerRows.length} of {data.entries} entries. Narrow the range
+                to see the rest; the counts above cover all of them.
               </p>
             )}
           </CardContent>
@@ -1090,8 +1159,10 @@ export function DeliverablesTab({
           }
         }}
         entry={editing}
-        onCreated={(id) => setEditingId(id)}
+        // A repeat closes itself: there is no single row to attach files to.
+        onCreated={(id, count) => count === 1 && setEditingId(id)}
         canManage={canManage}
+        canStaff={canStaff}
         currentUserId={currentUserId}
         suggestedTypes={all.data?.suggestedTypes ?? data?.suggestedTypes ?? []}
         initial={planning ? { status: "PLANNED" } : undefined}

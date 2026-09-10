@@ -44,7 +44,8 @@ import {
   Mail,
   KeyRound,
   UserCog,
-  Sparkles,
+  Palette,
+  CalendarDays,
   HardDrive,
   Plug,
   BarChart3,
@@ -68,6 +69,14 @@ import {
 const tabFallback = () => <Skeleton className="mt-4 h-64 rounded-sm" />
 const BrandTab = dynamic(
   () => import("@/features/projects/components/brand-tab").then((m) => m.BrandTab),
+  {
+    loading: tabFallback,
+  },
+)
+// The content calendar used to sit inside Brand behind a Strategy/Calendar
+// toggle; it is a tab of its own now so both are one click from the bar.
+const ContentCalendarTab = dynamic(
+  () => import("@/features/projects/components/project-sheet").then((m) => m.ProjectSheetSection),
   {
     loading: tabFallback,
   },
@@ -167,10 +176,11 @@ const ProjectMonitoringTab = dynamic(
  */
 const PROJECT_TABS = [
   "overview",
-  "goals",
-  "deliverables",
   "brand",
-  "drive",
+  "goals",
+  "calendar",
+  "deliverables",
+  "repository",
   "integration",
   "insights",
   "seo",
@@ -200,7 +210,10 @@ export default function ProjectDetailPage() {
 
   // Keep the active tab in the URL so a reload (or a shared/deep link) lands on
   // the same tab instead of snapping back to Overview.
-  const tabParam = searchParams.get("tab")
+  // "drive" is what this tab was called until it became Repository; links and
+  // bookmarks made under the old name still land on it.
+  const rawTab = searchParams.get("tab")
+  const tabParam = rawTab === "drive" ? "repository" : rawTab
   const activeTab = PROJECT_TABS.includes(tabParam as (typeof PROJECT_TABS)[number])
     ? (tabParam as string)
     : "overview"
@@ -372,10 +385,11 @@ export default function ProjectDetailPage() {
           items={
             [
               { value: "overview", label: "Overview", icon: Layers },
+              { value: "brand", label: "Brand", icon: Palette },
               { value: "goals", label: "Goals", icon: Target },
+              { value: "calendar", label: "Calendars", icon: CalendarDays },
               { value: "deliverables", label: "Deliverables", icon: PackageCheck },
-              { value: "brand", label: "Brand", icon: Sparkles },
-              { value: "drive", label: "Files", icon: HardDrive },
+              { value: "repository", label: "Repository", icon: HardDrive },
               { value: "integration", label: "Integration", icon: Plug },
               { value: "insights", label: "Insights", icon: BarChart3 },
               { value: "seo", label: "SEO", icon: Search },
@@ -490,11 +504,16 @@ export default function ProjectDetailPage() {
           <DeliverablesTab projectId={projectRef} canManage={canManage} currentUserId={userId} />
         </TabsContent>
 
+        <TabsContent value="calendar">
+          <div className="mt-4">
+            <ContentCalendarTab projectId={projectRef} canManage={canManage} />
+          </div>
+        </TabsContent>
         <TabsContent value="brand">
           <BrandTab projectId={projectRef} canManage={canManage} />
         </TabsContent>
 
-        <TabsContent value="drive">
+        <TabsContent value="repository">
           <DriveTab projectId={projectRef} canManage={canManage} />
         </TabsContent>
 

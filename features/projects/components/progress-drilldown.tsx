@@ -983,8 +983,8 @@ function DeliverablesView({ d }: { d: Extract<Drill, { kind: "deliverables" }> }
   const groupBy = d.projectId ? "person" : "project"
   const groups = new Map<string, { label: string; rows: typeof rows; count: number }>()
   for (const r of rows) {
-    const key = groupBy === "project" ? r.project.id : r.employee.id
-    const label = groupBy === "project" ? r.project.name : r.employee.name
+    const key = groupBy === "project" ? r.project.id : (r.employee?.id ?? "__unassigned")
+    const label = groupBy === "project" ? r.project.name : (r.employee?.name ?? "Unassigned")
     const g = groups.get(key) ?? { label, rows: [], count: 0 }
     g.rows.push(r)
     g.count += r.quantity

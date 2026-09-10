@@ -81,7 +81,7 @@ export function OutputCaptureDialog() {
         dismiss()
       }}
       entry={entry}
-      onCreated={(id) => setEditingId(id)}
+      onCreated={(id, count) => count === 1 && setEditingId(id)}
       canManage={false}
       currentUserId={pending.employeeId ?? session.user.id}
       suggestedTypes={ledger.data?.suggestedTypes ?? []}

@@ -43,6 +43,8 @@ function getActivityIcon(type: string) {
       return <Milestone className="h-3.5 w-3.5 text-purple-600" />
     case "TEAM_CREATED":
       return <Users className="h-3.5 w-3.5" />
+    case "SHEET_ASSIGNED":
+      return <UserPlus className="h-3.5 w-3.5 text-sky-500" />
     case "MESSAGE_POSTED":
       return <FileText className="h-3.5 w-3.5 text-amber-600" />
     default:
@@ -71,6 +73,10 @@ function getActivityText(activity: ProjectActivity): string {
       return (meta.isMilestone ? "marked" : "unmarked") + ` "${meta.taskTitle ?? ""}" as milestone`
     case "TEAM_CREATED":
       return `created team "${meta.teamName ?? ""}"`
+    case "SHEET_ASSIGNED":
+      return meta.assigneeName
+        ? `assigned sheet "${meta.sheetName ?? ""}" to ${meta.assigneeName}`
+        : `removed the owner of sheet "${meta.sheetName ?? ""}"`
     case "MESSAGE_POSTED":
       return `posted a message: "${meta.title ?? ""}"`
     default:

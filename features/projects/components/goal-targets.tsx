@@ -10,6 +10,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DateField } from "@/components/shared/date-field"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useGoalTargetMutations } from "../hooks/use-goals"
 import { useProjectDeliverables } from "../hooks/use-deliverables"
 import { MAX_TYPE_LENGTH } from "../lib/deliverable-types"
@@ -268,27 +275,42 @@ export function GoalTargets({
   goal,
   canManage,
   className,
+  adding: addingProp,
+  onAddingChange,
 }: {
   projectId: string
   goal: GoalNode
   canManage: boolean
   className?: string
+  /**
+   * Controlled "adding a target" state. The goal card owns it so the way in
+   * can live in that goal's footer with the other add-actions, instead of a
+   * "+ Target" button under every row on a board that has no targets at all.
+   * Left out, the component keeps its own state and behaves as before.
+   */
+  adding?: boolean
+  onAddingChange?: (v: boolean) => void
 }) {
-  const [adding, setAdding] = React.useState(false)
+  const [addingSelf, setAddingSelf] = React.useState(false)
+  const adding = addingProp ?? addingSelf
+  const setAdding = onAddingChange ?? setAddingSelf
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [removing, setRemoving] = React.useState<GoalTarget | null>(null)
   const { addTarget, updateTarget, removeTarget } = useGoalTargetMutations(projectId)
 
   const targets = goal.targets
-  // Nothing promised and nobody who could promise anything: the goal reads
-  // cleaner without an empty section under it.
-  if (targets.length === 0 && (!canManage || !goal.isActive)) return null
+  // Nothing promised: the goal reads cleaner without an empty section under
+  // it, so the way IN moved to the goal's own footer row. "+ Target" used to
+  // sit under every goal and sub-goal whether or not the team had ever used
+  // targets - an advanced feature at full volume on a board with none. The
+  // component still renders (invisibly) because it hosts the add dialog.
+  const visible = targets.length > 0
 
   const pending = addTarget.isPending || updateTarget.isPending
   const fail = (e: Error) => toast.error(e.message)
 
   return (
-    <div className={cn("space-y-1.5", className)}>
+    <div className={cn(visible && "space-y-1.5", visible && className)}>
       {targets.length > 0 && (
         <div className="flex items-center gap-1.5 text-[11px]">
           <TargetIcon className="text-muted-foreground h-3 w-3" />
@@ -345,9 +367,19 @@ export function GoalTargets({
         )}
       </ul>
 
+      {/* A dialog, not an inline row: the form has four fields and it used to
+          unfold INSIDE the goal card, pushing the sub-goals down the page while
+          you filled it in. */}
       {canManage && goal.isActive && (
-        <div>
-          {adding ? (
+        <Dialog open={adding} onOpenChange={(o) => !o && setAdding(false)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Add a target</DialogTitle>
+              <DialogDescription>
+                What this goal promises in countable output. Progress is then read off what has
+                actually been delivered, not off task checkboxes.
+              </DialogDescription>
+            </DialogHeader>
             <TargetForm
               projectId={projectId}
               pending={pending}
@@ -359,7 +391,13 @@ export function GoalTargets({
                 )
               }
             />
-          ) : (
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {canManage && goal.isActive && addingProp === undefined && (
+        <div>
+          {adding ? null : (
             <Button
               variant="ghost"
               className="text-muted-foreground px-1.5"

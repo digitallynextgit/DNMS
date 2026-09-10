@@ -16,7 +16,6 @@ import {
   ExternalLink,
   Eye,
   FileText,
-  Folder,
   FolderInput,
   FolderOpen,
   FolderPlus,
@@ -35,6 +34,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -61,21 +61,28 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import { StatusBadge } from "@/components/shared/status-badge"
 import { SearchInput } from "@/components/shared/search-input"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
+import { Pagination } from "@/components/shared/pagination"
+import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { cn } from "@/lib/utils"
-import { TONE } from "@/lib/constants"
 import type { DriveFile } from "@/lib/google-drive"
+import { DOC_TAGS, DOC_TAG_HINT, DOC_TAG_LABEL, classifyDoc, type DocTag } from "../lib/doc-tag"
 import {
-  DOC_TAGS,
-  DOC_TAG_HINT,
-  DOC_TAG_LABEL,
-  DOC_TAG_STYLE,
-  classifyDoc,
-  type DocTag,
-} from "../lib/doc-tag"
+  byName,
+  classify,
+  compare,
+  fmtBytes,
+  hostOf,
+  person,
+  subtitleOf,
+  TYPE_LABEL,
+  type FileType,
+  type SortKey,
+  type Source,
+  type UnifiedFile,
+} from "../lib/file-row"
 import { isSafeHttpUrl } from "../lib/task-links"
 import {
   useUploadResource,
@@ -101,201 +108,45 @@ import {
   useDeleteLink,
   useUpdateResource,
   useUpdateDriveFile,
-  type FilePerson,
   type ProjectFolderRow,
   type ProjectLink,
 } from "../hooks/use-project-files"
+import { iconBtn, PersonCell, StorageCell, TagChip, TYPE_META } from "./files/file-bits"
+import { FileGrid } from "./files/file-grid"
 import { NameDialog } from "./files/name-dialog"
 import { LinkDialog, type LinkFormValues } from "./files/link-dialog"
 import { FolderPickerDialog } from "./files/folder-picker-dialog"
 import { FilePreviewSheet, type PreviewItem } from "./files/file-preview-sheet"
 
-type Source = "b2" | "drive" | "link" | "folder"
-type FileType = "doc" | "sheet" | "pdf" | "image" | "folder" | "link" | "other"
-type SortKey = "name" | "type" | "size" | "modified" | "addedBy"
-
-interface Person {
-  name: string
-  photo: string | null
-  initials: string
-}
-
-/** One row of the Files table, whichever of the four sources it came from. */
-interface UnifiedFile {
-  id: string
-  source: Source
-  name: string
-  size: number | null
-  mimeType: string
-  modified: string | null
-  webViewLink?: string | null
-  /** Links only. */
-  url?: string
-  type: FileType
-  /** Folders have no tag; links may have none. */
-  tag: DocTag | null
-  /** Whether `tag` is a stored value that can be corrected, or a live guess. */
-  tagIsStored: boolean
-  addedBy: Person | null
-  /** Uploader / creator - who may edit it besides managers. Null for Drive rows. */
-  ownerId: string | null
-  description?: string | null
-  /** Folders only. */
-  itemCount?: number
-  driveFolderId?: string | null
-}
-
 // Must match the server caps (drive/route.ts + resources/route.ts) AND stay <=
-// nginx's client_max_body_size, or the upload dies at the proxy with a 413.
+// nginx client_max_body_size, or the upload dies at the proxy with a 413.
 const MAX_UPLOAD_MB = 250
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 /**
  * Rows per page. One folder is fetched whole (both sources return everything
  * they have), so this paginates in the browser: search, filters and sort all
- * need the full set anyway.
+ * need the full set anyway. The card grid fits a different shape, so it gets
+ * its own size - 24 divides evenly by 2, 3, 4 and 6 columns.
  */
-const PAGE_SIZE = 25
+const TABLE_PAGE_SIZE = 25
+const GRID_PAGE_SIZE = 24
 
-/** How many deletes / moves run at once in a bulk action. */
+/** How many deletes / moves / thumbnails run at once. */
 const BULK_CONCURRENCY = 4
 
-function fmtBytes(b: number | null): string {
-  if (!b) return "-"
-  if (b < 1024) return `${b} B`
-  const u = ["KB", "MB", "GB"]
-  let n = b / 1024
-  let i = 0
-  while (n >= 1024 && i < u.length - 1) {
-    n /= 1024
-    i++
-  }
-  return `${n.toFixed(1)} ${u[i]}`
-}
-
-function classify(mime: string, source: Source): FileType {
-  if (mime.includes("spreadsheet")) return "sheet"
-  if (mime.includes("document") && source === "drive") return "doc"
-  if (mime.includes("pdf")) return "pdf"
-  if (mime.startsWith("image/")) return "image"
-  return "other"
-}
-
-const TYPE_META: Record<FileType, { icon: React.ElementType; tint: string; label: string }> = {
-  doc: { icon: FileText, tint: "text-blue-500", label: "Google Doc" },
-  sheet: { icon: SheetIcon, tint: "text-emerald-500", label: "Google Sheet" },
-  pdf: { icon: FileText, tint: "text-red-500", label: "PDF" },
-  image: { icon: FileText, tint: "text-violet-500", label: "Image" },
-  folder: { icon: Folder, tint: "text-amber-500", label: "Folder" },
-  link: { icon: Link2, tint: "text-sky-500", label: "Link" },
-  other: { icon: FileText, tint: "text-muted-foreground", label: "File" },
-}
-
-const SOURCE_COLORS: Record<string, string> = { B2: TONE.blue, DRIVE: TONE.emerald }
-const SOURCE_LABELS: Record<string, string> = { B2: "Backblaze", DRIVE: "Drive" }
-
-function person(p: FilePerson | ProjectResource["uploadedBy"]): Person {
-  const first = p.firstName ?? ""
-  const last = p.lastName ?? ""
-  return {
-    name: `${first} ${last}`.trim(),
-    photo: (p as { profilePhoto?: string | null }).profilePhoto ?? null,
-    initials: `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase() || "?",
-  }
-}
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "")
-  } catch {
-    return url
-  }
-}
-
-function byName(a: UnifiedFile, b: UnifiedFile): number {
-  return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
-}
-
-function compare(a: UnifiedFile, b: UnifiedFile, key: SortKey): number {
-  switch (key) {
-    case "name":
-      return byName(a, b)
-    case "type":
-      return TYPE_META[a.type].label.localeCompare(TYPE_META[b.type].label)
-    case "size":
-      return (a.size ?? -1) - (b.size ?? -1)
-    case "modified":
-      return (a.modified ?? "").localeCompare(b.modified ?? "")
-    case "addedBy":
-      return (a.addedBy?.name ?? "").localeCompare(b.addedBy?.name ?? "")
-  }
-}
-
-function TagChip({ tag, muted }: { tag: DocTag; muted?: boolean }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-sm px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
-        DOC_TAG_STYLE[tag],
-        // A derived tag is shown at reduced weight: it is a guess about a file
-        // we do not own a row for, and it cannot be corrected here.
-        muted && "opacity-60",
-      )}
-    >
-      {DOC_TAG_LABEL[tag]}
-    </span>
-  )
-}
-
-function PersonCell({ p }: { p: Person | null }) {
-  if (!p) return <span className="text-muted-foreground">-</span>
-  return (
-    <span className="flex min-w-0 items-center gap-2" title={p.name}>
-      {p.photo ? (
-        // Profile photos come from our own storage with per-user URLs, so a
-        // plain img is fine here.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={p.photo} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
-      ) : (
-        <span className="bg-muted text-muted-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold">
-          {p.initials}
-        </span>
-      )}
-      <span className="truncate">{p.name}</span>
-    </span>
-  )
-}
-
-function StorageCell({ f }: { f: UnifiedFile }) {
-  if (f.source === "folder") return <span className="text-muted-foreground">-</span>
-  if (f.source === "link") {
-    return (
-      <span className="inline-flex items-center rounded-sm bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-sky-600 uppercase dark:text-sky-400">
-        Link
-      </span>
-    )
-  }
-  return (
-    <StatusBadge
-      status={f.source === "b2" ? "B2" : "DRIVE"}
-      colorMap={SOURCE_COLORS}
-      labelMap={SOURCE_LABELS}
-      size="xs"
-    />
-  )
-}
-
 /**
- * A row on a phone. Leads with the two things that identify it - name and
+ * A row card on a phone. Leads with the two things that identify it - name and
  * tag - and demotes the rest to one line of metadata. The actions come from
- * the table's own row rendering.
+ * the table own row rendering.
  */
 function FileCard({ file, actions }: { file: UnifiedFile; actions: React.ReactNode }) {
   const m = TYPE_META[file.type]
+  const Icon = m.icon
   return (
     <div className="min-w-0 space-y-1.5">
       <div className="flex min-w-0 items-start gap-2">
-        <m.icon className={cn("mt-0.5 h-4 w-4 shrink-0", m.tint)} />
+        <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", m.tint)} />
         <p className="min-w-0 flex-1 text-sm font-medium break-words">{file.name}</p>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -304,11 +155,7 @@ function FileCard({ file, actions }: { file: UnifiedFile; actions: React.ReactNo
       </div>
       <div className="flex items-center justify-between gap-2">
         <p className="text-muted-foreground min-w-0 truncate text-xs">
-          {file.source === "folder"
-            ? `${file.itemCount ?? 0} ${file.itemCount === 1 ? "item" : "items"}`
-            : file.source === "link"
-              ? hostOf(file.url ?? "")
-              : `${m.label} · ${fmtBytes(file.size)}`}
+          {subtitleOf(file)}
           {file.modified ? ` · ${new Date(file.modified).toLocaleDateString("en-IN")}` : ""}
         </p>
         <div className="-mr-2 shrink-0">{actions}</div>
@@ -317,8 +164,52 @@ function FileCard({ file, actions }: { file: UnifiedFile; actions: React.ReactNo
   )
 }
 
-const iconBtn =
-  "text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded-sm"
+/**
+ * Preview images for the card grid, keyed by row id.
+ *
+ * Drive hands us a thumbnail URL with the listing; stored images do not have
+ * one, so a signed URL is fetched per image - only for the rows on screen,
+ * only while the card view is showing, and only once per file (a signed URL
+ * outlives a page turn, and an expired one falls back to the type icon).
+ */
+function useThumbnails(projectId: string, rows: UnifiedFile[], enabled: boolean) {
+  const [signed, setSigned] = useState<Map<string, string>>(new Map())
+  const asked = useRef(new Set<string>())
+
+  useEffect(() => {
+    if (!enabled) return
+    const queue = rows.filter(
+      (f) => f.source === "b2" && f.type === "image" && !asked.current.has(f.id),
+    )
+    if (queue.length === 0) return
+    queue.forEach((f) => asked.current.add(f.id))
+
+    let cancelled = false
+    const worker = async () => {
+      for (;;) {
+        const f = queue.pop()
+        if (!f || cancelled) return
+        try {
+          const url = await getResourceDownloadUrl(projectId, f.id)
+          if (cancelled) return
+          setSigned((prev) => new Map(prev).set(f.id, url))
+        } catch {
+          // No preview for this one; the card keeps its icon.
+        }
+      }
+    }
+    void Promise.all(Array.from({ length: Math.min(BULK_CONCURRENCY, queue.length) }, worker))
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, rows, enabled])
+
+  return useMemo(() => {
+    const all = new Map(signed)
+    for (const f of rows) if (f.thumbnailLink) all.set(f.id, f.thumbnailLink)
+    return all
+  }, [signed, rows])
+}
 
 export function DriveTab({ projectId, canManage }: { projectId: string; canManage: boolean }) {
   const { data: session } = useSession()
@@ -395,6 +286,9 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const [sourceFilter, setSourceFilter] = useState<"all" | "b2" | "drive" | "link">("all")
   const [typeFilter, setTypeFilter] = useState<"all" | FileType>("all")
   const [tagFilter, setTagFilter] = useState<"all" | DocTag>("all")
+  // Card ("Drive") or table. Remembered per browser, so a person who prefers
+  // one gets it on every project.
+  const [view, setView] = useViewMode("project-repository-view", "card")
   const [sortKey, setSortKey] = useState<SortKey>("modified")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
   // Page is keyed to the filter set (see below), so changing a filter or
@@ -451,6 +345,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       // computed. Same function as the stored one, so the column is consistent.
       tag: classifyDoc({ name: f.name, mimeType: f.mimeType }),
       tagIsStored: false,
+      thumbnailLink: f.thumbnailLink,
       addedBy: f.modifiedBy
         ? { name: f.modifiedBy, photo: null, initials: f.modifiedBy[0]! }
         : null,
@@ -509,7 +404,8 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     return [...folders, ...items]
   }, [allRows, sourceFilter, typeFilter, tagFilter, q, sortKey, sortDir])
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const pageSize = view === "card" ? GRID_PAGE_SIZE : TABLE_PAGE_SIZE
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
   // Derived, not synced: a page number only means anything for the filter set
   // it was chosen under, so it is stored WITH that set and falls back to 1 the
   // moment the set changes. Clamping covers a filter that narrows the list.
@@ -517,7 +413,10 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   const page = pageState.key === filterKey ? Math.min(pageState.page, totalPages) : 1
   const setPage = (p: number) => setPageState({ key: filterKey, page: p })
 
-  const paged = useMemo(() => rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [rows, page])
+  const paged = useMemo(
+    () => rows.slice((page - 1) * pageSize, page * pageSize),
+    [rows, page, pageSize],
+  )
   const rowKey = (f: UnifiedFile) => `${f.source}-${f.id}`
   const pageIds = useMemo(() => paged.map(rowKey), [paged])
   const selection = useRowSelection(pageIds)
@@ -525,6 +424,8 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     () => rows.filter((f) => selection.isSelected(rowKey(f))),
     [rows, selection],
   )
+  const thumbs = useThumbnails(projectId, paged, view === "card")
+
   /** Navigate into a folder. Clears the selection on the way: rows picked in
    *  one folder must not silently ride along into the next. */
   const goToFolder = (id: string | null) => {
@@ -655,7 +556,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
           kind: f.type,
           url,
           downloadUrl,
-          subtitle: `${TYPE_META[f.type].label} · ${fmtBytes(f.size)}`,
+          subtitle: `${TYPE_LABEL[f.type]} · ${fmtBytes(f.size)}`,
         })
       } catch {
         toast.error("Could not open that file.")
@@ -889,6 +790,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       headClassName: "w-full",
       cell: (f) => {
         const m = TYPE_META[f.type]
+        const Icon = m.icon
         const sub =
           f.source === "folder"
             ? `${f.itemCount ?? 0} ${f.itemCount === 1 ? "item" : "items"}`
@@ -902,7 +804,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
             title={f.source === "link" ? f.url : f.name}
             className="flex w-full min-w-0 items-center gap-2.5 text-left"
           >
-            <m.icon className={cn("h-4 w-4 shrink-0", m.tint)} />
+            <Icon className={cn("h-4 w-4 shrink-0", m.tint)} />
             <span className="min-w-0">
               <span className="block truncate font-medium hover:underline">{f.name}</span>
               {sub && (
@@ -966,7 +868,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     {
       header: sortHeader("Type", "type"),
       className: "whitespace-nowrap",
-      cell: (f) => TYPE_META[f.type].label,
+      cell: (f) => TYPE_LABEL[f.type],
     },
     { header: "Storage", className: "whitespace-nowrap", cell: (f) => <StorageCell f={f} /> },
     {
@@ -988,36 +890,15 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
     { header: "", align: "right", className: "whitespace-nowrap", cell: (f) => rowActions(f) },
   ]
 
-  function rowActions(f: UnifiedFile) {
+  /**
+   * Every action a row has, in one menu. The table puts View and Download
+   * beside it as their own buttons; a card has no room for those, so this menu
+   * IS its action set - which is why Download lives in here as well.
+   */
+  function moreMenu(f: UnifiedFile) {
     const editable = canEdit(f)
     return (
-      <div className="flex items-center justify-end gap-0.5">
-        <button
-          type="button"
-          onClick={() => void openItem(f)}
-          title={
-            f.source === "folder"
-              ? "Open folder"
-              : f.source === "drive"
-                ? "View in Drive"
-                : f.source === "link"
-                  ? "Open link"
-                  : "View"
-          }
-          className={iconBtn}
-        >
-          {f.source === "link" ? <ExternalLink className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-        {canDownload(f) && (
-          <button
-            type="button"
-            onClick={() => void downloadFile(f)}
-            title="Download"
-            className={iconBtn}
-          >
-            <Download className="h-4 w-4" />
-          </button>
-        )}
+      <>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button type="button" title="More" className={iconBtn}>
@@ -1036,6 +917,11 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
             <DropdownMenuItem onClick={() => void copyLink(f)}>
               <Copy className="mr-2 h-4 w-4" /> Copy link
             </DropdownMenuItem>
+            {canDownload(f) && (
+              <DropdownMenuItem onClick={() => void downloadFile(f)}>
+                <Download className="mr-2 h-4 w-4" /> Download
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => setDetailsTarget(f)}>
               <Info className="mr-2 h-4 w-4" /> Details
             </DropdownMenuItem>
@@ -1070,8 +956,48 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+      </>
+    )
+  }
+
+  /** The table's per-row buttons: open, download, then the shared menu. */
+  function rowActions(f: UnifiedFile) {
+    return (
+      <div className="flex items-center justify-end gap-0.5">
+        <button
+          type="button"
+          onClick={() => void openItem(f)}
+          title={
+            f.source === "folder"
+              ? "Open folder"
+              : f.source === "drive"
+                ? "View in Drive"
+                : f.source === "link"
+                  ? "Open link"
+                  : "View"
+          }
+          className={iconBtn}
+        >
+          {f.source === "link" ? <ExternalLink className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+        {canDownload(f) && (
+          <button
+            type="button"
+            onClick={() => void downloadFile(f)}
+            title="Download"
+            className={iconBtn}
+          >
+            <Download className="h-4 w-4" />
+          </button>
+        )}
+        {moreMenu(f)}
       </div>
     )
+  }
+
+  /** A card opens on click, so it only needs the menu - smaller, in-corner. */
+  function cardActions(f: UnifiedFile) {
+    return <div className="[&>button]:h-7 [&>button]:w-7">{moreMenu(f)}</div>
   }
 
   if (listing.isLoading && !data) return <ListSkeleton rows={4} height="h-14" className="mt-4" />
@@ -1082,7 +1008,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
   for (const f of allRows) if (f.tag) tagCounts.set(f.tag, (tagCounts.get(f.tag) ?? 0) + 1)
 
   const path = data?.path ?? []
-  const folderLabel = currentFolderName ?? "Files"
+  const folderLabel = currentFolderName ?? "Repository"
   const deleteCopy = (f: UnifiedFile | null) => {
     if (!f) return { title: "", description: "", label: "Delete" }
     switch (f.source) {
@@ -1264,7 +1190,7 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
             !folderId ? "text-foreground font-medium" : "text-muted-foreground",
           )}
         >
-          <Home className="h-3.5 w-3.5" /> Files
+          <Home className="h-3.5 w-3.5" /> Repository
         </button>
         {path.map((p, i) => {
           const last = i === path.length - 1
@@ -1358,9 +1284,26 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
             Clear
           </Button>
         )}
-        <span className="text-muted-foreground ml-auto text-xs tabular-nums">
-          {rows.length} of {allRows.length}
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          {/* The table has a master checkbox in its header row; the grid has
+              no header, so select-all lives here in both-views' toolbar. */}
+          {view === "card" && rows.length > 0 && (
+            <label className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs">
+              <Checkbox
+                checked={
+                  selection.allSelected ? true : selection.someSelected ? "indeterminate" : false
+                }
+                onCheckedChange={() => selection.toggleAll()}
+                aria-label="Select all on this page"
+              />
+              Select page
+            </label>
+          )}
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {rows.length} of {allRows.length}
+          </span>
+          <ViewToggle value={view} onChange={setView} />
+        </div>
       </div>
 
       {/* Bulk actions. Delete needs manage rights (matching the per-row rule
@@ -1408,23 +1351,43 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
         <EmptyState compact icon={FolderOpen} title="Nothing matches these filters." />
       ) : (
         <div className={cn(listing.isFetching && listing.isPlaceholderData && "opacity-60")}>
-          <DataTable
-            columns={columns}
-            rows={paged}
-            rowKey={rowKey}
-            showSerial
-            serialOffset={(page - 1) * PAGE_SIZE}
-            selection={selection}
-            minWidth="min-w-[980px]"
-            mobileCard={(f) => <FileCard file={f} actions={rowActions(f)} />}
-            pagination={{
-              page,
-              totalPages,
-              total: rows.length,
-              onPageChange: setPage,
-              itemLabel: "item",
-            }}
-          />
+          {view === "card" ? (
+            <div className="space-y-4">
+              <FileGrid
+                rows={paged}
+                isSelected={(f) => selection.isSelected(rowKey(f))}
+                onToggle={(f) => selection.toggle(rowKey(f))}
+                onOpen={(f) => void openItem(f)}
+                actions={(f) => cardActions(f)}
+                thumbs={thumbs}
+              />
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                total={rows.length}
+                onPageChange={setPage}
+                itemLabel="item"
+              />
+            </div>
+          ) : (
+            <DataTable
+              columns={columns}
+              rows={paged}
+              rowKey={rowKey}
+              showSerial
+              serialOffset={(page - 1) * pageSize}
+              selection={selection}
+              minWidth="min-w-[980px]"
+              mobileCard={(f) => <FileCard file={f} actions={rowActions(f)} />}
+              pagination={{
+                page,
+                totalPages,
+                total: rows.length,
+                onPageChange: setPage,
+                itemLabel: "item",
+              }}
+            />
+          )}
         </div>
       )}
 
@@ -1519,13 +1482,13 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
           <DialogHeader>
             <DialogTitle className="truncate pr-6">{detailsTarget?.name}</DialogTitle>
             <DialogDescription>
-              {detailsTarget ? TYPE_META[detailsTarget.type].label : ""}
+              {detailsTarget ? TYPE_LABEL[detailsTarget.type] : ""}
             </DialogDescription>
           </DialogHeader>
           {detailsTarget && (
             <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
               <dt className="text-muted-foreground">Location</dt>
-              <dd className="truncate">{["Files", ...path.map((p) => p.name)].join(" / ")}</dd>
+              <dd className="truncate">{["Repository", ...path.map((p) => p.name)].join(" / ")}</dd>
               <dt className="text-muted-foreground">Storage</dt>
               <dd>
                 <StorageCell f={detailsTarget} />

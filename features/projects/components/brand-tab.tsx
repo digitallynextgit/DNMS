@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Spinner } from "@/components/shared/spinner"
-// Concrete module, not the feature barrel: brand-tab is itself lazily loaded,
-// and a barrel import would drag the whole feature into its chunk.
-import { ProjectSheetSection } from "./project-sheet"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { TabsBar } from "@/components/shared/tabs-bar"
+import { BrandAiDialog } from "./brand-ai-dialog"
 import {
   Save,
   Plus,
@@ -16,14 +16,9 @@ import {
   Target,
   Megaphone,
   Palette,
-  Sparkles,
   ClipboardList,
-  CalendarDays,
-  Table2,
-  Pencil,
   ImageIcon,
-  FileDown,
-  CheckSquare,
+  Sparkles,
 } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,21 +33,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { TabsBar } from "@/components/shared/tabs-bar"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { DateField } from "@/components/shared/date-field"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
-import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import { StatusBadge } from "@/components/shared/status-badge"
 import { cn } from "@/lib/utils"
 import {
   useProjectBrand,
@@ -60,7 +44,6 @@ import {
   useUploadBrandAsset,
   useDeleteBrandAsset,
 } from "@/features/projects/hooks/use-brand"
-import { useAssignableEmployees } from "@/features/projects/hooks/use-projects"
 import {
   PLATFORMS,
   MANIFESTATION_THEMES,
@@ -82,25 +65,17 @@ interface Props {
   canManage: boolean
 }
 
+/**
+ * The Brand Brief tab: the brief, objectives, guidelines and manifestations.
+ * The content calendar that used to sit behind a Strategy/Calendar toggle here
+ * is its own project tab now (see project-sheet.tsx), so this is just the
+ * strategy content.
+ */
 export function BrandTab({ projectId, canManage }: Props) {
   return (
-    <Tabs defaultValue="strategy" className="mt-4 space-y-5">
-      <TabsBar
-        spacing="none"
-        items={[
-          { value: "strategy", label: "Strategy", icon: Sparkles },
-          { value: "calendar", label: "Content Calendar", icon: Table2 },
-        ]}
-      />
-      <TabsContent value="strategy">
-        <StrategySection projectId={projectId} canManage={canManage} />
-      </TabsContent>
-      <TabsContent value="calendar">
-        {/* The calendar is a SHEET now, not a form. Its columns belong to the
-            team rather than to this file - see project-sheet.tsx. */}
-        <ProjectSheetSection projectId={projectId} canManage={canManage} />
-      </TabsContent>
-    </Tabs>
+    <div className="mt-4">
+      <StrategySection projectId={projectId} canManage={canManage} />
+    </div>
   )
 }
 
@@ -201,6 +176,7 @@ function StrategySection({ projectId, canManage }: Props) {
   const [manifestation, setManifestation] = useState<Manifestation>(emptyManifestation())
   const [guidelines, setGuidelines] = useState<BrandGuidelines>(EMPTY_GUIDELINES)
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [aiOpen, setAiOpen] = useState(false)
 
   const d = data?.data
   const origBrief = d?.brief ?? ""
@@ -339,317 +315,370 @@ function StrategySection({ projectId, canManage }: Props) {
   ]
 
   return (
-    <div className="space-y-4">
+    // One sub-tab per section. Every section's draft lives in this component,
+    // not in the cards, so switching tabs never discards an unsaved edit.
+    <Tabs defaultValue="brief" className="space-y-4">
+      <TabsBar
+        spacing="none"
+        items={[
+          { value: "brief", label: "Brand Brief", icon: FileText },
+          { value: "objectives", label: "Digital Objectives", icon: Target },
+          { value: "manifestation", label: "Manifestation Plan", icon: Megaphone },
+          { value: "overview", label: "Brand Overview", icon: ClipboardList },
+          { value: "guidelines", label: "Brand Guidelines", icon: Palette },
+        ]}
+      />
+
       {/* 1 · Brand Brief */}
-      <SectionCard
-        step={1}
-        icon={FileText}
-        tint="bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
-        title="Brand Brief"
-        description="The brief provided by the client."
-        canManage={canManage}
-        dirty={brief !== origBrief}
-        saving={savingKey === "brief"}
-        onSave={() => saveSection("brief", { brief })}
-      >
-        <Textarea
-          value={brief}
-          onChange={(e) => setBrief(e.target.value)}
-          disabled={!canManage}
-          rows={5}
-          placeholder="Paste or write the client's brand brief…"
-          aria-label="Paste or write the client's brand brief"
-        />
-        <AssetRow
-          label="Brief documents"
-          files={filesFor("BRIEF")}
+      <TabsContent value="brief">
+        <SectionCard
+          step={1}
+          icon={FileText}
+          tint="bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
+          title="Brand Brief"
+          description="The brief provided by the client."
           canManage={canManage}
-          uploading={uploadingKind === "BRIEF"}
-          onUpload={(file) => upload.mutate({ file, kind: "BRIEF" })}
-          onDelete={(id) => delAsset.mutate(id)}
-          accept={DOC_ACCEPT}
-        />
-      </SectionCard>
+          dirty={brief !== origBrief}
+          saving={savingKey === "brief"}
+          onSave={() => saveSection("brief", { brief })}
+        >
+          <Textarea
+            value={brief}
+            onChange={(e) => setBrief(e.target.value)}
+            disabled={!canManage}
+            rows={5}
+            placeholder="Paste or write the client's brand brief…"
+            aria-label="Paste or write the client's brand brief"
+          />
+          <AssetRow
+            label="Brief documents"
+            files={filesFor("BRIEF")}
+            canManage={canManage}
+            uploading={uploadingKind === "BRIEF"}
+            onUpload={(file) => upload.mutateAsync({ file, kind: "BRIEF" })}
+            onDelete={(id) => delAsset.mutate(id)}
+            accept={DOC_ACCEPT}
+          />
+          {canManage && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-dashed p-3">
+              <p className="text-muted-foreground min-w-0 text-xs">
+                Let AI read the brief documents above and draft a detailed brand brief with
+                recommendations. Nothing is saved until you apply it and press Save.
+              </p>
+              <Button
+                variant="outline"
+                className="shrink-0 gap-1.5"
+                disabled={filesFor("BRIEF").length === 0}
+                title={filesFor("BRIEF").length === 0 ? "Upload a brief document first" : undefined}
+                onClick={() => setAiOpen(true)}
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Draft with AI
+              </Button>
+            </div>
+          )}
+          <BrandAiDialog
+            open={aiOpen}
+            onOpenChange={setAiOpen}
+            projectId={projectId}
+            documents={filesFor("BRIEF")}
+            hasCurrentBrief={brief.trim().length > 0}
+            onApply={(text, mode) =>
+              setBrief(mode === "append" && brief.trim() ? `${brief.trimEnd()}\n\n${text}` : text)
+            }
+          />
+        </SectionCard>
+      </TabsContent>
 
       {/* 2 · Digital Objectives */}
-      <SectionCard
-        step={2}
-        icon={Target}
-        tint="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
-        title="Digital Objectives"
-        description="Targets per platform - followers, likes, reach…"
-        canManage={canManage}
-        dirty={!same(objectives, origObjectives)}
-        saving={savingKey === "objectives"}
-        onSave={() => saveSection("objectives", { objectives })}
-      >
-        {objectives.length === 0 ? (
-          <EmptyState icon={Target} compact title="No objectives yet - add your first target." />
-        ) : (
-          <DataTable
-            columns={objectiveColumns}
-            rows={objectives}
-            rowKey={(o) => o.id}
-            showSerial
-            minWidth="min-w-[680px]"
-          />
-        )}
-        {canManage && (
-          <Button
-            variant="outline"
-            className="mt-3 gap-1.5"
-            onClick={() =>
-              setObjectives((p) => [
-                ...p,
-                { id: uid(), platform: "", metric: "", current: "", target: "", deadline: "" },
-              ])
-            }
-          >
-            <Plus className="h-3.5 w-3.5" /> Add objective
-          </Button>
-        )}
-        {/* Outside the Save flow, like every other AssetRow: a file is stored the
+      <TabsContent value="objectives">
+        <SectionCard
+          step={2}
+          icon={Target}
+          tint="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+          title="Digital Objectives"
+          description="Targets per platform - followers, likes, reach…"
+          canManage={canManage}
+          dirty={!same(objectives, origObjectives)}
+          saving={savingKey === "objectives"}
+          onSave={() => saveSection("objectives", { objectives })}
+        >
+          {objectives.length === 0 ? (
+            <EmptyState icon={Target} compact title="No objectives yet - add your first target." />
+          ) : (
+            <DataTable
+              columns={objectiveColumns}
+              rows={objectives}
+              rowKey={(o) => o.id}
+              showSerial
+              minWidth="min-w-[680px]"
+            />
+          )}
+          {canManage && (
+            <Button
+              variant="outline"
+              className="mt-3 gap-1.5"
+              onClick={() =>
+                setObjectives((p) => [
+                  ...p,
+                  { id: uid(), platform: "", metric: "", current: "", target: "", deadline: "" },
+                ])
+              }
+            >
+              <Plus className="h-3.5 w-3.5" /> Add objective
+            </Button>
+          )}
+          {/* Outside the Save flow, like every other AssetRow: a file is stored the
             moment it is picked, so attaching the client's target sheet does not
             depend on remembering to press Save on the table above it. */}
-        <AssetRow
-          label="Target sheets & reports"
-          files={filesFor("OBJECTIVES")}
-          canManage={canManage}
-          uploading={uploadingKind === "OBJECTIVES"}
-          onUpload={(file) => upload.mutate({ file, kind: "OBJECTIVES" })}
-          onDelete={(id) => delAsset.mutate(id)}
-          accept={DOC_ACCEPT}
-        />
-      </SectionCard>
+          <AssetRow
+            label="Target sheets & reports"
+            files={filesFor("OBJECTIVES")}
+            canManage={canManage}
+            uploading={uploadingKind === "OBJECTIVES"}
+            onUpload={(file) => upload.mutateAsync({ file, kind: "OBJECTIVES" })}
+            onDelete={(id) => delAsset.mutate(id)}
+            accept={DOC_ACCEPT}
+          />
+        </SectionCard>
+      </TabsContent>
 
       {/* 3 · Manifestation Plan */}
-      <SectionCard
-        step={3}
-        icon={Megaphone}
-        tint="bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300"
-        title="Manifestation Plan"
-        description="How each theme shows up on social media and the website."
-        canManage={canManage}
-        dirty={!same(manifestation, origManifestation)}
-        saving={savingKey === "manifestation"}
-        onSave={() => saveSection("manifestation", { manifestation })}
-      >
-        <div className="grid gap-3 lg:grid-cols-2">
-          {MANIFESTATION_THEMES.map((t) => (
-            <div
-              key={t.key}
-              className={cn("rounded-sm border border-l-4 p-3", THEME_ACCENT[t.key])}
-            >
-              <p className="text-sm font-semibold">{t.title}</p>
-              <p className="text-muted-foreground mb-2.5 text-xs">{t.hint}</p>
-              <div className="space-y-2">
-                <div>
-                  <Label className="text-muted-foreground text-[11px]">Social media</Label>
-                  <Textarea
-                    rows={2}
-                    className="bg-background mt-1"
-                    disabled={!canManage}
-                    placeholder="Themes, content pillars, post types…"
-                    aria-label="Themes, content pillars, post types"
-                    value={manifestation[t.key]?.social ?? ""}
-                    onChange={(e) =>
-                      setManifestation((m) => ({
-                        ...m,
-                        [t.key]: {
-                          ...(m[t.key] ?? { social: "", website: "" }),
-                          social: e.target.value,
-                        },
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-[11px]">Website</Label>
-                  <Textarea
-                    rows={2}
-                    className="bg-background mt-1"
-                    disabled={!canManage}
-                    placeholder="Pages, sections, campaigns…"
-                    aria-label="Pages, sections, campaigns"
-                    value={manifestation[t.key]?.website ?? ""}
-                    onChange={(e) =>
-                      setManifestation((m) => ({
-                        ...m,
-                        [t.key]: {
-                          ...(m[t.key] ?? { social: "", website: "" }),
-                          website: e.target.value,
-                        },
-                      }))
-                    }
-                  />
+      <TabsContent value="manifestation">
+        <SectionCard
+          step={3}
+          icon={Megaphone}
+          tint="bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300"
+          title="Manifestation Plan"
+          description="How each theme shows up on social media and the website."
+          canManage={canManage}
+          dirty={!same(manifestation, origManifestation)}
+          saving={savingKey === "manifestation"}
+          onSave={() => saveSection("manifestation", { manifestation })}
+        >
+          <div className="grid gap-3 lg:grid-cols-2">
+            {MANIFESTATION_THEMES.map((t) => (
+              <div
+                key={t.key}
+                className={cn("rounded-sm border border-l-4 p-3", THEME_ACCENT[t.key])}
+              >
+                <p className="text-sm font-semibold">{t.title}</p>
+                <p className="text-muted-foreground mb-2.5 text-xs">{t.hint}</p>
+                <div className="space-y-2">
+                  <div>
+                    <Label className="text-muted-foreground text-[11px]">Social media</Label>
+                    <Textarea
+                      rows={2}
+                      className="bg-background mt-1"
+                      disabled={!canManage}
+                      placeholder="Themes, content pillars, post types…"
+                      aria-label="Themes, content pillars, post types"
+                      value={manifestation[t.key]?.social ?? ""}
+                      onChange={(e) =>
+                        setManifestation((m) => ({
+                          ...m,
+                          [t.key]: {
+                            ...(m[t.key] ?? { social: "", website: "" }),
+                            social: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-[11px]">Website</Label>
+                    <Textarea
+                      rows={2}
+                      className="bg-background mt-1"
+                      disabled={!canManage}
+                      placeholder="Pages, sections, campaigns…"
+                      aria-label="Pages, sections, campaigns"
+                      value={manifestation[t.key]?.website ?? ""}
+                      onChange={(e) =>
+                        setManifestation((m) => ({
+                          ...m,
+                          [t.key]: {
+                            ...(m[t.key] ?? { social: "", website: "" }),
+                            website: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-        {/* Section-level, not per-theme. Four upload rows inside a four-card grid
+            ))}
+          </div>
+          {/* Section-level, not per-theme. Four upload rows inside a four-card grid
             would read as part of each theme's form; the plan is presented as one
             document, so its attachments hang off the whole plan. */}
-        <AssetRow
-          label="Plan documents"
-          files={filesFor("MANIFESTATION")}
-          canManage={canManage}
-          uploading={uploadingKind === "MANIFESTATION"}
-          onUpload={(file) => upload.mutate({ file, kind: "MANIFESTATION" })}
-          onDelete={(id) => delAsset.mutate(id)}
-          accept={DOC_ACCEPT}
-        />
-      </SectionCard>
+          <AssetRow
+            label="Plan documents"
+            files={filesFor("MANIFESTATION")}
+            canManage={canManage}
+            uploading={uploadingKind === "MANIFESTATION"}
+            onUpload={(file) => upload.mutateAsync({ file, kind: "MANIFESTATION" })}
+            onDelete={(id) => delAsset.mutate(id)}
+            accept={DOC_ACCEPT}
+          />
+        </SectionCard>
+      </TabsContent>
 
       {/* 4 · Brand Overview */}
-      <SectionCard
-        step={4}
-        icon={ClipboardList}
-        tint="bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
-        title="Brand Overview"
-        description="The strategy document built from the above + competitor & market research."
-        canManage={canManage}
-        dirty={overview !== origOverview}
-        saving={savingKey === "overview"}
-        onSave={() => saveSection("overview", { overview })}
-      >
-        <Textarea
-          value={overview}
-          onChange={(e) => setOverview(e.target.value)}
-          disabled={!canManage}
-          rows={7}
-          placeholder="Positioning, competitor landscape, market research, key takeaways…"
-          aria-label="Positioning, competitor landscape, market research, key takeaways"
-        />
-        <AssetRow
-          label="Strategy & research documents"
-          files={filesFor("OVERVIEW")}
+      <TabsContent value="overview">
+        <SectionCard
+          step={4}
+          icon={ClipboardList}
+          tint="bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+          title="Brand Overview"
+          description="The strategy document built from the above + competitor & market research."
           canManage={canManage}
-          uploading={uploadingKind === "OVERVIEW"}
-          onUpload={(file) => upload.mutate({ file, kind: "OVERVIEW" })}
-          onDelete={(id) => delAsset.mutate(id)}
-          accept={DOC_ACCEPT}
-        />
-      </SectionCard>
+          dirty={overview !== origOverview}
+          saving={savingKey === "overview"}
+          onSave={() => saveSection("overview", { overview })}
+        >
+          <Textarea
+            value={overview}
+            onChange={(e) => setOverview(e.target.value)}
+            disabled={!canManage}
+            rows={7}
+            placeholder="Positioning, competitor landscape, market research, key takeaways…"
+            aria-label="Positioning, competitor landscape, market research, key takeaways"
+          />
+          <AssetRow
+            label="Strategy & research documents"
+            files={filesFor("OVERVIEW")}
+            canManage={canManage}
+            uploading={uploadingKind === "OVERVIEW"}
+            onUpload={(file) => upload.mutateAsync({ file, kind: "OVERVIEW" })}
+            onDelete={(id) => delAsset.mutate(id)}
+            accept={DOC_ACCEPT}
+          />
+        </SectionCard>
+      </TabsContent>
 
       {/* 5 · Brand Guidelines */}
-      <SectionCard
-        step={5}
-        icon={Palette}
-        tint="bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
-        title="Brand Guidelines"
-        description="Logos, colors, fonts, UI/UX direction."
-        canManage={canManage}
-        dirty={!same(guidelines, origGuidelines)}
-        saving={savingKey === "guidelines"}
-        onSave={() => saveSection("guidelines", { guidelines })}
-      >
-        <div className="space-y-4">
-          <div>
-            <Label className="text-muted-foreground text-[11px]">Colors</Label>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              {guidelines.colors.map((c, i) => (
-                <div
-                  key={i}
-                  className="bg-muted/30 group flex items-center gap-2 rounded-sm border px-2 py-1.5"
-                >
-                  <input
-                    type="color"
-                    value={/^#[0-9a-f]{6}$/i.test(c.hex) ? c.hex : "#000000"}
-                    disabled={!canManage}
-                    onChange={(e) => updateColor(setGuidelines, i, { hex: e.target.value })}
-                    className="h-7 w-7 cursor-pointer rounded-sm border-0 bg-transparent p-0"
-                  />
-                  <div className="flex flex-col">
-                    <Input
-                      className="h-6 w-24 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
-                      placeholder="Name"
-                      aria-label="Name"
-                      value={c.name}
+      <TabsContent value="guidelines">
+        <SectionCard
+          step={5}
+          icon={Palette}
+          tint="bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
+          title="Brand Guidelines"
+          description="Logos, colors, fonts, UI/UX direction."
+          canManage={canManage}
+          dirty={!same(guidelines, origGuidelines)}
+          saving={savingKey === "guidelines"}
+          onSave={() => saveSection("guidelines", { guidelines })}
+        >
+          <div className="space-y-4">
+            <div>
+              <Label className="text-muted-foreground text-[11px]">Colors</Label>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                {guidelines.colors.map((c, i) => (
+                  <div
+                    key={i}
+                    className="bg-muted/30 group flex items-center gap-2 rounded-sm border px-2 py-1.5"
+                  >
+                    <input
+                      type="color"
+                      value={/^#[0-9a-f]{6}$/i.test(c.hex) ? c.hex : "#000000"}
                       disabled={!canManage}
-                      onChange={(e) => updateColor(setGuidelines, i, { name: e.target.value })}
+                      onChange={(e) => updateColor(setGuidelines, i, { hex: e.target.value })}
+                      className="h-7 w-7 cursor-pointer rounded-sm border-0 bg-transparent p-0"
                     />
-                    <span className="text-muted-foreground px-1 font-mono text-[10px] uppercase">
-                      {c.hex}
-                    </span>
+                    <div className="flex flex-col">
+                      <Input
+                        className="h-6 w-24 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
+                        placeholder="Name"
+                        aria-label="Name"
+                        value={c.name}
+                        disabled={!canManage}
+                        onChange={(e) => updateColor(setGuidelines, i, { name: e.target.value })}
+                      />
+                      <span className="text-muted-foreground px-1 font-mono text-[10px] uppercase">
+                        {c.hex}
+                      </span>
+                    </div>
+                    {canManage && (
+                      <button
+                        className="text-muted-foreground hover:text-destructive opacity-0 transition-opacity group-hover:opacity-100"
+                        onClick={() =>
+                          setGuidelines((g) => ({
+                            ...g,
+                            colors: g.colors.filter((_, j) => j !== i),
+                          }))
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
-                  {canManage && (
-                    <button
-                      className="text-muted-foreground hover:text-destructive opacity-0 transition-opacity group-hover:opacity-100"
-                      onClick={() =>
-                        setGuidelines((g) => ({ ...g, colors: g.colors.filter((_, j) => j !== i) }))
-                      }
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-              {canManage && (
-                <Button
-                  variant="outline"
-                  className="gap-1.5 border-dashed px-3"
-                  onClick={() =>
-                    setGuidelines((g) => ({
-                      ...g,
-                      colors: [...g.colors, { name: "", hex: "#4f46e5" }],
-                    }))
-                  }
-                >
-                  <Plus className="h-3.5 w-3.5" /> Color
-                </Button>
-              )}
+                ))}
+                {canManage && (
+                  <Button
+                    variant="outline"
+                    className="gap-1.5 border-dashed px-3"
+                    onClick={() =>
+                      setGuidelines((g) => ({
+                        ...g,
+                        colors: [...g.colors, { name: "", hex: "#4f46e5" }],
+                      }))
+                    }
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Color
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground text-[11px]">Fonts</Label>
+                <Input
+                  value={guidelines.fonts}
+                  disabled={!canManage}
+                  placeholder="e.g. Inter, Poppins"
+                  aria-label="e.g. Inter, Poppins"
+                  onChange={(e) => setGuidelines((g) => ({ ...g, fonts: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground text-[11px]">UI / UX direction</Label>
+                <Input
+                  value={guidelines.uiux}
+                  disabled={!canManage}
+                  placeholder="Tone, layout, imagery style…"
+                  aria-label="Tone, layout, imagery style"
+                  onChange={(e) => setGuidelines((g) => ({ ...g, uiux: e.target.value }))}
+                />
+              </div>
+            </div>
+
             <div className="space-y-1.5">
-              <Label className="text-muted-foreground text-[11px]">Fonts</Label>
-              <Input
-                value={guidelines.fonts}
+              <Label className="text-muted-foreground text-[11px]">Logo notes</Label>
+              <Textarea
+                rows={2}
+                value={guidelines.logoNotes}
                 disabled={!canManage}
-                placeholder="e.g. Inter, Poppins"
-                aria-label="e.g. Inter, Poppins"
-                onChange={(e) => setGuidelines((g) => ({ ...g, fonts: e.target.value }))}
+                placeholder="Logo usage, clear space, do's & don'ts…"
+                aria-label="Logo usage, clear space, do's & don'ts"
+                onChange={(e) => setGuidelines((g) => ({ ...g, logoNotes: e.target.value }))}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-muted-foreground text-[11px]">UI / UX direction</Label>
-              <Input
-                value={guidelines.uiux}
-                disabled={!canManage}
-                placeholder="Tone, layout, imagery style…"
-                aria-label="Tone, layout, imagery style"
-                onChange={(e) => setGuidelines((g) => ({ ...g, uiux: e.target.value }))}
-              />
-            </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-muted-foreground text-[11px]">Logo notes</Label>
-            <Textarea
-              rows={2}
-              value={guidelines.logoNotes}
-              disabled={!canManage}
-              placeholder="Logo usage, clear space, do's & don'ts…"
-              aria-label="Logo usage, clear space, do's & don'ts"
-              onChange={(e) => setGuidelines((g) => ({ ...g, logoNotes: e.target.value }))}
+            <AssetRow
+              label="Logos & guideline files"
+              files={filesFor("LOGO")}
+              canManage={canManage}
+              uploading={uploadingKind === "LOGO"}
+              onUpload={(file) => upload.mutateAsync({ file, kind: "LOGO" })}
+              onDelete={(id) => delAsset.mutate(id)}
+              accept="image/*,.pdf,.ai,.svg,.zip"
+              icon={ImageIcon}
             />
           </div>
-
-          <AssetRow
-            label="Logos & guideline files"
-            files={filesFor("LOGO")}
-            canManage={canManage}
-            uploading={uploadingKind === "LOGO"}
-            onUpload={(file) => upload.mutate({ file, kind: "LOGO" })}
-            onDelete={(id) => delAsset.mutate(id)}
-            accept="image/*,.pdf,.ai,.svg,.zip"
-            icon={ImageIcon}
-          />
-        </div>
-      </SectionCard>
-    </div>
+        </SectionCard>
+      </TabsContent>
+    </Tabs>
   )
 }
 
@@ -684,12 +713,23 @@ function AssetRow({
   files: ProjectBrandData["assets"]
   canManage: boolean
   uploading: boolean
-  onUpload: (file: File) => void
+  /** Called once per picked file, in order; return the upload promise so the
+   *  next file waits (the server buffers each upload whole - see drive-tab). */
+  onUpload: (file: File) => Promise<unknown> | void
   onDelete: (id: string) => void
   accept?: string
   icon?: React.ElementType
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  async function onPicked(picked: File[]) {
+    for (const file of picked) {
+      try {
+        await onUpload(file)
+      } catch {
+        // The upload hook already toasted the reason; carry on with the rest.
+      }
+    }
+  }
   return (
     <div className="mt-4 space-y-1.5 border-t pt-3">
       <Label className="text-muted-foreground text-[11px]">{label}</Label>
@@ -748,12 +788,15 @@ function AssetRow({
             <input
               ref={inputRef}
               type="file"
+              multiple
               accept={accept}
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) onUpload(file)
+                // Copy BEFORE resetting: clearing the input empties its FileList.
+                const picked = Array.from(e.target.files ?? [])
+                // Reset so the picker re-fires for the same selection next time.
                 e.target.value = ""
+                if (picked.length) void onPicked(picked)
               }}
             />
             <Button
@@ -763,7 +806,7 @@ function AssetRow({
               onClick={() => inputRef.current?.click()}
             >
               {uploading ? <Spinner size="sm" /> : <Upload className="h-3.5 w-3.5" />}
-              Upload file
+              Upload files
             </Button>
           </>
         )}

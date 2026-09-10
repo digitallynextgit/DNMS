@@ -12,13 +12,13 @@ import { downloadFile } from "@/lib/storage"
 const MAX_BYTES = 8 * 1024 * 1024 // 8 MB - skip anything larger
 const MAX_CHARS = 6000 // per-file text cap fed to the model
 
-function clean(text: string): string {
+function clean(text: string, max: number): string {
   return text
     .replace(/\r/g, "")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim()
-    .slice(0, MAX_CHARS)
+    .slice(0, max)
 }
 
 /** Which file types we can turn into text. Used to pre-filter before downloading. */
@@ -45,8 +45,12 @@ export async function extractFileText(input: {
   mimeType: string
   fileName: string
   fileSize?: number
+  /** Per-file text cap. Defaults to MAX_CHARS (sized for the chat assistant's
+   *  context); document-analysis flows that feed one model call pass more. */
+  maxChars?: number
 }): Promise<string | null> {
   const { objectKey, mimeType, fileName, fileSize } = input
+  const max = input.maxChars ?? MAX_CHARS
   if (fileSize && fileSize > MAX_BYTES) return null
   if (!isExtractable(mimeType, fileName)) return null
 
@@ -59,13 +63,13 @@ export async function extractFileText(input: {
       const { PDFParse } = await import("pdf-parse")
       const parser = new PDFParse({ data: new Uint8Array(buffer) })
       const out = await parser.getText()
-      return clean(out.text)
+      return clean(out.text, max)
     }
 
     if (mimeType.includes("word") || n.endsWith(".docx")) {
       const mammoth = await import("mammoth")
       const out = await mammoth.extractRawText({ buffer })
-      return clean(out.value)
+      return clean(out.value, max)
     }
 
     if (
@@ -81,11 +85,11 @@ export async function extractFileText(input: {
         if (!sheet) continue
         parts.push(`# ${sheetName}\n${XLSX.utils.sheet_to_csv(sheet)}`)
       }
-      return clean(parts.join("\n\n"))
+      return clean(parts.join("\n\n"), max)
     }
 
     // Plain text / markdown / json / csv-as-text.
-    return clean(buffer.toString("utf8"))
+    return clean(buffer.toString("utf8"), max)
   } catch (err) {
     console.error("[file-text] extract failed:", fileName, err)
     return null

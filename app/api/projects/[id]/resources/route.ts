@@ -192,7 +192,7 @@ export const POST = withSession(
       if (deliverableId) {
         const entry = await db.projectDeliverable.findFirst({
           where: { id: deliverableId, projectId },
-          select: { projectId: true, employeeId: true, loggedById: true },
+          select: { projectId: true, employeeId: true, teamId: true, loggedById: true },
         })
         if (!entry) {
           return NextResponse.json(

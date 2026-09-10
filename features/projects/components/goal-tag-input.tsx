@@ -4,8 +4,6 @@ import * as React from "react"
 import { Tags, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SUGGESTED_TAGS, TagChip, tagTint } from "./goal-status"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -154,83 +152,6 @@ export function GoalTagInput({
   )
 }
 
-/**
- * Retagging a goal that already exists.
- *
- * A popover rather than a row that is always editable: tags are set once and
- * read many times, and six always-live inputs down a board is a board you cannot
- * skim. Nothing is saved until Save, so an abandoned edit costs nothing.
- */
-export function GoalTagEditor({
-  goalTitle,
-  tags,
-  suggestions,
-  onSave,
-  pending,
-}: {
-  goalTitle: string
-  tags: string[]
-  suggestions: string[]
-  onSave: (tags: string[]) => void
-  pending: boolean
-}) {
-  const [open, setOpen] = React.useState(false)
-  const [draft, setDraft] = React.useState(tags)
-
-  const changed =
-    draft.length !== tags.length || draft.some((t, i) => t.toLowerCase() !== tags[i]?.toLowerCase())
-
-  return (
-    <Popover
-      open={open}
-      // Seeded on the way OPEN rather than from an effect: an effect would run a
-      // second render every time the popover appeared, and would also stomp a
-      // half-finished edit the moment a refetch handed down a new `tags` array.
-      onOpenChange={(next) => {
-        if (next) setDraft(tags)
-        setOpen(next)
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={`Tags for ${goalTitle}`}
-          title="Tags"
-          className={cn(
-            "text-muted-foreground hover:text-foreground",
-            tags.length > 0 && "text-foreground/70",
-          )}
-        >
-          <Tags className="h-3.5 w-3.5" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 space-y-2 p-3">
-        <p className="text-xs font-medium">Tags</p>
-        <p className="text-muted-foreground text-[11px]">
-          Type a word and press Enter. Use these to filter the board - e.g. weekly, primary.
-        </p>
-        <GoalTagInput value={draft} onChange={setDraft} suggestions={suggestions} autoFocus />
-        <div className="flex justify-end gap-2 pt-1">
-          <Button variant="ghost" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!changed || pending}
-            onClick={() => {
-              onSave(draft)
-              setOpen(false)
-            }}
-          >
-            Save
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-/** A goal's tags as read-only pills, each one a shortcut to filtering by it. */
 export function GoalTagList({
   tags,
   activeTags,

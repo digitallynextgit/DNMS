@@ -312,7 +312,7 @@ export function TagChip({
   className?: string
 }) {
   const shared = cn(
-    "inline-flex max-w-40 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium",
+    "inline-flex max-w-40 items-center rounded-[6px] border px-2 py-1 text-[10px] leading-none font-medium",
     tagTint(tag),
     active && "ring-primary/60 ring-1",
     className,

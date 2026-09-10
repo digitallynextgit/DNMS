@@ -1,22 +1,28 @@
 "use client"
 
 import * as React from "react"
+import { useSession } from "next-auth/react"
 import {
   Plus,
   History,
   Trash2,
+  Upload,
+  Search,
+  ChevronUp,
   Table2,
   ChevronDown,
   Pencil,
   Check,
   ExternalLink,
 } from "lucide-react"
+import { SheetImportDialog } from "./sheet-import-dialog"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -43,7 +49,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useProjectTeams } from "../hooks/use-projects"
+import { useAssignableEmployees, useProjectTeams } from "../hooks/use-projects"
 import { useProjectSheets, useSheetHistory, useSheetMutations } from "../hooks/use-sheets"
 import {
   COLUMN_TYPE_HINT,
@@ -55,10 +61,12 @@ import {
   SHEET_COLUMN_TYPES,
   type CellValue,
   type ProjectSheet,
+  type SheetAssignee,
   type SheetColumn,
   type SheetColumnType,
   type SheetEvent,
   type SheetRow,
+  type SheetWorkbook,
 } from "../lib/sheet-types"
 
 // =============================================================================
@@ -147,15 +155,40 @@ function fmtWhen(iso: string): string {
   })
 }
 
+/** A cell's text with every hit of the find query highlighted. */
+function mark(text: string, highlight?: string): React.ReactNode {
+  const q = highlight?.trim().toLowerCase()
+  if (!q) return text
+  const lower = text.toLowerCase()
+  const parts: React.ReactNode[] = []
+  let i = 0
+  let at = lower.indexOf(q)
+  while (at >= 0) {
+    if (at > i) parts.push(text.slice(i, at))
+    parts.push(
+      <mark key={at} className="rounded-[2px] bg-amber-200 text-inherit dark:bg-amber-500/40">
+        {text.slice(at, at + q.length)}
+      </mark>,
+    )
+    i = at + q.length
+    at = lower.indexOf(q, i)
+  }
+  if (i < text.length) parts.push(text.slice(i))
+  return parts
+}
+
 /** What a value looks like when it is NOT being edited. */
 function DisplayCell({
   column,
   value,
   people,
+  highlight,
 }: {
   column: SheetColumn
   value: CellValue
   people: Map<string, string>
+  /** The find query, if any - hits are wrapped in <mark>. */
+  highlight?: string
 }) {
   if (column.type === "CHECKBOX") {
     return value === true ? (
@@ -200,17 +233,18 @@ function DisplayCell({
   if (column.type === "PERSON") {
     // Falls back to the stored id when the person has left the project, rather
     // than rendering an empty cell that looks like nobody was ever assigned.
-    return <span>{people.get(String(value)) ?? String(value)}</span>
+    return <span>{mark(people.get(String(value)) ?? String(value), highlight)}</span>
   }
   if (column.type === "SELECT") {
     return (
       <span className="bg-muted inline-flex rounded-sm px-1.5 py-0.5 text-xs font-medium">
-        {String(value)}
+        {mark(String(value), highlight)}
       </span>
     )
   }
-  if (column.type === "NUMBER") return <span className="tabular-nums">{String(value)}</span>
-  return <span className="whitespace-pre-wrap">{String(value)}</span>
+  if (column.type === "NUMBER")
+    return <span className="tabular-nums">{mark(String(value), highlight)}</span>
+  return <span className="whitespace-pre-wrap">{mark(String(value), highlight)}</span>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -499,6 +533,115 @@ interface CellRef {
   columnId: string
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Who owns a sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Sentinel for "nobody" - Radix Select cannot hold an empty string value. */
+const UNASSIGNED = "__none__"
+
+const initials = (p: SheetAssignee) =>
+  `${p.firstName[0] ?? ""}${p.lastName[0] ?? ""}`.toUpperCase() || "?"
+
+function PersonAvatar({ person, className }: { person: SheetAssignee; className?: string }) {
+  return (
+    <Avatar className={cn("h-5 w-5 rounded-full", className)}>
+      {person.profilePhoto && <AvatarImage src={person.profilePhoto} alt="" />}
+      <AvatarFallback className="rounded-full text-[9px]">{initials(person)}</AvatarFallback>
+    </Avatar>
+  )
+}
+
+/** Avatar + first name, or a muted "Unassigned". */
+function AssigneeChip({ person }: { person: SheetAssignee | null }) {
+  if (!person) return <span className="text-muted-foreground text-xs">Unassigned</span>
+  return (
+    <span
+      className="flex min-w-0 items-center gap-1.5"
+      title={`${person.firstName} ${person.lastName}`.trim()}
+    >
+      <PersonAvatar person={person} />
+      <span className="truncate text-xs font-medium">{person.firstName}</span>
+    </span>
+  )
+}
+
+/**
+ * The owner of the open sheet. A manager gets a picker over every active
+ * employee - the point is to be able to hand a calendar to anyone in the
+ * company, not only to whoever happens to be on this project's teams.
+ * Everyone else sees the same chip, read-only.
+ */
+function WorkbookAssignee({
+  projectId,
+  workbook,
+  canStaff,
+  onAssign,
+  pending,
+}: {
+  projectId: string
+  workbook: SheetWorkbook
+  canStaff: boolean
+  onAssign: (employeeId: string | null) => void
+  pending: boolean
+}) {
+  // Only fetched for someone who can actually act on it.
+  const people = useAssignableEmployees(projectId, canStaff)
+
+  if (!canStaff) {
+    return (
+      <span className="flex items-center gap-1.5 px-2" title="Only a manager can change this">
+        <AssigneeChip person={workbook.assignedTo} />
+      </span>
+    )
+  }
+
+  return (
+    <Select
+      value={workbook.assignedTo?.id ?? UNASSIGNED}
+      onValueChange={(v) => onAssign(v === UNASSIGNED ? null : v)}
+      disabled={pending}
+    >
+      {/* Custom trigger content instead of <SelectValue />: it has to show the
+          avatar, and it must keep working when the current owner has since
+          been deactivated and so is missing from the list below. */}
+      <SelectTrigger
+        className="hover:bg-foreground/5 h-8 w-auto gap-1.5 border-transparent bg-transparent px-2"
+        title="Who owns this sheet"
+      >
+        <AssigneeChip person={workbook.assignedTo} />
+      </SelectTrigger>
+      <SelectContent align="end" className="max-h-72">
+        <SelectItem value={UNASSIGNED}>
+          <span className="text-muted-foreground text-xs">Unassigned</span>
+        </SelectItem>
+        {(people.data?.data ?? []).map((p) => (
+          <SelectItem key={p.id} value={p.id}>
+            <span className="flex items-center gap-2">
+              <PersonAvatar
+                person={{
+                  id: p.id,
+                  firstName: p.firstName,
+                  lastName: p.lastName,
+                  profilePhoto: p.profilePhoto ?? null,
+                }}
+              />
+              <span className="truncate">
+                {p.firstName} {p.lastName}
+              </span>
+              {p.designation?.title && (
+                <span className="text-muted-foreground truncate text-[11px]">
+                  {p.designation.title}
+                </span>
+              )}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
 export function ProjectSheetSection({
   projectId,
   canManage,
@@ -506,10 +649,23 @@ export function ProjectSheetSection({
   projectId: string
   canManage: boolean
 }) {
-  const { data: sheets, isLoading } = useProjectSheets(projectId)
+  const { data: workbooks, isLoading } = useProjectSheets(projectId)
   const { data: teams } = useProjectTeams(projectId)
   const m = useSheetMutations(projectId)
+  // Assigning follows the staffing rule, not the delete rule: a team manager
+  // owns the work, so they get to say who owns the sheet it lives in.
+  const { data: session } = useSession()
+  const me = session?.user?.id ?? null
+  const canStaff =
+    canManage || (teams?.data ?? []).some((t) => t.managerId != null && t.managerId === me)
 
+  // Two levels: the workbook ("sheet" in the UI) and the tab inside it.
+  const [activeWorkbookId, setActiveWorkbookId] = React.useState<string | null>(null)
+  const workbook = React.useMemo(
+    () => workbooks?.find((w) => w.id === activeWorkbookId) ?? workbooks?.[0] ?? null,
+    [workbooks, activeWorkbookId],
+  )
+  const sheets = React.useMemo(() => workbook?.sheets, [workbook])
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [editing, setEditing] = React.useState<CellRef | null>(null)
   /** The highlighted cell: a ROW POSITION and a column index. A sheet has a
@@ -536,8 +692,15 @@ export function ProjectSheetSection({
     null,
   )
   const [historyOpen, setHistoryOpen] = React.useState(false)
+  const [importOpen, setImportOpen] = React.useState(false)
+  const [newTabOpen, setNewTabOpen] = React.useState(false)
+  const [newTabName, setNewTabName] = React.useState("")
+  // Find in the open tab. `matchIdx` is unbounded and wrapped at use, so a
+  // changed query never needs an effect to reset it.
+  const [search, setSearch] = React.useState("")
+  const [matchIdx, setMatchIdx] = React.useState(0)
   const [confirm, setConfirm] = React.useState<{
-    kind: "sheet" | "row" | "column"
+    kind: "workbook" | "sheet" | "row" | "column"
     id: string
     label: string
   } | null>(null)
@@ -776,6 +939,45 @@ export function ProjectSheetSection({
   }
 
   /**
+   * Find: every cell in the open tab whose text contains the query, in reading
+   * order. PERSON cells are matched on the name shown, not the id stored.
+   */
+  const matches = React.useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const out: { r: number; c: number }[] = []
+    if (!q || !active) return out
+    const rows = [...active.rows].sort((a, b) => a.position - b.position)
+    for (const row of rows) {
+      columns.forEach((col, ci) => {
+        const v = row.cells[col.id]
+        if (v === null || v === undefined || v === "") return
+        const text = col.type === "PERSON" ? (people.get(String(v)) ?? String(v)) : String(v)
+        if (text.toLowerCase().includes(q)) out.push({ r: row.position, c: ci })
+      })
+    }
+    return out
+  }, [search, active, columns, people])
+  const safeMatchIdx = matches.length ? matchIdx % matches.length : 0
+  const currentMatch = matches.length ? matches[safeMatchIdx]! : null
+
+  /** Step to the next/previous match: select it and scroll it into view. */
+  const jumpToMatch = (dir: 1 | -1) => {
+    if (matches.length === 0) return
+    const next = (safeMatchIdx + dir + matches.length) % matches.length
+    setMatchIdx(next)
+    const target = matches[next]!
+    setSelected(target)
+    const el = scrollerRef.current
+    if (el) {
+      const top = offsets[target.r]!
+      const bottom = offsets[target.r + 1]!
+      if (top < el.scrollTop + ROW_H) el.scrollTop = Math.max(0, top - ROW_H)
+      else if (bottom > el.scrollTop + el.clientHeight)
+        el.scrollTop = bottom + ROW_H - el.clientHeight
+    }
+  }
+
+  /**
    * The spreadsheet key map, handled on the grid rather than per cell so it
    * works while a cell is merely SELECTED - which is most of the time, and the
    * whole reason arrow keys feel right in a sheet.
@@ -822,33 +1024,48 @@ export function ProjectSheetSection({
   if (isLoading) return <Skeleton className="mt-4 h-72 rounded-sm" />
 
   // ── No sheets yet ──────────────────────────────────────────────────────────
-  if (!sheets || sheets.length === 0) {
+  if (!workbooks || workbooks.length === 0) {
     return (
       <div className="mt-4">
         <EmptyState
           icon={Table2}
           title="No sheets yet."
-          description="Build a sheet with whatever columns this project actually needs - a content calendar, a campaign plan, a tracker."
+          description="Build a sheet with whatever tabs and columns this project actually needs - a content calendar, a campaign plan, a tracker. Or import one you already have."
           action={{ label: "New sheet", onClick: () => setNewSheetOpen(true) }}
+          secondaryAction={{ label: "Import a spreadsheet", onClick: () => setImportOpen(true) }}
         />
         <NewSheetDialog
+          kind="sheet"
           open={newSheetOpen}
           name={newSheetName}
           setName={setNewSheetName}
-          pending={m.createSheet.isPending}
+          pending={m.createWorkbook.isPending}
           onCancel={() => setNewSheetOpen(false)}
           onCreate={() =>
-            m.createSheet.mutate(
+            m.createWorkbook.mutate(
               { name: newSheetName },
               {
-                onSuccess: (r) => {
-                  setActiveId(r.data.id)
+                onSuccess: (w) => {
+                  setActiveWorkbookId(w.id)
+                  setActiveId(w.sheets[0]?.id ?? null)
                   setNewSheetName("")
                   setNewSheetOpen(false)
                 },
               },
             )
           }
+        />
+        {/* The importer creates the sheet itself when there is none (it falls
+            back to ALL-TABS into a new sheet), so it works from here - which
+            is the whole point: a project with nothing in it is exactly when
+            someone has a spreadsheet to bring in. */}
+        <SheetImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          projectId={projectId}
+          workbook={null}
+          sheet={null}
+          people={people}
         />
       </div>
     )
@@ -902,21 +1119,32 @@ export function ProjectSheetSection({
 
   return (
     <div className="mt-4 space-y-3">
-      {/* Tabs, one per sheet, the way a workbook shows its tabs. */}
+      {/* Level 1: the sheets (workbooks). */}
       <div className="border-border flex flex-wrap items-center gap-1 border-b pb-2">
-        {sheets.map((s) => (
+        {workbooks.map((w) => (
           <button
-            key={s.id}
+            key={w.id}
             type="button"
-            onClick={() => setActiveId(s.id)}
+            onClick={() => {
+              setActiveWorkbookId(w.id)
+              setActiveId(null)
+            }}
+            title={
+              w.assignedTo
+                ? `Owned by ${w.assignedTo.firstName} ${w.assignedTo.lastName}`.trim()
+                : "Unassigned"
+            }
             className={cn(
-              "rounded-sm px-2.5 py-1.5 text-sm transition-colors",
-              s.id === active?.id
+              "flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-sm transition-colors",
+              w.id === workbook?.id
                 ? "bg-primary/10 text-primary font-medium"
                 : "text-muted-foreground hover:text-foreground hover:bg-foreground/5",
             )}
           >
-            {s.name}
+            {w.name}
+            {/* Just the face on the chip: enough to see who owns each sheet
+                without opening it, and the name is one hover away. */}
+            {w.assignedTo && <PersonAvatar person={w.assignedTo} className="h-4 w-4" />}
           </button>
         ))}
         <Button variant="ghost" className="gap-1 px-2" onClick={() => setNewSheetOpen(true)}>
@@ -924,24 +1152,143 @@ export function ProjectSheetSection({
         </Button>
 
         <div className="ml-auto flex items-center gap-1">
+          {workbook && (
+            <>
+              <WorkbookAssignee
+                projectId={projectId}
+                workbook={workbook}
+                canStaff={canStaff}
+                pending={m.assignWorkbook.isPending}
+                onAssign={(employeeId) =>
+                  m.assignWorkbook.mutate({ workbookId: workbook.id, employeeId })
+                }
+              />
+              <span className="bg-border mx-1 h-4 w-px" aria-hidden />
+            </>
+          )}
           <Button
             variant="ghost"
             className="gap-1 px-2"
             onClick={() => setColumnDialog({ column: null })}
+            disabled={!active}
           >
             <Plus className="h-3.5 w-3.5" /> Column
           </Button>
-          <Button variant="ghost" className="gap-1 px-2" onClick={() => setHistoryOpen(true)}>
+          <Button
+            variant="ghost"
+            className="gap-1 px-2"
+            onClick={() => setImportOpen(true)}
+            disabled={!active}
+            title="Import from a CSV, Excel file or Google Sheet"
+          >
+            <Upload className="h-3.5 w-3.5" /> Import
+          </Button>
+          <Button
+            variant="ghost"
+            className="gap-1 px-2"
+            onClick={() => setHistoryOpen(true)}
+            disabled={!active}
+          >
             <History className="h-3.5 w-3.5" /> History
           </Button>
-          {canManage && active && (
+          {canManage && workbook && (
             <Button
               variant="ghost"
               className="text-muted-foreground hover:text-destructive gap-1 px-2"
-              onClick={() => setConfirm({ kind: "sheet", id: active.id, label: active.name })}
+              onClick={() =>
+                setConfirm({ kind: "workbook", id: workbook.id, label: workbook.name })
+              }
             >
               <Trash2 className="h-3.5 w-3.5" /> Delete sheet
             </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Level 2: the tabs of the open sheet, the way a workbook shows its
+          tabs - plus find, which searches the open tab. */}
+      <div className="flex flex-wrap items-center gap-1">
+        {(sheets ?? []).map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setActiveId(s.id)}
+            className={cn(
+              "rounded-sm border px-2.5 py-1 text-xs transition-colors",
+              s.id === active?.id
+                ? "border-primary/40 bg-primary/10 text-primary font-medium"
+                : "text-muted-foreground hover:text-foreground hover:bg-foreground/5 border-transparent",
+            )}
+          >
+            {s.name}
+          </button>
+        ))}
+        <Button
+          variant="ghost"
+          className="gap-1 px-2 text-xs"
+          onClick={() => setNewTabOpen(true)}
+          disabled={!workbook}
+        >
+          <Plus className="h-3.5 w-3.5" /> New tab
+        </Button>
+        {canManage && active && (sheets?.length ?? 0) > 1 && (
+          <Button
+            variant="ghost"
+            className="text-muted-foreground hover:text-destructive gap-1 px-2 text-xs"
+            onClick={() => setConfirm({ kind: "sheet", id: active.id, label: active.name })}
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Delete tab
+          </Button>
+        )}
+
+        <div className="ml-auto flex items-center gap-1">
+          <div className="relative">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setMatchIdx(0)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  jumpToMatch(e.shiftKey ? -1 : 1)
+                } else if (e.key === "Escape") {
+                  setSearch("")
+                }
+              }}
+              placeholder="Find in this tab…"
+              aria-label="Find in this tab"
+              className="h-8 w-56 pl-7 text-xs"
+            />
+          </div>
+          {search.trim() !== "" && (
+            <>
+              <span className="text-muted-foreground w-14 text-center text-xs tabular-nums">
+                {matches.length ? `${safeMatchIdx + 1} of ${matches.length}` : "0 of 0"}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => jumpToMatch(-1)}
+                disabled={matches.length === 0}
+                title="Previous match (Shift+Enter)"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => jumpToMatch(1)}
+                disabled={matches.length === 0}
+                title="Next match (Enter)"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -1172,6 +1519,7 @@ export function ProjectSheetSection({
                       {columns.map((c, ci) => {
                         const isEditing = editing?.pos === pos && editing.columnId === c.id
                         const isSelected = selected?.r === pos && selected.c === ci
+                        const isMatch = currentMatch?.r === pos && currentMatch.c === ci
                         return (
                           <td
                             key={c.id}
@@ -1183,6 +1531,8 @@ export function ProjectSheetSection({
                               // The cursor sits ON TOP of its neighbours, or the
                               // ring is clipped by the next cell's rule.
                               isSelected && !isEditing && "ring-primary z-10 ring-2",
+                              // The find box's current hit, when the cursor is elsewhere.
+                              isMatch && !isSelected && "z-10 ring-2 ring-amber-400",
                               isEditing && "z-20",
                             )}
                             style={{ height: heightOf(pos) }}
@@ -1191,6 +1541,7 @@ export function ProjectSheetSection({
                               column={c}
                               value={cellValue(pos, c)}
                               people={people}
+                              highlight={search}
                               isEditing={isEditing}
                               draft={draft}
                               setDraft={setDraft}
@@ -1248,23 +1599,46 @@ export function ProjectSheetSection({
 
       {/* Dialogs */}
       <NewSheetDialog
+        kind="sheet"
         open={newSheetOpen}
         name={newSheetName}
         setName={setNewSheetName}
-        pending={m.createSheet.isPending}
+        pending={m.createWorkbook.isPending}
         onCancel={() => setNewSheetOpen(false)}
         onCreate={() =>
-          m.createSheet.mutate(
+          m.createWorkbook.mutate(
             { name: newSheetName },
             {
-              onSuccess: (r) => {
-                setActiveId(r.data.id)
+              onSuccess: (w) => {
+                setActiveWorkbookId(w.id)
+                setActiveId(w.sheets[0]?.id ?? null)
                 setNewSheetName("")
                 setNewSheetOpen(false)
               },
             },
           )
         }
+      />
+      <NewSheetDialog
+        kind="tab"
+        open={newTabOpen}
+        name={newTabName}
+        setName={setNewTabName}
+        pending={m.createSheet.isPending}
+        onCancel={() => setNewTabOpen(false)}
+        onCreate={() => {
+          if (!workbook) return
+          m.createSheet.mutate(
+            { workbookId: workbook.id, name: newTabName },
+            {
+              onSuccess: (r) => {
+                setActiveId(r.data.id)
+                setNewTabName("")
+                setNewTabOpen(false)
+              },
+            },
+          )
+        }}
       />
 
       <ColumnDialog
@@ -1286,6 +1660,14 @@ export function ProjectSheetSection({
         }}
       />
 
+      <SheetImportDialog
+        open={importOpen && !!active}
+        onOpenChange={setImportOpen}
+        projectId={projectId}
+        workbook={workbook}
+        sheet={active ?? null}
+        people={people}
+      />
       <HistoryDialog
         open={historyOpen}
         onOpenChange={setHistoryOpen}
@@ -1297,32 +1679,45 @@ export function ProjectSheetSection({
         open={confirm !== null}
         onOpenChange={(o) => !o && setConfirm(null)}
         title={
-          confirm?.kind === "sheet"
+          confirm?.kind === "workbook"
             ? "Delete this sheet?"
-            : confirm?.kind === "column"
-              ? "Delete this column?"
-              : "Delete this row?"
+            : confirm?.kind === "sheet"
+              ? "Delete this tab?"
+              : confirm?.kind === "column"
+                ? "Delete this column?"
+                : "Delete this row?"
         }
         description={
-          confirm?.kind === "sheet"
+          confirm?.kind === "workbook"
             ? '"' +
               (confirm?.label ?? "") +
-              '" and every column, row and history entry in it will be permanently removed.'
-            : confirm?.kind === "column"
+              '" and every tab in it - all their columns, rows and history - will be permanently removed.'
+            : confirm?.kind === "sheet"
               ? '"' +
                 (confirm?.label ?? "") +
-                '" will be removed, and its value in every row goes with it. The values are kept in the history.'
-              : (confirm?.label ?? "") + " will be removed. Its values are kept in the history."
+                '" and every column, row and history entry in it will be permanently removed.'
+              : confirm?.kind === "column"
+                ? '"' +
+                  (confirm?.label ?? "") +
+                  '" will be removed, and its value in every row goes with it. The values are kept in the history.'
+                : (confirm?.label ?? "") + " will be removed. Its values are kept in the history."
         }
         variant="destructive"
         confirmLabel="Delete"
         onConfirm={() => {
-          if (!confirm || !active) return
-          if (confirm.kind === "sheet") {
+          if (!confirm) return
+          if (confirm.kind === "workbook") {
+            m.deleteWorkbook.mutate(confirm.id, {
+              onSuccess: () => {
+                setActiveWorkbookId(null)
+                setActiveId(null)
+              },
+            })
+          } else if (confirm.kind === "sheet") {
             m.deleteSheet.mutate(confirm.id, { onSuccess: () => setActiveId(null) })
-          } else if (confirm.kind === "column") {
+          } else if (active && confirm.kind === "column") {
             m.deleteColumn.mutate({ sheetId: active.id, columnId: confirm.id })
-          } else {
+          } else if (active) {
             m.deleteRow.mutate({ sheetId: active.id, rowId: confirm.id })
           }
           setConfirm(null)
@@ -1332,7 +1727,9 @@ export function ProjectSheetSection({
   )
 }
 
+/** Names a new sheet (a workbook of tabs) or a new tab inside the open one. */
 function NewSheetDialog({
+  kind,
   open,
   name,
   setName,
@@ -1340,6 +1737,7 @@ function NewSheetDialog({
   onCancel,
   onCreate,
 }: {
+  kind: "sheet" | "tab"
   open: boolean
   name: string
   setName: (v: string) => void
@@ -1351,9 +1749,11 @@ function NewSheetDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New sheet</DialogTitle>
+          <DialogTitle>{kind === "sheet" ? "New sheet" : "New tab"}</DialogTitle>
           <DialogDescription>
-            It starts with one column and one row. Add whatever else this sheet needs.
+            {kind === "sheet"
+              ? "A sheet holds tabs, like a workbook. It opens with one tab; add more from the tab strip."
+              : "A new grid inside this sheet. It starts with columns A to Z - rename them as you go."}
           </DialogDescription>
         </DialogHeader>
         <div>
@@ -1364,7 +1764,7 @@ function NewSheetDialog({
             id="sheet-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="September 2026"
+            placeholder={kind === "sheet" ? "Content calendar" : "September 2026"}
             autoFocus
             onKeyDown={(e) => e.key === "Enter" && name.trim() && onCreate()}
           />
@@ -1429,10 +1829,13 @@ function CellEditor({
   onCancel,
   onCommitAndMove,
   onGrow,
+  highlight,
 }: {
   column: SheetColumn
   value: CellValue
   people: Map<string, string>
+  /** The find query - its hits are highlighted in the displayed value. */
+  highlight?: string
   isEditing: boolean
   draft: string
   setDraft: (v: string) => void
@@ -1505,7 +1908,7 @@ function CellEditor({
         data-measure
         className="h-full overflow-hidden px-2 py-1 leading-snug break-words whitespace-pre-wrap"
       >
-        <DisplayCell column={column} value={value} people={people} />
+        <DisplayCell column={column} value={value} people={people} highlight={highlight} />
       </div>
     )
   }

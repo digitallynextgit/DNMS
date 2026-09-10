@@ -93,6 +93,8 @@ export interface SheetEvent {
 
 export interface ProjectSheet {
   id: string
+  /** The workbook (what the UI calls a "sheet") this tab belongs to. */
+  workbookId: string
   name: string
   description: string | null
   position: number
@@ -102,6 +104,27 @@ export interface ProjectSheet {
   rows: SheetRow[]
   createdByName: string | null
   updatedAt: string
+}
+
+/** A workbook - what the Calendars UI calls a "sheet": a named set of tabs. */
+/** Just enough of an employee to show who owns a sheet. */
+export interface SheetAssignee {
+  id: string
+  firstName: string
+  lastName: string
+  profilePhoto: string | null
+}
+
+export interface SheetWorkbook {
+  id: string
+  name: string
+  position: number
+  createdByName: string | null
+  /** Who owns this sheet now, or null when nobody has picked it up. */
+  assignedTo: SheetAssignee | null
+  updatedAt: string
+  /** Its tabs, in order. Never empty: a workbook is created with one. */
+  sheets: ProjectSheet[]
 }
 
 /**

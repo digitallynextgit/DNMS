@@ -76,6 +76,8 @@ export interface DriveFile {
   size: number | null
   webViewLink: string | null
   iconLink: string | null
+  /** Short-lived preview image (Drive only); the Repository card grid uses it. */
+  thumbnailLink: string | null
   modifiedTime: string | null
   /** Display name of whoever last touched it in Drive; the Files tab's "Added by". */
   modifiedBy: string | null
@@ -92,6 +94,7 @@ function toFile(f: drive_v3.Schema$File): DriveFile {
     size: f.size ? Number(f.size) : null,
     webViewLink: f.webViewLink ?? null,
     iconLink: f.iconLink ?? null,
+    thumbnailLink: f.thumbnailLink ?? null,
     modifiedTime: f.modifiedTime ?? null,
     modifiedBy: f.lastModifyingUser?.displayName ?? null,
     parentId: f.parents?.[0] ?? null,
@@ -100,7 +103,7 @@ function toFile(f: drive_v3.Schema$File): DriveFile {
 }
 
 const FILE_FIELDS =
-  "id,name,mimeType,size,webViewLink,iconLink,modifiedTime,parents,lastModifyingUser(displayName)"
+  "id,name,mimeType,size,webViewLink,iconLink,thumbnailLink,modifiedTime,parents,lastModifyingUser(displayName)"
 
 // In-process guard: two requests for the same project (e.g. two members opening the
 // Files tab at once) must not each create a folder. They share one in-flight promise.
@@ -215,6 +218,16 @@ export async function createGoogleFile(
     fields: FILE_FIELDS,
   })
   return toFile(res.data)
+}
+
+/**
+ * Export a Google-native file (Sheet/Doc/Slides) in another format - e.g. a
+ * Google Sheet as .xlsx, which keeps every tab. Drive caps exports at 10 MB.
+ */
+export async function exportDriveFile(fileId: string, mimeType: string): Promise<Buffer> {
+  const { drive } = await getDrive()
+  const res = await drive.files.export({ fileId, mimeType }, { responseType: "arraybuffer" })
+  return Buffer.from(res.data as ArrayBuffer)
 }
 
 /** Trash a file/folder (Content Manager can trash; hard-delete needs Manager). */

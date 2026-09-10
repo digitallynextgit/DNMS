@@ -256,3 +256,57 @@ export function splitTaskHours(
 // Re-exported so a form can bound its date picker with the same rule the server
 // applies, without reaching into @/lib/dates for one function.
 export { latestCalendarDay }
+
+// ─── Repeating commitments ────────────────────────────────────────────────────
+
+/**
+ * "Three reels a week" is the shape almost every retainer is written in, and
+ * it used to mean typing the same row out twelve times.
+ *
+ * Repetition here lays down REAL owed rows up front rather than generating
+ * them lazily from a rule. That costs a few more rows and buys a great deal:
+ * the account manager sees exactly what has been committed, any single week
+ * can be edited, reassigned or dropped without breaking the pattern, and there
+ * is no hidden generator that can silently stop running.
+ */
+export type RepeatEvery = "WEEK" | "MONTH"
+
+/** A year of weeks. Long enough for any retainer, short enough to stay sane. */
+export const MAX_REPEAT = 52
+
+/**
+ * Add months while staying inside the month you land in.
+ *
+ * 31 Jan + 1 month is 28 Feb, not 3 March: a monthly commitment made on the
+ * last day of a month is due on the last day of the next one. Rolling over
+ * would also make the sequence drift, because March would then follow from
+ * the 3rd rather than the 31st.
+ */
+export function addMonthsClamped(date: Date, months: number): Date {
+  const day = date.getUTCDate()
+  const target = new Date(date.getTime())
+  target.setUTCDate(1)
+  target.setUTCMonth(target.getUTCMonth() + months)
+  const lastDay = new Date(
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+  ).getUTCDate()
+  target.setUTCDate(Math.min(day, lastDay))
+  return target
+}
+
+/**
+ * The due dates a repeating commitment covers, `first` included.
+ *
+ * Each date is measured from the FIRST one, never from the previous result, so
+ * a clamped month (28 Feb) cannot drag the rest of the year back with it.
+ */
+export function repeatDueDates(first: Date, every: RepeatEvery, count: number): Date[] {
+  const n = Math.max(1, Math.min(Math.floor(count) || 1, MAX_REPEAT))
+  return Array.from({ length: n }, (_, i) =>
+    i === 0
+      ? new Date(first.getTime())
+      : every === "WEEK"
+        ? addDays(first, 7 * i)
+        : addMonthsClamped(first, i),
+  )
+}

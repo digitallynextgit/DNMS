@@ -132,7 +132,18 @@ export async function aiComplete<T = string>(opts: CompleteOptions): Promise<T> 
     )
 
     if (!RETRYABLE.has(res.status) || attempt === MAX_ATTEMPTS - 1) {
-      throw new AiError(providerMessage(res.status), res.status)
+      // A 429 that survives every retry AND carries no Retry-After is not a
+      // busy moment - it is the workspace's usage quota / plan limit (Mistral
+      // code 1300). Saying "try again in a few seconds" there sends people
+      // into a loop; the fix is on the Mistral billing page, not the retry.
+      const quota =
+        res.status === 429 && attempt === MAX_ATTEMPTS - 1 && !res.headers.get("retry-after")
+      throw new AiError(
+        quota
+          ? "The AI usage limit for this workspace has been reached - check the Mistral plan / quota"
+          : providerMessage(res.status),
+        res.status,
+      )
     }
   }
 

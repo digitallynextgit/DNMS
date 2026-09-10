@@ -25,7 +25,8 @@ export interface PlannedDeliverable {
   quantity: number
   links: string[]
   notes: string | null
-  employeeId: string
+  /** Null while the row is owed by a team and nobody has claimed it. */
+  employeeId: string | null
   /** yyyy-MM-dd. */
   startedOn: string | null
   /** yyyy-MM-dd. */

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import { apiFetch } from "@/lib/api-fetch"
-import type { ProjectSheet, SheetColumnType, SheetEvent } from "../lib/sheet-types"
+import type { ProjectSheet, SheetColumnType, SheetEvent, SheetWorkbook } from "../lib/sheet-types"
 
 /**
  * Project sheets.
@@ -20,10 +20,11 @@ import type { ProjectSheet, SheetColumnType, SheetEvent } from "../lib/sheet-typ
  */
 const key = (projectId: string) => ["project-sheets", projectId] as const
 
+/** Every workbook ("sheet" in the UI) on the project, each with its tabs. */
 export function useProjectSheets(projectId: string) {
   return useQuery({
     queryKey: key(projectId),
-    queryFn: () => apiFetch<{ data: ProjectSheet[] }>(`/api/projects/${projectId}/sheets`),
+    queryFn: () => apiFetch<{ data: SheetWorkbook[] }>(`/api/projects/${projectId}/sheets`),
     enabled: Boolean(projectId),
     select: (r) => r.data,
   })
@@ -49,8 +50,66 @@ export function useSheetMutations(projectId: string) {
   const fail = (e: unknown, fallback: string) =>
     toast.error(e instanceof Error ? e.message : fallback)
 
+  // ── Workbooks: what the UI calls a "sheet" - a named set of tabs ────────────
+  const workbooks = `/api/projects/${projectId}/workbooks`
+
+  const createWorkbook = useMutation({
+    mutationFn: (body: { name: string; firstTab?: string }) =>
+      apiFetch<{ data: SheetWorkbook }>(workbooks, {
+        method: "POST",
+        headers: json,
+        body: JSON.stringify(body),
+      }).then((r) => r.data),
+    onSuccess: () => {
+      void invalidate()
+      toast.success("Sheet created")
+    },
+    onError: (e) => fail(e, "Could not create the sheet"),
+  })
+
+  const renameWorkbook = useMutation({
+    mutationFn: ({ workbookId, name }: { workbookId: string; name: string }) =>
+      apiFetch(`${workbooks}/${workbookId}`, {
+        method: "PATCH",
+        headers: json,
+        body: JSON.stringify({ name }),
+      }),
+    onSuccess: invalidate,
+    onError: (e) => fail(e, "Could not rename the sheet"),
+  })
+
+  const assignWorkbook = useMutation({
+    mutationFn: ({ workbookId, employeeId }: { workbookId: string; employeeId: string | null }) =>
+      apiFetch<{ data: SheetWorkbook }>(`${workbooks}/${workbookId}/assign`, {
+        method: "POST",
+        headers: json,
+        body: JSON.stringify({ employeeId }),
+      }),
+    onSuccess: (res) => {
+      void invalidate()
+      const who = res.data.assignedTo
+      toast.success(
+        who
+          ? `"${res.data.name}" assigned to ${who.firstName} ${who.lastName}`.trim()
+          : `"${res.data.name}" is now unassigned`,
+      )
+    },
+    onError: (e) => fail(e, "Could not assign the sheet"),
+  })
+
+  const deleteWorkbook = useMutation({
+    mutationFn: (workbookId: string) =>
+      apiFetch(`${workbooks}/${workbookId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void invalidate()
+      toast.success("Sheet deleted")
+    },
+    onError: (e) => fail(e, "Could not delete the sheet"),
+  })
+
+  // ── Tabs: one grid inside a workbook ────────────────────────────────────────
   const createSheet = useMutation({
-    mutationFn: (body: { name: string; description?: string }) =>
+    mutationFn: (body: { workbookId: string; name: string; description?: string }) =>
       apiFetch<{ data: ProjectSheet }>(base, {
         method: "POST",
         headers: json,
@@ -58,9 +117,9 @@ export function useSheetMutations(projectId: string) {
       }),
     onSuccess: () => {
       void invalidate()
-      toast.success("Sheet created")
+      toast.success("Tab created")
     },
-    onError: (e) => fail(e, "Could not create the sheet"),
+    onError: (e) => fail(e, "Could not create the tab"),
   })
 
   const renameSheet = useMutation({
@@ -71,16 +130,16 @@ export function useSheetMutations(projectId: string) {
         body: JSON.stringify(body),
       }),
     onSuccess: invalidate,
-    onError: (e) => fail(e, "Could not rename the sheet"),
+    onError: (e) => fail(e, "Could not rename the tab"),
   })
 
   const deleteSheet = useMutation({
     mutationFn: (sheetId: string) => apiFetch(`${base}/${sheetId}`, { method: "DELETE" }),
     onSuccess: () => {
       void invalidate()
-      toast.success("Sheet deleted")
+      toast.success("Tab deleted")
     },
-    onError: (e) => fail(e, "Could not delete the sheet"),
+    onError: (e) => fail(e, "Could not delete the tab"),
   })
 
   const addColumn = useMutation({
@@ -201,7 +260,27 @@ export function useSheetMutations(projectId: string) {
     }
   }
 
+  /**
+   * Append many rows at once (the file importer). Cells are keyed by column id;
+   * the server normalises values and skips fully empty rows.
+   */
+  const importRows = useMutation({
+    mutationFn: ({ sheetId, rows }: { sheetId: string; rows: Record<string, unknown>[] }) =>
+      apiFetch<{ data: { imported: number; firstPosition: number } }>(`${base}/${sheetId}/import`, {
+        method: "POST",
+        headers: json,
+        body: JSON.stringify({ rows }),
+      }).then((r) => r.data),
+    onSuccess: () => void invalidate(),
+    onError: (e) => fail(e, "Could not import the rows"),
+  })
+
   return {
+    importRows,
+    createWorkbook,
+    renameWorkbook,
+    assignWorkbook,
+    deleteWorkbook,
     createSheet,
     renameSheet,
     deleteSheet,

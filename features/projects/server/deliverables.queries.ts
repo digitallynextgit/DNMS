@@ -10,6 +10,7 @@ import { getCachedSignedUrl } from "@/lib/storage"
 import { suggestTypes, typeKey } from "../lib/deliverable-types"
 import {
   MADE_STATUSES,
+  OPEN_STATUSES,
   STATUS_ORDER,
   isOpenStatus,
   periodOpen,
@@ -56,7 +57,8 @@ export interface DeliverableRow {
   projectId: string
   project: { id: string; name: string; code: string; slug: string | null }
   team: { id: string; name: string } | null
-  employee: { id: string; name: string; profilePhoto: string | null }
+  /** The maker. Null while the row is still owed by the team and unclaimed. */
+  employee: { id: string; name: string; profilePhoto: string | null } | null
   loggedByName: string | null
   task: { id: string; title: string } | null
   goal: { id: string; title: string } | null
@@ -298,11 +300,13 @@ async function toRow(
     projectId: r.projectId,
     project: r.project,
     team: r.team,
-    employee: {
-      id: r.employee.id,
-      name: fullName(r.employee) ?? "",
-      profilePhoto: r.employee.profilePhoto,
-    },
+    employee: r.employee
+      ? {
+          id: r.employee.id,
+          name: fullName(r.employee) ?? "",
+          profilePhoto: r.employee.profilePhoto,
+        }
+      : null,
     loggedByName: fullName(r.loggedBy),
     task: r.task ? { id: r.task.id, title: r.task.title } : null,
     goal: r.goal,
@@ -491,6 +495,9 @@ export async function getDeliverablesOverview(
     p.tally.add(r.type, r.quantity, hours)
     projects.set(r.projectId, p)
 
+    // Unassigned rows are owed, never made, so they cannot reach here through
+    // `counted` - but a per-PERSON tally has no bucket for "nobody" either way.
+    if (!r.employeeId || !r.employee) continue
     const who = people.get(r.employeeId) ?? {
       id: r.employeeId,
       name: fullName(r.employee) ?? "",
@@ -643,4 +650,55 @@ export async function listDeliverableEvents(
     actorName: fullName(e.actor),
     createdAt: e.createdAt.toISOString(),
   }))
+}
+
+// ─── What one person owes ─────────────────────────────────────────────────────
+
+/**
+ * The owed work in front of ONE person, across every project.
+ *
+ * Two kinds, because the handoff has two stages: rows with their name on them,
+ * and rows their team owes that nobody has picked up yet. Without the second
+ * kind the account manager's commitment to a team would sit where only a
+ * manager ever looks, and "the video team owes four reels" would reach the
+ * people who make reels by word of mouth.
+ *
+ * Ordered by urgency: overdue first, then soonest due, then undated.
+ */
+export async function getMyOwedDeliverables(
+  session: Session,
+  opts: { limit?: number } = {},
+): Promise<{ rows: DeliverableRow[]; overdue: number; unclaimed: number }> {
+  const me = session.user.id
+  const today = todayUtc()
+
+  const raw = await db.projectDeliverable.findMany({
+    where: {
+      status: { in: [...OPEN_STATUSES] },
+      OR: [
+        { employeeId: me },
+        // Unclaimed, and owed by a team this person is actually on.
+        {
+          employeeId: null,
+          team: { members: { some: { employeeId: me } } },
+        },
+      ],
+    },
+    select: ROW_SELECT,
+    // Undated work sorts last: a due date is the only thing that makes one
+    // owed row more urgent than another.
+    orderBy: [{ dueOn: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+    take: opts.limit ?? 100,
+  })
+
+  const qtyByTask = await quantityByTask(
+    raw.map((r) => r.taskId).filter((id): id is string => !!id),
+  )
+  const rows = await Promise.all(raw.map((r) => toRow(r, qtyByTask, today)))
+
+  return {
+    rows,
+    overdue: rows.filter((r) => r.dueOn && r.dueOn < ymd(today)!).length,
+    unclaimed: rows.filter((r) => !r.employee).length,
+  }
 }

@@ -300,6 +300,10 @@ export function GoalTasks({
   canStaff,
   teams = [],
   compact = false,
+  adding: addingProp,
+  onAddingChange,
+  linking: linkingProp,
+  onLinkingChange,
 }: {
   projectId: string
   goal: GoalNode
@@ -308,14 +312,32 @@ export function GoalTasks({
   /** Teams this person may staff into, for the add form's picker. */
   teams?: StaffableTeam[]
   compact?: boolean
+  /**
+   * Controlled "add a task" / "link tasks" state, owned by the goal card.
+   *
+   * Uncontrolled, this band drew "+ Add task | Link tasks" under EVERY goal and
+   * sub-goal whether or not any work existed - four copies of the same two
+   * buttons on one card, which is most of what made it unreadable. The card now
+   * offers those once, in its own footer and in each sub-goal's menu.
+   */
+  adding?: boolean
+  onAddingChange?: (v: boolean) => void
+  linking?: boolean
+  onLinkingChange?: (v: boolean) => void
 }) {
-  const [adding, setAdding] = React.useState(false)
-  const [linking, setLinking] = React.useState(false)
+  const [addingSelf, setAddingSelf] = React.useState(false)
+  const [linkingSelf, setLinkingSelf] = React.useState(false)
+  const adding = addingProp ?? addingSelf
+  const setAdding = onAddingChange ?? setAddingSelf
+  const linking = linkingProp ?? linkingSelf
+  const setLinking = onLinkingChange ?? setLinkingSelf
+  const controlled = addingProp !== undefined || linkingProp !== undefined
   const invalidate = useInvalidateGoalWork(projectId)
   const updateTask = useUpdateTask()
   const tasks = goal.tasks
 
-  if (tasks.length === 0 && !canStaff) return null
+  // Nothing to show and nothing being started: stay out of the way entirely.
+  if (tasks.length === 0 && (!canStaff || (controlled && !adding && !linking))) return null
 
   return (
     <div
@@ -424,16 +446,32 @@ export function GoalTasks({
         </ul>
       )}
 
+      {/* A dialog, not an unfolding row. The form has a title, a team and a
+          couple of toggles, and opening it inline shoved every sub-goal below
+          it down the page while you typed. */}
       {canStaff && goal.isActive && (
-        <div className={cn(tasks.length > 0 && "mt-2")}>
-          {adding ? (
+        <Dialog open={adding} onOpenChange={(o) => !o && setAdding(false)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Add a task</DialogTitle>
+              <DialogDescription>
+                Work that serves &ldquo;{goal.title}&rdquo;. It is linked to the goal from the
+                moment it exists, so the goal&rsquo;s progress counts it.
+              </DialogDescription>
+            </DialogHeader>
             <AddTaskForm
               projectId={projectId}
               goal={goal}
               teams={teams}
               onDone={() => setAdding(false)}
             />
-          ) : (
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {canStaff && goal.isActive && !controlled && (
+        <div className={cn(tasks.length > 0 && "mt-2")}>
+          {adding ? null : (
             <div className="flex flex-wrap gap-1">
               <Button
                 variant="ghost"

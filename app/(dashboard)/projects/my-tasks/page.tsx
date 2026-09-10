@@ -36,6 +36,7 @@ import {
 } from "@/features/projects/lib/task-permissions"
 import { TaskResources } from "@/features/projects/components/task-resources"
 import { LogDeliverableButton } from "@/features/projects/components/log-deliverable-button"
+import { OwedDeliverablesPanel } from "@/features/projects/components/owed-deliverables-panel"
 import { cn } from "@/lib/utils"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
@@ -502,6 +503,12 @@ export default function MyTasksPage() {
         }
       />
       <TaskCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
+
+      {/* Above the tasks on purpose: a task is what you decided to do, an owed
+          deliverable is what somebody promised a client on your behalf. Own
+          view only - it reads "what YOU owe", and there is no session but
+          yours to answer that for. */}
+      {isMine && <OwedDeliverablesPanel currentUserId={actor.userId} />}
 
       {/* Summary strip */}
       <StatStrip

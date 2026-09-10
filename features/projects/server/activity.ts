@@ -22,6 +22,7 @@ export type ActivityType =
   | "DELIVERABLE_STATUS_CHANGED"
   | "DELIVERABLE_VERIFIED"
   | "GOAL_TARGET_CHANGED"
+  | "SHEET_ASSIGNED"
 
 export async function logActivity(params: {
   projectId: string

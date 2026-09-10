@@ -5,6 +5,7 @@ import {
   DELIVERABLE_STATUS_LABELS,
   LOCK_DAYS,
   MADE_STATUSES,
+  MAX_REPEAT,
   OPEN_STATUSES,
   OUTCOME_STATUSES,
   STATUS_ORDER,
@@ -14,6 +15,7 @@ import {
   nextActions,
   periodClosesOn,
   periodOpen,
+  repeatDueDates,
   splitTaskHours,
   type DeliverableActor,
   type DeliverableStatus,
@@ -211,5 +213,70 @@ describe("splitTaskHours", () => {
 
   it("is zero rather than NaN when there is nothing to divide by", () => {
     expect(splitTaskHours(8, 0, 0)).toBe(0)
+  })
+})
+
+// ─── Repeating commitments ────────────────────────────────────────────────────
+
+describe("repeatDueDates", () => {
+  const day = (s: string) => new Date(`${s}T00:00:00.000Z`)
+  const ymd = (d: Date) => d.toISOString().slice(0, 10)
+  const run = (start: string, every: "WEEK" | "MONTH", n: number) =>
+    repeatDueDates(day(start), every, n).map(ymd)
+
+  it("includes the first date and steps a week at a time", () => {
+    expect(run("2026-09-14", "WEEK", 4)).toEqual([
+      "2026-09-14",
+      "2026-09-21",
+      "2026-09-28",
+      "2026-10-05",
+    ])
+  })
+
+  it("crosses a year boundary without drifting", () => {
+    expect(run("2026-12-28", "WEEK", 3)).toEqual(["2026-12-28", "2027-01-04", "2027-01-11"])
+  })
+
+  it("steps months, keeping the day of the month", () => {
+    expect(run("2026-09-15", "MONTH", 4)).toEqual([
+      "2026-09-15",
+      "2026-10-15",
+      "2026-11-15",
+      "2026-12-15",
+    ])
+  })
+
+  it("clamps a month-end start to the last day of each month", () => {
+    // Not 2 March: a commitment made on the 31st is due at each month's end.
+    expect(run("2027-01-31", "MONTH", 4)).toEqual([
+      "2027-01-31",
+      "2027-02-28",
+      "2027-03-31",
+      "2027-04-30",
+    ])
+  })
+
+  it("measures every step from the FIRST date, so a clamp cannot cascade", () => {
+    // If March were computed from 28 Feb it would land on the 28th, and every
+    // month after it would be wrong too.
+    const out = run("2028-01-31", "MONTH", 3)
+    expect(out[1]).toBe("2028-02-29") // leap year
+    expect(out[2]).toBe("2028-03-31")
+  })
+
+  it("always produces at least one date, whatever nonsense the count is", () => {
+    expect(run("2026-09-14", "WEEK", 0)).toEqual(["2026-09-14"])
+    expect(run("2026-09-14", "WEEK", -5)).toEqual(["2026-09-14"])
+    expect(run("2026-09-14", "WEEK", 1.7)).toEqual(["2026-09-14"])
+  })
+
+  it("caps at a year of weeks", () => {
+    expect(repeatDueDates(day("2026-09-14"), "WEEK", 500)).toHaveLength(MAX_REPEAT)
+  })
+
+  it("does not mutate the date it was given", () => {
+    const start = day("2026-09-14")
+    repeatDueDates(start, "MONTH", 6)
+    expect(ymd(start)).toBe("2026-09-14")
   })
 })

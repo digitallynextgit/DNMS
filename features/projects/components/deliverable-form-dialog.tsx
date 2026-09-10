@@ -21,13 +21,15 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/shared/spinner"
 import { DateField, toDateString } from "@/components/shared/date-field"
-import { useAssignableEmployees } from "../hooks/use-projects"
+import { useAssignableEmployees, useProjectTeams } from "../hooks/use-projects"
 import { useProjectGoals } from "../hooks/use-goals"
 import {
   useDeliverableMutations,
@@ -62,6 +64,8 @@ import { SearchPicker } from "./search-picker"
 // ─────────────────────────────────────────────────────────────────────────────
 
 const NONE = "__none__"
+/** "Nobody yet - the team owes it." Only offered while the work is still owed. */
+const TEAM = "__team__"
 
 interface TaskOption {
   id: string
@@ -85,6 +89,7 @@ export function DeliverableFormDialog({
   entry,
   onCreated,
   canManage,
+  canStaff,
   currentUserId,
   suggestedTypes,
   initial,
@@ -97,10 +102,22 @@ export function DeliverableFormDialog({
   onOpenChange: (open: boolean) => void
   /** Set = editing this row (and files are attachable). Null = new. */
   entry: DeliverableRow | null
-  /** Called with the new id so the parent can flip the dialog into edit mode. */
-  onCreated: (id: string) => void
+  /**
+   * Called with the new id so the parent can flip the dialog into edit mode
+   * (to attach files). `count` is how many rows were laid down - more than one
+   * means a repeat, where editing "the" row would be the wrong thing to open.
+   */
+  onCreated: (id: string, count: number) => void
   /** Admin / account manager: may log on behalf of anyone on the project. */
   canManage: boolean
+  /**
+   * May they hand work out at all - a project manager OR a team manager.
+   *
+   * Separate from `canManage` because planning and logging-for-others are
+   * different rights: a team manager assigns their team's work but is not the
+   * account manager. Defaults to `canManage` so existing callers are unchanged.
+   */
+  canStaff?: boolean
   currentUserId: string
   suggestedTypes: string[]
   /** Prefill for a NEW entry - the capture prompt seeds these from the task. */
@@ -130,7 +147,12 @@ export function DeliverableFormDialog({
 }) {
   // Keyed remount by the parent (key={entry?.id ?? "new"}), so state seeds
   // straight from props with no effect.
-  const [employeeId, setEmployeeId] = React.useState(entry?.employee.id ?? currentUserId)
+  // An existing row with no maker is owed BY A TEAM; that is a real state the
+  // form has to be able to show and preserve, not just a missing value.
+  const [employeeId, setEmployeeId] = React.useState(
+    entry ? (entry.employee?.id ?? TEAM) : currentUserId,
+  )
+  const [teamId, setTeamId] = React.useState(entry?.team?.id ?? NONE)
   const [type, setType] = React.useState(entry?.type ?? initial?.type ?? "")
   const [title, setTitle] = React.useState(entry?.title ?? initial?.title ?? "")
   const [quantity, setQuantity] = React.useState(String(entry?.quantity ?? 1))
@@ -139,6 +161,10 @@ export function DeliverableFormDialog({
     entry?.completedOn ?? toDateString(new Date()),
   )
   const [dueOn, setDueOn] = React.useState(entry?.dueOn ?? initial?.dueOn ?? "")
+  // Repetition applies to NEW owed work only: editing one week of a standing
+  // commitment must never silently re-lay the other eleven.
+  const [repeatEvery, setRepeatEvery] = React.useState<"NONE" | "WEEK" | "MONTH">("NONE")
+  const [repeatCount, setRepeatCount] = React.useState("4")
   const [goalId, setGoalId] = React.useState(entry?.goal?.id ?? initial?.goalId ?? NONE)
   // Once somebody picks a goal by hand, choosing a task stops overwriting it.
   const [goalTouched, setGoalTouched] = React.useState(Boolean(entry?.goal?.id ?? initial?.goalId))
@@ -149,8 +175,10 @@ export function DeliverableFormDialog({
   const fileInput = React.useRef<HTMLInputElement>(null)
   const typeListId = React.useId()
 
+  const assigns = canStaff ?? canManage
   const m = useDeliverableMutations(projectId)
-  const people = useAssignableEmployees(projectId, canManage)
+  const people = useAssignableEmployees(projectId, assigns)
+  const teams = useProjectTeams(projectId)
   // Every task on the project, grouped in the picker by who holds it. Fetching
   // only the maker's own tasks looked broken the moment somebody logged work
   // for a task that was never assigned to them (or to anyone).
@@ -207,7 +235,62 @@ export function DeliverableFormDialog({
   const effectiveGoalId = goalTouched ? goalId : (chosenTask?.goal?.id ?? goalId)
   const inheritedGoal = !goalTouched && chosenTask?.goal ? chosenTask.goal.title : null
 
+  // ── Team <-> person, kept in step ──────────────────────────────────────────
+  // Memoised: a bare `?? []` mints a new array on every render, which would
+  // make every memo below it recompute for nothing.
+  const teamList = React.useMemo(() => teams.data?.data ?? [], [teams.data])
+  const roster = React.useMemo(() => people.data?.data ?? [], [people.data])
+  const teamName = teamList.find((t) => t.id === teamId)?.name ?? null
+  /** Ids on the chosen team, so the picker can lead with them. */
+  const teamMemberIds = React.useMemo(() => {
+    const t = teamList.find((x) => x.id === teamId)
+    if (!t) return new Set<string>()
+    const ids = new Set<string>(
+      (t.members ?? []).map((mem) => mem.employee?.id).filter(Boolean) as string[],
+    )
+    if (t.managerId) ids.add(t.managerId)
+    return ids
+  }, [teamList, teamId])
+  const onTeam = React.useMemo(
+    () => (teamId === NONE ? [] : roster.filter((p) => teamMemberIds.has(p.id))),
+    [roster, teamMemberIds, teamId],
+  )
+  const offTeam = React.useMemo(
+    () => (teamId === NONE ? roster : roster.filter((p) => !teamMemberIds.has(p.id))),
+    [roster, teamMemberIds, teamId],
+  )
+
+  /** Choosing a team drops a person who is not on it back to "the team". */
+  function pickTeam(next: string) {
+    setTeamId(next)
+    if (next === NONE || employeeId === TEAM) return
+    const t = teamList.find((x) => x.id === next)
+    if (!t) return
+    const ids = new Set((t.members ?? []).map((mem) => mem.employee?.id))
+    if (t.managerId) ids.add(t.managerId)
+    if (!ids.has(employeeId) && owed) setEmployeeId(TEAM)
+  }
+
+  /** Choosing a person fills the team in from them, when none was set. */
+  function pickPerson(next: string) {
+    setEmployeeId(next)
+    if (next === TEAM || teamId !== NONE) return
+    const theirs = teamList.find(
+      (t) => t.managerId === next || (t.members ?? []).some((mem) => mem.employee?.id === next),
+    )
+    if (theirs) setTeamId(theirs.id)
+  }
+
+  const toTeam = employeeId === TEAM
+  // Repeating is offered only where it means something: planning new owed work
+  // that has a first due date to count from.
+  const canRepeat = owed && !entry
+  const repeatN = Number(repeatCount)
+  const repeats = canRepeat && repeatEvery !== "NONE"
   const valid =
+    (!toTeam || teamId !== NONE) &&
+    (!repeats ||
+      (dueOn.length > 0 && Number.isInteger(repeatN) && repeatN >= 2 && repeatN <= 52)) &&
     type.trim().length > 0 &&
     type.trim().length <= MAX_TYPE_LENGTH &&
     title.trim().length > 0 &&
@@ -231,7 +314,10 @@ export function DeliverableFormDialog({
   const submit = () => {
     if (!valid) return
     const body = {
-      employeeId,
+      // null is the wire form of "nobody yet"; the server only accepts it on
+      // owed work, and only alongside a team.
+      employeeId: toTeam ? null : employeeId,
+      teamId: teamId === NONE ? null : teamId,
       type: type.trim(),
       title: title.trim(),
       quantity: qty,
@@ -245,11 +331,17 @@ export function DeliverableFormDialog({
       notes: notes.trim() || null,
       taskId: taskId === NONE ? null : taskId,
       ...(submitStatus || (!entry && initial?.status) ? { status } : {}),
+      ...(repeats ? { repeat: { every: repeatEvery as "WEEK" | "MONTH", count: repeatN } } : {}),
     }
     if (entry) {
       m.update.mutate({ id: entry.id, ...body }, { onSuccess: () => onOpenChange(false) })
     } else {
-      m.create.mutate(body, { onSuccess: (created) => onCreated(created.id) })
+      m.create.mutate(body, {
+        onSuccess: (created) => {
+          if (created.created > 1) onOpenChange(false)
+          onCreated(created.id, created.created)
+        },
+      })
     }
   }
 
@@ -271,22 +363,87 @@ export function DeliverableFormDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          {canManage && (
-            <div className="space-y-1.5">
-              <Label className="text-muted-foreground text-[11px]">Made by</Label>
-              <Select value={employeeId} onValueChange={setEmployeeId}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Who made it" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(people.data?.data ?? []).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.firstName} {p.lastName}
-                      {p.id === currentUserId ? " (you)" : ""}
+          {/* TEAM FIRST, then the person. That is the order the work is
+              actually decided in - "the video team owes this; now, who on
+              video?" - and it lets the second field answer the first instead
+              of listing the whole company. The dependency runs both ways:
+              picking a person while no team is set fills the team in from
+              them, so logging your own output stays one click. */}
+          {assigns && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label required={toTeam} className="text-muted-foreground text-[11px]">
+                  Team
+                </Label>
+                <Select value={teamId} onValueChange={pickTeam}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Which team" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>
+                      <span className="text-muted-foreground">
+                        {toTeam ? "Pick a team" : "From the maker"}
+                      </span>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {(teams.data?.data ?? []).map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                        <span className="text-muted-foreground ml-2 text-[11px]">
+                          {t.members?.length ?? 0}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground text-[11px]">
+                  {owed ? "Assign to" : "Made by"}
+                </Label>
+                <Select value={employeeId} onValueChange={pickPerson}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder={owed ? "Who will make it" : "Who made it"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* Only while it is owed: something already made has a maker. */}
+                    {owed && (
+                      <SelectItem value={TEAM}>
+                        <span className="text-muted-foreground">
+                          {teamName ? `Leave it to ${teamName}` : "Leave it to the team"}
+                        </span>
+                      </SelectItem>
+                    )}
+                    {onTeam.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel className="text-[11px]">{teamName}</SelectLabel>
+                        {onTeam.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.firstName} {p.lastName}
+                            {p.id === currentUserId ? " (you)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {/* Never a hard filter: work does get handed to somebody
+                        outside the team, and a picker that made that
+                        impossible would just push people back to the sheet. */}
+                    {offTeam.length > 0 && (
+                      <SelectGroup>
+                        {onTeam.length > 0 && (
+                          <SelectLabel className="text-[11px]">Everyone else</SelectLabel>
+                        )}
+                        {offTeam.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.firstName} {p.lastName}
+                            {p.id === currentUserId ? " (you)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
 
@@ -366,7 +523,9 @@ export function DeliverableFormDialog({
                 completion date for a thing that does not exist yet. */}
             {owed ? (
               <div className="space-y-1.5">
-                <Label className="text-muted-foreground text-[11px]">Due (optional)</Label>
+                <Label required={repeats} className="text-muted-foreground text-[11px]">
+                  Due {repeats ? "(first one)" : "(optional)"}
+                </Label>
                 <DateField value={dueOn} onChange={setDueOn} placeholder="Due on" modal />
               </div>
             ) : (
@@ -387,6 +546,54 @@ export function DeliverableFormDialog({
               </div>
             )}
           </div>
+
+          {/* A retainer is written as "three reels a week", so it should be
+              enterable that way. Each repeat is laid down as its own owed row:
+              one week can be reassigned, moved or dropped without disturbing
+              the rest, and nothing depends on a generator still running. */}
+          {canRepeat && (
+            <div className="grid gap-3 sm:grid-cols-[1fr_110px]">
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground text-[11px]">Repeat</Label>
+                <Select
+                  value={repeatEvery}
+                  onValueChange={(v) => setRepeatEvery(v as typeof repeatEvery)}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">
+                      <span className="text-muted-foreground">Just once</span>
+                    </SelectItem>
+                    <SelectItem value="WEEK">Every week</SelectItem>
+                    <SelectItem value="MONTH">Every month</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {repeats && (
+                <div className="space-y-1.5">
+                  <Label required className="text-muted-foreground text-[11px]">
+                    How many
+                  </Label>
+                  <Input
+                    type="number"
+                    min={2}
+                    max={52}
+                    value={repeatCount}
+                    onChange={(e) => setRepeatCount(e.target.value)}
+                  />
+                </div>
+              )}
+              {repeats && (
+                <p className="text-muted-foreground text-[11px] sm:col-span-2">
+                  {Number.isInteger(repeatN) && repeatN >= 2 && repeatN <= 52 && dueOn
+                    ? `${repeatN} owed rows, one ${repeatEvery === "WEEK" ? "a week" : "a month"} from ${dueOn}.`
+                    : "Pick a first due date and how many times it repeats (2-52)."}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">

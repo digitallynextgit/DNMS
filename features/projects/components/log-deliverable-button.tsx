@@ -126,7 +126,7 @@ export function LogDeliverableButton({
             if (!o) setEditingId(null)
           }}
           entry={entry}
-          onCreated={(id) => setEditingId(id)}
+          onCreated={(id, count) => count === 1 && setEditingId(id)}
           canManage={false}
           currentUserId={currentUserId}
           suggestedTypes={ledger.data?.suggestedTypes ?? []}
