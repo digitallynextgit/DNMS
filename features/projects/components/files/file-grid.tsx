@@ -35,30 +35,63 @@ function openKeys(onOpen: () => void) {
 }
 
 /**
- * A checkbox that stays out of the way until it is useful: hidden until the
- * tile is hovered or focused, and pinned visible once ticked. Always visible
- * on touch screens, which have no hover to reveal it with.
+ * The item's type icon, which BECOMES its checkbox on hover or once ticked.
+ *
+ * The two share one 16px slot rather than sitting side by side. A checkbox that
+ * is merely `opacity-0` still occupies its place in the row, and that was the
+ * permanent empty gap to the left of every name in this grid. Swapping in place
+ * also means ticking something shifts nothing.
+ *
+ * A touch screen has no hover to swap on, so there the checkbox is simply the
+ * one showing: losing selection entirely on mobile is the worse trade, and the
+ * band heading above already says whether these are folders or files.
  */
-function SelectBox({ selected, onToggle }: { selected: boolean; onToggle: () => void }) {
+function IconOrCheck({
+  icon: Icon,
+  tint,
+  selected,
+  onToggle,
+  label,
+  className,
+}: {
+  icon: React.ElementType
+  tint: string
+  selected: boolean
+  onToggle: () => void
+  label: string
+  /** Nudges from the caller. Merged in rather than applied by a wrapper span:
+   *  a wrapper is inline, and an inline box ignores the w-4/h-4 this slot is. */
+  className?: string
+}) {
   return (
-    <span
-      onClick={(e) => e.stopPropagation()}
-      className={cn(
-        "flex shrink-0 items-center transition-opacity",
-        // Not `opacity-0 … selected && opacity-100`: both would be emitted and
-        // the winner would depend on utility order, not on this condition.
-        selected
-          ? "opacity-100"
-          : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-sm:opacity-100",
-      )}
-    >
-      <Checkbox checked={selected} onCheckedChange={onToggle} aria-label="Select item" />
+    <span className={cn("relative block h-4 w-4 shrink-0", className)}>
+      <Icon
+        className={cn(
+          "absolute inset-0 h-4 w-4 transition-opacity max-sm:opacity-0",
+          tint,
+          // Not `opacity-0 … selected && opacity-100`: both would be emitted
+          // and the winner would depend on utility order, not on this value.
+          selected ? "opacity-0" : "opacity-100 group-focus-within:opacity-0 group-hover:opacity-0",
+        )}
+      />
+      <span
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          "absolute inset-0 flex items-center transition-opacity max-sm:opacity-100",
+          selected
+            ? "opacity-100"
+            : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
+        )}
+      >
+        <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={label} />
+      </span>
     </span>
   )
 }
 
 function FolderTile({ file, selected, onToggle, onOpen, actions }: TileProps) {
   const FolderIcon = TYPE_META.folder.icon
+  const count = file.itemCount ?? 0
   return (
     <div
       role="button"
@@ -67,17 +100,31 @@ function FolderTile({ file, selected, onToggle, onOpen, actions }: TileProps) {
       onKeyDown={openKeys(onOpen)}
       title={file.name}
       className={cn(
-        "group bg-muted/50 hover:bg-muted focus-visible:ring-ring flex items-center gap-2 rounded-sm px-2.5 py-2 text-left focus-visible:ring-2 focus-visible:outline-none",
+        "group bg-muted/50 hover:bg-muted focus-visible:ring-ring flex min-h-16 items-start gap-2.5 rounded-sm px-3 py-2.5 text-left focus-visible:ring-2 focus-visible:outline-none",
         selected && "ring-primary bg-muted ring-1",
       )}
     >
-      <SelectBox selected={selected} onToggle={onToggle} />
-      <FolderIcon className={cn("h-4 w-4 shrink-0", TYPE_META.folder.tint)} />
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">{file.name}</span>
-      <span className="text-muted-foreground shrink-0 text-[11px] tabular-nums">
-        {file.itemCount ?? 0}
+      <IconOrCheck
+        icon={FolderIcon}
+        tint={TYPE_META.folder.tint}
+        selected={selected}
+        onToggle={onToggle}
+        label={`Select ${file.name}`}
+        className="mt-0.5"
+      />
+
+      <span className="min-w-0 flex-1">
+        {/* Two lines before it gives up, so "Festival & Campaign Creatives"
+            reads as itself instead of "Festival & ...". */}
+        <span className="line-clamp-2 text-sm leading-snug font-medium break-words">
+          {file.name}
+        </span>
+        <span className="text-muted-foreground mt-0.5 block text-[11px] tabular-nums">
+          {count} {count === 1 ? "item" : "items"}
+        </span>
       </span>
-      <span onClick={(e) => e.stopPropagation()} className="-mr-1.5 shrink-0">
+
+      <span onClick={(e) => e.stopPropagation()} className="-mt-1 -mr-1.5 shrink-0">
         {actions}
       </span>
     </div>
@@ -106,8 +153,13 @@ function GridCard({ file, selected, onToggle, onOpen, actions, thumb }: TileProp
       )}
     >
       <div className="flex items-center gap-2 px-2.5 py-2">
-        <SelectBox selected={selected} onToggle={onToggle} />
-        <Icon className={cn("h-4 w-4 shrink-0", meta.tint)} />
+        <IconOrCheck
+          icon={Icon}
+          tint={meta.tint}
+          selected={selected}
+          onToggle={onToggle}
+          label={`Select ${file.name}`}
+        />
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{file.name}</span>
         <span onClick={(e) => e.stopPropagation()} className="-mr-1.5 shrink-0">
           {actions}
@@ -186,7 +238,9 @@ export function FileGrid({
     <div className="space-y-5">
       {folders.length > 0 && (
         <Band label="Folders">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          {/* One column fewer than the file cards: a folder is a NAME, and six
+              across left every name too narrow to be one. */}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {folders.map((f) => (
               <FolderTile
                 key={f.id}

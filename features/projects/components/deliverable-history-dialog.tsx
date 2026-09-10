@@ -52,13 +52,29 @@ export const DELIVERABLE_STATUS_CHIP: Record<DeliverableStatus, string> = {
   REJECTED: "bg-amber-500/12 text-amber-500",
 }
 
-/** The same five, as a solid dot for the trail's timeline. */
-const DELIVERABLE_STATUS_DOT: Record<DeliverableStatus, string> = {
+/** The same five, as a solid dot for the trail's timeline and the tracker's legend. */
+export const DELIVERABLE_STATUS_DOT: Record<DeliverableStatus, string> = {
   PLANNED: "bg-muted-foreground/40",
   IN_PROGRESS: "bg-blue-500",
   DELIVERED: "bg-primary",
   ACCEPTED: "bg-emerald-500",
   REJECTED: "bg-amber-500",
+}
+
+/**
+ * The same five again as chart fills.
+ *
+ * Charts cannot take a Tailwind class, and a donut whose slices do not match
+ * the pills beside them is a second colour language to learn. Muted keeps the
+ * CSS variable so it follows the theme; the rest are the literal palette
+ * values those classes compile to.
+ */
+export const DELIVERABLE_STATUS_FILL: Record<DeliverableStatus, string> = {
+  PLANNED: "hsl(var(--muted-foreground) / 0.35)",
+  IN_PROGRESS: "#3b82f6",
+  DELIVERED: "hsl(var(--primary))",
+  ACCEPTED: "#10b981",
+  REJECTED: "#f59e0b",
 }
 
 /** The same colour again as plain text, for the from → to line. */

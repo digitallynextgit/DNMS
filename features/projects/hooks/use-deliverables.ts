@@ -54,11 +54,16 @@ export interface DeliverableRow {
   type: string
   title: string
   quantity: number
+  /** How many of `quantity` are made. Moves as work lands, without the status. */
+  deliveredQuantity: number
   status: DeliverableStatus
   startedOn: string | null
   /** Null only while the row is owed. */
   completedOn: string | null
   dueOn: string | null
+  /** The window this covers, yyyy-MM-dd. Both set, or both null. */
+  periodStart: string | null
+  periodEnd: string | null
   revisionCount: number
   acceptedAt: string | null
   acceptedByName: string | null
@@ -153,6 +158,8 @@ export interface DeliverableInput {
   type: string
   title: string
   quantity?: number
+  /** How many are made so far. Marking DELIVERED needs this to reach quantity. */
+  deliveredQuantity?: number
   status?: DeliverableStatus
   startedOn?: string | null
   /** Optional: owed work has no completion date, and DELIVERED defaults to today. */

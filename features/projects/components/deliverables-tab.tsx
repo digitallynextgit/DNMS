@@ -4,14 +4,16 @@ import * as React from "react"
 import {
   PackageCheck,
   Plus,
+  Check,
+  ChevronDown,
   Pencil,
   Trash2,
   Link2,
   FileText,
   ExternalLink,
   CalendarDays,
+  Eye,
   UserPlus,
-  Users,
   Lock,
   ShieldCheck,
   History,
@@ -37,6 +39,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -47,7 +50,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { Pagination } from "@/components/shared/pagination"
+import { TabsBar } from "@/components/shared/tabs-bar"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { Link } from "@/components/tenant-link"
+import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { EmptyState } from "@/components/shared/empty-state"
+import { SearchInput } from "@/components/shared/search-input"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DateField, toDateString } from "@/components/shared/date-field"
 import { DateRangeField, type DateRangeValue } from "@/components/shared/date-range-field"
@@ -66,23 +75,40 @@ import {
   type DeliverableStatus,
 } from "../hooks/use-deliverables"
 import { isOpenStatus, periodClosesOn } from "../lib/deliverable-lifecycle"
+import { formatPeriod } from "../lib/delivery-period"
+import {
+  UNPLANNED_KEY,
+  groupIntoPeriods,
+  periodSlug,
+  splitByTeam,
+  type DeliverablePeriod,
+} from "../lib/deliverable-periods"
 import { linkLabel } from "../lib/task-links"
-import { DeliverableFormDialog } from "./deliverable-form-dialog"
-import { DeliverableHistoryDialog, DeliverableStatusPill } from "./deliverable-history-dialog"
+import { DeliverableTracker } from "./deliverable-tracker"
+import { LogWorkDialog } from "./log-work-dialog"
+import { EditItemDialog } from "./edit-item-dialog"
+import { PlanPeriodDialog } from "./plan-period-dialog"
+import {
+  DELIVERABLE_STATUS_DOT,
+  DeliverableHistoryDialog,
+  DeliverableStatusPill,
+} from "./deliverable-history-dialog"
 import { formatHours } from "../lib/format-hours"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The project's ledger of what was made - and what is still owed.
+// The deliverables board: what the client is owed, period by period.
 //
-// Tasks say what people are doing; this says what came out. Filters narrow it
-// (dates, team, person, type, status); GROUP BY answers the question being
-// asked - "per day", "per week", "per person", "per team", "per type" - each
-// group carrying its own count, which is the sum of quantities, not the number
-// of rows. "10 product pages" logged once counts as ten everywhere.
+// The account manager plans a DELIVERABLE - a week, a month, a day - and says
+// what each team owes inside it ("4 blogs from WEB, 2 reels from VIDEO"). That
+// period is one row on the board; the per-team items are what it is made of.
+// The team's manager puts a name on each item, the person named logs the link
+// or file when it lands, and the account manager accepts it or sends it back.
+// Counts are sums of quantities, not rows: "10 product pages" logged once
+// counts as ten everywhere.
 //
 // ── OWED IS NOT A FILTER OF THE SAME LIST ────────────────────────────────────
 // Planned rows have no completion date, so they fall out of every date range
-// the ledger is normally read through. Reading "what do we still owe them"
+// the board is normally read through. Reading "what do we still owe them"
 // through "what did we make in March" would answer nothing, so the owed count
 // and the owed list come from their own query with no dates on it at all.
 //
@@ -94,102 +120,16 @@ import { formatHours } from "../lib/format-hours"
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ALL = "__all__"
-type GroupBy = "none" | "day" | "week" | "person" | "team" | "type"
 
-const GROUPS: { key: GroupBy; label: string }[] = [
-  { key: "none", label: "No grouping" },
-  { key: "day", label: "By day" },
-  { key: "week", label: "By week" },
-  { key: "person", label: "By person" },
-  { key: "team", label: "By team" },
-  { key: "type", label: "By type" },
-]
+/** Deliverables per page. The items INSIDE one are never paged: opening a
+ *  deliverable shows all of it. */
+const PERIODS_PER_PAGE = 20
 
 /** Owed work, for the tile and the list that hangs off it. */
 const OPEN_FILTER: DeliverableStatus[] = ["PLANNED", "IN_PROGRESS"]
 
-/** Monday of the week a yyyy-MM-dd falls in, as yyyy-MM-dd (UTC). */
-function weekOf(ymd: string): string {
-  const d = new Date(`${ymd}T00:00:00.000Z`)
-  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
-  return d.toISOString().slice(0, 10)
-}
-
 /** Today as yyyy-MM-dd, for "is this overdue" comparisons on plain strings. */
 const todayKey = (): string => toDateString(new Date())
-
-function groupKey(r: DeliverableRow, g: GroupBy): { key: string; label: string; sort: string } {
-  switch (g) {
-    case "day": {
-      // An owed row has no day it landed on. It sorts to the top rather than
-      // being dropped: "not delivered yet" is the most current thing there is.
-      if (!r.completedOn) return { key: "__open", label: "Not delivered yet", sort: "9999-12-31" }
-      return {
-        key: r.completedOn,
-        label: formatDate(r.completedOn, "EEE d MMM yyyy"),
-        sort: r.completedOn,
-      }
-    }
-    case "week": {
-      if (!r.completedOn) return { key: "__open", label: "Not delivered yet", sort: "9999-12-31" }
-      const wk = weekOf(r.completedOn)
-      return { key: wk, label: `Week of ${formatDate(wk, "d MMM yyyy")}`, sort: wk }
-    }
-    case "person":
-      return r.employee
-        ? { key: r.employee.id, label: r.employee.name, sort: r.employee.name }
-        : { key: "__unassigned", label: "Unassigned", sort: "￿" }
-    case "team":
-      return {
-        key: r.team?.id ?? "__none",
-        label: r.team?.name ?? "No team",
-        sort: r.team?.name ?? "~",
-      }
-    case "type":
-      return { key: r.type.toLowerCase(), label: r.type, sort: r.type.toLowerCase() }
-    default:
-      return { key: "__all", label: "", sort: "" }
-  }
-}
-
-function Tile({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string
-  value: string | number
-  sub?: string
-  tone?: "bad" | "warn" | "good"
-}) {
-  return (
-    <div className="bg-muted/40 rounded-sm px-3 py-2">
-      <p className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
-        {label}
-      </p>
-      <p className="mt-0.5 text-lg font-bold tabular-nums">
-        {value}
-        {sub && (
-          <span
-            className={cn(
-              "ml-1 text-xs font-normal",
-              tone === "bad"
-                ? "text-destructive"
-                : tone === "warn"
-                  ? "text-amber-500"
-                  : tone === "good"
-                    ? "text-emerald-500"
-                    : "text-muted-foreground",
-            )}
-          >
-            {sub}
-          </span>
-        )}
-      </p>
-    </div>
-  )
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Row actions
@@ -199,7 +139,7 @@ function Tile({
  * What a move is CALLED on a button.
  *
  * The destination status is not the label: "Delivered" is where the row ends
- * up, "Mark delivered" is what the person is doing, and the same destination
+ * up, "Log delivery" is what the person is doing, and the same destination
  * reached from REJECTED is a redelivery, which is a different act with a
  * different feeling about it.
  */
@@ -438,6 +378,102 @@ export function DeliverablesExportMenu({
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** One entry. Links and files are the point, so they are never hidden. */
+/**
+ * The per-row tools: verify, history, edit, remove.
+ *
+ * Its own component because the list row and the TABLE row both draw exactly
+ * these four, and a second copy is a second thing to keep in step with the
+ * permission rules that decide which of them exist.
+ */
+function RowIconActions({
+  r,
+  onVerify,
+  onHistory,
+  onEdit,
+  onDelete,
+}: {
+  r: DeliverableRow
+  onVerify?: (verified: boolean) => void
+  onHistory?: () => void
+  onEdit?: () => void
+  onDelete?: () => void
+}) {
+  // The thing itself: the first link, or the first file. This is the one action
+  // that needs no permission - anyone who can see the row can look at what it
+  // produced - and it is the only way in for somebody who cannot edit.
+  const target = r.links[0] ?? r.files[0]?.url ?? null
+  if (!target && !onEdit && !onDelete && !onVerify && !onHistory) return null
+  return (
+    <span className="flex shrink-0 items-center gap-0.5">
+      {target && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="View"
+          title={`Open what was made (${r.links.length + r.files.length} attached)`}
+          asChild
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <a href={target} target="_blank" rel="noreferrer">
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </Button>
+      )}
+      {onVerify && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={r.verified ? "Remove verification" : "Verify"}
+          title={r.verified ? "Remove verification" : "Verify - you have looked at it"}
+          onClick={() => onVerify(!r.verified)}
+          className={cn(
+            "text-muted-foreground hover:text-foreground",
+            r.verified && "text-emerald-500",
+          )}
+        >
+          <ShieldCheck className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      {onHistory && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="History"
+          title="History"
+          onClick={onHistory}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <History className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      {onEdit && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Edit"
+          title="Edit"
+          onClick={onEdit}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      {onDelete && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Remove"
+          title="Remove"
+          onClick={onDelete}
+          className="text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      )}
+    </span>
+  )
+}
+
 export function DeliverableRowView({
   r,
   showProject,
@@ -449,6 +485,7 @@ export function DeliverableRowView({
   onHistory,
   onAssign,
   claimable,
+  onLogWork,
 }: {
   r: DeliverableRow
   showProject?: boolean
@@ -463,8 +500,13 @@ export function DeliverableRowView({
   onAssign?: (r: DeliverableRow) => void
   /** They are on the team that owes it, so the button reads "Take this". */
   claimable?: boolean
+  /** Record progress - the same act as the table row s Log work. */
+  onLogWork?: () => void
 }) {
-  const moves = onStatus ? nextActions(r.status, actor) : []
+  const blocked = shortfall(r, actor)
+  const moves = (onStatus ? nextActions(r.status, actor) : []).filter(
+    (to) => !(to === "DELIVERED" && blocked),
+  )
   const open = isOpenStatus(r.status)
   const overdue = Boolean(open && r.dueOn && r.dueOn < todayKey())
   const closesOn = r.completedOn
@@ -529,7 +571,16 @@ export function DeliverableRowView({
               )}
             >
               <CalendarDays className="h-3 w-3" />
-              due {formatDate(r.dueOn, "d MMM yyyy")}
+              {/* The WINDOW when there is one - "3 reels a week" was agreed
+                  across a week, and "due 4 Oct" only ever said when that week
+                  ran out. Falls back to the deadline for rows planned before
+                  periods existed. */}
+              {r.periodStart && r.periodEnd
+                ? formatPeriod(
+                    new Date(`${r.periodStart}T00:00:00.000Z`),
+                    new Date(`${r.periodEnd}T00:00:00.000Z`),
+                  )
+                : `due ${formatDate(r.dueOn, "d MMM yyyy")}`}
               {overdue && " · overdue"}
             </span>
           ) : (
@@ -589,6 +640,11 @@ export function DeliverableRowView({
             the row's state makes obvious. */}
         {moves.length > 0 && (
           <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {onLogWork && (
+              <Button variant="outline" className="gap-1.5 px-2" onClick={onLogWork}>
+                Log work
+              </Button>
+            )}
             {moves.map((to) => (
               <Button
                 key={to}
@@ -599,6 +655,7 @@ export function DeliverableRowView({
                 {actionLabel(r.status, to)}
               </Button>
             ))}
+            {blocked && <span className="text-muted-foreground/70">{blocked}</span>}
           </p>
         )}
       </div>
@@ -633,84 +690,592 @@ export function DeliverableRowView({
         )}
       </span>
 
-      {(onEdit || onDelete || onVerify || onHistory) && (
-        <span className="flex shrink-0 items-center gap-0.5">
-          {onVerify && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={r.verified ? "Remove verification" : "Verify"}
-              title={r.verified ? "Remove verification" : "Verify - you have looked at it"}
-              onClick={() => onVerify(!r.verified)}
-              className={cn(
-                "text-muted-foreground hover:text-foreground",
-                r.verified && "text-emerald-500",
-              )}
-            >
-              <ShieldCheck className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          {onHistory && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="History"
-              title="History"
-              onClick={onHistory}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <History className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          {onEdit && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Edit"
-              title="Edit"
-              onClick={onEdit}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          {onDelete && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Remove"
-              title="Remove"
-              onClick={onDelete}
-              className="text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
-        </span>
-      )}
+      <RowIconActions r={r} {...{ onVerify, onHistory, onEdit, onDelete }} />
     </li>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * The same rows as a table.
+ *
+ * Not a different list - the SAME rows, the same permissions, the same
+ * `rowProps`. The card view is for reading one entry (its links, its files, its
+ * notes); the table is for scanning fifty and comparing a column. Owed and
+ * delivered sit in one table here because the Status column already tells them
+ * apart, which is the job the two bands do in the card view.
+ */
+// ─────────────────────────────────────────────────────────────────────────────
+// The board: deliverables (periods), and the items inside them
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** What an item's row is handed - the same handlers the card row takes, by name. */
+interface RowHandlers {
+  actor: DeliverableActor
+  onStatus: (to: DeliverableStatus) => void
+  onVerify?: (verified: boolean) => void
+  onHistory: () => void
+  onEdit?: () => void
+  onDelete?: () => void
+  onAssign?: (r: DeliverableRow) => void
+  claimable: boolean
+  /** Open the log-work dialog, when this person may add to it. */
+  onLogWork?: () => void
+}
+
+type Period = DeliverablePeriod<DeliverableRow>
+
+/**
+ * Put a name on an owed item.
+ *
+ * A dialog rather than a select in the cell: the choice is one of the owed
+ * team's members only, and the sentence saying the team stays put needs room a
+ * table cell does not have.
+ */
+function AssignDialog({
+  row,
+  people,
+  pending,
+  onAssign,
+  onClose,
+}: {
+  row: DeliverableRow
+  people: { id: string; name: string }[]
+  pending: boolean
+  onAssign: (employeeId: string) => void
+  onClose: () => void
+}) {
+  const [who, setWho] = React.useState("")
+  const team = row.team?.name ?? "the team"
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Who will make it?</DialogTitle>
+          <DialogDescription>
+            {row.type} · {row.title}
+            {row.quantity > 1 ? ` ×${row.quantity}` : ""} - owed by {team}. It stays with {team}{" "}
+            whoever makes it.
+          </DialogDescription>
+        </DialogHeader>
+        {people.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            Nobody is on {team} yet. Add members on the Teams tab first.
+          </p>
+        ) : (
+          <Select value={who} onValueChange={setWho}>
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Pick a member" />
+            </SelectTrigger>
+            <SelectContent>
+              {people.map((e) => (
+                <SelectItem key={e.id} value={e.id}>
+                  {e.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!who || pending} onClick={() => onAssign(who)}>
+            {pending ? "Assigning…" : "Assign"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** A period's name line, said the same way in both views. */
+function PeriodHeadline({ p }: { p: Period }) {
+  return (
+    <span className="flex min-w-0 flex-wrap items-center gap-2">
+      <CalendarDays className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+      <span className="font-semibold">{p.label}</span>
+      {p.overdue && <span className="text-destructive text-xs font-medium">overdue</span>}
+    </span>
+  )
+}
+
+/** Made over planned, as a bar the eye reads before the number. */
+function PeriodProgress({ p }: { p: Period }) {
+  const pct = p.planned > 0 ? Math.round((p.made / p.planned) * 100) : 0
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="bg-muted h-1.5 w-16 overflow-hidden rounded-full">
+        <span
+          className={cn("block h-full rounded-full", pct === 100 ? "bg-emerald-500" : "bg-primary")}
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <span className="tabular-nums">
+        {p.made}
+        <span className="text-muted-foreground">/{p.planned}</span>
+      </span>
+    </span>
+  )
+}
+
+/**
+ * The status cell, as a menu of where this item can go next.
+ *
+ * All five states are listed, not just the reachable ones: seeing that
+ * Accepted is greyed out until something has been delivered is how the flow
+ * explains itself. A greyed row carries the reason as its tooltip - the same
+ * sentence the server would answer with, which is what allowedTransition
+ * writes it for.
+ *
+ * A trailing ellipsis marks the moves that open a dialog first, because they
+ * need something the row cannot supply on its own: the link or file and the
+ * day for a delivery, a reason for sending work back.
+ */
+/**
+ * Why Delivered is not on the table yet.
+ *
+ * The promise is four blogs; one is written. `allowedTransition` cannot see
+ * that - it knows statuses and standing, not quantities - so the shortfall is
+ * checked here and again on the server, which is the copy that counts.
+ *
+ * A project manager is exempt: closing a period out on three of four is a
+ * real decision somebody has to be able to make.
+ */
+function shortfall(r: DeliverableRow, actor: DeliverableActor): string | null {
+  if (actor === "project_manager") return null
+  if (r.deliveredQuantity >= r.quantity) return null
+  return `Only ${r.deliveredQuantity} of ${r.quantity} are logged - log the rest first.`
+}
+
+function StatusMenu({
+  r,
+  actor,
+  onStatus,
+}: {
+  r: DeliverableRow
+  actor: DeliverableActor
+  onStatus: (to: DeliverableStatus) => void
+}) {
+  // Nothing this person may do with it - a plain pill, not a menu that only
+  // ever refuses.
+  if (nextActions(r.status, actor).length === 0) {
+    return <DeliverableStatusPill status={r.status} />
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Change status"
+          className="hover:bg-muted/60 -mx-1 inline-flex items-center gap-1 rounded-sm px-1 py-0.5 transition-colors"
+        >
+          <DeliverableStatusPill status={r.status} />
+          <ChevronDown className="text-muted-foreground h-3 w-3 shrink-0" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuLabel className="text-muted-foreground text-[11px] font-medium">
+          Status
+        </DropdownMenuLabel>
+        {STATUS_ORDER.map((to) => {
+          const current = to === r.status
+          const check = allowedTransition(r.status, to, actor)
+          const short = check.ok && to === "DELIVERED" ? shortfall(r, actor) : null
+          const blocked = !check.ok || Boolean(short)
+          const needsMore = check.ok && !short && check.needs.length > 0
+          return (
+            <DropdownMenuItem
+              key={to}
+              disabled={current || blocked}
+              title={current ? undefined : (short ?? (!check.ok ? check.why : undefined))}
+              onSelect={() => onStatus(to)}
+              className="gap-2"
+            >
+              <span className={cn("h-2 w-2 shrink-0 rounded-full", DELIVERABLE_STATUS_DOT[to])} />
+              <span className="flex-1">
+                {DELIVERABLE_STATUS_LABELS[to]}
+                {needsMore ? "…" : ""}
+              </span>
+              {current && <Check className="h-3.5 w-3.5 shrink-0" />}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/**
+ * The items inside one deliverable - a table with its OWN header, because an
+ * item answers different questions from the period it sits in: which team,
+ * what exactly, who is making it, is the proof on yet.
+ */
+function PeriodItemsTable({
+  rows,
+  rowProps,
+  hideTeam = false,
+}: {
+  rows: DeliverableRow[]
+  rowProps: (r: DeliverableRow) => RowHandlers
+  /** Inside a per-team tab the team is the heading; a column saying it again is noise. */
+  hideTeam?: boolean
+}) {
+  return (
+    <table className="w-full text-left text-xs">
+      <thead className="bg-muted/30 text-muted-foreground border-b text-[11px]">
+        <tr>
+          <th className="w-10 px-4 py-2 font-medium">#</th>
+          {!hideTeam && <th className="px-4 py-2 font-medium">Team</th>}
+          <th className="w-full px-4 py-2 font-medium">Deliverable</th>
+          <th className="px-4 py-2 text-right font-medium">Done</th>
+          <th className="px-4 py-2 font-medium">Owned by</th>
+          <th className="px-4 py-2 font-medium">Status</th>
+          <th className="px-4 py-2 font-medium">Proof</th>
+          <th className="px-4 py-2" />
+        </tr>
+      </thead>
+      <tbody className="divide-border/60 divide-y">
+        {rows.map((r, i) => {
+          const h = rowProps(r)
+          const proof = r.links.length + r.files.length
+          return (
+            <tr key={r.id} className="hover:bg-muted/30 transition-colors">
+              <td className="text-muted-foreground px-4 py-2.5 tabular-nums">{i + 1}</td>
+              {!hideTeam && (
+                <td className="px-4 py-2.5 font-medium whitespace-nowrap">
+                  {r.team?.name ?? <span className="text-muted-foreground">-</span>}
+                </td>
+              )}
+              <td className="px-4 py-2.5">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="border-border/70 text-muted-foreground shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                    {r.type}
+                  </span>
+                  <span className="truncate font-medium" title={r.title}>
+                    {r.title}
+                  </span>
+                  {r.locked && (
+                    <Lock
+                      className="text-muted-foreground h-3 w-3 shrink-0"
+                      aria-label="Period closed"
+                    />
+                  )}
+                </span>
+              </td>
+              {/* Progress, not just the promise: four blogs with one written
+                  reads 1/4 here and nowhere else on the row. */}
+              <td className="px-4 py-2.5 text-right tabular-nums">
+                <span
+                  className={cn(
+                    r.deliveredQuantity >= r.quantity
+                      ? "text-emerald-500"
+                      : r.deliveredQuantity > 0
+                        ? "text-foreground"
+                        : "text-muted-foreground",
+                  )}
+                >
+                  {r.deliveredQuantity}
+                </span>
+                <span className="text-muted-foreground">/{r.quantity}</span>
+              </td>
+              <td className="px-4 py-2.5 whitespace-nowrap">
+                {r.employee ? (
+                  <span className="flex items-center gap-1.5">
+                    <AvatarDisplay
+                      src={r.employee.profilePhoto}
+                      firstName={r.employee.name.split(" ")[0] ?? ""}
+                      lastName={r.employee.name.split(" ").slice(1).join(" ")}
+                      size="xs"
+                    />
+                    <span className="truncate">{r.employee.name}</span>
+                  </span>
+                ) : h.onAssign ? (
+                  <button
+                    type="button"
+                    onClick={() => h.onAssign?.(r)}
+                    className="text-primary inline-flex items-center gap-1 hover:underline"
+                    title={`Owed by ${r.team?.name ?? "the team"} - put a name to it`}
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    {h.claimable ? "Take this" : "Assign"}
+                  </button>
+                ) : (
+                  <span className="text-muted-foreground/70 italic">Unassigned</span>
+                )}
+              </td>
+              <td className="px-4 py-2.5">
+                <StatusMenu r={r} actor={h.actor} onStatus={h.onStatus} />
+              </td>
+              <td className="px-4 py-2.5 whitespace-nowrap">
+                {proof > 0 ? (
+                  <a
+                    href={r.links[0] ?? r.files[0]?.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary inline-flex items-center gap-1 hover:underline"
+                    title={`Open what was made (${proof} attached)`}
+                  >
+                    {r.links.length > 0 ? (
+                      <Link2 className="h-3.5 w-3.5" />
+                    ) : (
+                      <FileText className="h-3.5 w-3.5" />
+                    )}
+                    {proof}
+                  </a>
+                ) : (
+                  <span className="text-muted-foreground/50">-</span>
+                )}
+              </td>
+              <td className="px-4 py-2.5 text-right">
+                <span className="flex items-center justify-end gap-1">
+                  {h.onLogWork && (
+                    <Button
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      onClick={h.onLogWork}
+                      title="Record what is finished, with the link or file"
+                    >
+                      Log work
+                    </Button>
+                  )}
+                  <RowIconActions
+                    r={r}
+                    onVerify={h.onVerify}
+                    onHistory={h.onHistory}
+                    onEdit={h.onEdit}
+                    onDelete={h.onDelete}
+                  />
+                </span>
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+}
+
+/**
+ * The board as a table: one row per deliverable, its items folded underneath.
+ *
+ * One <table>, not one per period - separate tables size their columns on
+ * their own and would not line up. The open state is a second row spanning
+ * the width, holding the items' table with its own header.
+ */
+function PeriodTable({
+  periods,
+  serialOffset,
+  hrefFor,
+  onDeletePeriod,
+}: {
+  periods: Period[]
+  serialOffset: number
+  /** Where a period opens - its own page, not a row under this one. */
+  hrefFor: (p: Period) => string
+  onDeletePeriod?: (p: Period) => void
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[720px] table-auto text-left text-sm">
+        <thead className="bg-muted/40 border-b">
+          <tr>
+            <th className="text-muted-foreground w-16 px-4 py-3 font-medium whitespace-nowrap">
+              S.No
+            </th>
+            <th className="text-muted-foreground px-4 py-3 font-medium whitespace-nowrap">
+              Deliverable
+            </th>
+            <th className="text-muted-foreground w-full px-4 py-3 font-medium">Teams</th>
+            <th className="text-muted-foreground px-4 py-3 text-right font-medium whitespace-nowrap">
+              Planned
+            </th>
+            <th className="text-muted-foreground px-4 py-3 font-medium whitespace-nowrap">
+              Delivered
+            </th>
+            <th className="text-muted-foreground w-px px-4 py-3 text-right font-medium whitespace-nowrap">
+              Actions
+            </th>
+          </tr>
+        </thead>
+        {periods.map((p, i) => {
+          return (
+            <tbody key={p.key} className="border-b">
+              <tr className="hover:bg-muted/30 transition-colors">
+                <td className="text-muted-foreground px-4 py-3 align-middle tabular-nums">
+                  {serialOffset + i + 1}
+                </td>
+                <td className="px-4 py-3 align-middle whitespace-nowrap">
+                  <PeriodHeadline p={p} />
+                </td>
+                {/* The one column whose width is really variable, so it takes
+                    the slack and truncates rather than pushing the numbers out. */}
+                <td className="text-muted-foreground max-w-0 truncate px-4 py-3 align-middle">
+                  {p.teams.join(", ") || "-"}
+                </td>
+                <td className="px-4 py-3 text-right align-middle tabular-nums">{p.planned}</td>
+                <td className="px-4 py-3 align-middle whitespace-nowrap">
+                  <PeriodProgress p={p} />
+                </td>
+                <td className="w-px px-4 py-3 text-right align-middle whitespace-nowrap">
+                  <span className="inline-flex items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      asChild
+                      aria-label="Open deliverable"
+                      title={`Open · ${p.rows.length} ${p.rows.length === 1 ? "item" : "items"}`}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Link href={hrefFor(p)}>
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    {onDeletePeriod && p.key !== UNPLANNED_KEY && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Delete deliverable"
+                        title="Delete this deliverable and every item under it"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDeletePeriod(p)
+                        }}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          )
+        })}
+      </table>
+    </div>
+  )
+}
+
+/**
+ * The board as cards: the same periods, each opening into the full row view -
+ * links, files and notes inline - for reading one item's proof rather than
+ * scanning fifty.
+ */
+function PeriodCards({
+  periods,
+  hrefFor,
+  onDeletePeriod,
+}: {
+  periods: Period[]
+  hrefFor: (p: Period) => string
+  onDeletePeriod?: (p: Period) => void
+}) {
+  return (
+    <div className="divide-border/60 divide-y">
+      {periods.map((p) => {
+        return (
+          <section key={p.key}>
+            <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <Link href={hrefFor(p)} className="min-w-0 flex-1 hover:underline">
+                <PeriodHeadline p={p} />
+              </Link>
+              {p.teams.length > 0 && (
+                <span className="text-muted-foreground text-xs">{p.teams.join(", ")}</span>
+              )}
+              <PeriodProgress p={p} />
+              <DeliverableStatusPill status={p.status} />
+              <Button
+                variant="ghost"
+                size="icon"
+                asChild
+                aria-label="Open deliverable"
+                title={`Open · ${p.rows.length} ${p.rows.length === 1 ? "item" : "items"}`}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Link href={hrefFor(p)}>
+                  <Eye className="h-4 w-4" />
+                </Link>
+              </Button>
+              {onDeletePeriod && p.key !== UNPLANNED_KEY && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Delete deliverable"
+                  title="Delete this deliverable and every item under it"
+                  onClick={() => onDeletePeriod(p)}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
 export function DeliverablesTab({
   projectId,
   canManage,
   currentUserId,
+  periodKey,
+  renderHeader,
 }: {
   projectId: string
   canManage: boolean
   currentUserId: string
+  /**
+   * Narrow the board to ONE deliverable - its own page. Everything else (the
+   * summary, the filters, the list of periods) stays out of the way, and the
+   * items are shown in full rather than folded under a row.
+   */
+  periodKey?: string
+  /**
+   * On a deliverable page, the page draws the header and the board supplies
+   * what goes in its actions slot - Add items, Delete - because those need
+   * the board state (the dialogs) that the page does not have. Called with
+   * null while nothing is loaded yet, so the title never blinks out.
+   */
+  renderHeader?: (actions: React.ReactNode) => React.ReactNode
 }) {
-  // All time by default: a ledger that opens empty because nothing was made
+  // All time by default: a board that opens empty because nothing was made
   // THIS week teaches people the tab is empty.
   const [range, setRange] = React.useState<DateRangeValue>({ preset: "all", from: null, to: null })
   const [teamId, setTeamId] = React.useState(ALL)
   const [employeeId, setEmployeeId] = React.useState(ALL)
   const [type, setType] = React.useState<string | null>(null)
   const [statuses, setStatuses] = React.useState<DeliverableStatus[]>([])
-  const [groupBy, setGroupBy] = React.useState<GroupBy>("week")
+  const [pageState, setPageState] = React.useState<{ key: string; page: number }>({
+    key: "",
+    page: 1,
+  })
+  // Table for scanning the periods; cards for reading one item's proof.
+  const [view, setView] = useViewMode("project-deliverables-view", "table")
+  /** The item whose type/title/quantity is being corrected. */
+  const [editingItem, setEditingItem] = React.useState<DeliverableRow | null>(null)
+  /** The item whose progress is being logged. */
+  const [logging, setLogging] = React.useState<DeliverableRow | null>(null)
+  /** The item getting a name put on it. */
+  const [assigning, setAssigning] = React.useState<DeliverableRow | null>(null)
+  /** The whole deliverable being removed - every item under it. */
+  const [deletingPeriod, setDeletingPeriod] = React.useState<Period | null>(null)
+  const [search, setSearch] = React.useState("")
+  const q = search.trim().toLowerCase()
+  /** Everything the eye would scan for: what it is, who owes it, what team. */
+  const matches = React.useCallback(
+    (r: DeliverableRow) =>
+      !q ||
+      r.title.toLowerCase().includes(q) ||
+      r.type.toLowerCase().includes(q) ||
+      (r.team?.name ?? "").toLowerCase().includes(q) ||
+      (r.employee?.name ?? "").toLowerCase().includes(q) ||
+      (r.notes ?? "").toLowerCase().includes(q),
+    [q],
+  )
 
   const baseFilters: DeliverableFilters = {
     from: range.from,
@@ -732,27 +1297,19 @@ export function DeliverablesTab({
   // The unfiltered view feeds the pickers, so narrowing never strands them.
   const all = useProjectDeliverables(projectId, {})
   // Owed work, with NO date range: a planned row has no completion date and
-  // would fall out of every range the ledger is normally read through.
+  // would fall out of every range the board is normally read through.
   const owed = useProjectDeliverables(projectId, { status: OPEN_FILTER })
 
   const teams = useProjectTeams(projectId)
   const m = useDeliverableMutations(projectId)
 
-  const [formOpen, setFormOpen] = React.useState(false)
-  const [planning, setPlanning] = React.useState(false)
-  const [editingId, setEditingId] = React.useState<string | null>(null)
+  const [planOpen, setPlanOpen] = React.useState(false)
   const [deleting, setDeleting] = React.useState<DeliverableRow | null>(null)
   const [historyFor, setHistoryFor] = React.useState<DeliverableRow | null>(null)
   const [move, setMove] = React.useState<PendingMove | null>(null)
 
   const rows = React.useMemo(() => data?.rows ?? [], [data])
   const owedRows = React.useMemo(() => owed.data?.rows ?? [], [owed.data])
-  const editing =
-    rows.find((r) => r.id === editingId) ??
-    owedRows.find((r) => r.id === editingId) ??
-    all.data?.rows.find((r) => r.id === editingId) ??
-    null
-
   // Who this person is, on a given row. The same three facts the server checks,
   // in the same order - higher standing wins.
   const myTeamIds = React.useMemo(
@@ -773,7 +1330,6 @@ export function DeliverablesTab({
       ),
     [teams.data, currentUserId],
   )
-  const canStaff = canManage || myTeamIds.size > 0
   const actorFor = React.useCallback(
     (r: DeliverableRow): DeliverableActor => {
       if (canManage) return "project_manager"
@@ -797,11 +1353,16 @@ export function DeliverablesTab({
     if (actor === "none") return false
     return !r.locked || actor === "project_manager"
   }
-  const mayVerify = (r: DeliverableRow) => canManage || (r.team ? myTeamIds.has(r.team.id) : false)
+  /** Runs the item: the account manager, or the manager of the team it was asked of. */
+  const managesRow = (r: DeliverableRow) => canManage || (r.team ? myTeamIds.has(r.team.id) : false)
+  const mayVerify = managesRow
 
   const startMove = (r: DeliverableRow, to: DeliverableStatus) => {
     const check = allowedTransition(r.status, to, actorFor(r))
     if (!check.ok) return
+    // Delivered is a declaration, not a place to attach things: the proof
+    // went on as the work was logged, and the only thing still missing is
+    // the day it landed, which StatusMoveDialog asks for.
     const needsReason = check.needs.includes("reason")
     const needsDate = check.needs.includes("completedOn")
     if (!needsReason && !needsDate) {
@@ -812,41 +1373,20 @@ export function DeliverablesTab({
   }
 
   /**
-   * The ledger below is what was MADE.
+   * Everything on the board, once.
    *
-   * Owed work has its own section above it, and when both showed everything
-   * a single owed row appeared twice - once under "Still owed" and again in
-   * the ledger under "Not delivered yet", where it was also counted as
-   * "1 made". The owed section only renders while no status chip is on, so
-   * that is exactly when the ledger hands the open rows over to it.
+   * Owed items come from their own range-free query (with no completion date
+   * they fall inside no range); made items from the ranged one. While no
+   * status chip is on, the ranged query is trimmed of open rows so an item
+   * cannot appear twice.
    */
-  const ledgerRows = React.useMemo(
+  const allRows = React.useMemo(
     () =>
       statuses.length === 0 && owedRows.length > 0
-        ? rows.filter((r) => !isOpenStatus(r.status))
+        ? [...owedRows, ...rows.filter((r) => !isOpenStatus(r.status))]
         : rows,
     [rows, statuses, owedRows],
   )
-
-  const groups = React.useMemo(() => {
-    const map = new Map<
-      string,
-      { label: string; sort: string; rows: DeliverableRow[]; count: number }
-    >()
-    for (const r of ledgerRows) {
-      const g = groupKey(r, groupBy)
-      const cur = map.get(g.key) ?? { label: g.label, sort: g.sort, rows: [], count: 0 }
-      cur.rows.push(r)
-      cur.count += r.quantity
-      map.set(g.key, cur)
-    }
-    const list = [...map.values()]
-    // Dates newest first; names A-Z; types by count.
-    if (groupBy === "day" || groupBy === "week") list.sort((a, b) => b.sort.localeCompare(a.sort))
-    else if (groupBy === "type") list.sort((a, b) => b.count - a.count)
-    else list.sort((a, b) => a.sort.localeCompare(b.sort))
-    return list
-  }, [ledgerRows, groupBy])
 
   const people = React.useMemo(() => {
     const seen = new Map<string, string>()
@@ -862,310 +1402,493 @@ export function DeliverablesTab({
     setStatuses((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]))
 
   const plannedQty = owed.data?.planned.quantity ?? 0
+  /** Is there anything on this project at all - made, or still owed? */
+  const anything = (data?.entries ?? 0) > 0 || (owed.data?.planned.entries ?? 0) > 0
   const plannedOverdue = owed.data?.planned.overdue ?? 0
   const perUnit = base?.hours.perUnit ?? null
   const coverage = base?.hours.coverage ?? 0
 
-  const rowProps = (r: DeliverableRow) => ({
+  // The LIVE row behind the log dialog: uploading a file refetches the list,
+  // and a snapshot taken at click time would keep showing the old file set.
+  const loggingRow = logging ? (allRows.find((r) => r.id === logging.id) ?? logging) : null
+
+  const today = todayKey()
+  /** The board: one deliverable per window, newest first, searched. */
+  const periods = React.useMemo(
+    () => groupIntoPeriods(allRows.filter(matches), today),
+    [allRows, matches, today],
+  )
+
+  /** The one deliverable this page is about, when it is a page. */
+  const focused = periodKey ? (periods.find((x) => x.key === periodKey) ?? null) : null
+  /** The focused period, per team - the tracker above the tabs reads the same
+   *  split, so a tab count and the bar beside it cannot disagree. */
+  const itemsByTeam = React.useMemo(() => splitByTeam(focused?.rows ?? []), [focused])
+  /**
+   * Which team tab is open.
+   *
+   * Derived, not synced: a team remembered from another deliverable simply is
+   * not in this one, and falls back to its first team with no effect to run.
+   */
+  const [teamTab, setTeamTab] = React.useState<string>()
+  const activeTeam =
+    teamTab && itemsByTeam.some((t) => t.key === teamTab) ? teamTab : itemsByTeam[0]?.key
+
+  /** Where a period opens. The project ref in the URL is whatever the board got. */
+  const hrefFor = React.useCallback(
+    (x: Period) => `/projects/${projectId}/deliverables/${periodSlug(x.key)}`,
+    [projectId],
+  )
+
+  const totalPages = Math.max(1, Math.ceil(periods.length / PERIODS_PER_PAGE))
+  // Derived, not synced: a page number only means anything for the list it
+  // was chosen over, so it is stored WITH the filters and falls back to 1.
+  const pageKey = `${q}|${statuses.join()}|${teamId}|${employeeId}|${type ?? ""}|${range.from ?? ""}`
+  const page = pageState.key === pageKey ? Math.min(pageState.page, totalPages) : 1
+  const setPage = (p: number) => setPageState({ key: pageKey, page: p })
+  const pagedPeriods = React.useMemo(
+    () => periods.slice((page - 1) * PERIODS_PER_PAGE, page * PERIODS_PER_PAGE),
+    [periods, page],
+  )
+
+  const filtersOn =
+    teamId !== ALL ||
+    employeeId !== ALL ||
+    Boolean(type) ||
+    statuses.length > 0 ||
+    Boolean(q) ||
+    Boolean(range.from)
+
+  /** Members of the team an item was asked of - who it can be handed to. */
+  const membersOf = React.useCallback(
+    (id: string | null | undefined) =>
+      (teams.data?.data ?? [])
+        .find((t) => t.id === id)
+        ?.members.map((mm) => ({
+          id: mm.employee.id,
+          name: `${mm.employee.firstName} ${mm.employee.lastName}`.trim(),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)) ?? [],
+    [teams.data],
+  )
+
+  const emptyBoard = (
+    <EmptyState
+      icon={PackageCheck}
+      compact
+      className="py-10"
+      title={filtersOn && anything ? "Nothing matches these filters" : "No deliverables yet"}
+      description={
+        filtersOn && anything
+          ? undefined
+          : canManage
+            ? "Plan the first one: pick a week or a month, the teams on it, and what each owes."
+            : "The account manager plans them - a week or a month, and what each team owes for it."
+      }
+      // The way out of an empty board, for the person allowed to plan, and only
+      // when it is EMPTY: "no matches" is a filter problem, and offering to
+      // create something is the wrong answer to it.
+      action={
+        canManage && !anything
+          ? { label: "Plan deliverable", onClick: () => setPlanOpen(true) }
+          : undefined
+      }
+    />
+  )
+
+  const rowProps = (r: DeliverableRow): RowHandlers => ({
     actor: actorFor(r),
     onStatus: (to: DeliverableStatus) => startMove(r, to),
     onVerify: mayVerify(r)
       ? (verified: boolean) => m.verify.mutate({ id: r.id, verified })
       : undefined,
     onHistory: () => setHistoryFor(r),
-    onEdit: mayEdit(r)
-      ? () => {
-          setPlanning(false)
-          setEditingId(r.id)
-          setFormOpen(true)
-        }
-      : undefined,
+    // The ordinary edit is fixing what the item SAYS, so it opens the same
+    // three fields it was planned with. The full form is one click further on.
+    onEdit: mayEdit(r) ? () => setEditingItem(r) : undefined,
     onDelete: mayEdit(r) ? () => setDeleting(r) : undefined,
-    // Only unowned rows can be assigned, and only by somebody with standing on
-    // them - a manager hands it out, a member of the owed team takes it.
+    // Only unowned items can be assigned, and only by somebody with standing
+    // on them: whoever runs the item picks who; a member of the owed team
+    // takes it themselves, in one click.
     onAssign:
       !r.employee && actorFor(r) !== "none"
         ? () => {
-            setPlanning(false)
-            setEditingId(r.id)
-            setFormOpen(true)
+            if (managesRow(r)) setAssigning(r)
+            else m.update.mutate({ id: r.id, employeeId: currentUserId })
           }
         : undefined,
-    claimable: !r.employee && !canStaff,
+    claimable: !r.employee && !managesRow(r),
+    // Logging work is the maker's act, and only while there is work left to
+    // log: an accepted row is closed, and a delivered one is waiting on the
+    // client rather than on anybody here.
+    onLogWork:
+      actorFor(r) !== "none" && r.status !== "ACCEPTED" && r.status !== "DELIVERED"
+        ? () => setLogging(r)
+        : undefined,
   })
 
-  if (isLoading && !data) return <Skeleton className="h-64 rounded-sm" />
+  if (isLoading && !data) {
+    return (
+      <div className="space-y-4">
+        {renderHeader?.(null)}
+        <Skeleton className="h-64 rounded-sm" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
-      {/* ── Header + summary ─────────────────────────────────────────── */}
-      <Card>
-        <CardContent className="p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <PackageCheck className="text-primary h-4 w-4" /> Deliverables
-              </h3>
-              <p className="text-muted-foreground mt-1 text-xs">
-                What the team has actually produced for this client, what is still owed, and the
-                links and files to prove it.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <DateRangeField value={range} onChange={setRange} />
-              <DeliverablesExportMenu filters={{ ...filters, projectId }} />
-              {canStaff && (
-                <Button
-                  className="gap-1.5"
-                  variant="outline"
-                  onClick={() => {
-                    setEditingId(null)
-                    setPlanning(true)
-                    setFormOpen(true)
-                  }}
-                >
-                  <Plus className="h-3.5 w-3.5" /> Plan a deliverable
-                </Button>
-              )}
-              <Button
-                className="gap-1.5"
-                onClick={() => {
-                  setEditingId(null)
-                  setPlanning(false)
-                  setFormOpen(true)
-                }}
-              >
-                <Plus className="h-3.5 w-3.5" /> Log a deliverable
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-            <Tile
-              label="Owed"
-              value={plannedQty}
-              sub={plannedOverdue > 0 ? `${plannedOverdue} overdue` : undefined}
-              tone="bad"
-            />
-            <Tile label="Delivered" value={statusCount("DELIVERED")} />
-            <Tile label="Accepted" value={statusCount("ACCEPTED")} tone="good" />
-            <Tile label="Awaiting revision" value={statusCount("REJECTED")} tone="warn" />
-            <Tile
-              label="Hours/unit"
-              value={perUnit === null ? "-" : formatHours(perUnit)}
-              sub={perUnit === null ? undefined : `covers ${coverage}%`}
-            />
-          </div>
-
-          {/* Status chips: multi-select, so "what is owed and what came back"
-              is one click each rather than a dropdown. */}
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {STATUS_ORDER.map((s) => {
-              const on = statuses.includes(s)
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => toggleStatus(s)}
-                  aria-pressed={on}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[11px] transition-colors",
-                    on
-                      ? "border-foreground/40 bg-muted font-medium"
-                      : "border-border text-muted-foreground hover:text-foreground",
+      {!periodKey && (
+        <>
+          {/* ── Header + summary ─────────────────────────────────────────── */}
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold">
+                    <PackageCheck className="text-primary h-4 w-4" /> Deliverables
+                  </h3>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    What this client is owed for each week or month, who is making it, and the link
+                    or file that shows it landed.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <DateRangeField value={range} onChange={setRange} />
+                  <DeliverablesExportMenu filters={{ ...filters, projectId }} />
+                  {/* Planning is the ACCOUNT MANAGER's act - it is a promise made to
+                  a client on the whole project's behalf, not a team's own
+                  scheduling. The server enforces the same rule; this only
+                  decides whether the button is drawn.
+                  Logging output has no button here on purpose: output is
+                  recorded against the row that was owed, or off the task that
+                  produced it, so that the evidence lands on the commitment
+                  instead of beside it. */}
+                  {canManage && (
+                    <Button className="gap-1.5" onClick={() => setPlanOpen(true)}>
+                      <Plus className="h-3.5 w-3.5" /> Plan deliverable
+                    </Button>
                   )}
-                >
-                  {DELIVERABLE_STATUS_LABELS[s]}
-                  <span className="tabular-nums opacity-70">{statusCount(s)}</span>
-                </button>
-              )
-            })}
-          </div>
+                </div>
+              </div>
 
-          {/* Type chips double as a filter - click one to see only those. */}
-          {(base?.byType.length ?? 0) > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {(base?.byType ?? []).map((t) => (
-                <button
-                  key={t.type}
-                  type="button"
-                  onClick={() =>
-                    setType(type?.toLowerCase() === t.type.toLowerCase() ? null : t.type)
-                  }
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[11px] transition-colors",
-                    type?.toLowerCase() === t.type.toLowerCase()
-                      ? "border-foreground/40 bg-muted font-medium"
-                      : "border-border text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {t.type} <span className="tabular-nums opacity-70">{t.count}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              {/* ONE strip, not tiles above chips.
+              Those were the same five statuses drawn twice - big and unclickable
+              on top, small and clickable underneath - so an empty project showed
+              ten zeros and the readable copy was the one you could not use.
+              Each segment is now the number AND the filter.
 
-      {/* ── What is still owed ────────────────────────────────────────────
-          Its own section rather than a filter of the ledger below, because it
-          answers a different question and has to survive the date range. */}
-      {owedRows.length > 0 && statuses.length === 0 && (
-        <Card>
-          <CardContent className="p-0">
-            <p className="bg-muted/40 flex items-center gap-2 px-4 py-1.5 text-[11px] font-medium">
-              <CalendarDays className="text-muted-foreground h-3 w-3" />
-              Still owed
-              <span className="text-muted-foreground tabular-nums">
-                {plannedQty} promised · {owed.data?.planned.entries ?? owedRows.length}{" "}
-                {owedRows.length === 1 ? "entry" : "entries"}
-                {plannedOverdue > 0 && (
-                  <span className="text-destructive"> · {plannedOverdue} overdue</span>
-                )}
-              </span>
-            </p>
-            <ul className="divide-border/60 divide-y">
-              {owedRows.map((r) => (
-                <DeliverableRowView key={r.id} r={r} {...rowProps(r)} />
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+              Hidden entirely when the project has nothing yet: five zeros above
+              an empty state is a worse first screen than the empty state alone. */}
+              {anything && (
+                <>
+                  <div className="mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
+                    {STATUS_ORDER.map((s) => {
+                      const on = statuses.includes(s)
+                      // Owed work has no completion date, so it falls outside every
+                      // date range - its counts come from the range-free query.
+                      const count = s === "PLANNED" ? plannedQty : statusCount(s)
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => toggleStatus(s)}
+                          aria-pressed={on}
+                          title={`Show only ${DELIVERABLE_STATUS_LABELS[s].toLowerCase()}`}
+                          className={cn(
+                            "rounded-sm border px-3 py-2 text-left transition-colors",
+                            on
+                              ? "border-primary bg-primary/5"
+                              : "bg-muted/40 hover:bg-muted border-transparent",
+                          )}
+                        >
+                          <span className="text-muted-foreground block text-[10px] font-medium tracking-widest uppercase">
+                            {DELIVERABLE_STATUS_LABELS[s]}
+                          </span>
+                          <span className="mt-0.5 flex items-baseline gap-1.5">
+                            <span className="text-lg font-bold tabular-nums">{count}</span>
+                            {s === "PLANNED" && plannedOverdue > 0 && (
+                              <span className="text-destructive text-xs font-medium">
+                                {plannedOverdue} overdue
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
 
-      {/* ── Filters ─────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={teamId} onValueChange={setTeamId}>
-          <SelectTrigger className="h-8 w-40 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All teams</SelectItem>
-            {(teams.data?.data ?? []).map((t) => (
-              <SelectItem key={t.id} value={t.id}>
-                {t.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={employeeId} onValueChange={setEmployeeId}>
-          <SelectTrigger className="h-8 w-44 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Everyone</SelectItem>
-            {people.map(([id, name]) => (
-              <SelectItem key={id} value={id}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-          <SelectTrigger className="h-8 w-36 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {GROUPS.map((g) => (
-              <SelectItem key={g.key} value={g.key}>
-                {g.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {(teamId !== ALL || employeeId !== ALL || type || statuses.length > 0) && (
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setTeamId(ALL)
-              setEmployeeId(ALL)
-              setType(null)
-              setStatuses([])
-            }}
-          >
-            Clear
-          </Button>
-        )}
-      </div>
-
-      {/* ── The ledger ──────────────────────────────────────────────── */}
-      {ledgerRows.length === 0 ? (
-        <Card>
-          <CardContent className="p-10">
-            <EmptyState
-              icon={PackageCheck}
-              compact
-              title={
-                data &&
-                data.entries === 0 &&
-                !range.from &&
-                teamId === ALL &&
-                employeeId === ALL &&
-                statuses.length === 0 &&
-                !type
-                  ? "Nothing logged yet"
-                  : "Nothing matches these filters"
-              }
-              description={
-                data && data.entries === 0
-                  ? "Log the first thing the team produced for this client - a page, a video, a design."
-                  : undefined
-              }
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="divide-border/60 divide-y">
-              {groups.map((g) => (
-                <section key={g.label || "all"}>
-                  {groupBy !== "none" && (
-                    <p className="bg-muted/40 flex items-center gap-2 px-4 py-1.5 text-[11px] font-medium">
-                      {groupBy === "person" && <Users className="text-muted-foreground h-3 w-3" />}
-                      <span>{g.label}</span>
-                      <span className="text-muted-foreground tabular-nums">
-                        {g.count} made · {g.rows.length} {g.rows.length === 1 ? "entry" : "entries"}
-                      </span>
+                  {/* Effort per unit is a RATIO, not a status - it never belonged in
+                  a row of counts you can filter by. */}
+                  {perUnit !== null && (
+                    <p className="text-muted-foreground mt-2 text-xs">
+                      ≈ <span className="text-foreground font-medium">{formatHours(perUnit)}</span>{" "}
+                      per unit, across {coverage}% of what was made
                     </p>
                   )}
-                  <ul className="divide-border/60 divide-y">
-                    {g.rows.map((r) => (
-                      <DeliverableRowView key={r.id} r={r} {...rowProps(r)} />
-                    ))}
-                  </ul>
-                </section>
+                </>
+              )}
+
+              {/* Type chips double as a filter - click one to see only those. */}
+              {(base?.byType.length ?? 0) > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {(base?.byType ?? []).map((t) => (
+                    <button
+                      key={t.type}
+                      type="button"
+                      onClick={() =>
+                        setType(type?.toLowerCase() === t.type.toLowerCase() ? null : t.type)
+                      }
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[11px] transition-colors",
+                        type?.toLowerCase() === t.type.toLowerCase()
+                          ? "border-foreground/40 bg-muted font-medium"
+                          : "border-border text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {t.type} <span className="tabular-nums opacity-70">{t.count}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Filters ─────────────────────────────────────────────────── */}
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Search title, type, team, person..."
+              className="max-w-xs"
+            />
+            <Select value={teamId} onValueChange={setTeamId}>
+              <SelectTrigger className="h-8 w-40 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All teams</SelectItem>
+                {(teams.data?.data ?? []).map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={employeeId} onValueChange={setEmployeeId}>
+              <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Everyone</SelectItem>
+                {people.map(([id, name]) => (
+                  <SelectItem key={id} value={id}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(teamId !== ALL || employeeId !== ALL || type || statuses.length > 0 || q) && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setTeamId(ALL)
+                  setEmployeeId(ALL)
+                  setType(null)
+                  setStatuses([])
+                  setSearch("")
+                }}
+              >
+                Clear
+              </Button>
+            )}
+            <ViewToggle value={view} onChange={setView} className="ml-auto" />
+          </div>
+        </>
+      )}
+
+      {/* ── One deliverable, on its page ───────────────────────────────── */}
+      {periodKey &&
+        (focused ? (
+          <>
+            {renderHeader?.(
+              canManage && focused.key !== UNPLANNED_KEY ? (
+                <>
+                  {/* More items for THIS window - the plan dialog with step one
+                      already answered. What it creates joins what is here. */}
+                  <Button
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => setPlanOpen(true)}
+                    title="Plan more items inside this period"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add items
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="text-destructive hover:text-destructive gap-1.5"
+                    onClick={() => setDeletingPeriod(focused)}
+                    title="Delete this deliverable and every item under it"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete deliverable
+                  </Button>
+                </>
+              ) : null,
+            )}
+            {/* One tab per team. The account manager reads a period as "what
+                does WEB owe, what does VIDEO owe", and a team manager only ever
+                wants their own. Keyed by the period so a different deliverable
+                opens on its own first team, not on whichever tab was last. */}
+            {/* What is going on in this deliverable, before the detail of it:
+                how much landed, how the rest is spread, which team is behind.
+                Its team rows are the tab switcher, so a row worth reading is
+                one click from the items behind it. */}
+            <DeliverableTracker
+              period={focused}
+              activeTeam={activeTeam}
+              onTeamSelect={setTeamTab}
+            />
+
+            <Tabs value={activeTeam} onValueChange={setTeamTab}>
+              <TabsBar
+                items={itemsByTeam.map((t) => ({
+                  value: t.key,
+                  label: t.name,
+                  count: t.rows.length,
+                }))}
+              />
+              {itemsByTeam.map((t) => (
+                <TabsContent key={t.key} value={t.key}>
+                  <Card>
+                    <CardContent className="p-0">
+                      <PeriodItemsTable rows={t.rows} rowProps={rowProps} hideTeam />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
               ))}
-            </div>
+            </Tabs>
+          </>
+        ) : owed.isLoading ? (
+          <>
+            {renderHeader?.(null)}
+            <Skeleton className="h-40 rounded-sm" />
+          </>
+        ) : (
+          <>
+            {renderHeader?.(null)}
+            <Card>
+              <CardContent className="p-0">
+                <EmptyState
+                  icon={PackageCheck}
+                  compact
+                  className="py-10"
+                  title="No such deliverable"
+                  description="It may have been deleted, or the link is out of date."
+                />
+              </CardContent>
+            </Card>
+          </>
+        ))}
+
+      {/* ── The board ───────────────────────────────────────────────────
+          One row per deliverable - the week or month the account manager
+          planned. Owed and made share a period: the client was promised the
+          week. The eye opens the period on its own page, where the items are
+          shown in full. */}
+      {!periodKey && (
+        <Card>
+          <CardContent className="p-0">
+            {periods.length === 0 ? (
+              emptyBoard
+            ) : view === "table" ? (
+              <PeriodTable
+                periods={pagedPeriods}
+                serialOffset={(page - 1) * PERIODS_PER_PAGE}
+                hrefFor={hrefFor}
+                onDeletePeriod={canManage ? setDeletingPeriod : undefined}
+              />
+            ) : (
+              <PeriodCards
+                periods={pagedPeriods}
+                hrefFor={hrefFor}
+                onDeletePeriod={canManage ? setDeletingPeriod : undefined}
+              />
+            )}
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={periods.length}
+              onPageChange={setPage}
+              itemLabel="deliverable"
+              className="border-t px-4 py-2"
+            />
             {data?.truncated && (
               <p className="text-muted-foreground border-border/60 border-t px-4 py-2 text-[11px]">
-                Showing the latest {ledgerRows.length} of {data.entries} entries. Narrow the range
-                to see the rest; the counts above cover all of them.
+                Showing the latest {rows.length} of {data.entries} items. Narrow the range to see
+                the rest; the counts above cover all of them.
               </p>
             )}
           </CardContent>
         </Card>
       )}
 
-      <DeliverableFormDialog
-        key={editingId ?? (planning ? "plan" : "new")}
+      <EditItemDialog
         projectId={projectId}
-        open={formOpen}
-        onOpenChange={(o) => {
-          setFormOpen(o)
-          if (!o) {
-            setEditingId(null)
-            setPlanning(false)
+        row={editingItem}
+        onClose={() => setEditingItem(null)}
+      />
+
+      <PlanPeriodDialog
+        projectId={projectId}
+        open={planOpen}
+        onOpenChange={setPlanOpen}
+        // On a deliverable page the window is already chosen: the dialog adds
+        // items to it instead of asking which week.
+        period={
+          periodKey && focused?.start && focused?.end
+            ? { start: focused.start, end: focused.end }
+            : undefined
+        }
+      />
+
+      {/* Delivering is the moment the proof goes on. The form in log mode asks
+          for the link or file and the day, and lands the item as DELIVERED in
+          one save - not a status flip and then an edit. */}
+      <LogWorkDialog projectId={projectId} row={loggingRow} onClose={() => setLogging(null)} />
+
+      {assigning && (
+        <AssignDialog
+          row={assigning}
+          people={membersOf(assigning.team?.id)}
+          pending={m.update.isPending}
+          onAssign={(employeeId) =>
+            m.update.mutate(
+              { id: assigning.id, employeeId },
+              { onSuccess: () => setAssigning(null) },
+            )
           }
+          onClose={() => setAssigning(null)}
+        />
+      )}
+
+      <ConfirmDialog
+        open={Boolean(deletingPeriod)}
+        onOpenChange={(o) => !o && setDeletingPeriod(null)}
+        title={`Delete "${deletingPeriod?.label ?? ""}"?`}
+        description={
+          deletingPeriod
+            ? `Every item under it goes - ${deletingPeriod.rows.length} across ${deletingPeriod.teams.join(", ") || "no team"}. Files already attached stay on the Files tab.`
+            : ""
+        }
+        confirmLabel="Delete deliverable"
+        variant="destructive"
+        onConfirm={() => {
+          const target = deletingPeriod
+          setDeletingPeriod(null)
+          if (!target) return
+          // One request per item; the board refetches once they have all gone.
+          void Promise.all(target.rows.map((r) => m.remove.mutateAsync(r.id)))
         }}
-        entry={editing}
-        // A repeat closes itself: there is no single row to attach files to.
-        onCreated={(id, count) => count === 1 && setEditingId(id)}
-        canManage={canManage}
-        canStaff={canStaff}
-        currentUserId={currentUserId}
-        suggestedTypes={all.data?.suggestedTypes ?? data?.suggestedTypes ?? []}
-        initial={planning ? { status: "PLANNED" } : undefined}
       />
 
       <DeliverableHistoryDialog

@@ -36,6 +36,7 @@ import {
 } from "@/features/projects/lib/task-permissions"
 import { TaskResources } from "@/features/projects/components/task-resources"
 import { LogDeliverableButton } from "@/features/projects/components/log-deliverable-button"
+import { TasksExportMenu } from "@/features/projects/components/tasks-export-menu"
 import { OwedDeliverablesPanel } from "@/features/projects/components/owed-deliverables-panel"
 import { cn } from "@/lib/utils"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
@@ -472,6 +473,13 @@ export default function MyTasksPage() {
                 className="h-8 gap-1.5"
               />
             )}
+            {/* Exports the FILTERED list, so the file matches the screen it
+                was taken from. */}
+            <TasksExportMenu
+              tasks={tasks}
+              scope={isMine ? "my-tasks" : scopeLabel}
+              className="h-8"
+            />
             {/* Only rendered for someone with anyone to look at - reports, or
                 the whole company if they administer projects. The options come
                 from the server, so the list is also the authorisation: you

@@ -137,20 +137,25 @@ export function DeliverableFormDialog({
   /**
    * Save the row AT this status rather than leaving it where it is.
    *
-   * The one thing a plain edit cannot do: "Mark delivered" on an owed row is a
+   * The one thing a plain edit cannot do: "Log delivery" on an owed row is a
    * status move and a form save at once, and doing it as two requests leaves a
    * window where the row is delivered with last week's details on it.
    */
   submitStatus?: DeliverableStatus
-  /** Overrides the primary button's text - "Mark delivered", "Plan it". */
+  /** Overrides the primary button's text - "Log delivery", "Redeliver". */
   submitLabel?: string
 }) {
   // Keyed remount by the parent (key={entry?.id ?? "new"}), so state seeds
   // straight from props with no effect.
-  // An existing row with no maker is owed BY A TEAM; that is a real state the
-  // form has to be able to show and preserve, not just a missing value.
+  // Who the entry is for. An owed line with nobody on it stays "the team" -
+  // a valid answer while it is owed. The same line opened to LOG it needs a
+  // maker: the person logging, when they cannot pick anyone else, and a
+  // deliberate choice when they can (the button waits for it).
+  const seedOwed = isOpenStatus(submitStatus ?? entry?.status ?? initial?.status ?? "DELIVERED")
   const [employeeId, setEmployeeId] = React.useState(
-    entry ? (entry.employee?.id ?? TEAM) : currentUserId,
+    entry
+      ? (entry.employee?.id ?? (seedOwed || (canStaff ?? canManage) ? TEAM : currentUserId))
+      : currentUserId,
   )
   const [teamId, setTeamId] = React.useState(entry?.team?.id ?? NONE)
   const [type, setType] = React.useState(entry?.type ?? initial?.type ?? "")
@@ -191,6 +196,9 @@ export function DeliverableFormDialog({
   })
 
   const editing = Boolean(entry)
+  /** An existing line being LOGGED as delivered - the form in log mode, which
+   *  is neither an edit nor a fresh entry and must not be titled as either. */
+  const logging = Boolean(entry && submitStatus && !isOpenStatus(submitStatus))
   const pending = m.create.isPending || m.update.isPending
   const qty = Number(quantity)
 
@@ -288,7 +296,9 @@ export function DeliverableFormDialog({
   const repeatN = Number(repeatCount)
   const repeats = canRepeat && repeatEvery !== "NONE"
   const valid =
-    (!toTeam || teamId !== NONE) &&
+    // "Leave it to the team" only answers while the work is owed; something
+    // being logged as made has a maker, and the button waits until it is picked.
+    (!toTeam || (owed && teamId !== NONE)) &&
     (!repeats ||
       (dueOn.length > 0 && Number.isInteger(repeatN) && repeatN >= 2 && repeatN <= 52)) &&
     type.trim().length > 0 &&
@@ -350,10 +360,18 @@ export function DeliverableFormDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
-            {editing ? "Edit deliverable" : owed ? "Plan a deliverable" : "Log a deliverable"}
+            {logging
+              ? entry?.status === "REJECTED"
+                ? "Redeliver"
+                : "Log delivery"
+              : editing
+                ? "Edit deliverable"
+                : owed
+                  ? "Plan a deliverable"
+                  : "Log a deliverable"}
           </DialogTitle>
           <DialogDescription>
-            {editing
+            {editing && !logging
               ? "Change the details, or attach the files it produced."
               : (prompt ??
                 (owed
@@ -398,7 +416,7 @@ export function DeliverableFormDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-muted-foreground text-[11px]">
+                <Label required={!owed && toTeam} className="text-muted-foreground text-[11px]">
                   {owed ? "Assign to" : "Made by"}
                 </Label>
                 <Select value={employeeId} onValueChange={pickPerson}>

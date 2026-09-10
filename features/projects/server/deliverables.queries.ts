@@ -65,11 +65,16 @@ export interface DeliverableRow {
   type: string
   title: string
   quantity: number
+  /** How many of `quantity` are made. Moves as work lands, without the status. */
+  deliveredQuantity: number
   status: DeliverableStatus
   startedOn: string | null
   /** Null only while the row is owed - there is nothing to date yet. */
   completedOn: string | null
   dueOn: string | null
+  /** The window this covers. Both set, or both null. */
+  periodStart: string | null
+  periodEnd: string | null
   revisionCount: number
   acceptedAt: string | null
   acceptedByName: string | null
@@ -218,10 +223,13 @@ const ROW_SELECT = {
   type: true,
   title: true,
   quantity: true,
+  deliveredQuantity: true,
   status: true,
   startedOn: true,
   completedOn: true,
   dueOn: true,
+  periodStart: true,
+  periodEnd: true,
   revisionCount: true,
   acceptedAt: true,
   links: true,
@@ -313,10 +321,13 @@ async function toRow(
     type: r.type,
     title: r.title,
     quantity: r.quantity,
+    deliveredQuantity: r.deliveredQuantity,
     status: r.status,
     startedOn: ymd(r.startedOn),
     completedOn: ymd(r.completedOn),
     dueOn: ymd(r.dueOn),
+    periodStart: ymd(r.periodStart),
+    periodEnd: ymd(r.periodEnd),
     revisionCount: r.revisionCount,
     acceptedAt: r.acceptedAt?.toISOString() ?? null,
     acceptedByName: fullName(r.acceptedBy),

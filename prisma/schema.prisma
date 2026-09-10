@@ -2114,53 +2114,63 @@ model ProjectLink {
 /// linked back here, so they also appear on the project's Files tab.
 model ProjectDeliverable {
   /// Owning tenant. See the Tenant model for why this carries a DB default.
-  tenantId       String            @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
-  id             String            @id @default(uuid()) @map("id")
-  projectId      String            @map("project_id")
+  tenantId          String            @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id                String            @id @default(uuid()) @map("id")
+  projectId         String            @map("project_id")
   /// The team that owes it, and then made it. Set when the work is planned
   /// for a team; otherwise taken from the maker at the time of logging. Null
   /// when they were on no team. SetNull on team deletion: it still happened.
-  teamId         String?           @map("team_id")
+  teamId            String?           @map("team_id")
   /// Who made it - null ONLY while the work is still owed and no one has
   /// picked it up yet, in which case teamId says who owes it. A CHECK
   /// constraint in the migration enforces that pair; Prisma cannot express it.
-  employeeId     String?           @map("employee_id")
+  employeeId        String?           @map("employee_id")
   /// Who wrote the entry - the maker, or a manager logging on their behalf.
-  loggedById     String?           @map("logged_by_id")
+  loggedById        String?           @map("logged_by_id")
   /// The task it came out of, when there was one.
-  taskId         String?           @map("task_id")
+  taskId            String?           @map("task_id")
   /// "Video", "Reel", "Product page"... Free text with per-team suggestions,
   /// normalised like goal tags so "reel" and "Reel" cannot split a count.
-  type           String            @map("type")
-  title          String            @map("title")
+  type              String            @map("type")
+  title             String            @map("title")
   /// "10 product pages" can be one entry. Every count sums this.
-  quantity       Int               @default(1) @map("quantity")
+  quantity          Int               @default(1) @map("quantity")
+  /// How many of `quantity` are actually made. The work arrives one at a
+  /// time, so this moves without the status moving; DELIVERED is only offered
+  /// once it reaches `quantity`. Set to `quantity` whenever a row is marked
+  /// made, so the two can never disagree about a finished row.
+  deliveredQuantity Int               @default(0) @map("delivered_quantity")
   /// Where it is in its life. PLANNED = owed (nothing made yet); DELIVERED =
   /// made; ACCEPTED / REJECTED = the client's verdict, recorded by staff.
-  status         DeliverableStatus @default(DELIVERED) @map("status")
+  status            DeliverableStatus @default(DELIVERED) @map("status")
   /// When a PLANNED row is owed by. Null for after-the-fact logging.
-  dueOn          DateTime?         @map("due_on") @db.Date
+  dueOn             DateTime?         @map("due_on") @db.Date
+  /// The window the commitment covers - a week, a month, a custom range.
+  /// Both set or both null (a CHECK in the migration enforces the pair, and
+  /// that end >= start). dueOn stays the deadline; this is the span.
+  periodStart       DateTime?         @map("period_start") @db.Date
+  periodEnd         DateTime?         @map("period_end") @db.Date
   /// Which goal this output serves when the task link is not enough (or there
   /// is no task). SetNull: removing a goal must not remove the work.
-  goalId         String?           @map("goal_id")
-  startedOn      DateTime?         @map("started_on") @db.Date
+  goalId            String?           @map("goal_id")
+  startedOn         DateTime?         @map("started_on") @db.Date
   /// The day it counts for. Null only while PLANNED / IN_PROGRESS (a CHECK
   /// constraint in the migration enforces this; Prisma cannot express it).
-  completedOn    DateTime?         @map("completed_on") @db.Date
+  completedOn       DateTime?         @map("completed_on") @db.Date
   /// How many times it went REJECTED -> DELIVERED.
-  revisionCount  Int               @default(0) @map("revision_count")
-  acceptedAt     DateTime?         @map("accepted_at")
-  acceptedById   String?           @map("accepted_by_id")
-  acceptanceNote String?           @map("acceptance_note") @db.Text
+  revisionCount     Int               @default(0) @map("revision_count")
+  acceptedAt        DateTime?         @map("accepted_at")
+  acceptedById      String?           @map("accepted_by_id")
+  acceptanceNote    String?           @map("acceptance_note") @db.Text
   /// Where it lives: the Drive folder, the published page. http(s) only.
-  links          String[]          @default([]) @map("links")
-  notes          String?           @map("notes") @db.Text
+  links             String[]          @default([]) @map("links")
+  notes             String?           @map("notes") @db.Text
   /// Internal QC sign-off by a manager. Null = self-reported. Distinct from
   /// ACCEPTED, which is the client's word.
-  verifiedById   String?           @map("verified_by_id")
-  verifiedAt     DateTime?         @map("verified_at")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
+  verifiedById      String?           @map("verified_by_id")
+  verifiedAt        DateTime?         @map("verified_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
 
   project    Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   team       ProjectTeam?              @relation(fields: [teamId], references: [id], onDelete: SetNull)
@@ -2176,6 +2186,7 @@ model ProjectDeliverable {
   @@index([projectId, completedOn])
   @@index([employeeId, completedOn])
   @@index([projectId, status])
+  @@index([projectId, periodStart])
   @@index([goalId])
   @@index([teamId])
   @@index([teamId, status])

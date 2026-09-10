@@ -8,6 +8,7 @@ import { latestCalendarDay, todayUtc } from "@/lib/dates"
 import { canAccessProject, canManageProject } from "./project-access"
 import { logActivity } from "./activity"
 import { openFirstStatusPeriod } from "./task-status-periods"
+import { repeatPeriods, ymd as ymdOf, type PeriodKind } from "../lib/delivery-period"
 import { dedupeLinks, isSafeHttpUrl } from "../lib/task-links"
 import { MAX_LINKS, MAX_QUANTITY, MAX_TYPE_LENGTH, cleanType } from "../lib/deliverable-types"
 import {
@@ -72,6 +73,11 @@ export interface DeliverableInput {
   type: string
   title: string
   quantity?: number
+  /**
+   * How many of `quantity` are actually made. Moves on its own as the work
+   * lands, so the status does not have to lie about a half-finished row.
+   */
+  deliveredQuantity?: number
   /** PLANNED / IN_PROGRESS / DELIVERED at create; anything at update. */
   status?: DeliverableStatus
   startedOn?: string | null
@@ -161,6 +167,49 @@ function normaliseLinks(raw: unknown): string[] {
   const bad = cleaned.find((l) => !isSafeHttpUrl(l))
   if (bad) throw new ValidationError(`Not a valid web link: ${bad}`)
   return cleaned.slice(0, MAX_LINKS)
+}
+
+/**
+ * How much of the promise is made.
+ *
+ * Clamped rather than rejected at the top: the promise can be edited down
+ * after work was logged against it, and refusing that edit would be a worse
+ * answer than quietly capping a number nobody typed.
+ */
+function normaliseDeliveredQuantity(raw: unknown, promised: number): number {
+  if (raw === undefined || raw === null || raw === "") return 0
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n < 0) {
+    throw new ValidationError("Completed must be a whole number, 0 or more.")
+  }
+  return Math.min(n, promised)
+}
+
+/**
+ * You cannot call four blogs delivered having made one.
+ *
+ * The maker is held to the promise; a project manager is not, because closing
+ * a period out on three of four is a real decision somebody has to be able to
+ * make, and the history records who made it.
+ */
+function assertFullyMade(
+  existing: { quantity: number; deliveredQuantity: number },
+  input: DeliverableUpdateInput,
+  actor: DeliverableActor,
+  to: DeliverableStatus,
+): void {
+  if (to !== "DELIVERED" || actor === "project_manager") return
+  const promised =
+    input.quantity !== undefined ? normaliseQuantity(input.quantity) : existing.quantity
+  const made =
+    input.deliveredQuantity !== undefined
+      ? normaliseDeliveredQuantity(input.deliveredQuantity, promised)
+      : existing.deliveredQuantity
+  if (made < promised) {
+    throw new ValidationError(
+      `Only ${made} of ${promised} are logged. Log the rest before marking it delivered.`,
+    )
+  }
 }
 
 function normaliseQuantity(raw: unknown): number {
@@ -255,6 +304,9 @@ export async function canLogFor(
   if (await canManageProject(session, projectId)) return true
   return managesTeamOf(session, projectId, employeeId)
 }
+
+/** How many lines one plan may carry. A week of work, not a year of it. */
+const MAX_PLAN_LINES = 60
 
 /** May `session` change or remove this entry? */
 export async function canEditDeliverable(
@@ -611,6 +663,7 @@ const EDIT_SELECT = {
   type: true,
   title: true,
   quantity: true,
+  deliveredQuantity: true,
   status: true,
   startedOn: true,
   completedOn: true,
@@ -651,6 +704,7 @@ export async function updateDeliverable(
     const check = allowedTransition(existing.status, nextStatus, actor)
     if (!check.ok) throw transitionError(check.why, check.reason)
     if (check.needs.includes("reason")) reason = requireReason(input.reason)
+    assertFullyMade(existing, input, actor, nextStatus)
   }
 
   const data: Prisma.ProjectDeliverableUncheckedUpdateInput = {}
@@ -667,6 +721,19 @@ export async function updateDeliverable(
   if (input.quantity !== undefined) {
     const q = normaliseQuantity(input.quantity)
     if (noteChange(changes, "quantity", existing.quantity, q)) data.quantity = q
+  }
+
+  // How much of it is actually made. Editing the promise down below what has
+  // already been logged is a legitimate correction ("it was only ever 2"), so
+  // the progress follows the promise rather than blocking the edit.
+  const promised = (data.quantity as number | undefined) ?? existing.quantity
+  if (input.deliveredQuantity !== undefined) {
+    const made = normaliseDeliveredQuantity(input.deliveredQuantity, promised)
+    if (noteChange(changes, "deliveredQuantity", existing.deliveredQuantity, made)) {
+      data.deliveredQuantity = made
+    }
+  } else if (existing.deliveredQuantity > promised) {
+    data.deliveredQuantity = promised
   }
   if (input.links !== undefined) {
     const l = normaliseLinks(input.links)
@@ -760,6 +827,17 @@ export async function updateDeliverable(
         today,
       )
     : null
+
+  // A row that is delivered is fully delivered. This is what keeps the number
+  // honest after a project manager closes one out early - without it the row
+  // would sit at ACCEPTED still claiming three of four were missing.
+  if (nextStatus && isMadeStatus(nextStatus)) {
+    const promisedNow = (data.quantity as number | undefined) ?? existing.quantity
+    if (existing.deliveredQuantity !== promisedNow) {
+      noteChange(changes, "deliveredQuantity", existing.deliveredQuantity, promisedNow)
+      data.deliveredQuantity = promisedNow
+    }
+  }
 
   const effectiveStatus = nextStatus ?? existing.status
   const finalCompletedOn = transition?.completedOn ?? completedOn
@@ -1163,4 +1241,154 @@ export async function startDeliverable(
   })
 
   return { taskId, claimed }
+}
+
+// ─── Planning a period, team by team ──────────────────────────────────────────
+
+/** One line of a plan: what a team owes, and how many. */
+export interface PlanLine {
+  teamId: string
+  type: string
+  title: string
+  quantity?: number
+  /** Optional: name somebody now instead of leaving it to the team manager. */
+  employeeId?: string | null
+  goalId?: string | null
+  notes?: string | null
+}
+
+export interface PlanInput {
+  /** Inclusive window, yyyy-MM-dd. Every row created carries it. */
+  periodStart: string
+  periodEnd: string
+  /** Repeat the whole plan across consecutive periods of the same shape. */
+  kind?: PeriodKind
+  repeat?: number
+  lines: PlanLine[]
+}
+
+/**
+ * Commit a period's work in one go.
+ *
+ * The account manager's real question is "what does this week look like", and
+ * the answer is several teams' worth of rows at once. Creating them one dialog
+ * at a time made that a chore, and a half-entered week is worse than an empty
+ * one - so this is a single transaction: the whole period lands, or none of it.
+ *
+ * Rows come out UNASSIGNED by default, owed by their team, which is what lets
+ * the team manager put names to them afterwards.
+ */
+export async function planDeliverables(
+  session: Session,
+  projectId: string,
+  input: PlanInput,
+): Promise<{ created: number; periods: number }> {
+  // The ACCOUNT MANAGER only. Planning a period is a promise made to the
+  // client across every team on the project, which is a different act from a
+  // team manager scheduling their own team - and the button is drawn by the
+  // same rule, so neither can offer what the other refuses.
+  if (!(await canManageProject(session, projectId))) {
+    throw new ForbiddenError("Only the account manager can plan a period of work.")
+  }
+
+  const start = parseDay(input.periodStart, "Period start")
+  const end = parseDay(input.periodEnd, "Period end")
+  if (!start || !end) throw new ValidationError("A plan needs a period to cover.")
+  if (end < start) throw new ValidationError("The period ends before it starts.")
+
+  const lines = input.lines ?? []
+  if (lines.length === 0) throw new ValidationError("Add at least one thing to the plan.")
+  if (lines.length > MAX_PLAN_LINES) {
+    throw new ValidationError(`That is more than ${MAX_PLAN_LINES} lines - split the plan.`)
+  }
+
+  // Every team named must actually be on this project, and the caller must be
+  // allowed to staff it. Checked once per team, not once per line.
+  const teamIds = [...new Set(lines.map((l) => l.teamId))]
+  for (const teamId of teamIds) {
+    if (!teamId) throw new ValidationError("Every line needs a team to owe it.")
+    await assertTeamInProject(projectId, teamId)
+  }
+
+  const periods = repeatPeriods(
+    input.kind ?? "range",
+    start,
+    Math.max(1, Math.min(input.repeat ?? 1, MAX_REPEAT)),
+  )
+  // A custom range repeats by its own width, which repeatPeriods can only know
+  // if it is told the width - so the first period is replaced with the real one.
+  periods[0] = { start, end }
+
+  // Resolve the vocabulary and the goals ONCE, before the transaction opens:
+  // canonicalType reads the project's existing types, and doing that inside a
+  // transaction holds it open across N round trips for no reason.
+  const resolved = await Promise.all(
+    lines.map(async (l) => {
+      if (l.goalId) await assertGoalInProject(projectId, l.goalId)
+      if (l.employeeId && !(await canLogFor(session, projectId, l.employeeId))) {
+        throw new ForbiddenError("You cannot put that person on this work.")
+      }
+      return {
+        teamId: l.teamId,
+        employeeId: l.employeeId || null,
+        goalId: l.goalId || null,
+        type: await canonicalType(projectId, l.type ?? ""),
+        title: normaliseTitle(l.title),
+        quantity: normaliseQuantity(l.quantity),
+        notes: l.notes?.trim() || null,
+      }
+    }),
+  )
+
+  const rows = periods.flatMap((p) =>
+    resolved.map((l) => ({
+      projectId,
+      teamId: l.teamId,
+      employeeId: l.employeeId,
+      loggedById: session.user.id,
+      goalId: l.goalId,
+      type: l.type,
+      title: l.title,
+      quantity: l.quantity,
+      notes: l.notes,
+      status: "PLANNED" as const,
+      // The deadline is the end of the window it is owed across.
+      dueOn: p.end,
+      periodStart: p.start,
+      periodEnd: p.end,
+    })),
+  )
+
+  const created = await db.$transaction(async (tx) => {
+    const made = await tx.projectDeliverable.createManyAndReturn({
+      data: rows,
+      select: { id: true },
+    })
+    await tx.projectDeliverableEvent.createMany({
+      data: made.map((r) => ({
+        deliverableId: r.id,
+        type: "CREATED" as const,
+        toStatus: "PLANNED" as const,
+        actorId: session.user.id,
+      })),
+    })
+    return made.length
+  })
+
+  await logActivity({
+    projectId,
+    actorId: session.user.id,
+    type: "DELIVERABLE_LOGGED",
+    entityType: "DELIVERABLE",
+    entityId: projectId,
+    meta: {
+      planned: created,
+      periods: periods.length,
+      teams: teamIds.length,
+      from: ymdOf(periods[0]!.start),
+      to: ymdOf(periods[periods.length - 1]!.end),
+    },
+  })
+
+  return { created, periods: periods.length }
 }

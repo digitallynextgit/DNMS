@@ -41,6 +41,7 @@ export {
   DeliverableRowView,
   DeliverablesExportMenu,
 } from "./components/deliverables-tab"
+export { DeliverablePeriodPage } from "./components/deliverable-period-page"
 export { DeliverablesOutputCard } from "./components/deliverables-output-card"
 export { DeliverableFormDialog } from "./components/deliverable-form-dialog"
 export {
