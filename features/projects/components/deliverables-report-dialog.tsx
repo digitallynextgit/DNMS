@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Download, Loader2, Search } from "lucide-react"
+import { Download, Loader2, FileSpreadsheet, FileText, Presentation } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -15,11 +15,10 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { DateRangeField, type DateRangeValue } from "@/components/shared/date-range-field"
+import type { DateRangeValue } from "@/components/shared/date-range-field"
 import { apiFetch } from "@/lib/api-fetch"
-import { cn } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 
 // =============================================================================
 // Deliverables slides
@@ -64,41 +63,47 @@ const ROLE_COPY: Record<Role, { who: string; all: string; hint: string }> = {
   },
 }
 
-const SLIDES = [
-  "Cover",
-  "Who is in the report",
-  "At a glance",
-  "By project",
-  "Every deliverable",
-  "Not completed, and why",
-  "By team member",
-  "AI takeaways",
-]
+
+interface FilterSummary {
+  projectLabel?: string
+  teamLabel?: string
+  personLabel?: string
+  totalCount?: number
+}
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** The page's window. Seeds the dialog; the dialog can change it without touching the page. */
   range: DateRangeValue
-  /** The page's project picker, when one project is selected. Preselected. */
   projectId?: string | null
+  teamIds?: string[]
+  employeeId?: string | null
+  filterSummary?: FilterSummary
 }
 
-export function DeliverablesReportDialog({ open, onOpenChange, range, projectId }: Props) {
-  // `busy` lives here so a download in flight can hold the dialog open.
-  const [busy, setBusy] = useState(false)
+export function DeliverablesReportDialog({
+  open,
+  onOpenChange,
+  range,
+  projectId,
+  teamIds,
+  employeeId,
+  filterSummary,
+}: Props) {
+  const [exportingFormat, setExportingFormat] = useState<"xlsx" | "docx" | "pptx" | null>(null)
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent className="sm:max-w-xl">
-        {/* Mounted per open, so every visit starts from what the page shows
-            (its window, its project) instead of last time's picks. */}
+    <Dialog open={open} onOpenChange={(o) => exportingFormat === null && onOpenChange(o)}>
+      <DialogContent className="sm:max-w-md">
         {open && (
           <ReportForm
             range={range}
             projectId={projectId ?? null}
-            busy={busy}
-            setBusy={setBusy}
+            teamIds={teamIds ?? []}
+            employeeId={employeeId ?? null}
+            filterSummary={filterSummary}
+            exportingFormat={exportingFormat}
+            setExportingFormat={setExportingFormat}
             onClose={() => onOpenChange(false)}
           />
         )}
@@ -110,14 +115,20 @@ export function DeliverablesReportDialog({ open, onOpenChange, range, projectId 
 function ReportForm({
   range,
   projectId,
-  busy,
-  setBusy,
+  teamIds,
+  employeeId,
+  filterSummary,
+  exportingFormat,
+  setExportingFormat,
   onClose,
 }: {
   range: DateRangeValue
   projectId: string | null
-  busy: boolean
-  setBusy: (busy: boolean) => void
+  teamIds: string[]
+  employeeId: string | null
+  filterSummary?: FilterSummary
+  exportingFormat: "xlsx" | "docx" | "pptx" | null
+  setExportingFormat: (f: "xlsx" | "docx" | "pptx" | null) => void
   onClose: () => void
 }) {
   const scope = useQuery({
@@ -127,69 +138,45 @@ function ReportForm({
     staleTime: 60_000,
   })
 
-  const [window, setWindow] = useState<DateRangeValue>(range)
-  const [mode, setMode] = useState<Mode>(projectId ? "projects" : "all")
-  const [picked, setPicked] = useState<Set<string>>(() => new Set(projectId ? [projectId] : []))
   const [withAi, setWithAi] = useState(true)
 
   const data = scope.data
   const role = data?.role ?? "member"
-  const copy = ROLE_COPY[role]
 
-  const modes = useMemo(() => {
-    const out: { key: Mode; label: string }[] = [{ key: "all", label: copy.all }]
-    if (!data) return out
-    if (data.projects.length > 1 || role !== "member")
-      out.push({ key: "projects", label: "Projects" })
-    if (data.teams.length > 0) out.push({ key: "teams", label: "Teams" })
-    if (data.people.length > 1) out.push({ key: "people", label: "People" })
-    return out
-  }, [data, role, copy.all])
+  // Scope label for current view
+  const scopeDesc =
+    employeeId && filterSummary?.personLabel && filterSummary.personLabel !== "Whole team"
+      ? `Person: ${filterSummary.personLabel}`
+      : role === "member"
+        ? "Your deliverables"
+        : projectId && filterSummary?.projectLabel && filterSummary.projectLabel !== "All projects"
+          ? `Project: ${filterSummary.projectLabel}`
+          : teamIds.length && filterSummary?.teamLabel && filterSummary.teamLabel !== "All teams"
+            ? `Team: ${filterSummary.teamLabel}`
+            : role === "admin"
+              ? "All projects & teams"
+              : role === "account_manager"
+                ? "Your owned projects"
+                : role === "team_manager"
+                  ? "Your managed teams"
+                  : "Your deliverables"
 
-  const items = useMemo(() => {
-    if (!data) return []
-    if (mode === "projects") {
-      return data.projects.map((p) => ({ id: p.id, label: p.name, sub: p.code ?? "" }))
-    }
-    if (mode === "teams") {
-      return data.teams.map((t) => ({
-        id: t.id,
-        label: t.name,
-        sub: `${t.projectName} · ${t.memberCount} member${t.memberCount === 1 ? "" : "s"}`,
-      }))
-    }
-    if (mode === "people") {
-      return data.people.map((e) => ({ id: e.id, label: e.name, sub: e.designation ?? "" }))
-    }
-    return []
-  }, [data, mode])
-
-  const choose = (next: Mode) => {
-    setMode(next)
-    setPicked(new Set())
-  }
-  const toggle = (id: string) =>
-    setPicked((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-
-  const ready = !!window.from && !!window.to && (mode === "all" || picked.size > 0)
-
-  const download = async () => {
-    if (!window.from || !window.to) {
-      toast.error("Pick a date window first")
-      return
-    }
-    setBusy(true)
+  const download = async (format: "pptx" | "xlsx" | "docx") => {
+    setExportingFormat(format)
     try {
-      const p = new URLSearchParams({ from: window.from, to: window.to, ai: withAi ? "1" : "0" })
-      const ids = Array.from(picked).join(",")
-      if (mode === "projects" && ids) p.set("projectIds", ids)
-      if (mode === "teams" && ids) p.set("teamIds", ids)
-      if (mode === "people" && ids) p.set("employeeIds", ids)
+      const p = new URLSearchParams({
+        format,
+        ai: withAi ? "1" : "0",
+      })
+
+      if (range.from && range.to) {
+        p.set("from", range.from)
+        p.set("to", range.to)
+      }
+
+      if (projectId && projectId !== "all") p.set("projectIds", projectId)
+      if (teamIds.length) p.set("teamIds", teamIds.join(","))
+      if (employeeId && employeeId !== "all") p.set("employeeIds", employeeId)
 
       const res = await fetch(`/api/projects/deliverables/report?${p.toString()}`)
       if (!res.ok) {
@@ -199,7 +186,7 @@ function ReportForm({
       const blob = await res.blob()
       const name =
         res.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ??
-        "deliverables.pptx"
+        `deliverables.${format}`
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -208,148 +195,119 @@ function ReportForm({
       a.click()
       a.remove()
       URL.revokeObjectURL(url)
-      toast.success("Slides downloaded")
+      toast.success("Report downloaded")
       onClose()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not build the slides")
+      toast.error(e instanceof Error ? e.message : "Could not build the report")
     } finally {
-      setBusy(false)
+      setExportingFormat(null)
     }
   }
 
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Deliverables slides</DialogTitle>
+        <DialogTitle className="flex items-center gap-2">
+          <Download className="h-5 w-5 text-primary" />
+          Export Deliverables Report
+        </DialogTitle>
         <DialogDescription>
-          A .pptx you can present: who was on it, what was to be done, what landed, what did not and
-          why.
-          {data ? ` You are generating as ${copy.who.toLowerCase()} - ${copy.hint}` : ""}
+          Export the exact deliverables, metrics, and progress you see on screen into your chosen format.
         </DialogDescription>
       </DialogHeader>
 
       {scope.isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-40 w-full" />
+        <div className="space-y-2 py-3">
+          <Skeleton className="h-20 w-full rounded-md" />
         </div>
-      ) : scope.isError ? (
-        <p className="text-destructive text-sm">Could not load what you can report on.</p>
       ) : (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <p className="text-muted-foreground text-xs font-medium">Window</p>
-            <DateRangeField value={window} onChange={setWindow} />
-          </div>
-
-          <div className="space-y-1.5">
-            <p className="text-muted-foreground text-xs font-medium">Report on</p>
-            <div className="flex flex-wrap gap-1.5">
-              {modes.map((m) => (
-                <Button
-                  key={m.key}
-                  type="button"
-                  className="h-8 text-xs"
-                  variant={mode === m.key ? "default" : "outline"}
-                  onClick={() => choose(m.key)}
-                >
-                  {m.label}
-                </Button>
-              ))}
+        <div className="space-y-4 py-2">
+          {/* Summary of current active view */}
+          <div className="rounded-lg border bg-muted/40 p-3.5 text-xs space-y-2">
+            <div className="font-semibold text-foreground text-[11px] tracking-wider uppercase text-muted-foreground">
+              Current View to Export
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Period</span>
+                <span className="font-medium text-foreground">
+                  {range.from && range.to
+                    ? `${formatDate(range.from, "d MMM yyyy")} – ${formatDate(range.to, "d MMM yyyy")}`
+                    : "All time"}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Scope</span>
+                <span className="font-medium text-foreground truncate block" title={scopeDesc}>
+                  {scopeDesc}
+                </span>
+              </div>
+              {typeof filterSummary?.totalCount === "number" && (
+                <div className="col-span-2 pt-0.5 border-t border-border/40">
+                  <span className="text-muted-foreground">Deliverables in view: </span>
+                  <span className="font-semibold text-foreground">
+                    {filterSummary.totalCount} {filterSummary.totalCount === 1 ? "deliverable" : "deliverables"}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
-          {mode !== "all" && <PickList items={items} picked={picked} onToggle={toggle} />}
-
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
             <Checkbox checked={withAi} onCheckedChange={(v) => setWithAi(v === true)} />
-            Add an AI takeaways slide (speaker notes drafted from the numbers)
+            Include AI-generated summary and speaker takeaways
           </label>
-
-          <p className="text-muted-foreground text-[11px]">
-            Slides:{" "}
-            {SLIDES.filter((s) =>
-              role === "member" ? s !== "Who is in the report" && s !== "By team member" : true,
-            ).join(" · ")}
-          </p>
         </div>
       )}
 
-      <DialogFooter>
-        <Button variant="ghost" onClick={onClose} disabled={busy}>
+      <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between items-center pt-2">
+        <Button variant="ghost" onClick={onClose} disabled={exportingFormat !== null}>
           Cancel
         </Button>
-        <Button className="gap-1.5" onClick={download} disabled={!ready || busy || !data}>
-          {busy ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Download className="h-3.5 w-3.5" />
-          )}
-          {busy ? "Building…" : "Download slides"}
-        </Button>
+        <div className="flex flex-wrap gap-2 justify-end w-full sm:w-auto">
+          <Button
+            className="gap-1.5"
+            variant="outline"
+            onClick={() => download("xlsx")}
+            disabled={exportingFormat !== null}
+            title="Download formatted Excel workbook"
+          >
+            {exportingFormat === "xlsx" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            )}
+            Excel
+          </Button>
+          <Button
+            className="gap-1.5"
+            variant="outline"
+            onClick={() => download("docx")}
+            disabled={exportingFormat !== null}
+            title="Download formatted Word report"
+          >
+            {exportingFormat === "docx" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+            )}
+            Word
+          </Button>
+          <Button
+            className="gap-1.5"
+            onClick={() => download("pptx")}
+            disabled={exportingFormat !== null}
+            title="Download presentation slides"
+          >
+            {exportingFormat === "pptx" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Presentation className="h-3.5 w-3.5 text-amber-500" />
+            )}
+            PowerPoint
+          </Button>
+        </div>
       </DialogFooter>
     </>
-  )
-}
-
-function PickList({
-  items,
-  picked,
-  onToggle,
-}: {
-  items: { id: string; label: string; sub: string }[]
-  picked: Set<string>
-  onToggle: (id: string) => void
-}) {
-  const [q, setQ] = useState("")
-  const shown = useMemo(() => {
-    const needle = q.trim().toLowerCase()
-    if (!needle) return items
-    return items.filter(
-      (i) => i.label.toLowerCase().includes(needle) || i.sub.toLowerCase().includes(needle),
-    )
-  }, [items, q])
-
-  return (
-    <div className="space-y-2">
-      <div className="relative">
-        <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 h-3.5 w-3.5" />
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search"
-          className="h-8 pl-8 text-sm"
-        />
-      </div>
-      <div className="max-h-52 space-y-0.5 overflow-y-auto rounded-md border p-1">
-        {shown.length === 0 ? (
-          <p className="text-muted-foreground px-2 py-3 text-center text-xs">Nothing matches.</p>
-        ) : (
-          shown.map((i) => {
-            const on = picked.has(i.id)
-            return (
-              <label
-                key={i.id}
-                className={cn(
-                  "hover:bg-muted flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm",
-                  on && "bg-muted/60",
-                )}
-              >
-                <Checkbox checked={on} onCheckedChange={() => onToggle(i.id)} />
-                <span className="truncate">{i.label}</span>
-                {i.sub && (
-                  <span className="text-muted-foreground ml-auto shrink-0 truncate text-xs">
-                    {i.sub}
-                  </span>
-                )}
-              </label>
-            )
-          })
-        )}
-      </div>
-      <p className="text-muted-foreground text-[11px]">
-        {picked.size === 0 ? "Pick at least one." : `${picked.size} picked.`}
-      </p>
-    </div>
   )
 }

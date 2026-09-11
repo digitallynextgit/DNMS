@@ -1,4 +1,19 @@
 import PptxGenJS from "pptxgenjs"
+import ExcelJS from "exceljs"
+import {
+  Document,
+  Packer,
+  Paragraph,
+  Table,
+  TableRow,
+  TableCell,
+  TextRun,
+  WidthType,
+  AlignmentType,
+  HeadingLevel,
+  BorderStyle,
+  ShadingType,
+} from "docx"
 import type { Prisma } from "@prisma/client"
 import type { Session } from "next-auth"
 
@@ -770,6 +785,14 @@ export interface DeckInput {
   ai: boolean
 }
 
+export type ReportFormat = 'pptx' | 'xlsx' | 'docx'
+
+export interface BuiltReport {
+  bytes: Uint8Array<ArrayBuffer>
+  filename: string
+  contentType: string
+}
+
 export interface BuiltDeck {
   bytes: Uint8Array<ArrayBuffer>
   filename: string
@@ -782,11 +805,39 @@ const slug = (s: string): string =>
     .replace(/(^-|-$)/g, "")
     .slice(0, 40) || "report"
 
-export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck> {
+export interface ReportData {
+  rows: Row[]
+  today: Date
+  me: any
+  roster: RosterTeam[]
+  scopeLine: string
+  windowLine: string
+  author: string
+  isSelf: boolean
+  isSinglePerson: boolean
+  total: number
+  done: number
+  notDone: Row[]
+  overdue: number
+  sentBack: number
+  late: number
+  qty: number
+  made: number
+  byStatus: Map<DeliverableStatus, number>
+  byProject: Bucket[]
+  byMember: Bucket[]
+  truncated: boolean
+  pickedProjects: { name: string }[]
+  pickedPeople: { firstName: string; lastName: string }[]
+}
+
+export async function loadReportData(input: DeckInput): Promise<ReportData> {
   const { scope, pick, from, to } = input
   const today = todayUtc()
+  const isSelf = scope.role === "member"
+  const isSinglePerson = isSelf || pick.employeeIds.length === 1
 
-  const [me, roster, pickedProjects, pickedPeople] = await Promise.all([
+  const [me, roster, pickedProjects, pickedPeople, singlePersonRecord] = await Promise.all([
     db.employee.findUnique({
       where: { id: scope.employeeId },
       select: { firstName: true, lastName: true, designation: { select: { title: true } } },
@@ -806,27 +857,42 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
           orderBy: { firstName: "asc" },
         })
       : Promise.resolve([]),
+    !isSelf && pick.employeeIds.length === 1
+      ? db.employee.findUnique({
+          where: { id: pick.employeeIds[0] },
+          select: { firstName: true, lastName: true, designation: { select: { title: true } } },
+        })
+      : Promise.resolve(null),
   ])
   const { rows, truncated } = await loadRows(scope, pick, roster, from, to)
 
-  // ── What this deck is about, in words ──────────────────────────────────────
-  const scopeParts: string[] = []
-  if (pickedProjects.length) scopeParts.push(pickedProjects.map((p) => p.name).join(", "))
-  if (pick.teamIds.length) {
-    scopeParts.push(roster.map((t) => `${t.name} (${t.project.name})`).join(", "))
+  // ── What this report is about, in words ──────────────────────────────────────
+  let scopeLine: string
+  if (isSelf) {
+    scopeLine = pickedProjects.length === 1 ? pickedProjects[0]!.name : "Your deliverables"
+  } else if (singlePersonRecord) {
+    const pName = fullName(singlePersonRecord)
+    scopeLine = pickedProjects.length === 1 ? `${pName} · ${pickedProjects[0]!.name}` : pName
+  } else {
+    const scopeParts: string[] = []
+    if (pickedProjects.length) scopeParts.push(pickedProjects.map((p) => p.name).join(", "))
+    if (pick.teamIds.length) {
+      scopeParts.push(roster.map((t) => `${t.name} (${t.project.name})`).join(", "))
+    }
+    if (pickedPeople.length) scopeParts.push(pickedPeople.map(fullName).join(", "))
+    scopeLine =
+      scopeParts.join(" · ") ||
+      {
+        admin: "All projects",
+        account_manager: "The projects you own",
+        team_manager: "The teams you manage",
+        member: "Your deliverables",
+      }[scope.role]
   }
-  if (pickedPeople.length) scopeParts.push(pickedPeople.map(fullName).join(", "))
-  const scopeLine =
-    scopeParts.join(" · ") ||
-    {
-      admin: "All projects",
-      account_manager: "The projects you own",
-      team_manager: "The teams you manage",
-      member: "Your deliverables",
-    }[scope.role]
-  const windowLine = formatPeriod(day(from), day(to))
+
+  const isAllTime = from <= "2001-01-01" && to >= "2090-01-01"
+  const windowLine = isAllTime ? "All time" : formatPeriod(day(from), day(to))
   const author = me ? fullName(me) : "DNMS"
-  const isSelf = scope.role === "member"
 
   // ── Numbers ────────────────────────────────────────────────────────────────
   const total = rows.length
@@ -838,6 +904,7 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
   const qty = rows.reduce((n, r) => n + r.quantity, 0)
   const made = rows.reduce((n, r) => n + Math.min(r.deliveredQuantity, r.quantity), 0)
   const byStatus = new Map<DeliverableStatus, number>()
+  for (const s of STATUS_ORDER) byStatus.set(s, 0)
   for (const r of rows) byStatus.set(r.status, (byStatus.get(r.status) ?? 0) + 1)
 
   const byProject = bucketize(rows, today, (r) => ({
@@ -851,30 +918,87 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
       ? { key: r.employee.id, label: fullName(r.employee), sub: r.team?.name ?? "" }
       : { key: "__unclaimed__", label: "Not yet picked up", sub: r.team?.name ?? "" },
   )
-  // People on the roster with nothing in the window still belong in the table -
-  // "nothing assigned" is a finding, not an omission.
-  for (const t of roster) {
-    for (const m of t.members) {
-      if (!byMember.some((b) => b.key === m.employee.id)) {
-        byMember.push({
-          key: m.employee.id,
-          label: fullName(m.employee),
-          sub: t.name,
-          total: 0,
-          done: 0,
-          open: 0,
-          overdue: 0,
-          sentBack: 0,
-          late: 0,
-          qty: 0,
-          made: 0,
-        })
+
+  // Only pad with roster members if viewing multiple people, NOT when filtered to a single person!
+  if (!isSinglePerson && pick.employeeIds.length === 0) {
+    for (const t of roster) {
+      for (const m of t.members) {
+        if (!byMember.some((b) => b.key === m.employee.id)) {
+          byMember.push({
+            key: m.employee.id,
+            label: fullName(m.employee),
+            sub: t.name,
+            total: 0,
+            done: 0,
+            open: 0,
+            overdue: 0,
+            sentBack: 0,
+            late: 0,
+            qty: 0,
+            made: 0,
+          })
+        }
       }
     }
   }
   byMember.sort((a, b) => b.total - a.total || a.label.localeCompare(b.label))
 
-  // ── Build ──────────────────────────────────────────────────────────────────
+  return {
+    rows,
+    today,
+    me,
+    roster,
+    scopeLine,
+    windowLine,
+    author,
+    isSelf,
+    isSinglePerson,
+    total,
+    done,
+    notDone,
+    overdue,
+    sentBack,
+    late,
+    qty,
+    made,
+    byStatus,
+    byProject,
+    byMember,
+    truncated,
+    pickedProjects,
+    pickedPeople,
+  }
+}
+
+export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck> {
+  const { scope, pick, from, to } = input
+  const data = await loadReportData(input)
+  const {
+    rows,
+    today,
+    me,
+    roster,
+    scopeLine,
+    windowLine,
+    author,
+    isSelf,
+    isSinglePerson,
+    total,
+    done,
+    notDone,
+    overdue,
+    sentBack,
+    late,
+    qty,
+    made,
+    byStatus,
+    byProject,
+    byMember,
+    truncated,
+    pickedProjects,
+    pickedPeople,
+  } = data
+
   const deck = new Deck(`Deliverables · ${scopeLine} · ${windowLine}`, author)
 
   // 1. Cover
@@ -883,17 +1007,17 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
     s.background = { color: C.navy }
     s.addText("Deliverables report", {
       x: M,
-      y: 1.4,
+      y: 1.35,
       w: BODY_W,
       h: 0.8,
       fontFace: FONT,
-      fontSize: 34,
+      fontSize: 32,
       bold: true,
       color: C.white,
     })
     s.addText(scopeLine, {
       x: M,
-      y: 2.2,
+      y: 2.3,
       w: BODY_W,
       h: 0.6,
       fontFace: FONT,
@@ -902,7 +1026,7 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
     })
     s.addText(windowLine, {
       x: M,
-      y: 2.8,
+      y: 2.95,
       w: BODY_W,
       h: 0.45,
       fontFace: FONT,
@@ -924,7 +1048,7 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
   }
 
   // 2. Who is in this report
-  if (!isSelf && roster.length) {
+  if (!isSinglePerson && roster.length) {
     const rosterRows: Cell[][] = []
     const seenCount = new Map<string, number>()
     for (const r of rows) {
@@ -1196,7 +1320,7 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
   }
 
   // 7. By team member
-  if (!isSelf && byMember.length) {
+  if (!isSinglePerson && byMember.length > 1) {
     deck.pagedTable(
       "By team member",
       `Who carried what · ${windowLine}`,
@@ -1318,9 +1442,989 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
           : isSelf
             ? "my"
             : "all"
+  const isAllTime = from <= "2001-01-01" && to >= "2090-01-01"
+  const dateSuffix = isAllTime ? "all-time" : `${from}-${to}`
   return {
     bytes: await deck.bytes(),
-    filename: `deliverables-${slug(base)}-${from}-${to}.pptx`,
+    filename: `deliverables-${slug(base)}-${dateSuffix}.pptx`,
+  }
+}
+
+export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltReport> {
+  const data = await loadReportData(input)
+  const { from, to, pick } = input
+  const {
+    rows,
+    today,
+    total,
+    done,
+    overdue,
+    sentBack,
+    byProject,
+    byMember,
+    pickedProjects,
+    pickedPeople,
+    roster,
+    isSelf,
+    isSinglePerson,
+    scopeLine,
+    windowLine,
+    byStatus,
+  } = data
+
+  const wb = new ExcelJS.Workbook()
+  wb.creator = data.author
+  wb.created = new Date()
+
+  // ── Sheet 1: Overview ──────────────────────────────────────
+  const wsOverview = wb.addWorksheet("Progress Overview", {
+    views: [{ showGridLines: true }],
+  })
+  wsOverview.columns = [
+    { width: 32 }, // Col A: Status / Project / Metric label
+    { width: 14 }, // Col B: Completed / Qty
+    { width: 14 }, // Col C: Open / Share %
+    { width: 14 }, // Col D: Overdue
+    { width: 14 }, // Col E: Sent Back
+    { width: 14 }, // Col F: Total / All
+    { width: 16 }, // Col G: Progress %
+  ]
+
+  // Header Banner
+  const titleRow = wsOverview.addRow(["Deliverables Progress Report"])
+  titleRow.font = { name: "Segoe UI", size: 16, bold: true, color: { argb: "FF0F172A" } }
+  wsOverview.mergeCells("A1:G1")
+
+  const metaRow = wsOverview.addRow([`${scopeLine} · ${windowLine}`])
+  metaRow.font = { name: "Segoe UI", size: 11, color: { argb: "FF475569" } }
+  wsOverview.mergeCells("A2:G2")
+
+  const genRow = wsOverview.addRow([`Generated on ${dmy(new Date())} by ${data.author}`])
+  genRow.font = { name: "Segoe UI", size: 9, italic: true, color: { argb: "FF94A3B8" } }
+  wsOverview.mergeCells("A3:G3")
+
+  wsOverview.addRow([]) // Spacer row 4
+
+  // 1. Key Metrics Cards (Matching Web UI)
+  const kpiSecRow = wsOverview.addRow(["KEY METRICS"])
+  kpiSecRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF475569" } }
+
+  const kpiHeaderRow = wsOverview.addRow([
+    "To Do",
+    "Completed",
+    "Overdue Now",
+    "Sent Back",
+    "Total Deliverables",
+    "Completion Rate",
+  ])
+  kpiHeaderRow.font = { name: "Segoe UI", size: 9, bold: true, color: { argb: "FF64748B" } }
+  kpiHeaderRow.alignment = { horizontal: "center", vertical: "middle" }
+
+  const kpiValRow = wsOverview.addRow([
+    total - done,
+    done,
+    overdue,
+    sentBack,
+    total,
+    total > 0 ? `${pct(done, total)}%` : "0%",
+  ])
+  kpiValRow.height = 30
+  kpiValRow.font = { name: "Segoe UI", size: 18, bold: true, color: { argb: "FF0F172A" } }
+  kpiValRow.alignment = { horizontal: "center", vertical: "middle" }
+  kpiValRow.getCell(2).font = { name: "Segoe UI", size: 18, bold: true, color: { argb: "FF10B981" } }
+  if (overdue > 0)
+    kpiValRow.getCell(3).font = { name: "Segoe UI", size: 18, bold: true, color: { argb: "FFEF4444" } }
+  if (sentBack > 0)
+    kpiValRow.getCell(4).font = { name: "Segoe UI", size: 18, bold: true, color: { argb: "FFF59E0B" } }
+
+  const kpiSubRow = wsOverview.addRow([
+    overdue ? `${overdue} overdue` : "nothing overdue",
+    total > 0 ? `${pct(done, total)}% of ${total}` : "0 items",
+    overdue ? "past due & open" : "on track",
+    sentBack ? "awaiting rework" : "none rejected",
+    "in window",
+    "overall progress",
+  ])
+  kpiSubRow.font = { name: "Segoe UI", size: 8, color: { argb: "FF94A3B8" } }
+  kpiSubRow.alignment = { horizontal: "center", vertical: "middle" }
+
+  for (let c = 1; c <= 6; c++) {
+    const headCell = kpiHeaderRow.getCell(c)
+    const valCell = kpiValRow.getCell(c)
+    const subCell = kpiSubRow.getCell(c)
+
+    headCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } }
+    valCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } }
+    subCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } }
+
+    const thinBorder: Partial<ExcelJS.Borders> = {
+      top: { style: "thin", color: { argb: "FFE2E8F0" } },
+      bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+      left: { style: "thin", color: { argb: "FFE2E8F0" } },
+      right: { style: "thin", color: { argb: "FFE2E8F0" } },
+    }
+    headCell.border = thinBorder
+    valCell.border = thinBorder
+    subCell.border = thinBorder
+  }
+
+  wsOverview.addRow([]) // Spacer
+
+  // 2. Where the work stands (Status Breakdown, Matching Web UI)
+  const wsStatusSec = wsOverview.addRow(["WHERE THE WORK STANDS (STATUS BREAKDOWN)"])
+  wsStatusSec.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF475569" } }
+
+  const statusHeadRow = wsOverview.addRow(["Status", "Deliverables", "Share (%)"])
+  statusHeadRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } }
+  for (let c = 1; c <= 3; c++) {
+    statusHeadRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } }
+    statusHeadRow.getCell(c).alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" }
+  }
+
+  const statusRows = [
+    { label: "To do", key: "PLANNED" as DeliverableStatus, color: "FF64748B" },
+    { label: "In progress", key: "IN_PROGRESS" as DeliverableStatus, color: "FF3B82F6" },
+    { label: "Delivered", key: "DELIVERED" as DeliverableStatus, color: "FF10B981" },
+    { label: "Accepted", key: "ACCEPTED" as DeliverableStatus, color: "FF059669" },
+    { label: "Sent back", key: "REJECTED" as DeliverableStatus, color: "FFEF4444" },
+  ]
+  for (const sr of statusRows) {
+    const cnt = byStatus.get(sr.key) ?? 0
+    const row = wsOverview.addRow([sr.label, cnt, `${pct(cnt, total)}%`])
+    row.font = { name: "Segoe UI", size: 10, color: { argb: "FF334155" } }
+    row.getCell(1).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: sr.color } }
+    row.getCell(2).alignment = { horizontal: "right" }
+    row.getCell(3).alignment = { horizontal: "right" }
+    for (let c = 1; c <= 3; c++) {
+      row.getCell(c).border = { bottom: { style: "thin", color: { argb: "FFF1F5F9" } } }
+    }
+  }
+
+  wsOverview.addRow([]) // Spacer
+
+  // 3. By Project Table (Matching Web UI)
+  const projSecRow = wsOverview.addRow(["BY PROJECT"])
+  projSecRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF475569" } }
+
+  const projHeadRow = wsOverview.addRow([
+    "Project",
+    "Completed",
+    "Open",
+    "Overdue",
+    "Sent Back",
+    "All",
+    "Progress",
+  ])
+  projHeadRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } }
+  for (let c = 1; c <= 7; c++) {
+    projHeadRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } }
+    projHeadRow.getCell(c).alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" }
+  }
+
+  for (let idx = 0; idx < byProject.length; idx++) {
+    const p = byProject[idx]
+    const row = wsOverview.addRow([
+      p.label,
+      p.done,
+      p.open,
+      p.overdue,
+      p.sentBack,
+      p.total,
+      `${pct(p.done, p.total)}%`,
+    ])
+    row.font = { name: "Segoe UI", size: 10, color: { argb: "FF1E293B" } }
+    row.getCell(1).font = { name: "Segoe UI", size: 10, bold: true }
+    row.getCell(2).font = { name: "Segoe UI", size: 10, color: { argb: "FF10B981" } }
+    if (p.overdue > 0)
+      row.getCell(4).font = { name: "Segoe UI", size: 10, color: { argb: "FFEF4444" } }
+    if (p.sentBack > 0)
+      row.getCell(5).font = { name: "Segoe UI", size: 10, color: { argb: "FFF59E0B" } }
+
+    const bg = idx % 2 === 1 ? "FFF8FAFC" : "FFFFFFFF"
+    for (let c = 1; c <= 7; c++) {
+      row.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } }
+      row.getCell(c).alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" }
+      row.getCell(c).border = { bottom: { style: "thin", color: { argb: "FFE2E8F0" } } }
+    }
+  }
+
+  // 4. By Team Member Table (ONLY if !isSinglePerson && byMember.length > 1)
+  if (!isSinglePerson && byMember.length > 1) {
+    wsOverview.addRow([]) // Spacer
+    const memSecRow = wsOverview.addRow(["BY TEAM MEMBER"])
+    memSecRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF475569" } }
+
+    const memHeadRow = wsOverview.addRow([
+      "Person",
+      "Completed",
+      "Open",
+      "Overdue",
+      "Sent Back",
+      "All",
+      "Progress",
+    ])
+    memHeadRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } }
+    for (let c = 1; c <= 7; c++) {
+      memHeadRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } }
+      memHeadRow.getCell(c).alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" }
+    }
+
+    for (let idx = 0; idx < byMember.length; idx++) {
+      const m = byMember[idx]
+      const row = wsOverview.addRow([
+        m.label,
+        m.done,
+        m.open,
+        m.overdue,
+        m.sentBack,
+        m.total,
+        m.total ? `${pct(m.done, m.total)}%` : "-",
+      ])
+      row.font = { name: "Segoe UI", size: 10, color: { argb: "FF1E293B" } }
+      row.getCell(1).font = { name: "Segoe UI", size: 10, bold: true }
+      row.getCell(2).font = { name: "Segoe UI", size: 10, color: { argb: "FF10B981" } }
+      if (m.overdue > 0)
+        row.getCell(4).font = { name: "Segoe UI", size: 10, color: { argb: "FFEF4444" } }
+      if (m.sentBack > 0)
+        row.getCell(5).font = { name: "Segoe UI", size: 10, color: { argb: "FFF59E0B" } }
+
+      const bg = idx % 2 === 1 ? "FFF8FAFC" : "FFFFFFFF"
+      for (let c = 1; c <= 7; c++) {
+        row.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } }
+        row.getCell(c).alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" }
+        row.getCell(c).border = { bottom: { style: "thin", color: { argb: "FFE2E8F0" } } }
+      }
+    }
+  }
+
+  // ── Sheet 2: Deliverables (Full Ledger) ────────────────────
+  const wsDeliverables = wb.addWorksheet("Deliverables", {
+    views: [{ showGridLines: true }],
+  })
+  wsDeliverables.columns = [
+    { width: 38 }, // Col A: Deliverable
+    { width: 22 }, // Col B: Project
+    { width: 20 }, // Col C: Owned By
+    { width: 18 }, // Col D: Period
+    { width: 15 }, // Col E: Status
+    { width: 36 }, // Col F: Why / Completed On
+  ]
+
+  const dTitleRow = wsDeliverables.addRow(["Deliverables Ledger"])
+  dTitleRow.font = { name: "Segoe UI", size: 14, bold: true, color: { argb: "FF0F172A" } }
+  wsDeliverables.mergeCells("A1:F1")
+
+  const dMetaRow = wsDeliverables.addRow([
+    `${scopeLine} · ${windowLine} · ${rows.length} ${rows.length === 1 ? "deliverable" : "deliverables"}`,
+  ])
+  dMetaRow.font = { name: "Segoe UI", size: 10, color: { argb: "FF64748B" } }
+  wsDeliverables.mergeCells("A2:F2")
+
+  wsDeliverables.addRow([]) // Spacer
+
+  const dHeadRow = wsDeliverables.addRow([
+    "Deliverable",
+    "Project",
+    "Owned By",
+    "Period",
+    "Status",
+    "Why / Completed On",
+  ])
+  dHeadRow.height = 24
+  dHeadRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } }
+  for (let c = 1; c <= 6; c++) {
+    dHeadRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } }
+    dHeadRow.getCell(c).alignment = { horizontal: "left", vertical: "middle" }
+  }
+
+  for (let idx = 0; idx < rows.length; idx++) {
+    const r = rows[idx]
+    const doneRow = isDone(r)
+    const whyOrDone = doneRow
+      ? r.completedOn
+        ? dmy(r.completedOn)
+        : "Completed"
+      : whyNotDone(r, today)
+
+    const row = wsDeliverables.addRow([
+      `${r.type} · ${r.title}${r.quantity > 1 ? ` ×${r.quantity}` : ""}`,
+      r.project.name,
+      r.employee ? fullName(r.employee) : "-",
+      periodOf(r),
+      DELIVERABLE_STATUS_LABELS[r.status],
+      whyOrDone,
+    ])
+    row.font = { name: "Segoe UI", size: 9.5, color: { argb: "FF1E293B" } }
+    row.getCell(5).font = {
+      name: "Segoe UI",
+      size: 9.5,
+      bold: true,
+      color: {
+        argb:
+          r.status === "REJECTED"
+            ? "FFDC2626"
+            : r.status === "DELIVERED" || r.status === "ACCEPTED"
+              ? "FF16A34A"
+              : r.status === "IN_PROGRESS"
+                ? "FF2563EB"
+                : "FF6B7280",
+      },
+    }
+    if (!doneRow && isOverdue(r, today)) {
+      row.getCell(4).font = { name: "Segoe UI", size: 9.5, color: { argb: "FFDC2626" } }
+    }
+
+    const bg = idx % 2 === 1 ? "FFF8FAFC" : "FFFFFFFF"
+    for (let c = 1; c <= 6; c++) {
+      row.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } }
+      row.getCell(c).alignment = { vertical: "top", horizontal: "left" }
+      row.getCell(c).border = { bottom: { style: "thin", color: { argb: "FFE2E8F0" } } }
+    }
+  }
+
+  const buffer = await wb.xlsx.writeBuffer()
+  const bytes = new Uint8Array(buffer)
+  const base =
+    pickedProjects.length === 1
+      ? pickedProjects[0]!.name
+      : pick.teamIds.length === 1 && roster[0]
+        ? roster[0].name
+        : pickedPeople.length === 1
+          ? fullName(pickedPeople[0]!)
+          : isSelf
+            ? "my"
+            : "all"
+
+  const isAllTime = from <= "2001-01-01" && to >= "2090-01-01"
+  const dateSuffix = isAllTime ? "all-time" : `${from}-${to}`
+  return {
+    bytes,
+    filename: `deliverables-${slug(base)}-${dateSuffix}.xlsx`,
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  }
+}
+
+export async function buildDeliverablesDocx(input: DeckInput): Promise<BuiltReport> {
+  const data = await loadReportData(input)
+  const { from, to, pick, ai } = input
+  const {
+    rows,
+    today,
+    total,
+    done,
+    notDone,
+    overdue,
+    sentBack,
+    late,
+    byProject,
+    byMember,
+    pickedProjects,
+    pickedPeople,
+    roster,
+    isSelf,
+    isSinglePerson,
+    scopeLine,
+    windowLine,
+    byStatus,
+    qty,
+    made,
+  } = data
+
+  const cellBorder = {
+    top: { style: BorderStyle.SINGLE, size: 1, color: "E2E8F0" },
+    bottom: { style: BorderStyle.SINGLE, size: 1, color: "E2E8F0" },
+    left: { style: BorderStyle.SINGLE, size: 1, color: "E2E8F0" },
+    right: { style: BorderStyle.SINGLE, size: 1, color: "E2E8F0" },
+  }
+
+  type AlignmentTypeValue = (typeof AlignmentType)[keyof typeof AlignmentType]
+
+  const hCell = (text: string, widthPct: number, align: AlignmentTypeValue = AlignmentType.LEFT) =>
+    new TableCell({
+      width: { size: widthPct, type: WidthType.PERCENTAGE },
+      shading: { type: ShadingType.CLEAR, fill: "1E293B" },
+      margins: { top: 120, bottom: 120, left: 140, right: 140 },
+      borders: cellBorder,
+      children: [
+        new Paragraph({
+          alignment: align,
+          children: [
+            new TextRun({ text, bold: true, color: "FFFFFF", size: 18, font: "Segoe UI" }),
+          ],
+        }),
+      ],
+    })
+
+  const dCell = (
+    text: string,
+    widthPct: number,
+    opts?: { bold?: boolean; color?: string; align?: AlignmentTypeValue; bg?: string; italic?: boolean },
+  ) =>
+    new TableCell({
+      width: { size: widthPct, type: WidthType.PERCENTAGE },
+      shading: opts?.bg ? { type: ShadingType.CLEAR, fill: opts.bg } : undefined,
+      margins: { top: 100, bottom: 100, left: 140, right: 140 },
+      borders: cellBorder,
+      children: [
+        new Paragraph({
+          alignment: opts?.align ?? AlignmentType.LEFT,
+          children: [
+            new TextRun({
+              text,
+              bold: opts?.bold,
+              italics: opts?.italic,
+              color: opts?.color ?? "1E293B",
+              size: 18,
+              font: "Segoe UI",
+            }),
+          ],
+        }),
+      ],
+    })
+
+  const docChildren: (Paragraph | Table)[] = [
+    new Paragraph({
+      text: "Deliverables Progress Report",
+      heading: HeadingLevel.HEADING_1,
+      alignment: AlignmentType.LEFT,
+    }),
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      children: [
+        new TextRun({
+          text: `${scopeLine} · ${windowLine}`,
+          bold: true,
+          color: "475569",
+          size: 22,
+          font: "Segoe UI",
+        }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      children: [
+        new TextRun({
+          text: `Generated on ${dmy(new Date())} by ${data.author} · DNMS`,
+          italics: true,
+          color: "94A3B8",
+          size: 16,
+          font: "Segoe UI",
+        }),
+      ],
+    }),
+    new Paragraph({ text: "" }),
+
+    // 1. Key Metrics Cards
+    new Paragraph({
+      text: "Key Metrics",
+      heading: HeadingLevel.HEADING_2,
+    }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 25, type: WidthType.PERCENTAGE },
+              shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
+              borders: cellBorder,
+              margins: { top: 140, bottom: 140, left: 140, right: 140 },
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: "TO DO",
+                      size: 16,
+                      bold: true,
+                      color: "64748B",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: String(total - done),
+                      size: 36,
+                      bold: true,
+                      color: "0F172A",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: overdue ? `${overdue} overdue` : "nothing overdue",
+                      size: 16,
+                      color: overdue ? "EF4444" : "94A3B8",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            new TableCell({
+              width: { size: 25, type: WidthType.PERCENTAGE },
+              shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
+              borders: cellBorder,
+              margins: { top: 140, bottom: 140, left: 140, right: 140 },
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: "COMPLETED",
+                      size: 16,
+                      bold: true,
+                      color: "64748B",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: String(done),
+                      size: 36,
+                      bold: true,
+                      color: "10B981",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: total > 0 ? `${pct(done, total)}% of ${total}` : "0 items",
+                      size: 16,
+                      color: "94A3B8",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            new TableCell({
+              width: { size: 25, type: WidthType.PERCENTAGE },
+              shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
+              borders: cellBorder,
+              margins: { top: 140, bottom: 140, left: 140, right: 140 },
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: "OVERDUE NOW",
+                      size: 16,
+                      bold: true,
+                      color: "64748B",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: String(overdue),
+                      size: 36,
+                      bold: true,
+                      color: overdue ? "EF4444" : "0F172A",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: overdue ? "past due & open" : "on track",
+                      size: 16,
+                      color: "94A3B8",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            new TableCell({
+              width: { size: 25, type: WidthType.PERCENTAGE },
+              shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
+              borders: cellBorder,
+              margins: { top: 140, bottom: 140, left: 140, right: 140 },
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: "SENT BACK",
+                      size: 16,
+                      bold: true,
+                      color: "64748B",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: String(sentBack),
+                      size: 36,
+                      bold: true,
+                      color: sentBack ? "F59E0B" : "0F172A",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: sentBack ? "awaiting rework" : "none rejected",
+                      size: 16,
+                      color: "94A3B8",
+                      font: "Segoe UI",
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    }),
+    new Paragraph({ text: "" }),
+
+    // 2. Where the work stands (Status Breakdown)
+    new Paragraph({
+      text: "Where the work stands",
+      heading: HeadingLevel.HEADING_2,
+    }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            hCell("Status", 50),
+            hCell("Deliverables", 25, AlignmentType.RIGHT),
+            hCell("Share (%)", 25, AlignmentType.RIGHT),
+          ],
+        }),
+        ...[
+          { label: "To do", key: "PLANNED" as DeliverableStatus, color: "64748B" },
+          { label: "In progress", key: "IN_PROGRESS" as DeliverableStatus, color: "3B82F6" },
+          { label: "Delivered", key: "DELIVERED" as DeliverableStatus, color: "10B981" },
+          { label: "Accepted", key: "ACCEPTED" as DeliverableStatus, color: "059669" },
+          { label: "Sent back", key: "REJECTED" as DeliverableStatus, color: "EF4444" },
+        ].map(
+          (sr, idx) =>
+            new TableRow({
+              children: [
+                dCell(sr.label, 50, {
+                  bold: true,
+                  color: sr.color,
+                  bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                }),
+                dCell(String(byStatus.get(sr.key) ?? 0), 25, {
+                  align: AlignmentType.RIGHT,
+                  bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                }),
+                dCell(`${pct(byStatus.get(sr.key) ?? 0, total)}%`, 25, {
+                  align: AlignmentType.RIGHT,
+                  bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                }),
+              ],
+            }),
+        ),
+      ],
+    }),
+    new Paragraph({ text: "" }),
+
+    // 3. By Project Table
+    new Paragraph({
+      text: "By Project",
+      heading: HeadingLevel.HEADING_2,
+    }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            hCell("Project", 34),
+            hCell("Completed", 11, AlignmentType.RIGHT),
+            hCell("Open", 11, AlignmentType.RIGHT),
+            hCell("Overdue", 11, AlignmentType.RIGHT),
+            hCell("Sent Back", 11, AlignmentType.RIGHT),
+            hCell("All", 11, AlignmentType.RIGHT),
+            hCell("Progress", 11, AlignmentType.RIGHT),
+          ],
+        }),
+        ...byProject.map(
+          (b, idx) =>
+            new TableRow({
+              children: [
+                dCell(b.label, 34, { bold: true, bg: idx % 2 === 1 ? "F8FAFC" : undefined }),
+                dCell(String(b.done), 11, {
+                  align: AlignmentType.RIGHT,
+                  color: "10B981",
+                  bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                }),
+                dCell(String(b.open), 11, {
+                  align: AlignmentType.RIGHT,
+                  bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                }),
+                dCell(String(b.overdue), 11, {
+                  align: AlignmentType.RIGHT,
+                  color: b.overdue > 0 ? "EF4444" : undefined,
+                  bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                }),
+                dCell(String(b.sentBack), 11, {
+                  align: AlignmentType.RIGHT,
+                  color: b.sentBack > 0 ? "F59E0B" : undefined,
+                  bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                }),
+                dCell(String(b.total), 11, {
+                  align: AlignmentType.RIGHT,
+                  bold: true,
+                  bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                }),
+                dCell(`${pct(b.done, b.total)}%`, 11, {
+                  align: AlignmentType.RIGHT,
+                  bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                }),
+              ],
+            }),
+        ),
+      ],
+    }),
+  ]
+
+  // 4. By Team Member Table (only if !isSinglePerson && byMember.length > 1)
+  if (!isSinglePerson && byMember.length > 1) {
+    docChildren.push(new Paragraph({ text: "" }))
+    docChildren.push(
+      new Paragraph({
+        text: "By Team Member",
+        heading: HeadingLevel.HEADING_2,
+      }),
+    )
+    docChildren.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              hCell("Person", 34),
+              hCell("Completed", 11, AlignmentType.RIGHT),
+              hCell("Open", 11, AlignmentType.RIGHT),
+              hCell("Overdue", 11, AlignmentType.RIGHT),
+              hCell("Sent Back", 11, AlignmentType.RIGHT),
+              hCell("All", 11, AlignmentType.RIGHT),
+              hCell("Progress", 11, AlignmentType.RIGHT),
+            ],
+          }),
+          ...byMember.map(
+            (m, idx) =>
+              new TableRow({
+                children: [
+                  dCell(m.label, 34, { bold: true, bg: idx % 2 === 1 ? "F8FAFC" : undefined }),
+                  dCell(String(m.done), 11, {
+                    align: AlignmentType.RIGHT,
+                    color: "10B981",
+                    bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                  }),
+                  dCell(String(m.open), 11, {
+                    align: AlignmentType.RIGHT,
+                    bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                  }),
+                  dCell(String(m.overdue), 11, {
+                    align: AlignmentType.RIGHT,
+                    color: m.overdue > 0 ? "EF4444" : undefined,
+                    bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                  }),
+                  dCell(String(m.sentBack), 11, {
+                    align: AlignmentType.RIGHT,
+                    color: m.sentBack > 0 ? "F59E0B" : undefined,
+                    bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                  }),
+                  dCell(String(m.total), 11, {
+                    align: AlignmentType.RIGHT,
+                    bold: true,
+                    bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                  }),
+                  dCell(m.total ? `${pct(m.done, m.total)}%` : "-", 11, {
+                    align: AlignmentType.RIGHT,
+                    bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+                  }),
+                ],
+              }),
+          ),
+        ],
+      }),
+    )
+  }
+
+  // 5. Deliverables Ledger Table (All Columns matching Web Flat Table)
+  docChildren.push(new Paragraph({ text: "" }))
+  docChildren.push(
+    new Paragraph({
+      text: "Deliverables Ledger",
+      heading: HeadingLevel.HEADING_2,
+    }),
+  )
+  docChildren.push(
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            hCell("Deliverable", 28),
+            hCell("Project", 18),
+            hCell("Owned By", 15),
+            hCell("Period", 13),
+            hCell("Status", 12),
+            hCell("Why / Completed On", 14),
+          ],
+        }),
+        ...rows.map((r, idx) => {
+          const doneRow = isDone(r)
+          const whyOrDone = doneRow
+            ? r.completedOn
+              ? dmy(r.completedOn)
+              : "Completed"
+            : whyNotDone(r, today)
+          const statusColor =
+            r.status === "REJECTED"
+              ? "DC2626"
+              : r.status === "DELIVERED" || r.status === "ACCEPTED"
+                ? "16A34A"
+                : r.status === "IN_PROGRESS"
+                  ? "2563EB"
+                  : "6B7280"
+
+          return new TableRow({
+            children: [
+              dCell(`${r.type} · ${r.title}${r.quantity > 1 ? ` ×${r.quantity}` : ""}`, 28, {
+                bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+              }),
+              dCell(r.project.name, 18, { bg: idx % 2 === 1 ? "F8FAFC" : undefined }),
+              dCell(r.employee ? fullName(r.employee) : "-", 15, {
+                bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+              }),
+              dCell(periodOf(r), 13, {
+                color: !doneRow && isOverdue(r, today) ? "DC2626" : undefined,
+                bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+              }),
+              dCell(DELIVERABLE_STATUS_LABELS[r.status], 12, {
+                bold: true,
+                color: statusColor,
+                bg: idx % 2 === 1 ? "F8FAFC" : undefined,
+              }),
+              dCell(whyOrDone, 14, { color: "64748B", bg: idx % 2 === 1 ? "F8FAFC" : undefined }),
+            ],
+          })
+        }),
+      ],
+    }),
+  )
+
+  // 6. AI Takeaways
+  if (ai && total > 0) {
+    const block = [
+      `SCOPE: ${scopeLine}. WINDOW: ${windowLine}. GENERATED FOR: ${ROLE_LABEL[input.scope.role]}.`,
+      `TOTAL ${total} deliverables; ${done} completed (${pct(done, total)}%); ${total - done} not completed; ${overdue} overdue; ${sentBack} sent back; ${late} finished late; units ${made}/${qty}.`,
+      "BY PROJECT:",
+      ...byProject
+        .slice(0, 15)
+        .map(
+          (b) =>
+            `- ${b.label}: ${b.total} total, ${b.done} done (${pct(b.done, b.total)}%), ${b.open} open, ${b.overdue} overdue, ${b.sentBack} sent back`,
+        ),
+      ...(isSinglePerson
+        ? []
+        : [
+            "BY PERSON:",
+            ...byMember
+              .slice(0, 20)
+              .map(
+                (b) =>
+                  `- ${b.label}: ${b.total} assigned, ${b.done} done, ${b.open} open, ${b.overdue} overdue, ${b.sentBack} sent back`,
+              ),
+          ]),
+      "NOT COMPLETED (title - why):",
+      ...notDone
+        .slice(0, 25)
+        .map(
+          (r) =>
+            `- ${r.title} (${r.project.name}${r.employee ? `, ${fullName(r.employee)}` : ""}) - ${whyNotDone(r, today)}`,
+        ),
+    ].join("\n")
+
+    const lines = await takeaways(block)
+    if (lines) {
+      docChildren.push(new Paragraph({ text: "" }))
+      docChildren.push(
+        new Paragraph({
+          text: "AI Takeaways & Notes",
+          heading: HeadingLevel.HEADING_2,
+        }),
+      )
+      for (const line of lines) {
+        docChildren.push(
+          new Paragraph({
+            text: line,
+            bullet: { level: 0 },
+          }),
+        )
+      }
+    }
+  }
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: {
+              top: 1000,
+              right: 1000,
+              bottom: 1000,
+              left: 1000,
+            },
+          },
+        },
+        children: docChildren,
+      },
+    ],
+  })
+
+  const buffer = await Packer.toBuffer(doc)
+  const bytes = new Uint8Array(buffer)
+
+  const base =
+    pickedProjects.length === 1
+      ? pickedProjects[0]!.name
+      : pick.teamIds.length === 1 && roster[0]
+        ? roster[0].name
+        : pickedPeople.length === 1
+          ? fullName(pickedPeople[0]!)
+          : isSelf
+            ? "my"
+            : "all"
+
+  const isAllTime = from <= "2001-01-01" && to >= "2090-01-01"
+  const dateSuffix = isAllTime ? "all-time" : `${from}-${to}`
+  return {
+    bytes,
+    filename: `deliverables-${slug(base)}-${dateSuffix}.docx`,
+    contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  }
+}
+
+export async function buildDeliverablesReport(input: DeckInput, format: ReportFormat): Promise<BuiltReport> {
+  if (format === 'xlsx') return buildDeliverablesXlsx(input)
+  if (format === 'docx') return buildDeliverablesDocx(input)
+  
+  const deck = await buildDeliverablesDeck(input)
+  return {
+    bytes: deck.bytes,
+    filename: deck.filename,
+    contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
   }
 }
 

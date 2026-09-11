@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { AlertTriangle, CheckCircle2, Clock3, Inbox, Undo2 } from "lucide-react"
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ProgressSkeleton } from "./progress-skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
 import type { DateRangeValue } from "@/components/shared/date-range-field"
 import { apiFetch } from "@/lib/api-fetch"
@@ -83,12 +84,25 @@ const DELIVERED_CAP = 20
 const pctOf = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
+export interface ProgressFilterState {
+  projectId: string
+  team: string
+  teamIds: string[]
+  personId: string
+  projectLabel?: string
+  teamLabel?: string
+  personLabel?: string
+  totalCount?: number
+}
+
 interface MyProgressProps {
   /** The window, picked in the page header so this panel and the Slides deck read the same one. */
   range: DateRangeValue
+  /** Callback fired whenever the active view filters or counts change. */
+  onFilterChange?: (filters: ProgressFilterState) => void
 }
 
-export function MyProgress({ range }: MyProgressProps) {
+export function MyProgress({ range, onFilterChange }: MyProgressProps) {
   const [projectId, setProjectId] = useState(ALL)
   // A team NAME, not an id: the six teams are the same on every project.
   const [team, setTeam] = useState(ALL)
@@ -186,12 +200,28 @@ export function MyProgress({ range }: MyProgressProps) {
   const data = progress.data
   const me = data?.me
 
+  useEffect(() => {
+    if (!onFilterChange) return
+    const projectObj = sc?.projects.find((p) => p.id === projectId)
+    const personObj = sc?.people.find((p) => p.id === personId)
+    onFilterChange({
+      projectId,
+      team,
+      teamIds,
+      personId,
+      projectLabel: projectId === ALL ? "All projects" : projectObj?.name,
+      teamLabel: team === ALL ? "All teams" : team,
+      personLabel: personId === ALL ? "Whole team" : personObj?.name,
+      totalCount: data?.totals.total,
+    })
+  }, [projectId, team, teamIds, personId, sc, data?.totals.total, onFilterChange])
+
   return (
     <div className="space-y-6">
       {/* Who this covers on the left, the filters on the right - the window
           itself is picked in the page header, next to Slides. */}
       <div className="flex flex-wrap items-center gap-3">
-        {sc && (
+        {sc ? (
           <p className="text-muted-foreground text-xs">
             {ROLE_CAPTION[sc.role]}
             {sc.role !== "member" && (
@@ -203,54 +233,64 @@ export function MyProgress({ range }: MyProgressProps) {
             )}
             {sc.role === "member" && <> · {plural(sc.projects.length, "project")}</>}
           </p>
+        ) : (
+          <Skeleton className="h-4 w-40" />
         )}
-        {(showProjects || showTeams || showPeople) && (
+        {sc ? (
+          (showProjects || showTeams || showPeople) && (
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {showProjects && (
+                <Select value={projectId} onValueChange={pickProject}>
+                  <SelectTrigger className="w-[190px]" aria-label="Project">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>All projects</SelectItem>
+                    {sc?.projects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {showTeams && (
+                <Select value={team} onValueChange={pickTeam}>
+                  <SelectTrigger className="w-[150px]" aria-label="Team">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>All teams</SelectItem>
+                    {teamNames.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {showPeople && (
+                <Select value={personId} onValueChange={pickPerson}>
+                  <SelectTrigger className="w-[190px]" aria-label="Team member">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>Whole team</SelectItem>
+                    {people.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.id === me ? `${p.name} (me)` : p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )
+        ) : (
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            {showProjects && (
-              <Select value={projectId} onValueChange={pickProject}>
-                <SelectTrigger className="w-[190px]" aria-label="Project">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>All projects</SelectItem>
-                  {sc?.projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {showTeams && (
-              <Select value={team} onValueChange={pickTeam}>
-                <SelectTrigger className="w-[150px]" aria-label="Team">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>All teams</SelectItem>
-                  {teamNames.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {showPeople && (
-              <Select value={personId} onValueChange={pickPerson}>
-                <SelectTrigger className="w-[190px]" aria-label="Team member">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>Whole team</SelectItem>
-                  {people.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.id === me ? `${p.name} (me)` : p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <Skeleton className="h-9 w-[190px]" />
+            <Skeleton className="h-9 w-[150px]" />
+            <Skeleton className="h-9 w-[190px]" />
           </div>
         )}
       </div>
@@ -295,8 +335,7 @@ export function MyProgress({ range }: MyProgressProps) {
             />
           )}
 
-          <NotDoneCard items={data.notDone} showWho={showPeople && personId === ALL} />
-          <DeliveredCard items={data.delivered} showWho={showPeople && personId === ALL} />
+
 
           {data.truncated && (
             <p className="text-muted-foreground text-xs">
@@ -439,13 +478,13 @@ function StatusCard({ t, className }: { t: ProgressTotals; className?: string })
 
   return (
     <Card className={className}>
-      <CardHeader className="pb-2">
+      <CardHeader className="border-border/60 border-b pb-3">
         <CardTitle className="text-sm font-semibold">Where the work stands</CardTitle>
         <p className="text-muted-foreground text-xs">
           Click a status to see its share of the ring.
         </p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         <div className="relative h-[210px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -589,45 +628,45 @@ function GroupCard({
 }) {
   return (
     <Card className={className}>
-      <CardHeader className="pb-2">
+      <CardHeader className="border-border/60 border-b pb-3">
         <CardTitle className="text-sm font-semibold">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
+      <CardContent className="overflow-x-auto pt-4">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-muted-foreground text-[11px] tracking-wide uppercase">
               <th className="py-1 text-left font-medium">{what}</th>
-              <th className="py-1 text-right font-medium">Completed</th>
-              <th className="py-1 text-right font-medium">Open</th>
-              <th className="py-1 text-right font-medium">Overdue</th>
-              <th className="py-1 text-right font-medium">Sent back</th>
-              <th className="py-1 text-right font-medium">All</th>
-              <th className="w-36 py-1 pl-3 text-left font-medium">Progress</th>
+              <th className="whitespace-nowrap px-3 py-1 text-left font-medium">Completed</th>
+              <th className="whitespace-nowrap px-3 py-1 text-left font-medium">Open</th>
+              <th className="whitespace-nowrap px-3 py-1 text-left font-medium">Overdue</th>
+              <th className="whitespace-nowrap px-3 py-1 text-left font-medium">Sent back</th>
+              <th className="whitespace-nowrap px-3 py-1 text-left font-medium">All</th>
+              <th className="w-28 whitespace-nowrap py-1 pl-3 text-left font-medium sm:w-36">Progress</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-border/60 border-t">
-                <td className="py-2 pr-3">
+                <td className="max-w-[180px] py-2 pr-3">
                   {onPick ? (
                     <button
                       type="button"
                       onClick={() => onPick(r.id)}
-                      className="text-left font-medium hover:underline"
+                      className="block truncate text-left font-medium hover:underline"
                       title={`Only ${r.label}`}
                     >
                       {r.label}
                     </button>
                   ) : (
-                    <span className="font-medium">{r.label}</span>
+                    <span className="block truncate font-medium" title={r.label}>{r.label}</span>
                   )}
-                  {r.sub && <div className="text-muted-foreground text-xs">{r.sub}</div>}
+                  {r.sub && <div className="text-muted-foreground truncate text-xs">{r.sub}</div>}
                 </td>
-                <td className="py-2 text-right text-emerald-500 tabular-nums">{r.done}</td>
-                <td className="py-2 text-right tabular-nums">{r.open}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-left text-emerald-500 tabular-nums">{r.done}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-left tabular-nums">{r.open}</td>
                 <td
                   className={cn(
-                    "py-2 text-right tabular-nums",
+                    "whitespace-nowrap px-3 py-2 text-left tabular-nums",
                     r.overdue ? "text-red-500" : "text-muted-foreground/60",
                   )}
                 >
@@ -635,13 +674,13 @@ function GroupCard({
                 </td>
                 <td
                   className={cn(
-                    "py-2 text-right tabular-nums",
+                    "whitespace-nowrap px-3 py-2 text-left tabular-nums",
                     r.sentBack ? "text-amber-500" : "text-muted-foreground/60",
                   )}
                 >
                   {r.sentBack}
                 </td>
-                <td className="py-2 text-right font-medium tabular-nums">{r.total}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-left font-medium tabular-nums">{r.total}</td>
                 <td className="py-2 pl-3">
                   <ProgressBar done={r.done} overdue={r.overdue} total={r.total} />
                 </td>
@@ -689,13 +728,13 @@ function NotDoneCard({ items, showWho }: { items: ProgressItem[]; showWho: boole
   const shown = items.slice(0, NOT_DONE_CAP)
   return (
     <Card>
-      <CardHeader className="pb-2">
+      <CardHeader className="border-border/60 border-b pb-3">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           Still to do, and why
           <span className="text-muted-foreground text-xs font-normal">{items.length}</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
+      <CardContent className="overflow-x-auto pt-4">
         {items.length === 0 ? (
           <p className="text-muted-foreground py-2 text-sm">
             Everything in this window is completed.
@@ -757,13 +796,13 @@ function DeliveredCard({ items, showWho }: { items: ProgressItem[]; showWho: boo
   const shown = items.slice(0, DELIVERED_CAP)
   return (
     <Card>
-      <CardHeader className="pb-2">
+      <CardHeader className="border-border/60 border-b pb-3">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           Completed in this window
           <span className="text-muted-foreground text-xs font-normal">{items.length}</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
+      <CardContent className="overflow-x-auto pt-4">
         {items.length === 0 ? (
           <p className="text-muted-foreground py-2 text-sm">
             Nothing completed in this window yet.
@@ -810,24 +849,5 @@ function DeliveredCard({ items, showWho }: { items: ProgressItem[]; showWho: boo
         )}
       </CardContent>
     </Card>
-  )
-}
-
-// ─── Loading ─────────────────────────────────
-
-function ProgressSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {Array.from({ length: 5 }, (_, i) => (
-          <Skeleton key={i} className="h-24 rounded-xl" />
-        ))}
-      </div>
-      <div className="grid gap-6 lg:grid-cols-5">
-        <Skeleton className="h-80 rounded-xl lg:col-span-2" />
-        <Skeleton className="h-80 rounded-xl lg:col-span-3" />
-      </div>
-      <Skeleton className="h-56 rounded-xl" />
-    </div>
   )
 }

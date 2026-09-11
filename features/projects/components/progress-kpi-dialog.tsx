@@ -11,8 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { TAB_TRIGGER, TAB_TRIGGER_ACTIVE, TAB_TRIGGER_IDLE } from "@/components/ui/tabs"
-import { SegmentedControl } from "@/components/shared/segmented-control"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn, formatDate } from "@/lib/utils"
 import { DELIVERABLE_STATUS_LABELS, type DeliverableStatus } from "../lib/deliverable-lifecycle"
 import type { DeliverablesProgress, ProgressItem } from "../lib/deliverables-progress"
@@ -137,11 +136,12 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
   }, [items, query, groupBy])
 
   const shownCount = groups.reduce((n, g) => n + g.items.length, 0)
-  const otherCol = groupBy === "project" ? "Who" : "Project"
   // A search can empty the open tab out; fall back to the whole list rather
   // than showing a blank table under a tab that is no longer there.
   const active = groups.some((g) => g.key === tab) ? tab : ALL
   const visible = active === ALL ? groups : groups.filter((g) => g.key === active)
+  // Flat list of items for the table (no section headers).
+  const flatItems = visible.flatMap((g) => g.items)
   // One project needs no tabs - the header already says what it is.
   const showTabs = groups.length > 1
 
@@ -179,63 +179,41 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
                 aria-label="Search this list"
               />
             </div>
+            {showTabs ? (
+              <Select value={active} onValueChange={setTab}>
+                <SelectTrigger className="h-8 w-auto min-w-[160px] gap-1.5 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>
+                    All ({shownCount})
+                  </SelectItem>
+                  {groups.map((g) => (
+                    <SelectItem key={g.key} value={g.key}>
+                      {g.label} ({g.items.length})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
             {people > 1 ? (
-              <SegmentedControl
-                value={groupBy}
-                onChange={changeGroupBy}
-                options={GROUP_OPTIONS}
-                aria-label="Group by"
-              />
+              <Select value={groupBy} onValueChange={(v: string) => changeGroupBy(v as GroupBy)}>
+                <SelectTrigger className="h-8 w-auto min-w-[120px] gap-1.5 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GROUP_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ) : null}
           </div>
 
-          {/* One tab per project (or person), biggest first, the count on each
-              so the busy ones stand out before a click. The strip wraps rather
-              than scrolls: in a dialog a hidden overflow is a hidden project. */}
-          {showTabs ? (
-            <div
-              role="tablist"
-              aria-label={groupBy === "project" ? "Project" : "Person"}
-              className="bg-muted text-muted-foreground flex flex-wrap gap-0.5 rounded-sm p-1"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active === ALL}
-                onClick={() => setTab(ALL)}
-                className={cn(TAB_TRIGGER, active === ALL ? TAB_TRIGGER_ACTIVE : TAB_TRIGGER_IDLE)}
-              >
-                All
-                <span className="text-xs font-normal tabular-nums opacity-70">{shownCount}</span>
-              </button>
-              {groups.map((g) => {
-                const on = active === g.key
-                return (
-                  <button
-                    key={g.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={on}
-                    onClick={() => setTab(g.key)}
-                    title={g.label}
-                    className={cn(
-                      TAB_TRIGGER,
-                      "max-w-[260px]",
-                      on ? TAB_TRIGGER_ACTIVE : TAB_TRIGGER_IDLE,
-                    )}
-                  >
-                    <span className="min-w-0 truncate">{g.label}</span>
-                    <span className="text-xs font-normal tabular-nums opacity-70">
-                      {g.items.length}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          ) : null}
-
           <div className="-mx-1 max-h-[60vh] overflow-y-auto px-1">
-            {groups.length === 0 ? (
+            {flatItems.length === 0 ? (
               <p className="text-muted-foreground py-6 text-center text-sm">
                 Nothing matches &ldquo;{query.trim()}&rdquo;.
               </p>
@@ -244,7 +222,8 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
                 <thead className="bg-background sticky top-0 z-10">
                   <tr className="text-muted-foreground text-[11px] tracking-wide uppercase">
                     <th className="py-1.5 pr-3 text-left font-medium">Deliverable</th>
-                    <th className="py-1.5 pr-3 text-left font-medium">{otherCol}</th>
+                    <th className="py-1.5 pr-3 text-left font-medium">Project</th>
+                    <th className="whitespace-nowrap py-1.5 pr-3 text-left font-medium">Owned by</th>
                     <th className="py-1.5 pr-3 text-left font-medium">Period</th>
                     <th className="py-1.5 pr-3 text-left font-medium">Status</th>
                     <th className="py-1.5 text-left font-medium">
@@ -253,74 +232,42 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map((g) => {
-                    const overdueHere = finished ? 0 : g.items.filter((i) => i.overdue).length
-                    // Section headers only on "All" - on a single tab the tab
-                    // itself is the header. The overdue count still needs a
-                    // home there, so it goes on a slim line above the rows.
-                    const head =
-                      active === ALL ? (
-                        <tr key={`h:${g.key}`}>
-                          <td
-                            colSpan={5}
-                            className="bg-muted/40 rounded-md px-2 py-1.5 text-xs font-semibold"
-                          >
-                            {g.label}
-                            <span className="text-muted-foreground font-normal">
-                              {" "}
-                              · {g.items.length}
-                              {overdueHere ? ` · ${overdueHere} overdue` : ""}
-                            </span>
-                          </td>
-                        </tr>
-                      ) : overdueHere ? (
-                        <tr key={`h:${g.key}`}>
-                          <td colSpan={5} className="pb-1 text-xs text-red-500">
-                            {overdueHere} of {g.items.length} overdue
-                          </td>
-                        </tr>
-                      ) : null
-                    return [
-                      head,
-                      ...g.items.map((it) => (
-                        <tr key={it.id} className="border-border/60 border-b align-top">
-                          <td className="py-2 pr-3">
-                            <span className="text-muted-foreground">{it.type} · </span>
-                            {it.title}
-                            {it.quantity > 1 ? (
-                              <span className="text-muted-foreground"> ×{it.quantity}</span>
+                  {flatItems.map((it) => (
+                    <tr key={it.id} className="border-border/60 border-b align-top">
+                      <td className="py-2 pr-3">
+                        <span className="text-muted-foreground">{it.type} · </span>
+                        {it.title}
+                        {it.quantity > 1 ? (
+                          <span className="text-muted-foreground"> ×{it.quantity}</span>
+                        ) : null}
+                      </td>
+                      <td className="py-2 pr-3 whitespace-nowrap">{it.project}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap">{it.employee ?? "-"}</td>
+                      <td
+                        className={cn(
+                          "py-2 pr-3 whitespace-nowrap",
+                          !finished && it.overdue && "text-red-500",
+                        )}
+                      >
+                        {it.period}
+                      </td>
+                      <td className={cn("py-2 pr-3 whitespace-nowrap", STATUS_TONE[it.status])}>
+                        {DELIVERABLE_STATUS_LABELS[it.status]}
+                      </td>
+                      <td className="py-2">
+                        {finished ? (
+                          <span className="whitespace-nowrap">
+                            {it.completedOn ? formatDate(it.completedOn, "d MMM yyyy") : "-"}
+                            {it.late ? (
+                              <span className="ml-1.5 text-[11px] text-amber-500">late</span>
                             ) : null}
-                          </td>
-                          <td className="py-2 pr-3 whitespace-nowrap">
-                            {groupBy === "project" ? (it.employee ?? "-") : it.project}
-                          </td>
-                          <td
-                            className={cn(
-                              "py-2 pr-3 whitespace-nowrap",
-                              !finished && it.overdue && "text-red-500",
-                            )}
-                          >
-                            {it.period}
-                          </td>
-                          <td className={cn("py-2 pr-3 whitespace-nowrap", STATUS_TONE[it.status])}>
-                            {DELIVERABLE_STATUS_LABELS[it.status]}
-                          </td>
-                          <td className="py-2">
-                            {finished ? (
-                              <span className="whitespace-nowrap">
-                                {it.completedOn ? formatDate(it.completedOn, "d MMM yyyy") : "-"}
-                                {it.late ? (
-                                  <span className="ml-1.5 text-[11px] text-amber-500">late</span>
-                                ) : null}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">{it.why || "-"}</span>
-                            )}
-                          </td>
-                        </tr>
-                      )),
-                    ]
-                  })}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">{it.why || "-"}</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             )}

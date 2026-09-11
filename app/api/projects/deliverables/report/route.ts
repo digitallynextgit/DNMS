@@ -3,9 +3,10 @@ import type { Session } from "next-auth"
 
 import { withSession } from "@/server/api-handler"
 import {
-  buildDeliverablesDeck,
+  buildDeliverablesReport,
   narrowPick,
   resolveReportScope,
+  type ReportFormat,
 } from "@/features/projects/server/deliverables-report"
 
 // GET /api/projects/deliverables/report?from&to&projectIds&teamIds&employeeIds&ai
@@ -23,7 +24,8 @@ export const dynamic = "force-dynamic"
 const MAX_RANGE_DAYS = 366
 const MS_PER_DAY = 86_400_000
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
-const PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+const ALL_TIME_FROM = "2000-01-01"
+const ALL_TIME_TO = "2099-12-31"
 
 const ids = (raw: string | null): string[] =>
   raw
@@ -37,16 +39,28 @@ const ids = (raw: string | null): string[] =>
 export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     const q = req.nextUrl.searchParams
-    const from = q.get("from")
-    const to = q.get("to")
-    if (!from || !to || !DAY_RE.test(from) || !DAY_RE.test(to)) {
+    const format = (q.get("format") ?? "pptx") as ReportFormat
+    if (!['pptx', 'xlsx', 'docx'].includes(format)) {
+      return NextResponse.json({ error: 'format must be pptx, xlsx or docx' }, { status: 400 })
+    }
+    const rawFrom = q.get("from")
+    const rawTo = q.get("to")
+    const isAllTime =
+      !rawFrom ||
+      !rawTo ||
+      (rawFrom <= "2001-01-01" && rawTo >= "2090-01-01")
+
+    const from = isAllTime ? ALL_TIME_FROM : rawFrom
+    const to = isAllTime ? ALL_TIME_TO : rawTo
+
+    if (!DAY_RE.test(from) || !DAY_RE.test(to)) {
       return NextResponse.json({ error: "from and to (YYYY-MM-DD) are required" }, { status: 400 })
     }
     const span = (Date.parse(to) - Date.parse(from)) / MS_PER_DAY
     if (Number.isNaN(span) || span < 0) {
       return NextResponse.json({ error: "to must be on or after from" }, { status: 400 })
     }
-    if (span > MAX_RANGE_DAYS) {
+    if (!isAllTime && span > MAX_RANGE_DAYS) {
       return NextResponse.json({ error: "The window can be at most a year" }, { status: 400 })
     }
 
@@ -64,25 +78,25 @@ export const GET = withSession(
         )
       }
 
-      const deck = await buildDeliverablesDeck({
+      const report = await buildDeliverablesReport({
         session,
         scope,
         pick,
         from,
         to,
         ai: q.get("ai") !== "0",
-      })
-      return new NextResponse(deck.bytes, {
+      }, format)
+      return new NextResponse(report.bytes, {
         status: 200,
         headers: {
-          "Content-Type": PPTX,
-          "Content-Disposition": `attachment; filename="${deck.filename}"`,
+          "Content-Type": report.contentType,
+          "Content-Disposition": `attachment; filename="${report.filename}"`,
           "Cache-Control": "no-store",
         },
       })
     } catch (error) {
       console.error("[deliverables/report]", error)
-      return NextResponse.json({ error: "Could not build the slides" }, { status: 500 })
+      return NextResponse.json({ error: "Could not build the report" }, { status: 500 })
     }
   },
 )
