@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withSession } from "@/server/api-handler"
+import { VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Session } from "next-auth"
@@ -52,7 +53,8 @@ export const GET = withSession(
       })
 
       const members = await db.projectTeamMember.findMany({
-        where: { team: { projectId: { in: projectIds } } },
+        // The silent admin_ watch account is never offered as a person.
+        where: { team: { projectId: { in: projectIds } }, employee: VISIBLE_EMPLOYEE_FILTER },
         select: {
           employee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
         },

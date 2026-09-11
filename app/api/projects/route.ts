@@ -5,6 +5,7 @@ import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
 import { listProjects } from "@/features/projects/server/projects.queries"
 import { generateProjectSlug } from "@/features/projects/server/project-slug"
+import { ensureProjectTeams } from "@/features/projects/server/project-teams"
 import type { Session } from "next-auth"
 
 export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: Session) => {
@@ -105,12 +106,22 @@ export const POST = withAuth(
         }
       }
 
+      // Every project carries the same six teams from day one, staffed the way
+      // the other projects staff them (see ensureProjectTeams).
+      const teams = await ensureProjectTeams(project.id)
+
       await createAuditLog(session, {
         action: "CREATE",
         module: "project",
         entityType: "Project",
         entityId: project.id,
-        changes: { name, code: project.code, status: project.status, clientId: clientId || null },
+        changes: {
+          name,
+          code: project.code,
+          status: project.status,
+          clientId: clientId || null,
+          teams: teams.map((t) => t.name),
+        },
       })
 
       return NextResponse.json({ data: project }, { status: 201 })

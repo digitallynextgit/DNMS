@@ -8,7 +8,7 @@ import { latestCalendarDay, todayUtc } from "@/lib/dates"
 import { canAccessProject, canManageProject } from "./project-access"
 import { logActivity } from "./activity"
 import { openFirstStatusPeriod } from "./task-status-periods"
-import { repeatPeriods, ymd as ymdOf, type PeriodKind } from "../lib/delivery-period"
+import { isWorkingWeek, ymd as ymdOf } from "../lib/delivery-period"
 import { dedupeLinks, isSafeHttpUrl } from "../lib/task-links"
 import { MAX_LINKS, MAX_QUANTITY, MAX_TYPE_LENGTH, cleanType } from "../lib/deliverable-types"
 import {
@@ -1343,9 +1343,6 @@ export interface PlanInput {
   /** Inclusive window, yyyy-MM-dd. Every row created carries it. */
   periodStart: string
   periodEnd: string
-  /** Repeat the whole plan across consecutive periods of the same shape. */
-  kind?: PeriodKind
-  repeat?: number
   lines: PlanLine[]
 }
 
@@ -1364,7 +1361,7 @@ export async function planDeliverables(
   session: Session,
   projectId: string,
   input: PlanInput,
-): Promise<{ created: number; periods: number }> {
+): Promise<{ created: number }> {
   // The ACCOUNT MANAGER only. Planning a period is a promise made to the
   // client across every team on the project, which is a different act from a
   // team manager scheduling their own team - and the button is drawn by the
@@ -1392,14 +1389,15 @@ export async function planDeliverables(
     await assertTeamInProject(projectId, teamId)
   }
 
-  const periods = repeatPeriods(
-    input.kind ?? "range",
-    start,
-    Math.max(1, Math.min(input.repeat ?? 1, MAX_REPEAT)),
-  )
-  // A custom range repeats by its own width, which repeatPeriods can only know
-  // if it is told the width - so the first period is replaced with the real one.
-  periods[0] = { start, end }
+  // Deliverables are planned by the WORKING WEEK, one week at a time: the
+  // wizard offers only weeks, and a hand-built request meets the same rule
+  // here. The same week may be planned again - what arrives joins what is
+  // already there.
+  if (!isWorkingWeek(start, end)) {
+    throw new ValidationError(
+      "Deliverables are planned by the working week (Monday to Friday) - pick a week.",
+    )
+  }
 
   // Resolve the vocabulary and the goals ONCE, before the transaction opens:
   // canonicalType reads the project's existing types, and doing that inside a
@@ -1422,24 +1420,22 @@ export async function planDeliverables(
     }),
   )
 
-  const rows = periods.flatMap((p) =>
-    resolved.map((l) => ({
-      projectId,
-      teamId: l.teamId,
-      employeeId: l.employeeId,
-      loggedById: session.user.id,
-      goalId: l.goalId,
-      type: l.type,
-      title: l.title,
-      quantity: l.quantity,
-      notes: l.notes,
-      status: "PLANNED" as const,
-      // The deadline is the end of the window it is owed across.
-      dueOn: p.end,
-      periodStart: p.start,
-      periodEnd: p.end,
-    })),
-  )
+  const rows = resolved.map((l) => ({
+    projectId,
+    teamId: l.teamId,
+    employeeId: l.employeeId,
+    loggedById: session.user.id,
+    goalId: l.goalId,
+    type: l.type,
+    title: l.title,
+    quantity: l.quantity,
+    notes: l.notes,
+    status: "PLANNED" as const,
+    // The deadline is the end of the week it is owed across.
+    dueOn: end,
+    periodStart: start,
+    periodEnd: end,
+  }))
 
   const created = await db.$transaction(async (tx) => {
     const made = await tx.projectDeliverable.createManyAndReturn({
@@ -1465,12 +1461,11 @@ export async function planDeliverables(
     entityId: projectId,
     meta: {
       planned: created,
-      periods: periods.length,
       teams: teamIds.length,
-      from: ymdOf(periods[0]!.start),
-      to: ymdOf(periods[periods.length - 1]!.end),
+      from: ymdOf(start),
+      to: ymdOf(end),
     },
   })
 
-  return { created, periods: periods.length }
+  return { created }
 }

@@ -13,7 +13,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { createNotification } from "@/lib/notifications"
 import { addEmailJob } from "@/lib/queue"
 import { createAuditLog } from "@/lib/audit"
-import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
+import { EMPLOYEE_SUMMARY_SELECT, VISIBLE_EMPLOYEE_FILTER } from "@/server/selects"
 import type { Session } from "next-auth"
 
 // GET /api/projects/[id]/teams/[teamId]/members
@@ -30,7 +30,10 @@ export const GET = withProjectAccess(
       })
       if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 })
       const members = await db.projectTeamMember.findMany({
-        where: { teamId },
+        // Only current people: deactivation drops a leaver's seats, and this
+        // guards anything that slipped past it. The silent admin_ watch account
+        // is never shown as a team member either.
+        where: { teamId, employee: { isActive: true, ...VISIBLE_EMPLOYEE_FILTER } },
         include: {
           employee: {
             select: {

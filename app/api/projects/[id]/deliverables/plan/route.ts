@@ -7,9 +7,9 @@ import { AppError } from "@/lib/errors"
 
 // POST /api/projects/[id]/deliverables/plan
 //
-// A whole period's commitments at once: several teams, several lines each,
-// optionally repeated across consecutive weeks or months. One transaction, so
-// a half-entered week never reaches the board.
+// A whole week's commitments at once: several teams, several lines each.
+// Weeks only, one week at a time - the service refuses any other window. One
+// transaction, so a half-entered week never reaches the board.
 //
 // withProjectAccess, not withTeamStaffing: the plan spans teams, so "may they
 // staff ANY team on this project" is the right question and the service is

@@ -1,18 +1,33 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
-import { withAuth } from "@/server/api-handler"
 import { withProjectManager } from "@/features/projects/server/project-access"
-import { PERMISSIONS } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
+import { TEAMS_ARE_FIXED } from "@/features/projects/lib/project-teams"
 import type { Session } from "next-auth"
 
-// PATCH /api/projects/[id]/teams/[teamId] - rename / change manager (Admin only)
+// PATCH /api/projects/[id]/teams/[teamId] - change the manager (Admin only).
+// That is the only edit a team takes: its name and description are fixed
+// (features/projects/lib/project-teams.ts), so a body carrying either is refused.
 export const PATCH = withProjectManager(
   async (req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
     try {
       const { id: projectId, teamId } = ctx.params
-      const body = await req.json()
-      const { name, description, managerId } = body
+      const body = (await req.json()) as {
+        name?: unknown
+        description?: unknown
+        managerId?: string | null
+      }
+
+      if (body.name !== undefined || body.description !== undefined) {
+        return NextResponse.json({ error: TEAMS_ARE_FIXED }, { status: 405 })
+      }
+      if (body.managerId === undefined) {
+        return NextResponse.json(
+          { error: "Nothing to change - only managerId can be updated" },
+          { status: 400 },
+        )
+      }
+      const { managerId } = body
 
       const team = await db.projectTeam.findUnique({
         where: { id: teamId },
@@ -22,26 +37,10 @@ export const PATCH = withProjectManager(
         return NextResponse.json({ error: "Team not found" }, { status: 404 })
       }
 
-      const data: Record<string, unknown> = {}
-
-      if (name !== undefined) {
-        if (!name.trim())
-          return NextResponse.json({ error: "Team name cannot be empty" }, { status: 400 })
-        const dupe = await db.projectTeam.findFirst({
-          where: { projectId, name: name.trim(), NOT: { id: teamId } },
-        })
-        if (dupe)
-          return NextResponse.json(
-            { error: "Another team in this project already has that name" },
-            { status: 409 },
-          )
-        data.name = name.trim()
-      }
-
-      if (description !== undefined) data.description = description?.trim() || null
+      const data: { managerId?: string | null } = {}
 
       // Manager change - must be an existing member
-      if (managerId !== undefined && managerId !== team.managerId) {
+      if (managerId !== team.managerId) {
         if (managerId === null) {
           // Removing manager - only allowed if team is empty or only manager left
           if (team.members.length > 1) {
@@ -82,7 +81,7 @@ export const PATCH = withProjectManager(
         module: "project",
         entityType: "ProjectTeam",
         entityId: teamId,
-        changes: data as object,
+        changes: data,
       })
 
       return NextResponse.json({ data: updated })
@@ -93,31 +92,8 @@ export const PATCH = withProjectManager(
   },
 )
 
-// DELETE /api/projects/[id]/teams/[teamId] - delete team (cascades members + tasks)
-export const DELETE = withProjectManager(
-  async (_req: NextRequest, ctx: { params: Record<string, string> }, session: Session) => {
-    try {
-      const { id: projectId, teamId } = ctx.params
-
-      const team = await db.projectTeam.findUnique({ where: { id: teamId } })
-      if (!team || team.projectId !== projectId) {
-        return NextResponse.json({ error: "Team not found" }, { status: 404 })
-      }
-
-      await db.projectTeam.delete({ where: { id: teamId } })
-
-      await createAuditLog(session, {
-        action: "DELETE",
-        module: "project",
-        entityType: "ProjectTeam",
-        entityId: teamId,
-        changes: { name: team.name },
-      })
-
-      return NextResponse.json({ success: true })
-    } catch (error) {
-      console.error("[PROJECT_TEAM_DELETE]", error)
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-    }
-  },
-)
+// DELETE /api/projects/[id]/teams/[teamId] - refused. Teams are fixed; remove
+// people from a team instead.
+export function DELETE() {
+  return NextResponse.json({ error: TEAMS_ARE_FIXED }, { status: 405, headers: { Allow: "PATCH" } })
+}

@@ -99,7 +99,7 @@ import { formatHours } from "../lib/format-hours"
 // ─────────────────────────────────────────────────────────────────────────────
 // The deliverables board: what the client is owed, period by period.
 //
-// The account manager plans a DELIVERABLE - a week, a month, a day - and says
+// The account manager plans a DELIVERABLE - always a working week - and says
 // what each team owes inside it ("4 blogs from WEB, 2 reels from VIDEO"). That
 // period is one row on the board; the per-team items are what it is made of.
 // The team's manager puts a name on each item, the person named logs the link
@@ -1590,8 +1590,8 @@ export function DeliverablesTab({
         filtersOn && anything
           ? undefined
           : canManage
-            ? "Plan the first one: pick a week or a month, the teams on it, and what each owes."
-            : "The account manager plans them - a week or a month, and what each team owes for it."
+            ? "Plan the first one: pick a week, the teams on it, and what each owes."
+            : "The account manager plans them - a week at a time, and what each team owes for it."
       }
       // The way out of an empty board, for the person allowed to plan, and only
       // when it is EMPTY: "no matches" is a filter problem, and offering to
@@ -1771,7 +1771,7 @@ export function DeliverablesTab({
         ))}
 
       {/* ── The board ───────────────────────────────────────────────────
-          One row per deliverable - the week or month the account manager
+          One row per deliverable - the working week the account manager
           planned. Owed and made share a period: the client was promised the
           week. The eye opens the period on its own page, where the items are
           shown in full. */}
@@ -1822,6 +1822,8 @@ export function DeliverablesTab({
         projectId={projectId}
         open={planOpen}
         onOpenChange={setPlanOpen}
+        // What is already planned, so a week says so before it is picked again.
+        existing={periods}
         // On a deliverable page the window is already chosen: the dialog adds
         // items to it instead of asking which week.
         period={

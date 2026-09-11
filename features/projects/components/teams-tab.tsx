@@ -12,8 +12,6 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { FormDialog } from "@/components/shared/form-dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -23,8 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   useProjectTeams,
-  useCreateTeam,
-  useDeleteTeam,
   useAddTeamMembers,
   useRemoveTeamMember,
   usePromoteTeamMember,
@@ -32,10 +28,8 @@ import {
   type ProjectTeam,
 } from "@/features/projects/hooks/use-projects"
 import {
-  Plus,
   Crown,
   MoreVertical,
-  Trash2,
   UserPlus,
   ChevronDown,
   ChevronRight,
@@ -82,7 +76,6 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
   const { data, isLoading } = useProjectTeams(projectId)
   const teams = useMemo(() => data?.data ?? [], [data])
 
-  const [createOpen, setCreateOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [viewMode, setViewMode] = useViewMode(`project:${projectId}:teams`)
 
@@ -164,36 +157,30 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">
-          {teams.length} {teams.length === 1 ? "team" : "teams"}
-          {totalPeople > 0 && (
-            <span className="text-muted-foreground font-normal">
-              {" · "}
-              {totalPeople} {totalPeople === 1 ? "person" : "people"}
-            </span>
-          )}
-        </h3>
-        <div className="flex items-center gap-2">
-          <ViewToggle value={viewMode} onChange={setViewMode} />
-          {canManage && (
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="mr-1 h-4 w-4" />
-              Add Team
-            </Button>
-          )}
+        <div>
+          <h3 className="text-sm font-semibold">
+            {teams.length} {teams.length === 1 ? "team" : "teams"}
+            {totalPeople > 0 && (
+              <span className="text-muted-foreground font-normal">
+                {" · "}
+                {totalPeople} {totalPeople === 1 ? "person" : "people"}
+              </span>
+            )}
+          </h3>
+          {/* The six teams are the same on every project; only staffing changes. */}
+          <p className="text-muted-foreground text-xs">
+            Every project has the same six teams - add or remove people; the teams themselves
+            don&apos;t change.
+          </p>
         </div>
+        <ViewToggle value={viewMode} onChange={setViewMode} />
       </div>
 
       {teams.length === 0 ? (
         <EmptyState
           icon={Users}
           title="No teams yet"
-          description={
-            canManage
-              ? "Teams group the people working on this project. Tasks are assigned within a team."
-              : "A project manager needs to create a team first."
-          }
-          action={canManage ? { label: "Add Team", onClick: () => setCreateOpen(true) } : undefined}
+          description="Every project gets the standard six teams when it is created. If this one has none, ask an admin."
         />
       ) : viewMode === "table" ? (
         <>
@@ -227,12 +214,6 @@ export function TeamsTab({ projectId, canManage, currentUserId }: Props) {
           ))}
         </div>
       )}
-
-      <CreateTeamDialog
-        projectId={projectId}
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-      />
     </div>
   )
 }
@@ -254,9 +235,7 @@ function TeamCard({
 }) {
   const isManager = team.managerId === currentUserId
   const canStaff = canManage || isManager
-  const deleteTeam = useDeleteTeam(projectId)
   const [addOpen, setAddOpen] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
 
   // The manager is a member like anyone else - listed ONCE, badged. Showing them
   // again in the header (as this used to) read as two different people.
@@ -308,24 +287,6 @@ function TeamCard({
                 Add people
               </Button>
             )}
-            {canManage && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="More actions">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() => setDeleteOpen(true)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete team
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           </div>
         </div>
 
@@ -371,17 +332,6 @@ function TeamCard({
           teamId={team.id}
           teamName={team.name}
           existingMemberIds={team.members.map((m) => m.employeeId)}
-        />
-
-        <ConfirmDialog
-          open={deleteOpen}
-          onOpenChange={setDeleteOpen}
-          title="Delete team"
-          description={`Delete team "${team.name}"? This removes all members and tasks.`}
-          confirmLabel="Delete Team"
-          variant="destructive"
-          isLoading={deleteTeam.isPending}
-          onConfirm={() => deleteTeam.mutate(team.id, { onSuccess: () => setDeleteOpen(false) })}
         />
       </CardContent>
     </Card>
@@ -471,79 +421,6 @@ function MemberRow({
         onConfirm={() => removeMember.mutate(member.id, { onSuccess: () => setRemoveOpen(false) })}
       />
     </li>
-  )
-}
-
-function CreateTeamDialog({
-  projectId,
-  open,
-  onClose,
-}: {
-  projectId: string
-  open: boolean
-  onClose: () => void
-}) {
-  const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
-  const create = useCreateTeam(projectId)
-
-  function handleCreate() {
-    if (!name.trim()) return
-    create.mutate(
-      { name: name.trim(), description: description.trim() || undefined },
-      {
-        onSuccess: () => {
-          setName("")
-          setDescription("")
-          onClose()
-        },
-      },
-    )
-  }
-
-  return (
-    <FormDialog
-      open={open}
-      onOpenChange={(o) => {
-        if (!o) onClose()
-      }}
-      title="Add Team"
-      description="Teams group the people working on this project. Tasks are assigned within a team."
-      isPending={create.isPending}
-      submitDisabled={!name.trim()}
-      submitLabel="Create team"
-      size="sm"
-      onSubmit={(e) => {
-        e.preventDefault()
-        handleCreate()
-      }}
-    >
-      <div className="space-y-2">
-        <Label required htmlFor="team-name">
-          Team name
-        </Label>
-        <Input
-          id="team-name"
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Web Development"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="team-desc">Description (optional)</Label>
-        <Textarea
-          id="team-desc"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={2}
-          placeholder="What this team is responsible for"
-        />
-      </div>
-      <p className="text-muted-foreground text-xs">
-        Add people once it exists - the first person can then be made manager.
-      </p>
-    </FormDialog>
   )
 }
 

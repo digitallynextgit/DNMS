@@ -23,8 +23,16 @@ import type { Session } from "next-auth"
  * who already read every project and therefore every task inside it - this only
  * lets them ask the same question by PERSON instead of by project.
  */
+type PickablePerson = {
+  id: string
+  name: string
+  isReport: boolean
+  /** Deactivated - offered under "archived", never in the live lists. */
+  former?: boolean
+}
+
 async function getManagedScope(userId: string, seesEveryone: boolean) {
-  const [reports, managedTeams, everyone] = await Promise.all([
+  const [reports, managedTeams, everyone, left] = await Promise.all([
     db.employee.findMany({
       where: { managerId: userId, isActive: true },
       select: { id: true, firstName: true, lastName: true },
@@ -51,14 +59,36 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
           select: { id: true, firstName: true, lastName: true },
         })
       : [],
+    // People who have LEFT, but whose tasks the caller could open while they
+    // were here: an admin gets every deactivated employee, a manager their
+    // former direct reports. Offered under "archived", never mixed into the
+    // live lists, so past work stays readable after someone goes.
+    db.employee.findMany({
+      where: seesEveryone
+        ? { isActive: false, ...VISIBLE_EMPLOYEE_FILTER }
+        : { managerId: userId, isActive: false },
+      select: { id: true, firstName: true, lastName: true },
+    }),
   ])
+  // Only those who actually left tasks behind - an empty archive is noise.
+  const leftWithTasks = new Set(
+    left.length
+      ? (
+          await db.projectTask.findMany({
+            where: { assigneeId: { in: left.map((e) => e.id) } },
+            distinct: ["assigneeId"],
+            select: { assigneeId: true },
+          })
+        ).map((t) => t.assigneeId)
+      : [],
+  )
 
   // isReport separates the two ways someone can be "under" you. A DIRECT REPORT
   // is your subordinate and belongs in the people picker unconditionally; a team
   // member you merely manage the team of does not - they surface only once that
   // team is selected. Both are still authorised for scope=all, which is why
   // this is one list with a flag rather than two.
-  const people = new Map<string, { id: string; name: string; isReport: boolean }>()
+  const people = new Map<string, PickablePerson>()
   // Seeded FIRST, so the two passes below still mark an admin's own team members
   // and reports correctly rather than being skipped as already-present entries.
   for (const e of everyone) {
@@ -80,6 +110,17 @@ async function getManagedScope(userId: string, seesEveryone: boolean) {
   }
   // You are not your own subordinate; "Me" is a separate option in the picker.
   people.delete(userId)
+  // The archive goes in last and never displaces a current entry.
+  for (const e of left) {
+    if (!leftWithTasks.has(e.id) || people.has(e.id)) continue
+    people.set(e.id, {
+      id: e.id,
+      name: `${e.firstName} ${e.lastName}`.trim(),
+      // A former direct report still reads as yours; an admin sees all anyway.
+      isReport: !seesEveryone,
+      former: true,
+    })
+  }
 
   return {
     teams: managedTeams.map((t) => ({
@@ -106,6 +147,8 @@ const TASK_LIST_LIMIT = 2000
 //   scope=all           them plus everyone they manage
 //   scope=team:<teamId> one project team they manage
 //   scope=user:<empId>  one person they manage (a project admin: anyone)
+//   Deactivated people come back with former: true - openable one at a time
+//   as an archive of what they left behind, never part of scope=all.
 //
 // An unrecognised or unauthorised scope falls back to "me" rather than erroring:
 // the picker is built from the same data, so the only way to ask for something
@@ -128,13 +171,14 @@ export const GET = withSession(async (req: NextRequest, _ctx: unknown, session: 
       ? await getManagedScope(userId, seesEveryone)
       : {
           teams: [] as { id: string; name: string; projectName: string; memberIds: string[] }[],
-          people: [] as { id: string; name: string }[],
+          people: [] as PickablePerson[],
           seesEveryone: false,
         }
 
     let assigneeIds: string[] = [userId]
     if (scope === "all") {
-      assigneeIds = [userId, ...managed.people.map((p) => p.id)]
+      // The live view: current people only, never the archive.
+      assigneeIds = [userId, ...managed.people.filter((p) => !p.former).map((p) => p.id)]
     } else if (scope.startsWith("team:")) {
       const team = managed.teams.find((t) => t.id === scope.slice(5))
       if (team) assigneeIds = team.memberIds.length > 0 ? team.memberIds : [userId]

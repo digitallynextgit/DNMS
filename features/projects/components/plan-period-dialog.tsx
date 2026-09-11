@@ -27,21 +27,25 @@ import {
   parseDay,
   periodFor,
   presetPeriod,
-  repeatPeriods,
+  weekOf,
   ymd,
-  type PeriodKind,
 } from "../lib/delivery-period"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Planning a period, in the order the decision is actually made.
+// Planning a week, in the order the decision is actually made.
 //
-//   1. WHEN  - this week, this month, a range. One question, big buttons.
+//   1. WHEN  - this week, next week, or any other week. One question, big buttons.
 //   2. WHO   - which teams are on the hook.
 //   3. WHAT  - per team, what they owe and how many.
 //
+// Deliverables are planned by the WORKING WEEK only - no months, no ad-hoc
+// ranges - so every board reads the same way and the numbers compare. A week
+// that already has items can be planned again: what is added joins what is
+// there, and nothing already planned changes.
+//
 // The old dialog asked all of it at once, one deliverable at a time, which is
 // why a week of work across three teams meant opening it a dozen times. Here
-// the period is chosen once and every item inherits it, so the whole week lands
+// the week is chosen once and every item inherits it, so the whole week lands
 // in one write - or none of it does.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -51,6 +55,12 @@ type Step = "when" | "who" | "what"
 interface FixedPeriod {
   start: string
   end: string
+}
+
+/** A week already on the board: its start (yyyy-MM-dd) and the items it holds. */
+interface ExistingPeriod {
+  start: string | null
+  rows: readonly unknown[]
 }
 
 interface Line {
@@ -70,13 +80,16 @@ const newLine = (teamId: string): Line => ({
   quantity: "1",
 })
 
-/** The presets, in the order somebody reaches for them. */
-const PRESETS: { label: string; kind: PeriodKind; offset: number }[] = [
-  { label: "This week", kind: "week", offset: 0 },
-  { label: "Next week", kind: "week", offset: 1 },
-  { label: "This month", kind: "month", offset: 0 },
-  { label: "Next month", kind: "month", offset: 1 },
+/** The weeks somebody reaches for first. Any other week is "Another week". */
+const PRESETS: { label: string; offset: number }[] = [
+  { label: "This week", offset: 0 },
+  { label: "Next week", offset: 1 },
 ]
+
+/** "14-18 Sep 2026 · 6 items already planned" - a week says so if it is taken. */
+function withPlanned(label: string, items: number | undefined): string {
+  return items ? `${label} · ${items} item${items === 1 ? "" : "s"} already planned` : label
+}
 
 function PresetCard({
   label,
@@ -109,6 +122,7 @@ export function PlanPeriodDialog({
   open,
   onOpenChange,
   period,
+  existing,
 }: {
   projectId: string
   open: boolean
@@ -118,12 +132,24 @@ export function PlanPeriodDialog({
    * one is skipped, and what is created joins what is already there.
    */
   period?: FixedPeriod
+  /**
+   * What is already on the board, so a week that has items says so before it
+   * is picked again. Planning it again is allowed - the new items join it.
+   */
+  existing?: readonly ExistingPeriod[]
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         {/* Body only exists while open, so every opening starts at step one. */}
-        {open && <Body projectId={projectId} fixed={period} onClose={() => onOpenChange(false)} />}
+        {open && (
+          <Body
+            projectId={projectId}
+            fixed={period}
+            existing={existing}
+            onClose={() => onOpenChange(false)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -132,10 +158,12 @@ export function PlanPeriodDialog({
 function Body({
   projectId,
   fixed,
+  existing,
   onClose,
 }: {
   projectId: string
   fixed?: FixedPeriod
+  existing?: readonly ExistingPeriod[]
   onClose: () => void
 }) {
   const qc = useQueryClient()
@@ -147,10 +175,9 @@ function Body({
 
   // ── Step 1: when ───────────────────────────────────────────────────────────
   const [presetIdx, setPresetIdx] = React.useState(0)
-  const [custom, setCustom] = React.useState(false)
-  const [from, setFrom] = React.useState("")
-  const [to, setTo] = React.useState("")
-  const [repeat, setRepeat] = React.useState("1")
+  const [another, setAnother] = React.useState(false)
+  // Any day of the week wanted - it is read as that week's Monday to Friday.
+  const [anyDay, setAnyDay] = React.useState("")
 
   const preset = PRESETS[presetIdx]!
   const period = React.useMemo(() => {
@@ -159,24 +186,21 @@ function Body({
       const b = parseDay(fixed.end)
       return a && b ? periodFor("range", a, b) : null
     }
-    if (!custom) return presetPeriod(preset.kind, preset.offset)
-    const a = parseDay(from)
-    const b = parseDay(to)
-    // Both ends, or it is not a range yet - Next stays disabled rather than
-    // quietly planning a single day somebody did not ask for.
-    if (!a || !b) return null
-    return periodFor("range", a, b)
-  }, [fixed, custom, preset, from, to])
+    if (!another) return presetPeriod("week", preset.offset)
+    const d = parseDay(anyDay)
+    return d ? weekOf(d) : null
+  }, [fixed, another, preset, anyDay])
 
-  // Adding to an existing window never repeats it: the window IS the deliverable.
-  const repeatN = fixed ? 1 : Math.max(1, Math.min(Number(repeat) || 1, 52))
-  const kind: PeriodKind = fixed || custom ? "range" : preset.kind
-  /** What one repetition IS, in a word the sentence can use. */
-  const unitWord = kind === "month" ? "month" : kind === "week" ? "week" : "range"
-  const periods = React.useMemo(
-    () => (period ? repeatPeriods(kind, period.start, repeatN) : []),
-    [period, kind, repeatN],
-  )
+  // Items already planned, by the week's Monday - so a week can say "6 items
+  // already planned" before it is picked again.
+  const alreadyPlanned = React.useMemo(() => {
+    const m = new Map<string, number>()
+    for (const p of existing ?? []) {
+      if (p.start) m.set(p.start, (m.get(p.start) ?? 0) + p.rows.length)
+    }
+    return m
+  }, [existing])
+  const already = period ? (alreadyPlanned.get(ymd(period.start)) ?? 0) : 0
 
   // ── Step 2: who ────────────────────────────────────────────────────────────
   const [chosenTeams, setChosenTeams] = React.useState<Set<string>>(new Set())
@@ -221,28 +245,23 @@ function Body({
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))
 
   const filled = lines.filter((l) => l.type.trim() && l.title.trim())
-  const totalRows = filled.length * periods.length
+  const totalRows = filled.length
 
   const plan = useMutation({
     mutationFn: (body: unknown) =>
-      apiFetch<{ data: { created: number; periods: number } }>(
-        `/api/projects/${projectId}/deliverables/plan`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      ),
+      apiFetch<{ data: { created: number } }>(`/api/projects/${projectId}/deliverables/plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: ["deliverables"] })
       void qc.invalidateQueries({ queryKey: ["my-owed-deliverables"] })
-      const { created, periods: n } = res.data
+      const { created } = res.data
       toast.success(
         fixed
           ? `Added ${created} item${created === 1 ? "" : "s"}`
-          : n > 1
-            ? `Planned ${n} deliverables - ${created} items across them`
-            : `Planned it - ${created} item${created === 1 ? "" : "s"} across the teams`,
+          : `Planned it - ${created} item${created === 1 ? "" : "s"} across the teams`,
       )
       onClose()
     },
@@ -254,8 +273,6 @@ function Body({
     plan.mutate({
       periodStart: ymd(period.start),
       periodEnd: ymd(period.end),
-      kind,
-      repeat: repeatN,
       lines: filled.map((l) => ({
         teamId: l.teamId,
         type: l.type.trim(),
@@ -284,14 +301,16 @@ function Body({
         </DialogTitle>
         <DialogDescription>
           {step === "when"
-            ? "Pick the window first - the deliverable is named by it, and every item you add is owed inside it."
+            ? "Pick the week first - the deliverable is named by it, and every item you add is owed inside it. A week that already has items just gets more."
             : step === "who"
               ? fixed
                 ? "Pick every team with something more to make in this window."
                 : `For ${period ? formatPeriod(period.start, period.end) : "this period"}. Pick every team with something to make.`
               : fixed
                 ? "These join the items already planned. Nothing already there changes."
-                : `${period ? formatPeriod(period.start, period.end) : ""}${periods.length > 1 ? ` and ${periods.length - 1} more` : ""}`}
+                : period
+                  ? formatPeriod(period.start, period.end)
+                  : ""}
         </DialogDescription>
       </DialogHeader>
 
@@ -317,15 +336,18 @@ function Body({
           <>
             <div className="grid gap-2 sm:grid-cols-2">
               {PRESETS.map((p, i) => {
-                const pp = presetPeriod(p.kind, p.offset)
+                const pp = presetPeriod("week", p.offset)
                 return (
                   <PresetCard
                     key={p.label}
                     label={p.label}
-                    detail={formatPeriod(pp.start, pp.end)}
-                    active={!custom && presetIdx === i}
+                    detail={withPlanned(
+                      formatPeriod(pp.start, pp.end),
+                      alreadyPlanned.get(ymd(pp.start)),
+                    )}
+                    active={!another && presetIdx === i}
                     onClick={() => {
-                      setCustom(false)
+                      setAnother(false)
                       setPresetIdx(i)
                     }}
                   />
@@ -333,88 +355,38 @@ function Body({
               })}
             </div>
 
+            {/* Weeks only. Any day will do - it is read as that working week. */}
             <PresetCard
-              label="A specific range"
+              label="Another week"
               detail={
-                custom && period ? formatPeriod(period.start, period.end) : "Pick your own dates"
+                another && period
+                  ? withPlanned(formatPeriod(period.start, period.end), already)
+                  : "Pick any day in it"
               }
-              active={custom}
-              onClick={() => setCustom(true)}
+              active={another}
+              onClick={() => setAnother(true)}
             />
 
-            {custom && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label required className="text-muted-foreground text-[11px]">
-                    From
-                  </Label>
-                  <DateField value={from} onChange={setFrom} placeholder="Start" modal />
-                </div>
-                <div className="space-y-1.5">
-                  {/* Both ends required. "A specific range" with one date is a
-                      one-day range, which nobody means and nothing says. */}
-                  <Label required className="text-muted-foreground text-[11px]">
-                    To
-                  </Label>
-                  <DateField value={to} onChange={setTo} placeholder="End" modal />
-                  {from && !to && (
-                    <p className="text-muted-foreground text-[11px]">
-                      Pick the day the range ends.
-                    </p>
-                  )}
-                </div>
+            {another && (
+              <div className="space-y-1.5">
+                <Label required className="text-muted-foreground text-[11px]">
+                  Any day of that week
+                </Label>
+                <DateField value={anyDay} onChange={setAnyDay} placeholder="Pick a day" modal />
+                <p className="text-muted-foreground text-[11px]">
+                  {period
+                    ? `Monday to Friday: ${formatPeriod(period.start, period.end)}.`
+                    : "Deliverables are planned by the working week, Monday to Friday."}
+                </p>
               </div>
             )}
 
-            {/* Says what it DOES, not what it is called. "Repeat for how many
-                periods?" left people counting something they had no name for -
-                so the control now spells out the answer underneath it. */}
-            <div className="space-y-1.5">
-              <Label className="text-muted-foreground text-[11px]">
-                Plan the same work for more than one {unitWord}?
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  max={52}
-                  value={repeat}
-                  onChange={(e) => setRepeat(e.target.value)}
-                  className="w-24"
-                  aria-label={`How many ${unitWord}s`}
-                />
-                <span className="text-muted-foreground text-xs">
-                  {repeatN === 1 ? `${unitWord} in total` : `${unitWord}s in a row`}
-                </span>
-              </div>
+            {already > 0 && (
               <p className="text-muted-foreground text-[11px]">
-                {!period ? (
-                  "Pick the dates above first."
-                ) : repeatN === 1 ? (
-                  <>
-                    Just{" "}
-                    <span className="text-foreground">
-                      {formatPeriod(period.start, period.end)}
-                    </span>
-                    .
-                  </>
-                ) : (
-                  <>
-                    <span className="text-foreground">
-                      {formatPeriod(periods[0]!.start, periods[0]!.end)}
-                    </span>
-                    , then {repeatN - 1} more, ending{" "}
-                    <span className="text-foreground">
-                      {formatPeriod(
-                        periods[periods.length - 1]!.start,
-                        periods[periods.length - 1]!.end,
-                      )}
-                    </span>
-                    . Everything you plan next is created once per {unitWord}.
-                  </>
-                )}
+                This week already has {already} item{already === 1 ? "" : "s"} planned. What you add
+                joins them - nothing already there changes.
               </p>
-            </div>
+            )}
           </>
         )}
 
@@ -437,7 +409,7 @@ function Body({
             <div className="divide-border/70 divide-y overflow-hidden rounded-sm border">
               {teamList.length === 0 && (
                 <p className="text-muted-foreground px-3 py-6 text-center text-sm">
-                  This project has no teams yet. Add one on the Teams tab first.
+                  This project has no teams. Every project gets the standard six - ask an admin.
                 </p>
               )}
               {teamList.map((t) => {

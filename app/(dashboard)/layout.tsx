@@ -5,7 +5,6 @@ import { Topbar } from "@/components/layout/topbar"
 import { MobileTabbar } from "@/components/layout/mobile-tabbar"
 import { RealtimeNotifications } from "@/components/providers/realtime-notifications"
 import { FollowUpConflictDialog } from "@/components/providers/follow-up-conflict-dialog"
-import { OutputCaptureDialog } from "@/components/providers/output-capture-dialog"
 import { AiAssistant } from "@/components/shared/ai-assistant"
 import { AccountDeactivated } from "@/features/auth"
 import { TenantProvider } from "@/components/tenant-link"
@@ -39,7 +38,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {/* Mounted once for the whole app: the "keep or remove this follow-up?"
             question can be raised from any screen that changes a task's status. */}
         <FollowUpConflictDialog />
-        <OutputCaptureDialog />
         {/* Phones get the bottom tab bar instead: the rail alone would eat 56px
             of a 390px viewport, leaving too little for the content column. */}
         <div className="hidden md:contents">

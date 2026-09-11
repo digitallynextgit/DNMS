@@ -15,7 +15,6 @@ import { settleRunningTasks } from "@/features/projects/server/task-clock.servic
 import { diffTaskFields } from "@/features/projects/server/task-audit"
 import { dedupeLinks, isSafeHttpUrl } from "@/features/projects/lib/task-links"
 import { projectHref } from "@/features/projects/lib/project-href"
-import { MADE_STATUSES, OPEN_STATUSES } from "@/features/projects/lib/deliverable-lifecycle"
 import { formatHours } from "@/features/projects/lib/format-hours"
 import { hasPastTaskAccess } from "@/features/employees/server/task-access.service"
 import { createNotification } from "@/lib/notifications"
@@ -60,42 +59,6 @@ async function getTaskAuthContext(taskId: string, userId: string) {
     managerId,
     isAssignee: task.assigneeId === userId,
     isManager: !!managerId && managerId === userId,
-  }
-}
-
-// What the capture prompt needs to show a row that was already PROMISED for
-// this task, rather than a blank form beside it. Everything the deliverable
-// form seeds itself from, and nothing else.
-const PLANNED_SELECT = {
-  id: true,
-  type: true,
-  title: true,
-  quantity: true,
-  links: true,
-  notes: true,
-  employeeId: true,
-  startedOn: true,
-  dueOn: true,
-  status: true,
-} as const
-
-/** Dates as the form reads them: plain yyyy-MM-dd, no timezone to lose. */
-function toPlanned(row: {
-  id: string
-  type: string
-  title: string
-  quantity: number
-  links: string[]
-  notes: string | null
-  employeeId: string | null
-  startedOn: Date | null
-  dueOn: Date | null
-  status: string
-}) {
-  return {
-    ...row,
-    startedOn: row.startedOn?.toISOString().slice(0, 10) ?? null,
-    dueOn: row.dueOn?.toISOString().slice(0, 10) ?? null,
   }
 }
 
@@ -522,37 +485,11 @@ export const PATCH = withSession(
         })
       }
 
-      // Returned so the client can say the stretch was SHARED. Time landing on
-      // a task at half rate, with nothing on screen explaining why, is the kind
-      // of thing people only notice at the end of the month.
-      // Did this completion leave an expected output unrecorded? The client
-      // opens the capture prompt on it - prefilled from the task, one click to
-      // skip. A nudge, never a block: a block teaches people to log rubbish.
-      //
-      // Two questions, one lookup. What has been MADE against this task decides
-      // whether to ask at all; what is still OWED against it decides what to
-      // ask - "is this the reel we promised?" beats a blank form that would
-      // leave the promise standing beside its own delivery.
-      const finishedNow = statusChanged && task.status === "DONE" && !!task.projectId
-      const [madeCount, planned] = finishedNow
-        ? await Promise.all([
-            db.projectDeliverable.count({
-              where: { taskId: task.id, status: { in: [...MADE_STATUSES] } },
-            }),
-            db.projectDeliverable.findFirst({
-              where: { taskId: task.id, status: { in: [...OPEN_STATUSES] } },
-              orderBy: { createdAt: "asc" },
-              select: PLANNED_SELECT,
-            }),
-          ])
-        : [0, null]
-      const needsOutput =
-        finishedNow && task.producesOutput && !task.outputSkippedAt && madeCount === 0 && !planned
-
+      // sharedTasks is returned so the client can say the stretch was SHARED.
+      // Time landing on a task at half rate, with nothing on screen explaining
+      // why, is the kind of thing people only notice at the end of the month.
       return NextResponse.json({
         data: task,
-        needsOutput,
-        plannedDeliverable: planned ? toPlanned(planned) : null,
         ...(sharedTasks.length > 0 ? { sharedTasks } : {}),
       })
     } catch (error) {

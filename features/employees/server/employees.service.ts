@@ -666,16 +666,36 @@ export async function deactivateEmployee(id: string): Promise<ActionResult<{ mes
     // so this is not what locks them out - it keeps the membership flag honest
     // for anything that reads it on its own.
     await setMembershipActive({ employeeId: id }, false)
+    // Someone who has left is not on a team any more. Drop their project-team
+    // seats and step them down from any team they ran, so rosters, pickers and
+    // Drive sharing stop treating them as a current member the moment they go.
+    // Their tasks and deliverables keep pointing at them - that is the history,
+    // and My Tasks lists former employees under "archived" for exactly that.
+    const [seats, teamsRun] = await db.$transaction([
+      db.projectTeamMember.deleteMany({ where: { employeeId: id } }),
+      db.projectTeam.updateMany({ where: { managerId: id }, data: { managerId: null } }),
+    ])
     const meta = await getAuditMeta()
     await createAuditLog(session, {
       action: "DEACTIVATE",
       module: "employee",
       entityType: "Employee",
       entityId: id,
-      changes: { previousIsActive: existing.isActive, previousStatus: existing.status },
+      changes: {
+        previousIsActive: existing.isActive,
+        previousStatus: existing.status,
+        teamSeatsRemoved: seats.count,
+        teamsLeftWithoutManager: teamsRun.count,
+      },
       ...meta,
     })
-    return ok({ message: "Employee deactivated" })
+    const notes = [
+      seats.count ? `removed from ${seats.count} team${seats.count === 1 ? "" : "s"}` : "",
+      teamsRun.count
+        ? `${teamsRun.count} team${teamsRun.count === 1 ? " needs" : "s need"} a new manager`
+        : "",
+    ].filter(Boolean)
+    return ok({ message: ["Employee deactivated", ...notes].join(" · ") })
   })
 }
 

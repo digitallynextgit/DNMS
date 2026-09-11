@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest"
 import {
   daysIn,
   formatPeriod,
+  isWorkingWeek,
   monthOf,
   parseDay,
   periodFor,
   presetPeriod,
-  repeatPeriods,
   startOfWeek,
   weekOf,
   ymd,
@@ -78,48 +78,6 @@ describe("periodFor", () => {
   })
 })
 
-describe("repeatPeriods", () => {
-  it("lays down consecutive working weeks, a week apart", () => {
-    const out = repeatPeriods("week", day("2026-09-09"), 3).map(span)
-    // Each starts 7 days after the last, so the weekend sits BETWEEN them.
-    // Stepping from Friday+1 would have landed back on the same week.
-    expect(out).toEqual([
-      "2026-09-07..2026-09-11",
-      "2026-09-14..2026-09-18",
-      "2026-09-21..2026-09-25",
-    ])
-  })
-
-  it("steps months of different lengths without drifting", () => {
-    const out = repeatPeriods("month", day("2026-01-15"), 4).map(span)
-    expect(out).toEqual([
-      "2026-01-01..2026-01-31",
-      "2026-02-01..2026-02-28",
-      "2026-03-01..2026-03-31",
-      "2026-04-01..2026-04-30",
-    ])
-  })
-
-  it("repeats a custom range by its own width", () => {
-    // A 10-day range repeats as 10-day blocks, back to back.
-    const out = repeatPeriods("range", day("2026-09-01"), 3)
-    expect(out.map(daysIn)).toEqual([1, 1, 1]) // no `until` given: one-day blocks
-    const wide = repeatPeriods("range", day("2026-09-01"), 1)
-    expect(daysIn(wide[0]!)).toBe(1)
-  })
-
-  it("always returns at least one period", () => {
-    expect(repeatPeriods("week", day("2026-09-09"), 0)).toHaveLength(1)
-    expect(repeatPeriods("week", day("2026-09-09"), -3)).toHaveLength(1)
-  })
-
-  it("does not mutate the anchor", () => {
-    const anchor = day("2026-09-09")
-    repeatPeriods("month", anchor, 5)
-    expect(ymd(anchor)).toBe("2026-09-09")
-  })
-})
-
 describe("formatPeriod", () => {
   const f = (a: string, b: string) => formatPeriod(day(a), day(b))
 
@@ -175,6 +133,26 @@ describe("parseDay", () => {
   it("refuses anything else", () => {
     for (const bad of ["", null, undefined, "09/09/2026", "2026-9-9", "not a date"]) {
       expect(parseDay(bad)).toBeNull()
+    }
+  })
+})
+
+describe("isWorkingWeek", () => {
+  it("is exactly Monday to Friday of one week", () => {
+    expect(isWorkingWeek(day("2026-09-14"), day("2026-09-18"))).toBe(true)
+  })
+
+  it("refuses every other shape", () => {
+    const cases: [string, string][] = [
+      ["2026-09-14", "2026-09-20"], // Mon-Sun
+      ["2026-09-15", "2026-09-19"], // Tue-Sat: five days, not the working week
+      ["2026-09-01", "2026-09-30"], // a month
+      ["2026-09-14", "2026-09-14"], // a single day
+      ["2026-09-14", "2026-09-25"], // two weeks
+      ["2026-09-18", "2026-09-14"], // backwards
+    ]
+    for (const [a, b] of cases) {
+      expect(isWorkingWeek(day(a), day(b)), `${a}..${b}`).toBe(false)
     }
   })
 })

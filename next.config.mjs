@@ -22,7 +22,9 @@ const nextConfig = {
   // pdfjs, which resolves worker files and does dynamic requires; bundled, it
   // fails at runtime - and the brand-brief reader reported that as "this PDF
   // has no text" about a PDF holding 12 pages of it. mammoth is the same shape.
-  serverExternalPackages: ["exceljs", "sharp", "pdf-parse", "mammoth"],
+  // pptxgenjs (deliverables slide deck) is a CJS bundle that reaches for fs /
+  // https at runtime; leaving it external avoids the same class of failure.
+  serverExternalPackages: ["exceljs", "sharp", "pdf-parse", "mammoth", "pptxgenjs"],
   experimental: {
     // This app has a proxy (middleware) at proxy.ts, so Next BUFFERS every request
     // body for the proxy to read - and silently TRUNCATES it at 10 MB by default.

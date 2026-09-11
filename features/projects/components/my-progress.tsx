@@ -1,689 +1,833 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Link } from "@/components/tenant-link"
 import { useQuery } from "@tanstack/react-query"
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
-import { AlertTriangle, CheckCircle2, CircleDot, ListTodo, PauseCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clock3, Inbox, Undo2 } from "lucide-react"
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
-import { StatusBadge } from "@/components/shared/status-badge"
-import { SegmentedControl } from "@/components/shared/segmented-control"
+import type { DateRangeValue } from "@/components/shared/date-range-field"
 import { apiFetch } from "@/lib/api-fetch"
 import { cn, formatDate } from "@/lib/utils"
-import { TASK_PRIORITY_COLORS, TASK_PRIORITY_LABELS } from "@/lib/constants"
-import { formatHours } from "../lib/format-hours"
-import { projectHref } from "../lib/project-href"
-import { ADHOC_LABEL, ADHOC_ROW_ID } from "../lib/task-permissions"
-import { DateRangePicker, type DayRange } from "./date-range-picker"
+import {
+  DELIVERABLE_STATUS_LABELS,
+  STATUS_ORDER,
+  type DeliverableStatus,
+} from "../lib/deliverable-lifecycle"
+import { sortProjectTeams } from "../lib/project-teams"
+import { ProgressKpiDialog, type KpiKey } from "./progress-kpi-dialog"
+import type {
+  DeliverablesProgress,
+  ProgressGroup,
+  ProgressItem,
+  ProgressTotals,
+} from "../lib/deliverables-progress"
 
 // =============================================================================
-// My Progress.
+// My Progress - by deliverable
 //
-// Four questions, four forms:
-//   1. What state is my work in?      -> donut (part-to-whole, mutually exclusive)
-//   2. Which client carries it?       -> horizontal stacked bar, one row per client
-//   3. Am I booking time realistically? -> grouped bar, allocated vs spent
-//   4. What exactly is late?          -> a list, because you have to act on each one
-//
-// Colour: every fill is a STATE, so all of them come from the --state-* tokens
-// (validated as an ordered set, see globals.css) rather than the categorical
-// slots - a series colour must never impersonate a status. The only categorical
-// pair on the page is allocated-vs-spent, which uses --viz-1/--viz-2.
-//
-// Three of the state fills sit under 3:1 on the light card, so every chart here
-// carries a legend AND direct labels: hue never carries meaning on its own.
+// The page a person or a team manager opens on Monday: what is owed, what has
+// landed, what has not and why - across every project they are on. The numbers
+// come from the same route the slide deck uses, so the page and the deck never
+// disagree. The filters narrow to one project, one team or one person; the
+// server decides what each role may see, a plain member only ever gets
+// themselves, and the pickers are built from that same answer.
 // =============================================================================
 
-interface MyTask {
-  id: string
-  title: string
-  status: string
-  priority: string
-  dueDate: string | null
-  completedAt: string | null
-  estimatedHours: number | null
-  loggedHours: number
-  /**
-   * NULL for adhoc work - meetings, interviews, internal QC - which belongs to
-   * no client. The API has always been able to return null.
-   */
-  project: { id: string; name: string; code: string; slug: string | null } | null
-  team?: { id: string; name: string } | null
+type Role = "admin" | "account_manager" | "team_manager" | "member"
+
+interface ScopeData {
+  role: Role
+  projects: { id: string; name: string; code: string | null }[]
+  teams: { id: string; name: string; projectId: string; projectName: string; memberCount: number }[]
+  people: { id: string; name: string; designation: string | null; teamIds: string[] }[]
 }
 
-/**
- * The five states a task can be counted in. MUTUALLY EXCLUSIVE on purpose:
- * "overdue" is not a status but a late To-do or In-progress, so a chart that
- * showed both would count those tasks twice and the parts would not sum to the
- * whole. Overdue wins, because that is the one demanding attention.
- */
-type State = "overdue" | "todo" | "hold" | "progress" | "done"
-
-/** Fixed order - it is the CVD mechanism for the fills. See globals.css. */
-const STATES: { key: State; label: string; fill: string; icon: typeof ListTodo }[] = [
-  { key: "overdue", label: "Overdue", fill: "var(--state-overdue)", icon: AlertTriangle },
-  { key: "todo", label: "To do", fill: "var(--state-todo)", icon: ListTodo },
-  { key: "hold", label: "On hold", fill: "var(--state-hold)", icon: PauseCircle },
-  { key: "progress", label: "In progress", fill: "var(--state-progress)", icon: CircleDot },
-  { key: "done", label: "Done", fill: "var(--state-done)", icon: CheckCircle2 },
-]
-
-/** Local calendar day, so "due today" is not late because of a UTC boundary. */
-function dayStart(d: Date): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+const ROLE_CAPTION: Record<Role, string> = {
+  admin: "Everything in the company",
+  account_manager: "The projects you own",
+  team_manager: "Your team",
+  member: "Your own deliverables",
 }
 
-/**
- * Which bucket a task falls in.
- *
- * Overdue = past its due day AND still actionable. A task due Tuesday that is
- * still To-do or In-progress on Wednesday is overdue; the same task on hold or
- * discarded is NOT - it was consciously parked, which is a decision rather than
- * a slip, and flagging it red would train people to ignore the colour.
- */
-function stateOf(task: MyTask, today: number): State | null {
-  if (task.status === "DONE") return "done"
-  if (task.status === "DISCARDED" || task.status === "CANCELLED") return null
-  if (task.status === "ON_HOLD") return "hold"
-  const late = task.dueDate && dayStart(new Date(task.dueDate)) < today
-  if (late) return "overdue"
-  if (task.status === "IN_PROGRESS" || task.status === "IN_REVIEW") return "progress"
-  return "todo"
+const STATUS_COLOR: Record<DeliverableStatus, string> = {
+  PLANNED: "var(--state-todo)",
+  IN_PROGRESS: "var(--state-progress)",
+  DELIVERED: "var(--state-done)",
+  ACCEPTED: "var(--state-done)",
+  REJECTED: "var(--state-overdue)",
+}
+// Delivered and accepted share a hue - both are "done" - the lighter one is
+// the half the client has not signed off on yet.
+const STATUS_OPACITY: Record<DeliverableStatus, number> = {
+  PLANNED: 1,
+  IN_PROGRESS: 1,
+  DELIVERED: 0.55,
+  ACCEPTED: 1,
+  REJECTED: 1,
 }
 
-// ─── Date range ───────────────────────────────────────────────────────────────
+const ALL = "all"
+const NOT_DONE_CAP = 40
+const DELIVERED_CAP = 20
 
-type PresetKey = "today" | "week" | "month" | "30d" | "all"
-const PRESETS: { key: PresetKey; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "week", label: "This week" },
-  { key: "month", label: "This month" },
-  { key: "30d", label: "Last 30 days" },
-  { key: "all", label: "All time" },
-]
+const pctOf = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
-function presetRange(key: PresetKey): { from: number; to: number } | null {
-  if (key === "all") return null
-  const now = new Date()
-  const today = dayStart(now)
-  if (key === "today") return { from: today, to: today }
-  if (key === "30d") return { from: today - 29 * 86_400_000, to: today }
-  if (key === "month") {
-    return { from: dayStart(new Date(now.getFullYear(), now.getMonth(), 1)), to: today }
-  }
-  // Week runs Mon-Sun, matching the allocation sheet.
-  const dow = (now.getDay() + 6) % 7
-  return { from: today - dow * 86_400_000, to: today + (6 - dow) * 86_400_000 }
+interface MyProgressProps {
+  /** The window, picked in the page header so this panel and the Slides deck read the same one. */
+  range: DateRangeValue
 }
 
-function customRange(range: DayRange): { from: number; to: number } {
-  const [fy, fm, fd] = range.from.split("-").map(Number)
-  const [ty, tm, td] = range.to.split("-").map(Number)
-  return {
-    from: new Date(fy!, fm! - 1, fd!).getTime(),
-    to: new Date(ty!, tm! - 1, td!).getTime(),
-  }
-}
+export function MyProgress({ range }: MyProgressProps) {
+  const [projectId, setProjectId] = useState(ALL)
+  // A team NAME, not an id: the six teams are the same on every project.
+  const [team, setTeam] = useState(ALL)
+  const [personId, setPersonId] = useState(ALL)
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export function MyProgress() {
-  // Shares the ["my-tasks"] cache entry with the My Tasks page, so it must cache
-  // the SAME shape: the `{ data }` envelope, not the unwrapped array.
-  const { data, isLoading } = useQuery({
-    queryKey: ["my-tasks"],
-    queryFn: () => apiFetch<{ data: MyTask[] }>("/api/tasks?mine=true"),
-    staleTime: 30_000,
+  // Same key as the slides dialog, so opening it costs nothing extra.
+  const scope = useQuery({
+    queryKey: ["deliverables-report-scope"],
+    queryFn: () =>
+      apiFetch<{ data: ScopeData }>("/api/projects/deliverables/report/scope").then((r) => r.data),
+    staleTime: 60_000,
   })
 
-  const [preset, setPreset] = useState<PresetKey>("all")
-  const [custom, setCustom] = useState<DayRange | undefined>()
-
-  const tasks = useMemo(() => (Array.isArray(data?.data) ? data.data : []), [data])
-
-  const view = useMemo(() => {
-    const today = dayStart(new Date())
-    const range = custom ? customRange(custom) : presetRange(preset)
-
-    // Filtered on the DUE day - the day the work was planned for, which is what
-    // the range picker is asking about. Undated tasks cannot answer that
-    // question, so they are excluded and counted separately rather than
-    // silently landing in whatever range happens to be selected.
-    const undated = range ? tasks.filter((t) => !t.dueDate).length : 0
-    const inRange = range
-      ? tasks.filter((t) => {
-          if (!t.dueDate) return false
-          const d = dayStart(new Date(t.dueDate))
-          return d >= range.from && d <= range.to
-        })
-      : tasks
-
-    const counts: Record<State, number> = { overdue: 0, todo: 0, hold: 0, progress: 0, done: 0 }
-    const byProject = new Map<
-      string,
-      {
-        id: string
-        name: string
-        slug: string | null
-        counts: Record<State, number>
-        total: number
-      }
-    >()
-    const hours = new Map<string, { id: string; name: string; allocated: number; spent: number }>()
-
-    for (const t of inRange) {
-      const state = stateOf(t, today)
-      if (!state) continue
-      counts[state]++
-
-      const key = t.project?.id ?? ADHOC_ROW_ID
-      const name = t.project?.name ?? ADHOC_LABEL
-      const p = byProject.get(key) ?? {
-        id: key,
-        name,
-        slug: t.project?.slug ?? null,
-        counts: { overdue: 0, todo: 0, hold: 0, progress: 0, done: 0 } as Record<State, number>,
-        total: 0,
-      }
-      p.counts[state]++
-      p.total++
-      byProject.set(key, p)
-
-      const h = hours.get(key) ?? { id: key, name, allocated: 0, spent: 0 }
-      h.allocated += t.estimatedHours ?? 0
-      h.spent += t.loggedHours
-      hours.set(key, h)
+  // Every project carries the same six teams, so the picker offers each NAME
+  // once and picking one means "that team on every project in view". The
+  // route takes ids, so the name is turned back into every id it stands for.
+  const teamNames = useMemo(() => {
+    const seen = new Set<string>()
+    for (const t of scope.data?.teams ?? []) {
+      if (projectId === ALL || t.projectId === projectId) seen.add(t.name)
     }
-
-    const total = Object.values(counts).reduce((a, b) => a + b, 0)
-    return {
-      counts,
-      total,
-      undated,
-      overdueTasks: inRange
-        .filter((t) => stateOf(t, today) === "overdue")
-        .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? "")),
-      byProject: [...byProject.values()].sort((a, b) => b.total - a.total),
-      hours: [...hours.values()]
-        .filter((h) => h.allocated > 0 || h.spent > 0)
-        .sort((a, b) => b.allocated - a.allocated),
-      rangeLabel: custom
-        ? `${formatDate(custom.from)} - ${formatDate(custom.to)}`
-        : (PRESETS.find((p) => p.key === preset)?.label ?? "All time"),
-    }
-  }, [tasks, preset, custom])
-
-  if (isLoading) return <Skeleton className="h-96 rounded-sm" />
-
-  const donut = STATES.map((s) => ({ ...s, value: view.counts[s.key] })).filter((d) => d.value > 0)
-  const completion = view.total > 0 ? Math.round((view.counts.done / view.total) * 100) : null
-
-  return (
-    <div className="space-y-4">
-      {/* Filters in ONE row above the charts, so the whole page reads as being
-          about the selected period. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <SegmentedControl
-          aria-label="Date range"
-          value={preset}
-          // A preset is only "on" when no custom span is overriding it.
-          muted={Boolean(custom)}
-          onChange={(key) => {
-            setPreset(key)
-            setCustom(undefined)
-          }}
-          options={PRESETS.map((p) => ({ value: p.key, label: p.label }))}
-        />
-        <DateRangePicker value={custom} onChange={setCustom} onClear={() => setCustom(undefined)} />
-        {view.undated > 0 && (
-          <span className="text-muted-foreground text-xs">
-            {view.undated} undated task{view.undated === 1 ? "" : "s"} not shown
-          </span>
-        )}
-      </div>
-
-      {view.total === 0 ? (
-        <EmptyState
-          icon={ListTodo}
-          title="Nothing in this period"
-          description="No tasks are due in the selected range. Try a wider range."
-        />
-      ) : (
-        <>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {/* 1. What state is my work in? */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">
-                  Where my work stands
-                  <span className="text-muted-foreground ml-2 text-xs font-normal">
-                    {view.rangeLabel}
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="relative">
-                  <ResponsiveContainer width="100%" height={240}>
-                    <PieChart>
-                      <Pie
-                        data={donut}
-                        dataKey="value"
-                        nameKey="label"
-                        innerRadius={62}
-                        outerRadius={92}
-                        // 2px of surface between slices, so adjacent fills never
-                        // touch - the gap does work that hue alone should not.
-                        paddingAngle={2}
-                        strokeWidth={0}
-                      >
-                        {donut.map((d) => (
-                          <Cell key={d.key} fill={d.fill} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<StateTooltip total={view.total} />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  {/* The headline lives in the hole rather than as a separate
-                      tile - one number, where the eye already is. */}
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold">{view.total}</span>
-                    <span className="text-muted-foreground text-[11px]">tasks</span>
-                    {completion != null && (
-                      <span className="text-muted-foreground text-[11px]">{completion}% done</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Legend + direct values. Required, not decorative: three of
-                    these fills are under 3:1 on the light card. */}
-                <StateLegend counts={view.counts} columns />
-              </CardContent>
-            </Card>
-
-            {/* 2. Which client carries it? */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">Tasks by client</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer
-                  width="100%"
-                  height={Math.max(200, view.byProject.length * 42)}
-                >
-                  <BarChart
-                    data={view.byProject}
-                    layout="vertical"
-                    margin={{ top: 4, right: 16, bottom: 4, left: 4 }}
-                    barCategoryGap="22%"
-                  >
-                    <XAxis
-                      type="number"
-                      allowDecimals={false}
-                      stroke="var(--viz-axis)"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    {/* Horizontal because client names are long - rotated labels
-                        are the usual reason a bar chart becomes unreadable. */}
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      width={110}
-                      stroke="var(--viz-axis)"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    {/* Custom content, not the default: recharts paints its
-                        tooltip text in the SERIES colour and lists every series
-                        including the zeros, which is both unreadable and noise. */}
-                    <Tooltip
-                      cursor={{ fill: "var(--viz-grid)", opacity: 0.35 }}
-                      content={<StateTooltip />}
-                    />
-                    {STATES.map((s) => (
-                      <Bar
-                        key={s.key}
-                        dataKey={`counts.${s.key}`}
-                        name={s.label}
-                        stackId="a"
-                        fill={s.fill}
-                        // 2px surface gap between stacked segments.
-                        stroke="var(--card)"
-                        strokeWidth={2}
-                        radius={2}
-                      />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-
-                {/* Our own legend rather than recharts': theirs colours the
-                    labels with the series colour and sorts them alphabetically,
-                    so it disagreed with the donut's legend right beside it. */}
-                <StateLegend />
-
-                {/* The chart's table twin. Not optional decoration: segment
-                    values otherwise exist only inside a tooltip, and three of
-                    these fills sit under 3:1 on the light card - so the numbers
-                    have to be readable without relying on hue or hover. */}
-                <div className="mt-2 overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-muted-foreground border-b">
-                        <th className="py-1 text-left font-normal">Client</th>
-                        {STATES.map((s) => (
-                          <th key={s.key} className="py-1 pl-2 text-right font-normal">
-                            {s.label}
-                          </th>
-                        ))}
-                        <th className="py-1 pl-2 text-right font-medium">All</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {view.byProject.map((p) => (
-                        <tr key={p.id} className="border-b last:border-0">
-                          <td className="max-w-[9rem] truncate py-1">
-                            {p.id === ADHOC_ROW_ID ? (
-                              <span className="text-muted-foreground">{p.name}</span>
-                            ) : (
-                              <Link
-                                href={projectHref({ id: p.id, slug: p.slug })}
-                                className="hover:underline"
-                              >
-                                {p.name}
-                              </Link>
-                            )}
-                          </td>
-                          {STATES.map((s) => (
-                            <td
-                              key={s.key}
-                              className={cn(
-                                "py-1 pl-2 text-right tabular-nums",
-                                p.counts[s.key] === 0 && "text-muted-foreground/40",
-                              )}
-                            >
-                              {p.counts[s.key]}
-                            </td>
-                          ))}
-                          <td className="py-1 pl-2 text-right font-medium tabular-nums">
-                            {p.total}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* 3. Am I booking time realistically? */}
-          {view.hours.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">
-                  Hours booked vs spent
-                  <span className="text-muted-foreground ml-2 text-xs font-normal">per client</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={Math.max(200, view.hours.length * 44)}>
-                  <BarChart
-                    data={view.hours}
-                    layout="vertical"
-                    margin={{ top: 4, right: 16, bottom: 4, left: 4 }}
-                    barGap={2}
-                  >
-                    <XAxis
-                      type="number"
-                      stroke="var(--viz-axis)"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(v: number) => `${v}h`}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      width={110}
-                      stroke="var(--viz-axis)"
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip
-                      cursor={{ fill: "var(--viz-grid)", opacity: 0.35 }}
-                      content={<HoursTooltip />}
-                    />
-                    {/* formatter, because recharts otherwise paints the label in
-                        the series colour - text wears text tokens, always. */}
-                    <Legend
-                      wrapperStyle={{ fontSize: 11 }}
-                      iconType="square"
-                      iconSize={9}
-                      formatter={(value) => (
-                        <span className="text-muted-foreground text-xs">{value}</span>
-                      )}
-                    />
-                    {/* The one CATEGORICAL pair on the page - two measures of the
-                        same unit on one axis, so no second scale is needed. */}
-                    <Bar dataKey="allocated" name="Booked" fill="var(--viz-1)" radius={2} />
-                    <Bar dataKey="spent" name="Spent" fill="var(--viz-2)" radius={2} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* 4. What exactly is late? A chart cannot answer this - you have to
-              act on each row, so it is a list. */}
-          {view.overdueTasks.length > 0 && (
-            <Card className="border-l-2" style={{ borderLeftColor: "var(--state-overdue)" }}>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                  <AlertTriangle className="h-4 w-4" style={{ color: "var(--state-overdue)" }} />
-                  Overdue ({view.overdueTasks.length})
-                </CardTitle>
-                <p className="text-muted-foreground text-xs">
-                  Past their due day and still to do or in progress. Work on hold or discarded is
-                  not counted - that was a decision, not a slip.
-                </p>
-              </CardHeader>
-              <CardContent className="divide-y p-0">
-                {view.overdueTasks.map((t) => (
-                  <TaskRow key={t.id} t={t} />
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
-    </div>
+    return sortProjectTeams([...seen].map((name) => ({ name }))).map((t) => t.name)
+  }, [scope.data, projectId])
+  const teamIds = useMemo(
+    () =>
+      team === ALL
+        ? []
+        : (scope.data?.teams ?? [])
+            .filter((t) => t.name === team && (projectId === ALL || t.projectId === projectId))
+            .map((t) => t.id),
+    [scope.data, team, projectId],
   )
-}
 
-/**
- * The state legend, in the FIXED state order.
- *
- * Ours rather than recharts' `<Legend>`: theirs paints each label in its series
- * colour (text must wear text tokens, so a colour never has to be read as a
- * word) and sorts alphabetically, which made the two legends on this page
- * disagree about the order of the very same five states.
- */
-function StateLegend({
-  counts,
-  columns = false,
-}: {
-  counts?: Record<State, number>
-  columns?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        "mt-2 gap-x-4 gap-y-1.5",
-        columns ? "grid grid-cols-2 sm:grid-cols-3" : "flex flex-wrap",
-      )}
-    >
-      {STATES.map((s) => {
-        const Icon = s.icon
-        return (
-          <div key={s.key} className="flex items-center gap-1.5 text-xs">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: s.fill }} />
-            <Icon className="text-muted-foreground h-3 w-3 shrink-0" />
-            <span className="text-muted-foreground truncate">{s.label}</span>
-            {counts && (
-              <span className={cn("font-medium tabular-nums", columns && "ml-auto")}>
-                {counts[s.key]}
-              </span>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
+  const qs = useMemo(() => {
+    const p = new URLSearchParams()
+    if (range.from) p.set("from", range.from)
+    if (range.to) p.set("to", range.to)
+    if (projectId !== ALL) p.set("projectIds", projectId)
+    if (teamIds.length) p.set("teamIds", teamIds.join(","))
+    if (personId !== ALL) p.set("employeeIds", personId)
+    return p.toString()
+  }, [range.from, range.to, projectId, teamIds, personId])
 
-/**
- * Tooltip for the state charts.
- *
- * Handles both the donut (one slice, with its share) and the stacked bar (a
- * client, with the states it actually has). Zero rows are dropped: the default
- * tooltip listed every state including the four sitting at 0, which buried the
- * one number the reader was pointing at.
- */
-function StateTooltip({
-  active,
-  payload,
-  label,
-  total,
-}: {
-  active?: boolean
-  payload?: { name?: string; value?: number; color?: string; fill?: string }[]
-  label?: string
-  total?: number
-}) {
-  if (!active || !payload?.length) return null
-  const rows = payload.filter((p) => Number(p.value) > 0)
-  if (rows.length === 0) return null
+  const progress = useQuery({
+    queryKey: ["deliverables-progress", qs],
+    queryFn: () =>
+      apiFetch<{ data: DeliverablesProgress }>(
+        `/api/projects/deliverables/progress${qs ? `?${qs}` : ""}`,
+      ).then((r) => r.data),
+    staleTime: 30_000,
+    // Keep the last numbers on screen while a new filter loads - no flash of
+    // skeletons every time someone changes the window.
+    placeholderData: (prev) => prev,
+  })
 
-  // A donut hands over a single slice; a stacked bar hands over the whole stack.
-  const isSlice = total != null && rows.length === 1 && !label
-  if (isSlice) {
-    const p = rows[0]!
-    const value = p.value ?? 0
-    return (
-      <div className="bg-card rounded-sm border px-2 py-1 text-xs shadow-sm">
-        <span className="font-medium">{p.name}</span>
-        <span className="text-muted-foreground ml-2 tabular-nums">
-          {value} · {total > 0 ? Math.round((value / total) * 100) : 0}%
-        </span>
-      </div>
-    )
+  const sc = scope.data
+  const showProjects = (sc?.projects.length ?? 0) > 1
+  // One team name in view means the picker could only ever say that name.
+  const showTeams = teamNames.length > 1
+  const showPeople = sc?.role !== "member" && (sc?.people.length ?? 0) > 1
+
+  // People narrowed to the chosen project / team, falling back to everyone
+  // when that would leave nobody (a line report with no team on the project).
+  const people = useMemo(() => {
+    if (!sc) return []
+    const teamsHere = teamIds.length
+      ? new Set(teamIds)
+      : projectId === ALL
+        ? null
+        : new Set(sc.teams.filter((t) => t.projectId === projectId).map((t) => t.id))
+    const narrowed = teamsHere
+      ? sc.people.filter((p) => p.teamIds.some((id) => teamsHere.has(id)))
+      : sc.people
+    return narrowed.length ? narrowed : sc.people
+  }, [sc, projectId, teamIds])
+
+  const pickProject = (id: string) => {
+    setProjectId(id)
+    // The same teams sit on every project, so a chosen team survives the
+    // switch - unless this project somehow lacks it (legacy data).
+    const stillThere =
+      team === ALL ||
+      (sc?.teams.some((t) => t.name === team && (id === ALL || t.projectId === id)) ?? false)
+    if (!stillThere) setTeam(ALL)
+    setPersonId(ALL)
+  }
+  const pickTeam = (name: string) => {
+    setTeam(name)
+    setPersonId(ALL)
+  }
+  const pickPerson = (id: string) => {
+    if (id === ALL || sc?.people.some((p) => p.id === id)) setPersonId(id)
   }
 
-  const sum = rows.reduce((a, p) => a + Number(p.value ?? 0), 0)
-  return (
-    <div className="bg-card min-w-36 rounded-sm border px-2 py-1.5 text-xs shadow-sm">
-      {label && <p className="mb-1 font-medium">{label}</p>}
-      {rows.map((p) => (
-        <p key={p.name} className="flex items-center gap-2">
-          <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: p.fill ?? p.color }} />
-          {/* Label in muted ink, value in primary - never in the series colour. */}
-          <span className="text-muted-foreground">{p.name}</span>
-          <span className="text-foreground ml-auto font-medium tabular-nums">{p.value}</span>
-        </p>
-      ))}
-      <p className="mt-1 flex items-center gap-2 border-t pt-1">
-        <span className="text-muted-foreground">All</span>
-        <span className="text-foreground ml-auto font-medium tabular-nums">{sum}</span>
-      </p>
-    </div>
-  )
-}
+  const data = progress.data
+  const me = data?.me
 
-/** Booked vs spent for one client, as hours rather than raw decimals. */
-function HoursTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean
-  payload?: { name?: string; value?: number; color?: string }[]
-  label?: string
-}) {
-  if (!active || !payload?.length) return null
   return (
-    <div className="bg-card rounded-sm border px-2 py-1.5 text-xs shadow-sm">
-      <p className="mb-0.5 font-medium">{label}</p>
-      {payload.map((p) => (
-        <div key={p.name} className="flex items-center gap-1.5">
-          <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: p.color }} />
-          <span className="text-muted-foreground">{p.name}</span>
-          <span className="ml-auto font-medium tabular-nums">{formatHours(p.value ?? 0)}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/** One overdue task - what it is, whose it is, and how late. */
-function TaskRow({ t }: { t: MyTask }) {
-  const daysLate = t.dueDate
-    ? Math.round((dayStart(new Date()) - dayStart(new Date(t.dueDate))) / 86_400_000)
-    : 0
-  return (
-    <div className="flex items-center gap-2 px-4 py-2 text-xs">
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{t.title}</p>
-        {t.project ? (
-          <Link
-            href={projectHref(t.project)}
-            className="text-muted-foreground hover:text-foreground truncate text-[11px] hover:underline"
-          >
-            {t.project.name}
-            {t.team ? ` · ${t.team.name}` : ""}
-          </Link>
-        ) : (
-          <span className="text-muted-foreground truncate text-[11px]">{ADHOC_LABEL}</span>
+    <div className="space-y-6">
+      {/* Who this covers on the left, the filters on the right - the window
+          itself is picked in the page header, next to Slides. */}
+      <div className="flex flex-wrap items-center gap-3">
+        {sc && (
+          <p className="text-muted-foreground text-xs">
+            {ROLE_CAPTION[sc.role]}
+            {sc.role !== "member" && (
+              <>
+                {" "}
+                · {plural(sc.projects.length, "project")} ·{" "}
+                {plural(sc.people.length, "person", "people")}
+              </>
+            )}
+            {sc.role === "member" && <> · {plural(sc.projects.length, "project")}</>}
+          </p>
+        )}
+        {(showProjects || showTeams || showPeople) && (
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {showProjects && (
+              <Select value={projectId} onValueChange={pickProject}>
+                <SelectTrigger className="w-[190px]" aria-label="Project">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All projects</SelectItem>
+                  {sc?.projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {showTeams && (
+              <Select value={team} onValueChange={pickTeam}>
+                <SelectTrigger className="w-[150px]" aria-label="Team">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All teams</SelectItem>
+                  {teamNames.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {showPeople && (
+              <Select value={personId} onValueChange={pickPerson}>
+                <SelectTrigger className="w-[190px]" aria-label="Team member">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Whole team</SelectItem>
+                  {people.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.id === me ? `${p.name} (me)` : p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         )}
       </div>
 
-      <StatusBadge
-        status={t.priority}
-        colorMap={TASK_PRIORITY_COLORS}
-        labelMap={TASK_PRIORITY_LABELS}
-        size="xs"
-      />
+      {progress.isError && !data ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="Could not load your deliverables"
+          description="Try again in a moment."
+          variant="card"
+        />
+      ) : !data ? (
+        <ProgressSkeleton />
+      ) : data.totals.total === 0 ? (
+        <EmptyState
+          icon={Inbox}
+          title="Nothing in this window"
+          description="No deliverables were due, worked on or finished in it. Widen the window or pick another project."
+          variant="card"
+        />
+      ) : (
+        <div className={cn("space-y-6", progress.isFetching && "opacity-70 transition-opacity")}>
+          <KpiRow data={data} />
 
-      {t.estimatedHours != null && t.estimatedHours > 0 && (
-        <span className="text-muted-foreground hidden shrink-0 tabular-nums sm:inline">
-          {formatHours(t.estimatedHours)}
-        </span>
+          <div className="grid gap-6 lg:grid-cols-5">
+            <StatusCard t={data.totals} className="lg:col-span-2" />
+            <GroupCard
+              title="By project"
+              what="Project"
+              rows={data.byProject}
+              onPick={showProjects && projectId === ALL ? pickProject : undefined}
+              className="lg:col-span-3"
+            />
+          </div>
+
+          {data.byPerson.length > 1 && (
+            <GroupCard
+              title="By team member"
+              what="Person"
+              rows={data.byPerson}
+              onPick={showPeople ? pickPerson : undefined}
+            />
+          )}
+
+          <NotDoneCard items={data.notDone} showWho={showPeople && personId === ALL} />
+          <DeliveredCard items={data.delivered} showWho={showPeople && personId === ALL} />
+
+          {data.truncated && (
+            <p className="text-muted-foreground text-xs">
+              Showing the first 1,500 deliverables only - narrow the window or pick a project for
+              exact numbers.
+            </p>
+          )}
+        </div>
       )}
+    </div>
+  )
+}
 
-      <Badge
-        variant="outline"
-        className="shrink-0 gap-1 border-red-300 py-0 text-[10px] text-red-600"
-      >
-        <AlertTriangle className="h-3 w-3" />
-        {daysLate === 0 ? "today" : `${daysLate}d late`}
-      </Badge>
+// ─── KPIs ───────────────────────────────────
+
+type Tone = "default" | "good" | "warn" | "bad"
+
+const TONE: Record<Tone, string> = {
+  default: "text-foreground",
+  good: "text-emerald-500",
+  warn: "text-amber-500",
+  bad: "text-red-500",
+}
+
+function KpiRow({ data }: { data: DeliverablesProgress }) {
+  const t = data.totals
+  const [open, setOpen] = useState<KpiKey | null>(null)
+  const tiles: {
+    key: KpiKey
+    label: string
+    value: string | number
+    sub: string
+    icon: React.ElementType
+    tone: Tone
+  }[] = [
+    {
+      key: "todo",
+      label: "To do",
+      value: t.open,
+      sub: t.overdue ? `${t.overdue} overdue` : "nothing overdue",
+      icon: Clock3,
+      tone: t.overdue ? "bad" : "default",
+    },
+    {
+      key: "completed",
+      label: "Completed",
+      value: t.done,
+      sub: `${t.pct}% of ${t.total}`,
+      icon: CheckCircle2,
+      tone: "good",
+    },
+    {
+      key: "overdue",
+      label: "Overdue now",
+      value: t.overdue,
+      sub: "past due and still open",
+      icon: AlertTriangle,
+      tone: t.overdue ? "bad" : "default",
+    },
+    {
+      key: "sentBack",
+      label: "Sent back",
+      value: t.sentBack,
+      sub: "awaiting rework",
+      icon: Undo2,
+      tone: t.sentBack ? "warn" : "default",
+    },
+  ]
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {tiles.map((k) => (
+          // Each tile opens the list behind its number; keyboard-reachable too.
+          <Card
+            key={k.key}
+            role="button"
+            tabIndex={0}
+            aria-label={`${k.label}: ${k.value}. Show the list`}
+            onClick={() => setOpen(k.key)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                setOpen(k.key)
+              }
+            }}
+            className="hover:border-foreground/25 hover:bg-muted/40 focus-visible:ring-ring cursor-pointer transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <CardContent className="p-4">
+              <div className="text-muted-foreground flex items-center justify-between text-xs">
+                <span>{k.label}</span>
+                <k.icon className={cn("h-3.5 w-3.5", TONE[k.tone])} />
+              </div>
+              <div className={cn("mt-1 text-2xl font-semibold tabular-nums", TONE[k.tone])}>
+                {k.value}
+              </div>
+              <div className="text-muted-foreground mt-0.5 text-xs">{k.sub}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <ProgressKpiDialog kpi={open} data={data} onClose={() => setOpen(null)} />
+    </>
+  )
+}
+
+// ─── Status donut ────────────────────────────
+
+function StatusTip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: { name: string; value: number }[]
+}) {
+  const p = payload?.[0]
+  if (!active || !p) return null
+  return (
+    <div className="border-border bg-card rounded-md border px-2 py-1 text-xs shadow-sm">
+      {p.name}: <span className="font-medium tabular-nums">{p.value}</span>
+    </div>
+  )
+}
+
+function StatusCard({ t, className }: { t: ProgressTotals; className?: string }) {
+  // The status being looked at, picked from the legend or the ring itself; the
+  // same click again lets go of it. With nothing picked the ring reads as the
+  // whole. Picking dims every other slice and swaps the centre to that
+  // status's own number and share, which is what "highlight" has to mean on a
+  // ring where the slices are already side by side.
+  const [picked, setPicked] = useState<DeliverableStatus | null>(null)
+  const toggle = (s: DeliverableStatus) => setPicked((cur) => (cur === s ? null : s))
+
+  const slices = STATUS_ORDER.map((s) => ({
+    key: s,
+    name: DELIVERABLE_STATUS_LABELS[s],
+    value: t.byStatus[s] ?? 0,
+  }))
+  const drawn = slices.filter((s) => s.value > 0)
+  const active = picked ? slices.find((s) => s.key === picked) : undefined
+
+  return (
+    <Card className={className}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold">Where the work stands</CardTitle>
+        <p className="text-muted-foreground text-xs">
+          Click a status to see its share of the ring.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="relative h-[210px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={drawn}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={64}
+                outerRadius={96}
+                paddingAngle={2}
+                strokeWidth={0}
+                isAnimationActive={false}
+                onClick={(_, i) => {
+                  const s = drawn[i]
+                  if (s) toggle(s.key)
+                }}
+              >
+                {drawn.map((s) => {
+                  const on = picked === s.key
+                  const dim = picked !== null && !on
+                  return (
+                    <Cell
+                      key={s.key}
+                      cursor="pointer"
+                      fill={STATUS_COLOR[s.key]}
+                      fillOpacity={dim ? 0.2 : STATUS_OPACITY[s.key]}
+                      stroke={on ? "var(--foreground)" : "none"}
+                      strokeWidth={on ? 2 : 0}
+                    />
+                  )
+                })}
+              </Pie>
+              <Tooltip content={<StatusTip />} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+            {active ? (
+              <>
+                <span
+                  className="text-3xl font-bold tabular-nums"
+                  style={{ color: STATUS_COLOR[active.key] }}
+                >
+                  {active.value}
+                </span>
+                <span className="text-xs font-medium">{active.name}</span>
+                <span className="text-muted-foreground text-xs">
+                  {pctOf(active.value, t.total)}% of {t.total}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-3xl font-bold tabular-nums">{t.total}</span>
+                <span className="text-xs font-medium">deliverables</span>
+                <span className="text-muted-foreground text-xs">{t.pct}% completed</span>
+              </>
+            )}
+          </div>
+        </div>
+        {/* The legend is the control: each row is a button that picks its slice
+            out of the ring. One row per status, top to bottom, with the same
+            four columns on every row - dot, name, count, share - so the numbers
+            line up down the card instead of drifting between two half-width
+            columns with an orphan on the last line. The share is the same size
+            as the count (it was a faint xs), and a thin bar under the name
+            carries the proportion so nobody has to read the small number. */}
+        <ul className="mt-3 space-y-1">
+          {slices.map((s) => {
+            const on = picked === s.key
+            const pct = pctOf(s.value, t.total)
+            return (
+              <li key={s.key}>
+                <button
+                  type="button"
+                  onClick={() => toggle(s.key)}
+                  aria-pressed={on}
+                  className={cn(
+                    "grid w-full grid-cols-[auto_1fr_auto_auto] items-center gap-x-3 rounded-sm border px-2.5 py-1.5 text-left text-sm transition-colors",
+                    on ? "border-foreground/40 bg-muted" : "hover:bg-muted/60 border-transparent",
+                    s.value === 0 && !on && "text-muted-foreground",
+                  )}
+                >
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ background: STATUS_COLOR[s.key], opacity: STATUS_OPACITY[s.key] }}
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate leading-tight">{s.name}</span>
+                    <span className="bg-muted mt-1 block h-1 overflow-hidden rounded-full">
+                      <span
+                        className="block h-full rounded-full"
+                        style={{
+                          width: `${pct}%`,
+                          background: STATUS_COLOR[s.key],
+                          opacity: STATUS_OPACITY[s.key],
+                        }}
+                      />
+                    </span>
+                  </span>
+                  <span className="w-8 text-right font-semibold tabular-nums">{s.value}</span>
+                  <span className="text-muted-foreground w-10 text-right tabular-nums">{pct}%</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── Breakdown tables ───────────────────────────
+
+function ProgressBar({ done, overdue, total }: { done: number; overdue: number; total: number }) {
+  const d = pctOf(done, total)
+  const o = pctOf(overdue, total)
+  return (
+    <div className="flex items-center gap-2">
+      <div className="bg-muted h-1.5 flex-1 overflow-hidden rounded-full">
+        <div className="flex h-full">
+          <div style={{ width: `${d}%`, background: "var(--state-done)" }} />
+          <div style={{ width: `${o}%`, background: "var(--state-overdue)" }} />
+        </div>
+      </div>
+      <span className="text-muted-foreground w-9 text-right text-xs tabular-nums">{d}%</span>
+    </div>
+  )
+}
+
+function GroupCard({
+  title,
+  what,
+  rows,
+  onPick,
+  className,
+}: {
+  title: string
+  what: string
+  rows: ProgressGroup[]
+  onPick?: (id: string) => void
+  className?: string
+}) {
+  return (
+    <Card className={className}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-muted-foreground text-[11px] tracking-wide uppercase">
+              <th className="py-1 text-left font-medium">{what}</th>
+              <th className="py-1 text-right font-medium">Completed</th>
+              <th className="py-1 text-right font-medium">Open</th>
+              <th className="py-1 text-right font-medium">Overdue</th>
+              <th className="py-1 text-right font-medium">Sent back</th>
+              <th className="py-1 text-right font-medium">All</th>
+              <th className="w-36 py-1 pl-3 text-left font-medium">Progress</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-border/60 border-t">
+                <td className="py-2 pr-3">
+                  {onPick ? (
+                    <button
+                      type="button"
+                      onClick={() => onPick(r.id)}
+                      className="text-left font-medium hover:underline"
+                      title={`Only ${r.label}`}
+                    >
+                      {r.label}
+                    </button>
+                  ) : (
+                    <span className="font-medium">{r.label}</span>
+                  )}
+                  {r.sub && <div className="text-muted-foreground text-xs">{r.sub}</div>}
+                </td>
+                <td className="py-2 text-right text-emerald-500 tabular-nums">{r.done}</td>
+                <td className="py-2 text-right tabular-nums">{r.open}</td>
+                <td
+                  className={cn(
+                    "py-2 text-right tabular-nums",
+                    r.overdue ? "text-red-500" : "text-muted-foreground/60",
+                  )}
+                >
+                  {r.overdue}
+                </td>
+                <td
+                  className={cn(
+                    "py-2 text-right tabular-nums",
+                    r.sentBack ? "text-amber-500" : "text-muted-foreground/60",
+                  )}
+                >
+                  {r.sentBack}
+                </td>
+                <td className="py-2 text-right font-medium tabular-nums">{r.total}</td>
+                <td className="py-2 pl-3">
+                  <ProgressBar done={r.done} overdue={r.overdue} total={r.total} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── Item lists ─────────────────────────────
+
+function StatusPill({ status }: { status: DeliverableStatus }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span
+        className="h-2 w-2 shrink-0 rounded-full"
+        style={{ background: STATUS_COLOR[status], opacity: STATUS_OPACITY[status] }}
+      />
+      {DELIVERABLE_STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+function ItemTitle({ item }: { item: ProgressItem }) {
+  const sub = [
+    item.type.toLowerCase().replace(/_/g, " "),
+    item.quantity > 1 ? `${item.deliveredQuantity}/${item.quantity}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+  return (
+    <div className="min-w-0">
+      <div className="truncate font-medium" title={item.title}>
+        {item.title}
+      </div>
+      <div className="text-muted-foreground text-xs">{sub}</div>
+    </div>
+  )
+}
+
+function NotDoneCard({ items, showWho }: { items: ProgressItem[]; showWho: boolean }) {
+  const shown = items.slice(0, NOT_DONE_CAP)
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+          Still to do, and why
+          <span className="text-muted-foreground text-xs font-normal">{items.length}</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        {items.length === 0 ? (
+          <p className="text-muted-foreground py-2 text-sm">
+            Everything in this window is completed.
+          </p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-muted-foreground text-[11px] tracking-wide uppercase">
+                <th className="py-1 text-left font-medium">Deliverable</th>
+                <th className="py-1 text-left font-medium">Project</th>
+                {showWho && <th className="py-1 text-left font-medium">Who</th>}
+                <th className="py-1 text-left font-medium">Status</th>
+                <th className="py-1 text-left font-medium">When</th>
+                <th className="py-1 text-left font-medium">Why</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((it) => (
+                <tr key={it.id} className="border-border/60 border-t align-top">
+                  <td className="max-w-[260px] py-2 pr-3">
+                    <ItemTitle item={it} />
+                  </td>
+                  <td className="py-2 pr-3 whitespace-nowrap">{it.project}</td>
+                  {showWho && (
+                    <td className="py-2 pr-3 whitespace-nowrap">
+                      {it.employee ?? <span className="text-muted-foreground">—</span>}
+                    </td>
+                  )}
+                  <td className="py-2 pr-3">
+                    <StatusPill status={it.status} />
+                  </td>
+                  <td
+                    className={cn(
+                      "py-2 pr-3 text-xs whitespace-nowrap",
+                      it.overdue ? "text-red-500" : "text-muted-foreground",
+                    )}
+                  >
+                    {it.period}
+                  </td>
+                  <td className="text-muted-foreground max-w-[360px] py-2 text-xs" title={it.why}>
+                    {it.why}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {items.length > shown.length && (
+          <p className="text-muted-foreground pt-2 text-xs">
+            and {items.length - shown.length} more - narrow the window or pick a project.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function DeliveredCard({ items, showWho }: { items: ProgressItem[]; showWho: boolean }) {
+  const shown = items.slice(0, DELIVERED_CAP)
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+          Completed in this window
+          <span className="text-muted-foreground text-xs font-normal">{items.length}</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        {items.length === 0 ? (
+          <p className="text-muted-foreground py-2 text-sm">
+            Nothing completed in this window yet.
+          </p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-muted-foreground text-[11px] tracking-wide uppercase">
+                <th className="py-1 text-left font-medium">Deliverable</th>
+                <th className="py-1 text-left font-medium">Project</th>
+                {showWho && <th className="py-1 text-left font-medium">Who</th>}
+                <th className="py-1 text-left font-medium">Status</th>
+                <th className="py-1 text-left font-medium">Finished</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((it) => (
+                <tr key={it.id} className="border-border/60 border-t align-top">
+                  <td className="max-w-[300px] py-2 pr-3">
+                    <ItemTitle item={it} />
+                  </td>
+                  <td className="py-2 pr-3 whitespace-nowrap">{it.project}</td>
+                  {showWho && (
+                    <td className="py-2 pr-3 whitespace-nowrap">
+                      {it.employee ?? <span className="text-muted-foreground">—</span>}
+                    </td>
+                  )}
+                  <td className="py-2 pr-3">
+                    <StatusPill status={it.status} />
+                  </td>
+                  <td className="text-muted-foreground py-2 text-xs whitespace-nowrap">
+                    {it.completedOn ? formatDate(it.completedOn, "d MMM yyyy") : "—"}
+                    {it.late && <span className="ml-2 text-amber-500">late</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {items.length > shown.length && (
+          <p className="text-muted-foreground pt-2 text-xs">
+            and {items.length - shown.length} more.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── Loading ─────────────────────────────────
+
+function ProgressSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 5 }, (_, i) => (
+          <Skeleton key={i} className="h-24 rounded-xl" />
+        ))}
+      </div>
+      <div className="grid gap-6 lg:grid-cols-5">
+        <Skeleton className="h-80 rounded-xl lg:col-span-2" />
+        <Skeleton className="h-80 rounded-xl lg:col-span-3" />
+      </div>
+      <Skeleton className="h-56 rounded-xl" />
     </div>
   )
 }

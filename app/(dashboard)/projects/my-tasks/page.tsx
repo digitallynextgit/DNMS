@@ -14,7 +14,9 @@ import { Badge } from "@/components/ui/badge"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -46,7 +48,6 @@ import { projectHref } from "@/features/projects/lib/project-href"
 import { followUpConflictFrom } from "@/features/projects/lib/follow-up-conflict"
 import { afterTaskPatch } from "@/features/projects/lib/after-task-patch"
 import { useFollowUpConflictStore } from "@/stores/follow-up-conflict-store"
-import { useOutputCaptureStore } from "@/stores/output-capture-store"
 import { apiFetch } from "@/lib/api-fetch"
 import { BlockedBadge } from "@/features/projects/components/blocked-badge"
 import { useProjects } from "@/features/projects/hooks/use-projects"
@@ -100,7 +101,7 @@ type TaskScope = string
  */
 interface ScopeMeta {
   /** isReport = a direct subordinate. False = on a team you manage, nothing more. */
-  people: { id: string; name: string; isReport: boolean }[]
+  people: { id: string; name: string; isReport: boolean; former?: boolean }[]
   /**
    * The caller is a project admin, so `people` is the whole company rather than
    * their reporting line - every name on it is theirs to open, not just the
@@ -238,7 +239,6 @@ export default function MyTasksPage() {
   const viewMode = storedView === "sheet" ? "sheet" : "card"
   const qc = useQueryClient()
   const askFollowUpConflict = useFollowUpConflictStore((s) => s.ask)
-  const askOutput = useOutputCaptureStore((s) => s.ask)
 
   const { data: session } = useSession()
   const { can } = usePermissions()
@@ -304,6 +304,11 @@ export default function MyTasksPage() {
     [scopeMeta],
   )
   const canPickPerson = selectablePeople.length > 0
+  // Current colleagues, then the archive: people who have left but whose tasks
+  // are kept. Offered separately so the live list stays the live list.
+  const currentPeople = useMemo(() => selectablePeople.filter((p) => !p.former), [selectablePeople])
+  const formerPeople = useMemo(() => selectablePeople.filter((p) => p.former), [selectablePeople])
+  const viewingFormer = !isMine && formerPeople.some((p) => p.id === person)
 
   // A report who moves away stops being selectable; falling back to yourself
   // beats a picker displaying a value that is no longer in its own list. Only
@@ -450,11 +455,13 @@ export default function MyTasksPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={isMine ? "My Tasks" : `Tasks · ${scopeLabel}`}
+        title={isMine ? "My Tasks" : `${viewingFormer ? "Archived" : "Tasks"} · ${scopeLabel}`}
         description={
           isMine
             ? "Tasks assigned to you across all projects."
-            : `${scopeLabel}'s tasks, across all projects.`
+            : viewingFormer
+              ? `${scopeLabel} is no longer with the organisation. Their tasks are kept here for reference.`
+              : `${scopeLabel}'s tasks, across all projects.`
         }
         actions={
           <>
@@ -477,17 +484,34 @@ export default function MyTasksPage() {
                   {/* No group heading: one flat list of people, sorted by name.
                       Type to jump to a name - the reason a long company roster
                       is still workable here without a search box. */}
-                  {selectablePeople.map((p) => (
+                  {currentPeople.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
                     </SelectItem>
                   ))}
+                  {/* People who have left, kept apart from the live list so
+                      their old tasks stay reachable without looking current. */}
+                  {formerPeople.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-muted-foreground text-xs font-normal">
+                        Archived · no longer with us
+                      </SelectLabel>
+                      {formerPeople.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
                 </SelectContent>
               </Select>
             )}
-            <Button className="gap-1.5" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" /> New Task
-            </Button>
+            {/* Nothing new gets assigned to someone who has left. */}
+            {!viewingFormer && (
+              <Button className="gap-1.5" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" /> New Task
+              </Button>
+            )}
           </>
         }
       />
@@ -693,34 +717,6 @@ export default function MyTasksPage() {
                                 </Badge>
                               )}
                               <BlockedBadge requirement={task.requirement} />
-                              {/* Finished, expected to produce something, nothing
-                                  logged. A nudge with the answer one click away -
-                                  never a block. */}
-                              {task.status === "DONE" &&
-                                task.producesOutput &&
-                                (task._count?.deliverables ?? 0) === 0 &&
-                                !task.outputSkippedAt &&
-                                task.project && (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      askOutput({
-                                        taskId: task.id,
-                                        projectId: task.project!.id,
-                                        title: task.title,
-                                        links: task.links,
-                                        employeeId: task.assignee?.id ?? null,
-                                        startedOn: null,
-                                        // Nothing owed to confirm - this is the
-                                        // nudge on a task with a blank ledger.
-                                        planned: null,
-                                      })
-                                    }
-                                    className="rounded-sm border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-500 hover:bg-amber-500/20"
-                                  >
-                                    No output logged · log it
-                                  </button>
-                                )}
                               {isOverdue && (
                                 <Badge
                                   variant="outline"

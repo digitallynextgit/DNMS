@@ -363,58 +363,8 @@ export function useProjectTeams(projectId: string | undefined) {
   })
 }
 
-export function useCreateTeam(projectId: string) {
-  const qc = useQueryClient()
-  return useMutation(
-    mutationWithToast(qc, {
-      mutationFn: (body: { name: string; description?: string }) =>
-        apiFetch<{ data: ProjectTeam }>(`/api/projects/${projectId}/teams`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }),
-      invalidate: [
-        ["project-teams", projectId],
-        ["project", projectId],
-      ],
-      success: "Team created",
-    }),
-  )
-}
-
-export function useUpdateTeam(projectId: string) {
-  const qc = useQueryClient()
-  return useMutation(
-    mutationWithToast(qc, {
-      mutationFn: ({ teamId, body }: { teamId: string; body: Record<string, unknown> }) =>
-        apiFetch(`/api/projects/${projectId}/teams/${teamId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }),
-      invalidate: [
-        ["project-teams", projectId],
-        ["project", projectId],
-      ],
-      success: "Team updated",
-    }),
-  )
-}
-
-export function useDeleteTeam(projectId: string) {
-  const qc = useQueryClient()
-  return useMutation(
-    mutationWithToast(qc, {
-      mutationFn: (teamId: string) =>
-        apiFetch(`/api/projects/${projectId}/teams/${teamId}`, { method: "DELETE" }),
-      invalidate: [
-        ["project-teams", projectId],
-        ["project", projectId],
-      ],
-      success: "Team deleted",
-    }),
-  )
-}
+// Teams are fixed (features/projects/lib/project-teams.ts): there is no create,
+// rename or delete. Staffing is the only thing that changes - see below.
 
 // Team members
 export function useAddTeamMember(projectId: string, teamId: string) {

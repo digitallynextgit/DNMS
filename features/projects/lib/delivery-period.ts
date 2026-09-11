@@ -54,6 +54,16 @@ export function weekOf(d: Date): DeliveryPeriod {
   return { start, end: addDays(start, 4) }
 }
 
+/**
+ * Exactly one working week: `start` is a Monday and `end` that week's Friday.
+ * Deliverables are planned by the working week and nothing else, so this is
+ * the shape the server insists on.
+ */
+export function isWorkingWeek(start: Date, end: Date): boolean {
+  const w = weekOf(start)
+  return w.start.getTime() === start.getTime() && w.end.getTime() === end.getTime()
+}
+
 /** First-to-last day of the calendar month containing `d`. */
 export function monthOf(d: Date): DeliveryPeriod {
   const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))
@@ -77,41 +87,6 @@ export function periodFor(kind: PeriodKind, anchor: Date, until?: Date | null): 
       return other < anchor ? { start: other, end: anchor } : { start: anchor, end: other }
     }
   }
-}
-
-/** `n` periods of this kind, starting at the one containing `anchor`. */
-export function repeatPeriods(kind: PeriodKind, anchor: Date, count: number): DeliveryPeriod[] {
-  const n = Math.max(1, Math.floor(count) || 1)
-  const out: DeliveryPeriod[] = [periodFor(kind, anchor)]
-  for (let i = 1; i < n; i++) {
-    const prev = out[i - 1]!
-    // Each kind steps by its OWN stride, never by "the day after the last one".
-    // A working week ends on Friday, so the day after its end is Saturday - and
-    // the week containing Saturday is the week that just finished. Stepping
-    // that way would have stalled on the same week forever.
-    switch (kind) {
-      case "week":
-        out.push(weekOf(addDays(prev.start, 7)))
-        break
-      case "month":
-        // Measured from the previous START, so a short February cannot drag
-        // the rest of the year backwards.
-        out.push(
-          monthOf(new Date(Date.UTC(prev.start.getUTCFullYear(), prev.start.getUTCMonth() + 1, 1))),
-        )
-        break
-      case "day":
-        out.push(periodFor("day", addDays(prev.start, 1)))
-        break
-      case "range": {
-        // A custom range repeats immediately after itself, keeping its width.
-        const next = addDays(prev.end, 1)
-        out.push({ start: next, end: addDays(next, daysIn(prev) - 1) })
-        break
-      }
-    }
-  }
-  return out
 }
 
 /** Inclusive length in days. */
