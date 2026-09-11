@@ -1,4 +1,5 @@
 import "server-only"
+import { tidyBrief } from "../lib/brief-text"
 
 import { db } from "@/server/db"
 import { AI_MODEL_SMART, aiComplete } from "@/lib/ai"
@@ -92,13 +93,22 @@ export async function analyseBrandDocuments(
       })
       continue
     }
-    const text = await extractFileText({ ...a, maxChars: Math.min(PER_FILE_CHARS, budget) })
+    let failure: string | null = null
+    const text = await extractFileText({
+      ...a,
+      maxChars: Math.min(PER_FILE_CHARS, budget),
+      onError: (reason) => {
+        failure = reason
+      },
+    })
     if (!text) {
       sources.push({
         ...pick(a),
         status: "skipped",
         chars: 0,
-        reason: "Could not read it - too large, empty, or a scanned image without text",
+        // The real reason when there is one. The old copy guessed at a scan,
+        // which sent everybody looking at the wrong thing.
+        reason: failure ?? "Came back empty - no text in the file",
       })
       continue
     }
@@ -108,9 +118,10 @@ export async function analyseBrandDocuments(
   }
 
   if (docs.length === 0) {
-    throw new ValidationError(
-      "None of the documents could be read. PDFs need real text (not scans); Word, Excel, CSV and text files work.",
-    )
+    // Say what happened to THIS file rather than asserting a cause: the
+    // generic scanned-PDF line was wrong the first time it mattered.
+    const why = sources.map((s) => `${s.fileName}: ${s.reason ?? "unknown reason"}`).join("; ")
+    throw new ValidationError(`None of the documents could be read. ${why}`)
   }
 
   const client = project.client
@@ -122,9 +133,14 @@ export async function analyseBrandDocuments(
     "",
     docs.join("\n\n---\n\n"),
     "",
-    "Write a detailed brand brief from these documents, then recommendations.",
+    "Write a brand brief from these documents, then recommendations.",
+    "PLAIN TEXT ONLY - no markdown. No #, no **, no bullets made of *. Use a",
+    "hyphen for dashes, never an em dash. Head each section with its number and",
+    'name on its own line, e.g. "3. Target audience".',
+    "Keep each section to what the documents actually support - a few sentences",
+    "or short hyphen-led lines. A brief a team can read beats one nobody finishes.",
     "Return a JSON object with exactly these keys:",
-    '- "brief": a markdown document with these headings in this order, each with concrete content from the documents (write "Not covered in the documents." under a heading when nothing applies):',
+    '- "brief": plain text with these sections in this order, each with concrete content from the documents (write "Not covered in the documents." under a heading when nothing applies):',
     "  1. Brand snapshot (who they are, what they sell, where they operate)",
     "  2. Products & services",
     "  3. Target audience (segments, needs, buying triggers)",
@@ -145,20 +161,24 @@ export async function analyseBrandDocuments(
     user,
     model: AI_MODEL_SMART,
     json: true,
-    maxTokens: 3500,
+    // Generation time tracks OUTPUT length almost linearly, and 3500 tokens of
+    // brief was most of the wait. 2400 still covers eleven sections written
+    // tightly; the prompt above asks for tight.
+    maxTokens: 2400,
     temperature: 0.3,
     // Reading a few thousand words and writing a full brief takes the model a
     // while; the default 20s is sized for one-line rewrites.
     timeoutMs: 120_000,
   })
 
-  const brief = typeof out.brief === "string" ? out.brief.trim() : ""
+  const brief = typeof out.brief === "string" ? tidyBrief(out.brief) : ""
   if (!brief) throw new ValidationError("The AI did not return a brief - try again")
 
   return {
     brief,
-    recommendations: strings(out.recommendations).slice(0, 12),
-    gaps: strings(out.gaps).slice(0, 10),
+    // The same treatment: these land in lists next to the brief.
+    recommendations: strings(out.recommendations).map(tidyBrief).slice(0, 12),
+    gaps: strings(out.gaps).map(tidyBrief).slice(0, 10),
     sources,
   }
 }

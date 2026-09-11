@@ -18,7 +18,11 @@ const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   reactStrictMode: true,
   allowedDevOrigins: ["187.127.159.101", "digitallynext.tech", "dnms.digitallynext.com"],
-  serverExternalPackages: ["exceljs", "sharp"],
+  // Left as real runtime require()s instead of being bundled. pdf-parse wraps
+  // pdfjs, which resolves worker files and does dynamic requires; bundled, it
+  // fails at runtime - and the brand-brief reader reported that as "this PDF
+  // has no text" about a PDF holding 12 pages of it. mammoth is the same shape.
+  serverExternalPackages: ["exceljs", "sharp", "pdf-parse", "mammoth"],
   experimental: {
     // This app has a proxy (middleware) at proxy.ts, so Next BUFFERS every request
     // body for the proxy to read - and silently TRUNCATES it at 10 MB by default.

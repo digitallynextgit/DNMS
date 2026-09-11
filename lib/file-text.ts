@@ -48,11 +48,25 @@ export async function extractFileText(input: {
   /** Per-file text cap. Defaults to MAX_CHARS (sized for the chat assistant's
    *  context); document-analysis flows that feed one model call pass more. */
   maxChars?: number
+  /**
+   * Filled with WHY a file could not be read, when it could not.
+   *
+   * Without it the only signal is null, and the caller has to guess a reason to
+   * show - which is how a bundler fault came to be reported to users as a
+   * scanned PDF, about a PDF that had twelve pages of text in it.
+   */
+  onError?: (reason: string) => void
 }): Promise<string | null> {
   const { objectKey, mimeType, fileName, fileSize } = input
   const max = input.maxChars ?? MAX_CHARS
-  if (fileSize && fileSize > MAX_BYTES) return null
-  if (!isExtractable(mimeType, fileName)) return null
+  if (fileSize && fileSize > MAX_BYTES) {
+    input.onError?.(`Larger than ${Math.round(MAX_BYTES / 1024 / 1024)} MB`)
+    return null
+  }
+  if (!isExtractable(mimeType, fileName)) {
+    input.onError?.("Not a readable document type")
+    return null
+  }
 
   try {
     const buffer = await downloadFile(objectKey)
@@ -91,7 +105,9 @@ export async function extractFileText(input: {
     // Plain text / markdown / json / csv-as-text.
     return clean(buffer.toString("utf8"), max)
   } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
     console.error("[file-text] extract failed:", fileName, err)
+    input.onError?.(reason.slice(0, 200))
     return null
   }
 }

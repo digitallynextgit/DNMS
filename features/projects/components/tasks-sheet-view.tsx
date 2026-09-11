@@ -35,6 +35,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import {
   TaskStatusReasonDialog,
@@ -568,6 +575,8 @@ export function TasksSheetView({
   const [busyCells, setBusyCells] = useState<Record<string, boolean>>({})
   /** A Plan edit that would delete tasks, held until it is confirmed. */
   const [pendingPlan, setPendingPlan] = useState<CellPlan | null>(null)
+  /** The instructions, which used to sit permanently under the sheet. */
+  const [helpOpen, setHelpOpen] = useState(false)
   /** A status pick that still needs its reason (and hold date) collected. */
   const [pendingStatus, setPendingStatus] = useState<{
     task: SheetTask
@@ -1079,9 +1088,6 @@ export function TasksSheetView({
         <div className="flex items-center gap-2">
           <CalendarRange className="text-muted-foreground h-4 w-4" />
           <span className="text-sm font-semibold">{weekLabel}</span>
-          {weekStart === thisMonday && (
-            <span className="text-muted-foreground text-xs">· this week</span>
-          )}
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -1410,8 +1416,21 @@ export function TasksSheetView({
         </div>
       )}
 
-      {/* Legend - the colours are the status, so they have to be readable. */}
+      {/* Legend - the colours ARE the status, so they stay on screen. The
+          instructions behind the question mark do not: seven bullets under
+          every sheet is read once and then permanently in the way. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            aria-label="How this sheet works"
+            title="How this sheet works"
+            className="text-muted-foreground hover:text-foreground hover:border-foreground/40 border-border flex h-4 w-4 items-center justify-center rounded-full border text-[9px] font-bold transition-colors"
+          >
+            ?
+          </button>
+        )}
         {TASK_WORKFLOW_STATUSES.map((s) => (
           <span key={s} className={cn("font-medium", STATUS_TEXT[s])}>
             {TASK_STATUS_LABELS[s] ?? s}
@@ -1419,41 +1438,48 @@ export function TasksSheetView({
         ))}
       </div>
 
-      {/* One line per column, in the order you use them. This was a single
-          paragraph and nobody reads a paragraph to find out what a cell does. */}
-      {!readOnly && (
-        <ul className="text-muted-foreground marker:text-muted-foreground/40 list-disc space-y-1 pl-4 text-xs">
-          <li>
-            <Term>Plan</Term> click a cell and write one task per line, with the allocation inline:{" "}
-            <Chip>Fix cart @2h</Chip> - also <Chip>@90m</Chip>, <Chip>@1h30m</Chip>, or a bare{" "}
-            <Chip>@2</Chip> for hours.
-          </li>
-          <li>
-            <Chip>Enter</Chip> saves the cell, <Chip>Shift</Chip>+<Chip>Enter</Chip> starts the next
-            task, <Chip>Esc</Chip> cancels. Clicking away saves too.
-          </li>
-          <li>
-            <Term>Status</Term> click a task&apos;s number to move it between phases. On Hold and
-            Discarded ask for a reason first.
-            {onOpenTask && " The same menu opens the task itself - comments, checklist and files."}
-          </li>
-          <li>
-            <Term>Actual</Term> click a numbered row to note what really happened.
-          </li>
-          <li>
-            <Term>Hrs</Term> the top number is the allocation, editable there too; the one under it
-            is time spent - measured off the task clock, never typed.
-          </li>
-          <li>
-            <Term>Resources</Term> attach the brief, the doc, the published page - one URL per line.
-            Not time-limited, so you can add the live link whenever the work goes out.
-          </li>
-          <li>
-            Removing a line asks before it deletes the task, and only the team manager can. You can
-            edit a task you raised for 15 minutes after raising it.
-          </li>
-        </ul>
-      )}
+      {/* One line per column, in the order you use them - in a dialog, because
+          this is reference you reach for on day one and never again. */}
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>How this sheet works</DialogTitle>
+            <DialogDescription>One line per column, in the order you use them.</DialogDescription>
+          </DialogHeader>
+          <ul className="text-muted-foreground marker:text-muted-foreground/40 list-disc space-y-2 pl-4 text-xs">
+            <li>
+              <Term>Plan</Term> click a cell and write one task per line, with the allocation
+              inline: <Chip>Fix cart @2h</Chip> - also <Chip>@90m</Chip>, <Chip>@1h30m</Chip>, or a
+              bare <Chip>@2</Chip> for hours.
+            </li>
+            <li>
+              <Chip>Enter</Chip> saves the cell, <Chip>Shift</Chip>+<Chip>Enter</Chip> starts the
+              next task, <Chip>Esc</Chip> cancels. Clicking away saves too.
+            </li>
+            <li>
+              <Term>Status</Term> click a task&apos;s number to move it between phases. On Hold and
+              Discarded ask for a reason first.
+              {onOpenTask &&
+                " The same menu opens the task itself - comments, checklist and files."}
+            </li>
+            <li>
+              <Term>Actual</Term> click a numbered row to note what really happened.
+            </li>
+            <li>
+              <Term>Hrs</Term> the top number is the allocation, editable there too; the one under
+              it is time spent - measured off the task clock, never typed.
+            </li>
+            <li>
+              <Term>Resources</Term> attach the brief, the doc, the published page - one URL per
+              line. Not time-limited, so you can add the live link whenever the work goes out.
+            </li>
+            <li>
+              Removing a line asks before it deletes the task, and only the team manager can. You
+              can edit a task you raised for 15 minutes after raising it.
+            </li>
+          </ul>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={!!pendingPlan}

@@ -35,9 +35,7 @@ import {
   taskEditLockReason,
 } from "@/features/projects/lib/task-permissions"
 import { TaskResources } from "@/features/projects/components/task-resources"
-import { LogDeliverableButton } from "@/features/projects/components/log-deliverable-button"
 import { TasksExportMenu } from "@/features/projects/components/tasks-export-menu"
-import { OwedDeliverablesPanel } from "@/features/projects/components/owed-deliverables-panel"
 import { cn } from "@/lib/utils"
 import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
 import { TaskStatusSelect } from "@/features/projects/components/task-status-select"
@@ -460,33 +458,16 @@ export default function MyTasksPage() {
         }
         actions={
           <>
-            {/* Logging output belongs next to updating tasks - same visit, no
-                trip to the project page. Own tasks only: you log what YOU made.
-                The project list comes from every task loaded, not the filtered
-                view, so a "today" filter cannot hide a project you work on. */}
-            {isMine && (
-              <LogDeliverableButton
-                projects={(Array.isArray(data?.data) ? data.data : []).flatMap((t) =>
-                  t.project ? [{ id: t.project.id, name: t.project.name }] : [],
-                )}
-                currentUserId={actor.userId}
-                className="h-8 gap-1.5"
-              />
-            )}
             {/* Exports the FILTERED list, so the file matches the screen it
                 was taken from. */}
-            <TasksExportMenu
-              tasks={tasks}
-              scope={isMine ? "my-tasks" : scopeLabel}
-              className="h-8"
-            />
+            <TasksExportMenu tasks={tasks} scope={isMine ? "my-tasks" : scopeLabel} />
             {/* Only rendered for someone with anyone to look at - reports, or
                 the whole company if they administer projects. The options come
                 from the server, so the list is also the authorisation: you
                 cannot pick a person who isn't yours to see. */}
             {canPickPerson && (
               <Select value={person} onValueChange={setPerson}>
-                <SelectTrigger className="h-8 w-48 text-sm" aria-label="Whose tasks">
+                <SelectTrigger className="w-48" aria-label="Whose tasks">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -511,12 +492,6 @@ export default function MyTasksPage() {
         }
       />
       <TaskCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
-
-      {/* Above the tasks on purpose: a task is what you decided to do, an owed
-          deliverable is what somebody promised a client on your behalf. Own
-          view only - it reads "what YOU owe", and there is no session but
-          yours to answer that for. */}
-      {isMine && <OwedDeliverablesPanel currentUserId={actor.userId} />}
 
       {/* Summary strip */}
       <StatStrip
