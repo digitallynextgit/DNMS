@@ -1,12 +1,14 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import {
   PackageCheck,
   Plus,
   Check,
   ChevronDown,
   Pencil,
+  ShieldCheck,
   Trash2,
   Link2,
   FileText,
@@ -15,7 +17,6 @@ import {
   Eye,
   UserPlus,
   Lock,
-  ShieldCheck,
   History,
   Download,
   Target,
@@ -65,6 +66,7 @@ import {
   STATUS_ORDER,
   allowedTransition,
   deliverablesExportUrl,
+  hasProof,
   nextActions,
   useDeliverableMutations,
   useProjectDeliverables,
@@ -376,7 +378,7 @@ export function DeliverablesExportMenu({
 
 /** One entry. Links and files are the point, so they are never hidden. */
 /**
- * The per-row tools: verify, history, edit, remove.
+ * The per-row tools: view, history, edit, remove.
  *
  * Its own component because the list row and the TABLE row both draw exactly
  * these four, and a second copy is a second thing to keep in step with the
@@ -390,7 +392,7 @@ function RowIconActions({
   onDelete,
 }: {
   r: DeliverableRow
-  onVerify?: (verified: boolean) => void
+  onVerify?: () => void
   onHistory?: () => void
   onEdit?: () => void
   onDelete?: () => void
@@ -399,7 +401,7 @@ function RowIconActions({
   // that needs no permission - anyone who can see the row can look at what it
   // produced - and it is the only way in for somebody who cannot edit.
   const target = r.links[0] ?? r.files[0]?.url ?? null
-  if (!target && !onEdit && !onDelete && !onVerify && !onHistory) return null
+  if (!target && !onEdit && !onDelete && !onHistory && !onVerify) return null
   return (
     <span className="flex shrink-0 items-center gap-0.5">
       {target && (
@@ -416,17 +418,24 @@ function RowIconActions({
           </a>
         </Button>
       )}
+      {/* First, and only on a delivered item: it is the one thing a manager
+          opens this row to do, and it blocks the account manager behind it. */}
       {onVerify && (
         <Button
           variant="ghost"
           size="icon"
-          aria-label={r.verified ? "Remove verification" : "Verify"}
-          title={r.verified ? "Remove verification" : "Verify - you have looked at it"}
-          onClick={() => onVerify(!r.verified)}
-          className={cn(
-            "text-muted-foreground hover:text-foreground",
-            r.verified && "text-emerald-500",
-          )}
+          aria-label={r.verified ? "Undo check" : "Check this work"}
+          title={
+            r.verified
+              ? "Checked - click to undo"
+              : "Check this work, so the account manager can accept it"
+          }
+          onClick={onVerify}
+          className={
+            r.verified
+              ? "text-emerald-500 hover:text-emerald-600"
+              : "text-muted-foreground hover:text-foreground"
+          }
         >
           <ShieldCheck className="h-3.5 w-3.5" />
         </Button>
@@ -478,7 +487,6 @@ export function DeliverableRowView({
   onEdit,
   onDelete,
   onStatus,
-  onVerify,
   onHistory,
   onAssign,
   claimable,
@@ -491,7 +499,6 @@ export function DeliverableRowView({
   onEdit?: () => void
   onDelete?: () => void
   onStatus?: (to: DeliverableStatus) => void
-  onVerify?: (verified: boolean) => void
   onHistory?: () => void
   /** Put a name to work the team owes. Absent = this viewer may not. */
   onAssign?: (r: DeliverableRow) => void
@@ -596,6 +603,12 @@ export function DeliverableRowView({
             </span>
           )}
           {r.acceptedByName && <span>accepted by {r.acceptedByName}</span>}
+          {r.verifiedByName && <span>checked by {r.verifiedByName}</span>}
+          {r.sentBack && (
+            <span className="text-amber-500" title={r.sentBack.reason ?? undefined}>
+              sent back by {r.sentBack.by ?? "a manager"}
+            </span>
+          )}
           {r.task && <span>from task: {r.task.title}</span>}
           {r.loggedByName && r.loggedByName !== r.employee?.name && (
             <span>logged by {r.loggedByName}</span>
@@ -659,15 +672,7 @@ export function DeliverableRowView({
 
       <span className="flex w-40 shrink-0 items-center gap-1.5">
         {r.employee ? (
-          <>
-            <AvatarDisplay
-              src={r.employee.profilePhoto}
-              firstName={r.employee.name.split(" ")[0] ?? ""}
-              lastName={r.employee.name.split(" ").slice(1).join(" ")}
-              size="xs"
-            />
-            <span className="text-muted-foreground truncate">{r.employee.name}</span>
-          </>
+          <OwnerCell r={r} onAssign={onAssign} nameClassName="text-muted-foreground" />
         ) : (
           <span className="flex min-w-0 items-center gap-1.5">
             <UserPlus className="text-muted-foreground/60 h-4 w-4 shrink-0" />
@@ -687,7 +692,7 @@ export function DeliverableRowView({
         )}
       </span>
 
-      <RowIconActions r={r} {...{ onVerify, onHistory, onEdit, onDelete }} />
+      <RowIconActions r={r} {...{ onHistory, onEdit, onDelete }} />
     </li>
   )
 }
@@ -710,8 +715,13 @@ export function DeliverableRowView({
 /** What an item's row is handed - the same handlers the card row takes, by name. */
 interface RowHandlers {
   actor: DeliverableActor
+  /**
+   * Stage one: the maker's manager says the work is real, before the account
+   * manager accepts it. Absent when this viewer is not the one to do that -
+   * including when they made it, because nobody checks their own work.
+   */
+  onVerify?: () => void
   onStatus: (to: DeliverableStatus) => void
-  onVerify?: (verified: boolean) => void
   onHistory: () => void
   onEdit?: () => void
   onDelete?: () => void
@@ -730,30 +740,96 @@ type Period = DeliverablePeriod<DeliverableRow>
  * team's members only, and the sentence saying the team stays put needs room a
  * table cell does not have.
  */
+/** Radix needs a non-empty value, and "nobody" is a real choice here. */
+const NOBODY = "__nobody__"
+
+/**
+ * The maker, and the way to change them.
+ *
+ * One control rather than a separate edit affordance: the name IS the thing
+ * being changed, and a pencil beside it would be more furniture than a single
+ * field earns. Read-only when this person may not move the work.
+ */
+function OwnerCell({
+  r,
+  onAssign,
+  className,
+  nameClassName,
+}: {
+  r: DeliverableRow
+  onAssign?: (r: DeliverableRow) => void
+  className?: string
+  nameClassName?: string
+}) {
+  if (!r.employee) return null
+  const face = (
+    <>
+      <AvatarDisplay
+        src={r.employee.profilePhoto}
+        firstName={r.employee.name.split(" ")[0] ?? ""}
+        lastName={r.employee.name.split(" ").slice(1).join(" ")}
+        size="xs"
+      />
+      <span className={cn("truncate", nameClassName)}>{r.employee.name}</span>
+    </>
+  )
+  if (!onAssign) {
+    return <span className={cn("flex items-center gap-1.5", className)}>{face}</span>
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onAssign(r)}
+      title="Move it to someone else"
+      className={cn(
+        "hover:text-primary flex items-center gap-1.5 rounded-sm text-left transition-colors",
+        className,
+      )}
+    >
+      {face}
+    </button>
+  )
+}
+
+/**
+ * Put a name on an item, or move it to a different one.
+ *
+ * The same dialog for both: they differ only in whether a name is already
+ * there, and a wrong name needs fixing far more often than it needs a screen
+ * of its own. Handing it back to the team is on the list too, because that is
+ * how people undo a mis-assignment.
+ */
 function AssignDialog({
   row,
   people,
   pending,
+  canUnassign,
   onAssign,
   onClose,
 }: {
   row: DeliverableRow
   people: { id: string; name: string }[]
   pending: boolean
-  onAssign: (employeeId: string) => void
+  /** Only an open item can go back to nobody - something made keeps its maker. */
+  canUnassign: boolean
+  onAssign: (employeeId: string | null) => void
   onClose: () => void
 }) {
-  const [who, setWho] = React.useState("")
+  const current = row.employee?.id ?? NOBODY
+  const [who, setWho] = React.useState(current)
   const team = row.team?.name ?? "the team"
+  const reassigning = Boolean(row.employee)
+  const changed = who !== current
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Who will make it?</DialogTitle>
+          <DialogTitle>{reassigning ? "Move it to someone else" : "Who will make it?"}</DialogTitle>
           <DialogDescription>
             {row.type} · {row.title}
-            {row.quantity > 1 ? ` ×${row.quantity}` : ""} - owed by {team}. It stays with {team}{" "}
-            whoever makes it.
+            {row.quantity > 1 ? ` ×${row.quantity}` : ""}
+            {reassigning ? ` - currently ${row.employee?.name}` : ` - owed by ${team}`}. It stays
+            with {team} whoever makes it.
           </DialogDescription>
         </DialogHeader>
         {people.length === 0 ? (
@@ -766,9 +842,19 @@ function AssignDialog({
               <SelectValue placeholder="Pick a member" />
             </SelectTrigger>
             <SelectContent>
+              {/* Clearing it is how a mis-assignment gets undone, so it is on
+                  the list rather than behind a second control. */}
+              {canUnassign && (
+                <SelectItem value={NOBODY}>
+                  <span className="text-muted-foreground">Nobody - back to {team}</span>
+                </SelectItem>
+              )}
               {people.map((e) => (
                 <SelectItem key={e.id} value={e.id}>
                   {e.name}
+                  {e.id === row.employee?.id && (
+                    <span className="text-muted-foreground ml-1.5 text-[11px]">current</span>
+                  )}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -778,8 +864,11 @@ function AssignDialog({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={!who || pending} onClick={() => onAssign(who)}>
-            {pending ? "Assigning…" : "Assign"}
+          <Button
+            disabled={!changed || pending}
+            onClick={() => onAssign(who === NOBODY ? null : who)}
+          >
+            {pending ? "Saving…" : reassigning ? "Move it" : "Assign"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -844,9 +933,79 @@ function PeriodProgress({ p }: { p: Period }) {
  * real decision somebody has to be able to make.
  */
 function shortfall(r: DeliverableRow, actor: DeliverableActor): string | null {
+  // Proof first, and for EVERYONE including the account manager: closing a
+  // period out early is a judgement they are entitled to make, but declaring
+  // something delivered with no record of it is a hole in the trail the
+  // client is eventually shown. The server refuses this too.
+  if (!hasProof(r)) {
+    return "The log is missing - add a link, a file or a note first."
+  }
   if (actor === "project_manager") return null
   if (r.deliveredQuantity >= r.quantity) return null
   return `Only ${r.deliveredQuantity} of ${r.quantity} are logged - log the rest first.`
+}
+
+/**
+ * The two sign-offs, in the one place the status is already read.
+ *
+ * Stage one is the maker's own manager, stage two the account manager, and
+ * a bounce is neither - so these cannot collapse into one "approved by".
+ * An item can be accepted with no stage one at all (the account manager may
+ * go straight to it), which is exactly why the line has to say WHICH.
+ */
+function SignOff({ r }: { r: DeliverableRow }) {
+  const bits: { text: string; title?: string; tone: string }[] = []
+
+  if (r.status === "REJECTED" && r.sentBack) {
+    bits.push({
+      text: `sent back by ${r.sentBack.by ?? "a manager"}`,
+      title: r.sentBack.reason ?? undefined,
+      tone: "text-amber-500",
+    })
+  } else if (r.status === "ACCEPTED") {
+    bits.push({
+      text: `accepted by ${r.acceptedByName ?? "the account manager"}`,
+      title: r.verifiedByName ? `Checked first by ${r.verifiedByName}` : undefined,
+      tone: "text-emerald-500",
+    })
+  } else if (r.status === "DELIVERED") {
+    bits.push(
+      r.verified
+        ? {
+            text: `checked by ${r.verifiedByName ?? "their manager"}`,
+            title: "Waiting on the account manager to accept it",
+            tone: "text-emerald-500",
+          }
+        : {
+            text: "awaiting check",
+            title: "Their manager checks it first, then the account manager accepts it",
+            tone: "text-muted-foreground",
+          },
+    )
+  }
+
+  // A past bounce stays visible after the item moves on: somebody reading an
+  // accepted item is entitled to know it took two goes.
+  if (r.sentBack && r.status !== "REJECTED" && r.revisionCount > 0) {
+    bits.push({
+      text: `rev ${r.revisionCount}`,
+      title: `Last sent back by ${r.sentBack.by ?? "a manager"}${
+        r.sentBack.reason ? `: ${r.sentBack.reason}` : ""
+      }`,
+      tone: "text-muted-foreground",
+    })
+  }
+
+  if (bits.length === 0) return null
+  return (
+    <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px]">
+      {bits.map((b) => (
+        <span key={b.text} className={b.tone} title={b.title}>
+          {b.text}
+        </span>
+      ))}
+    </span>
+  )
 }
 
 function StatusMenu({
@@ -888,10 +1047,18 @@ function StatusMenu({
           return (
             <DropdownMenuItem
               key={to}
-              disabled={current || blocked}
+              // A blocked move stays CLICKABLE on purpose. Greying it out says
+              // "not now" but never why, and the why is the whole point: the
+              // person is one log entry away from being allowed. So pressing it
+              // answers, rather than doing nothing.
+              disabled={current}
               title={current ? undefined : (short ?? (!check.ok ? check.why : undefined))}
-              onSelect={() => onStatus(to)}
-              className="gap-2"
+              onSelect={(e) => {
+                if (!blocked) return onStatus(to)
+                e.preventDefault()
+                toast.error(short ?? (check.ok ? "That move is not available." : check.why))
+              }}
+              className={cn("gap-2", blocked && "opacity-50")}
             >
               <span className={cn("h-2 w-2 shrink-0 rounded-full", DELIVERABLE_STATUS_DOT[to])} />
               <span className="flex-1">
@@ -926,14 +1093,15 @@ function PeriodItemsTable({
     <table className="w-full text-left text-xs">
       <thead className="bg-muted/30 text-muted-foreground border-b text-[11px]">
         <tr>
-          <th className="w-10 px-4 py-2 font-medium">#</th>
+          <th className="w-14 px-4 py-2 font-medium whitespace-nowrap">S.No</th>
           {!hideTeam && <th className="px-4 py-2 font-medium">Team</th>}
           <th className="w-full px-4 py-2 font-medium">Deliverable</th>
           <th className="px-4 py-2 text-right font-medium">Done</th>
           <th className="px-4 py-2 font-medium">Owned by</th>
           <th className="px-4 py-2 font-medium">Status</th>
           <th className="px-4 py-2 font-medium">Proof</th>
-          <th className="px-4 py-2" />
+          <th className="px-4 py-2 font-medium whitespace-nowrap">Log work</th>
+          <th className="w-px px-4 py-2 text-right font-medium whitespace-nowrap">Actions</th>
         </tr>
       </thead>
       <tbody className="divide-border/60 divide-y">
@@ -982,15 +1150,7 @@ function PeriodItemsTable({
               </td>
               <td className="px-4 py-2.5 whitespace-nowrap">
                 {r.employee ? (
-                  <span className="flex items-center gap-1.5">
-                    <AvatarDisplay
-                      src={r.employee.profilePhoto}
-                      firstName={r.employee.name.split(" ")[0] ?? ""}
-                      lastName={r.employee.name.split(" ").slice(1).join(" ")}
-                      size="xs"
-                    />
-                    <span className="truncate">{r.employee.name}</span>
-                  </span>
+                  <OwnerCell r={r} onAssign={h.onAssign} />
                 ) : h.onAssign ? (
                   <button
                     type="button"
@@ -1006,7 +1166,10 @@ function PeriodItemsTable({
                 )}
               </td>
               <td className="px-4 py-2.5">
-                <StatusMenu r={r} actor={h.actor} onStatus={h.onStatus} />
+                <span className="flex flex-col items-start">
+                  <StatusMenu r={r} actor={h.actor} onStatus={h.onStatus} />
+                  <SignOff r={r} />
+                </span>
               </td>
               <td className="px-4 py-2.5 whitespace-nowrap">
                 {proof > 0 ? (
@@ -1028,26 +1191,31 @@ function PeriodItemsTable({
                   <span className="text-muted-foreground/50">-</span>
                 )}
               </td>
-              <td className="px-4 py-2.5 text-right">
-                <span className="flex items-center justify-end gap-1">
-                  {h.onLogWork && (
-                    <Button
-                      variant="outline"
-                      className="h-7 px-2 text-xs"
-                      onClick={h.onLogWork}
-                      title="Record what is finished, with the link or file"
-                    >
-                      Log work
-                    </Button>
-                  )}
-                  <RowIconActions
-                    r={r}
-                    onVerify={h.onVerify}
-                    onHistory={h.onHistory}
-                    onEdit={h.onEdit}
-                    onDelete={h.onDelete}
-                  />
-                </span>
+              {/* Its own column: it is the one thing the person doing the work
+                  comes here to press, and sharing a cell with five icons made it
+                  jump left and right depending on how many of them applied. */}
+              <td className="px-4 py-2.5 whitespace-nowrap">
+                {h.onLogWork ? (
+                  <Button
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={h.onLogWork}
+                    title="Record what is finished, with the link or file"
+                  >
+                    Log work
+                  </Button>
+                ) : (
+                  <span className="text-muted-foreground/50">-</span>
+                )}
+              </td>
+              <td className="w-px px-4 py-2.5 text-right whitespace-nowrap">
+                <RowIconActions
+                  r={r}
+                  onVerify={h.onVerify}
+                  onHistory={h.onHistory}
+                  onEdit={h.onEdit}
+                  onDelete={h.onDelete}
+                />
               </td>
             </tr>
           )
@@ -1323,7 +1491,6 @@ export function DeliverablesTab({
   }
   /** Runs the item: the account manager, or the manager of the team it was asked of. */
   const managesRow = (r: DeliverableRow) => canManage || (r.team ? myTeamIds.has(r.team.id) : false)
-  const mayVerify = managesRow
 
   const startMove = (r: DeliverableRow, to: DeliverableStatus) => {
     const check = allowedTransition(r.status, to, actorFor(r))
@@ -1439,20 +1606,31 @@ export function DeliverablesTab({
 
   const rowProps = (r: DeliverableRow): RowHandlers => ({
     actor: actorFor(r),
+    // Stage one of two. Offered only on a DELIVERED item (there is nothing to
+    // check before and nothing to add after), only to whoever runs the item,
+    // and never to the person who made it - the server enforces all three, and
+    // the line-manager fallback it also allows simply is not drawn here.
+    onVerify:
+      r.status === "DELIVERED" && managesRow(r) && r.employee?.id !== currentUserId
+        ? () => m.verify.mutate({ id: r.id, verified: !r.verified })
+        : undefined,
     onStatus: (to: DeliverableStatus) => startMove(r, to),
-    onVerify: mayVerify(r)
-      ? (verified: boolean) => m.verify.mutate({ id: r.id, verified })
-      : undefined,
     onHistory: () => setHistoryFor(r),
     // The ordinary edit is fixing what the item SAYS, so it opens the same
     // three fields it was planned with. The full form is one click further on.
     onEdit: mayEdit(r) ? () => setEditingItem(r) : undefined,
     onDelete: mayEdit(r) ? () => setDeleting(r) : undefined,
-    // Only unowned items can be assigned, and only by somebody with standing
-    // on them: whoever runs the item picks who; a member of the owed team
-    // takes it themselves, in one click.
-    onAssign:
-      !r.employee && actorFor(r) !== "none"
+    // Naming somebody and CHANGING that name are the same right: whoever runs
+    // the item. Without the second one a mis-assignment could only be undone
+    // by deleting the item and planning it again.
+    //
+    // The one shortcut is a member of the owed team taking unclaimed work,
+    // which needs no dialog - there is only one name it could be.
+    onAssign: r.employee
+      ? managesRow(r)
+        ? () => setAssigning(r)
+        : undefined
+      : actorFor(r) !== "none"
         ? () => {
             if (managesRow(r)) setAssigning(r)
             else m.update.mutate({ id: r.id, employeeId: currentUserId })
@@ -1663,6 +1841,10 @@ export function DeliverablesTab({
           row={assigning}
           people={membersOf(assigning.team?.id)}
           pending={m.update.isPending}
+          // The server refuses to take the maker off something already made,
+          // and it needs a team to hand the work back to. Offering the option
+          // and then failing would be the worse of the two.
+          canUnassign={isOpenStatus(assigning.status) && Boolean(assigning.team)}
           onAssign={(employeeId) =>
             m.update.mutate(
               { id: assigning.id, employeeId },

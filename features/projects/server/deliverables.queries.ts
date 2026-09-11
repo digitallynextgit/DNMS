@@ -76,8 +76,24 @@ export interface DeliverableRow {
   periodStart: string | null
   periodEnd: string | null
   revisionCount: number
+  /** Stage two: the account manager's sign-off. */
   acceptedAt: string | null
   acceptedByName: string | null
+  /**
+   * Stage one: checked by the maker's manager, before the account manager
+   * sees it. Null when it went straight to the account manager - who is
+   * allowed to accept without it, which is why this is separate from
+   * `acceptedByName` rather than folded into one 'approved by'.
+   */
+  verifiedByName: string | null
+  verifiedAt: string | null
+  /**
+   * Who last sent it back, and why. Read from the event log rather than a
+   * column: a rejection is a moment in the row's history, and the row only
+   * ever holds the CURRENT state - once it is redelivered, the columns would
+   * have forgotten that it ever bounced.
+   */
+  sentBack: { by: string | null; reason: string | null; at: string } | null
   links: string[]
   notes: string | null
   files: DeliverableFile[]
@@ -242,6 +258,19 @@ const ROW_SELECT = {
   employee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
   loggedBy: { select: { firstName: true, lastName: true } },
   acceptedBy: { select: { firstName: true, lastName: true } },
+  verifiedBy: { select: { firstName: true, lastName: true } },
+  // Only the latest bounce, as a lateral join - a full event history per row
+  // would be a needless payload on a list that can run to hundreds of rows.
+  events: {
+    where: { toStatus: "REJECTED" },
+    orderBy: { createdAt: "desc" },
+    take: 1,
+    select: {
+      reason: true,
+      createdAt: true,
+      actor: { select: { firstName: true, lastName: true } },
+    },
+  },
   goal: { select: { id: true, title: true } },
   task: { select: { id: true, title: true, loggedHours: true } },
   files: {
@@ -252,6 +281,27 @@ const ROW_SELECT = {
 
 type RawRow = Prisma.ProjectDeliverableGetPayload<{ select: typeof ROW_SELECT }>
 
+/**
+ * The last time this was sent back for revision, if ever.
+ *
+ * Kept even after the row moves on: somebody looking at an ACCEPTED item is
+ * entitled to see that it took two goes, and the reason is the useful half.
+ */
+function bounce(
+  events: readonly {
+    reason: string | null
+    createdAt: Date
+    actor: { firstName: string; lastName: string } | null
+  }[],
+): { by: string | null; reason: string | null; at: string } | null {
+  const last = events[0]
+  if (!last) return null
+  return {
+    by: fullName(last.actor),
+    reason: last.reason,
+    at: last.createdAt.toISOString(),
+  }
+}
 const fullName = (p: { firstName: string; lastName: string | null } | null) =>
   p ? `${p.firstName} ${p.lastName ?? ""}`.trim() : null
 
@@ -331,6 +381,9 @@ async function toRow(
     revisionCount: r.revisionCount,
     acceptedAt: r.acceptedAt?.toISOString() ?? null,
     acceptedByName: fullName(r.acceptedBy),
+    verifiedByName: fullName(r.verifiedBy),
+    verifiedAt: r.verifiedAt?.toISOString() ?? null,
+    sentBack: bounce(r.events),
     links: r.links,
     notes: r.notes,
     files,

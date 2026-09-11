@@ -19,6 +19,7 @@ import {
   splitTaskHours,
   type DeliverableActor,
   type DeliverableStatus,
+  hasProof,
 } from "./deliverable-lifecycle"
 
 const ACTORS: DeliverableActor[] = ["none", "maker", "team_manager", "project_manager"]
@@ -27,17 +28,16 @@ const ACTORS: DeliverableActor[] = ["none", "maker", "team_manager", "project_ma
 // answer the same way the code does proves nothing.
 const ALLOWED: { from: DeliverableStatus; to: DeliverableStatus; min: DeliverableActor }[] = [
   { from: "PLANNED", to: "IN_PROGRESS", min: "maker" },
-  { from: "PLANNED", to: "DELIVERED", min: "maker" },
   { from: "IN_PROGRESS", to: "DELIVERED", min: "maker" },
   { from: "DELIVERED", to: "ACCEPTED", min: "project_manager" },
-  { from: "DELIVERED", to: "REJECTED", min: "project_manager" },
+  // The team manager bounces work at their stage; only the account manager accepts.
+  { from: "DELIVERED", to: "REJECTED", min: "team_manager" },
   { from: "REJECTED", to: "DELIVERED", min: "maker" },
   { from: "ACCEPTED", to: "DELIVERED", min: "project_manager" },
 ]
 
 const NEEDS: Record<string, string[]> = {
   "PLANNED>IN_PROGRESS": [],
-  "PLANNED>DELIVERED": ["completedOn"],
   "IN_PROGRESS>DELIVERED": ["completedOn"],
   "DELIVERED>ACCEPTED": [],
   "DELIVERED>REJECTED": ["reason"],
@@ -98,8 +98,8 @@ describe("allowedTransition", () => {
 })
 
 describe("nextActions", () => {
-  it("gives a maker start and deliver on an owed row", () => {
-    expect(nextActions("PLANNED", "maker")).toEqual(["IN_PROGRESS", "DELIVERED"])
+  it("gives a maker only START on a to-do row - finishing comes after starting", () => {
+    expect(nextActions("PLANNED", "maker")).toEqual(["IN_PROGRESS"])
   })
 
   it("gives a maker nothing on a delivered row - the verdict is not theirs", () => {
@@ -278,5 +278,30 @@ describe("repeatDueDates", () => {
     const start = day("2026-09-14")
     repeatDueDates(start, "MONTH", 6)
     expect(ymd(start)).toBe("2026-09-14")
+  })
+})
+
+describe("hasProof", () => {
+  const bare = { links: [] as string[], files: [] as unknown[], notes: null }
+
+  it("is false when the item shows nothing at all", () => {
+    expect(hasProof(bare)).toBe(false)
+  })
+
+  it("counts a link", () => {
+    expect(hasProof({ ...bare, links: ["https://example.com/post"] })).toBe(true)
+  })
+
+  it("counts a file", () => {
+    expect(hasProof({ ...bare, files: [{ id: "f1" }] })).toBe(true)
+  })
+
+  it("counts a note, because real work does not always leave a URL", () => {
+    // A call made, a page checked, an account reconciled.
+    expect(hasProof({ ...bare, notes: "Rang the vendor, pricing confirmed." })).toBe(true)
+  })
+
+  it("does not count whitespace as a note", () => {
+    expect(hasProof({ ...bare, notes: "   \n  " })).toBe(false)
   })
 })

@@ -14,6 +14,7 @@ import { MAX_LINKS, MAX_QUANTITY, MAX_TYPE_LENGTH, cleanType } from "../lib/deli
 import {
   CREATABLE_STATUSES,
   allowedTransition,
+  hasProof,
   isMadeStatus,
   isOpenStatus,
   periodClosesOn,
@@ -192,6 +193,34 @@ function normaliseDeliveredQuantity(raw: unknown, promised: number): number {
  * a period out on three of four is a real decision somebody has to be able to
  * make, and the history records who made it.
  */
+/**
+ * Delivered means somebody can SEE what was made.
+ *
+ * Checked against what the request leaves behind, not only what is stored:
+ * the log-work save and a status move can arrive together, and a gate that
+ * read stale columns would refuse the very request that satisfies it.
+ *
+ * No exemption for the account manager here, unlike the quantity gate below.
+ * Closing a period out early is a judgement call they are entitled to make;
+ * declaring work delivered with no record of it is not a judgement, it is a
+ * gap in the trail the client is eventually shown.
+ */
+function assertLogged(
+  existing: { links: string[]; notes: string | null; _count: { files: number } },
+  input: DeliverableUpdateInput,
+  to: DeliverableStatus,
+): void {
+  if (to !== "DELIVERED") return
+  const links = input.links !== undefined ? normaliseLinks(input.links) : existing.links
+  const notes = input.notes !== undefined ? input.notes : existing.notes
+  const files = existing._count.files > 0 ? [existing._count.files] : []
+  if (!hasProof({ links, files, notes })) {
+    throw new ValidationError(
+      "The log is missing - add the link, the file or a note that shows what was made.",
+    )
+  }
+}
+
 function assertFullyMade(
   existing: { quantity: number; deliveredQuantity: number },
   input: DeliverableUpdateInput,
@@ -440,6 +469,16 @@ function transitionEffects(
     if (existing.status === "REJECTED") data.revisionCount = { increment: 1 }
   }
 
+  // Sent back: the manager's check goes with it.
+  //
+  // A stage-one check belongs to ONE delivery, not to the row. Left standing,
+  // a redelivered item would still read "checked by X" for a version X never
+  // saw, and the account manager would be accepting on the strength of it.
+  if (to === "REJECTED") {
+    data.verifiedAt = null
+    data.verifiedById = null
+  }
+
   // Un-accept: the verdict is withdrawn, the delivery stands.
   if (to === "DELIVERED" && existing.status === "ACCEPTED") {
     data.acceptedAt = null
@@ -670,6 +709,9 @@ const EDIT_SELECT = {
   dueOn: true,
   links: true,
   notes: true,
+  // For the Delivered gate: an item cannot be declared made with nothing
+  // to show for it, and a file is the one proof that does not live on the row.
+  _count: { select: { files: true } },
 } satisfies Prisma.ProjectDeliverableSelect
 
 /**
@@ -705,6 +747,7 @@ export async function updateDeliverable(
     if (!check.ok) throw transitionError(check.why, check.reason)
     if (check.needs.includes("reason")) reason = requireReason(input.reason)
     assertFullyMade(existing, input, actor, nextStatus)
+    assertLogged(existing, input, nextStatus)
   }
 
   const data: Prisma.ProjectDeliverableUncheckedUpdateInput = {}
@@ -1019,6 +1062,43 @@ export async function setDeliverableStatus(
  * one is ours, and only the people who answer for the work may set it - a maker
  * verifying their own output would say nothing.
  */
+/**
+ * May this person sign off stage one?
+ *
+ * The team's manager checks their team's work. The exception is the case that
+ * breaks it: when the team manager IS the maker, there is nobody above them on
+ * that team, so it falls to the maker's own line manager. Without that, a team
+ * manager's own items could only ever be checked by the account manager.
+ *
+ * NOBODY CHECKS THEIR OWN WORK - that is the rule the whole stage exists for,
+ * and it holds even for a team manager looking at an item they made.
+ */
+async function canVerify(
+  session: Session,
+  projectId: string,
+  owner: DeliverableOwner,
+  actor: DeliverableActor,
+): Promise<boolean> {
+  const me = session.user.id
+  // The account manager is the final authority and has nobody above them.
+  if (actor === "project_manager") return true
+  if (owner.employeeId && owner.employeeId === me) return false
+  if (actor === "team_manager") return true
+
+  // Team manager made it themselves: their own manager takes the stage.
+  if (!owner.employeeId || !owner.teamId) return false
+  const team = await db.projectTeam.findFirst({
+    where: { id: owner.teamId, projectId },
+    select: { managerId: true },
+  })
+  if (!team || team.managerId !== owner.employeeId) return false
+  const maker = await db.employee.findUnique({
+    where: { id: owner.employeeId },
+    select: { managerId: true },
+  })
+  return Boolean(maker?.managerId && maker.managerId === me)
+}
+
 export async function verifyDeliverable(
   session: Session,
   projectId: string,
@@ -1040,8 +1120,10 @@ export async function verifyDeliverable(
   if (!existing) throw new NotFoundError("Deliverable")
 
   const actor = await resolveActor(session, projectId, existing)
-  if (actor !== "project_manager" && actor !== "team_manager") {
-    throw new ForbiddenError("Only a project manager or the maker's team manager can verify work.")
+  if (!(await canVerify(session, projectId, existing, actor))) {
+    throw new ForbiddenError(
+      "Only the team manager, the maker's own manager or the account manager can check this work - and nobody checks their own.",
+    )
   }
   if (verified === (existing.verifiedAt !== null)) return
 

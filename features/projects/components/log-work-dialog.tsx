@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/shared/spinner"
 import {
   Dialog,
@@ -102,9 +103,20 @@ function Body({
   /** Files on the row that no slot claims - earlier uploads, or a re-open. */
   const looseFiles = row.files.filter((f) => !boundIds.has(f.id))
 
+  // The third kind of proof. Plenty of real work leaves neither a URL nor a
+  // file - a call made, a budget moved, a page checked - and since Delivered
+  // now REQUIRES proof, without this those items could never be finished.
+  const [note, setNote] = React.useState(row.notes ?? "")
+
   const links = slots.map((s) => s.link.trim()).filter((l) => l.length > 0)
   const badLink = links.some((l) => !isSafeHttpUrl(l))
-  const answered = slots.filter((s) => s.link.trim() || s.fileId).length + looseFiles.length
+  const answered =
+    slots.filter((s) => s.link.trim() || s.fileId).length +
+    looseFiles.length +
+    // A note covers the item it describes, so it counts as one answered.
+    (note.trim() && !slots.some((s) => s.link.trim() || s.fileId) && looseFiles.length === 0
+      ? 1
+      : 0)
 
   // How many are FINISHED, which is not always how many boxes have something in
   // them: one link can cover two blogs, and a draft plus its published page is
@@ -115,6 +127,8 @@ function Body({
   const auto = Math.min(Math.max(answered, row.deliveredQuantity), row.quantity)
   const done = touched ? Math.max(0, Math.min(Number(raw) || 0, row.quantity)) : auto
   const complete = done >= row.quantity
+  /** Delivered is refused without one of the three. Mirrors the server gate. */
+  const hasAnyProof = links.length > 0 || row.files.length > 0 || note.trim().length > 0
 
   const busy = m.update.isPending || slots.some((s) => s.uploading)
 
@@ -143,6 +157,7 @@ function Body({
       {
         id: row.id,
         links,
+        notes: note.trim() || null,
         deliveredQuantity: done,
         // Work has started, so say so. Only from PLANNED: any other status is
         // already past this point, and REJECTED must stay put until it is
@@ -190,12 +205,14 @@ function Body({
           <span
             className={cn(
               "pb-2 text-[11px] tabular-nums",
-              complete ? "text-emerald-500" : "text-muted-foreground",
+              complete && hasAnyProof ? "text-emerald-500" : "text-muted-foreground",
             )}
           >
-            {complete
-              ? "All done - you can mark it delivered from Status"
-              : `${row.quantity - done} still to go`}
+            {complete && !hasAnyProof
+              ? "Add a link, a file or a note before this can be delivered"
+              : complete
+                ? "All done - you can mark it delivered from Status"
+                : `${row.quantity - done} still to go`}
           </span>
         </div>
 
@@ -321,6 +338,22 @@ function Body({
             </ul>
           </div>
         )}
+
+        {/* Third proof type. Last, because a link or a file is better evidence
+            when one exists - this is for the work that produces neither. */}
+        <div className="space-y-1.5">
+          <Label htmlFor="log-note" className="text-muted-foreground text-[11px]">
+            Note {links.length === 0 && row.files.length === 0 ? "" : "(optional)"}
+          </Label>
+          <Textarea
+            id="log-note"
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="What was done, if there is no link or file to show for it"
+            className="text-sm"
+          />
+        </div>
 
         {/* Links beyond the slots on screen, so a save cannot silently drop them. */}
         {row.links.length > slots.length && (

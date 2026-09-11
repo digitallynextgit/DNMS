@@ -54,7 +54,7 @@ export const STATUS_ORDER: DeliverableStatus[] = [
  * reason it is on their screen.
  */
 export const DELIVERABLE_STATUS_LABELS: Record<DeliverableStatus, string> = {
-  PLANNED: "Owed",
+  PLANNED: "To do",
   IN_PROGRESS: "In progress",
   DELIVERED: "Delivered",
   ACCEPTED: "Accepted",
@@ -115,23 +115,29 @@ interface Rule {
 const MAKER_SIDE = "Only the maker, their team manager or a project manager can do that."
 
 const RULES: Partial<Record<DeliverableStatus, Partial<Record<DeliverableStatus, Rule>>>> = {
+  // No PLANNED -> DELIVERED. Work that was never started cannot be finished,
+  // and the jump skipped the only state that tells a manager it is underway.
   PLANNED: {
     IN_PROGRESS: { actor: "maker", needs: [], denied: MAKER_SIDE },
-    DELIVERED: { actor: "maker", needs: ["completedOn"], denied: MAKER_SIDE },
   },
   IN_PROGRESS: {
     DELIVERED: { actor: "maker", needs: ["completedOn"], denied: MAKER_SIDE },
   },
+  // Delivered work is checked TWICE: the team's manager first, the account
+  // manager last. Accepting is the account manager's alone - it is the word
+  // given to the client - but either of them can send it back at their own
+  // stage, because a manager who spots a problem should not have to wait for
+  // somebody senior to say so.
   DELIVERED: {
     ACCEPTED: {
       actor: "project_manager",
       needs: [],
-      denied: "Only a project manager can accept work.",
+      denied: "Only the account manager can accept work.",
     },
     REJECTED: {
-      actor: "project_manager",
+      actor: "team_manager",
       needs: ["reason"],
-      denied: "Only a project manager can send work back.",
+      denied: "Only the team manager or the account manager can send work back.",
     },
   },
   REJECTED: {
@@ -154,7 +160,13 @@ function whyNot(from: DeliverableStatus, to: DeliverableStatus): string {
   if (from === "REJECTED") {
     return "Must go through a redelivery."
   }
-  if (from === "PLANNED" || from === "IN_PROGRESS") {
+  if (from === "PLANNED") {
+    // The one move a maker will actually try, so it gets the real answer
+    // rather than the generic one.
+    if (to === "DELIVERED") return "Start it first - move it to In progress."
+    return isOpenStatus(to) ? "Delete and re-plan instead." : "Start it first."
+  }
+  if (from === "IN_PROGRESS") {
     return isOpenStatus(to)
       ? "Delete and re-plan instead."
       : "Nothing has been delivered yet - mark it delivered first."
@@ -197,6 +209,27 @@ export function nextActions(
   actor: DeliverableActor,
 ): DeliverableStatus[] {
   return STATUS_ORDER.filter((to) => allowedTransition(status, to, actor).ok)
+}
+
+// ─── Proof ───────────────────────────────────────────────────────────────────
+
+/** The three ways an item can show what it produced. */
+export interface ProofLike {
+  links: readonly string[]
+  files: readonly unknown[]
+  notes: string | null
+}
+
+/**
+ * Has the work actually been logged?
+ *
+ * A link or a file is the usual evidence, but plenty of real work leaves
+ * neither - a call made, a page checked, an account reconciled - so a written
+ * note counts. What does not count is nothing at all: that is the whole point
+ * of the gate in front of Delivered.
+ */
+export function hasProof(r: ProofLike): boolean {
+  return r.links.length > 0 || r.files.length > 0 || (r.notes?.trim().length ?? 0) > 0
 }
 
 // ─── The period lock ──────────────────────────────────────────────────────────

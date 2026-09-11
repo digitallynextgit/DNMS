@@ -10,6 +10,7 @@ import {
   OUTCOME_STATUSES,
   STATUS_ORDER,
   allowedTransition,
+  hasProof,
   latestCalendarDay,
   nextActions,
   type DeliverableActor,
@@ -26,6 +27,7 @@ export {
   OUTCOME_STATUSES,
   STATUS_ORDER,
   allowedTransition,
+  hasProof,
   latestCalendarDay,
   nextActions,
 }
@@ -65,8 +67,14 @@ export interface DeliverableRow {
   periodStart: string | null
   periodEnd: string | null
   revisionCount: number
+  /** Stage two: the account manager signed it off. */
   acceptedAt: string | null
   acceptedByName: string | null
+  /** Stage one: the maker's manager checked it. Null if it skipped straight to stage two. */
+  verifiedByName: string | null
+  verifiedAt: string | null
+  /** The last time it was sent back, kept even after it moves on. */
+  sentBack: { by: string | null; reason: string | null; at: string } | null
   links: string[]
   notes: string | null
   files: DeliverableFile[]
