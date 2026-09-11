@@ -137,8 +137,8 @@ const FIELD_LABEL: Record<string, string> = {
 
 /** Whatever the column held, in one line. Empty reads as a dash, not "null". */
 function show(v: unknown): string {
-  if (v === null || v === undefined || v === "") return "—"
-  if (Array.isArray(v)) return v.length === 0 ? "—" : v.join(", ")
+  if (v === null || v === undefined || v === "") return "-"
+  if (Array.isArray(v)) return v.length === 0 ? "-" : v.join(", ")
   if (typeof v === "boolean") return v ? "yes" : "no"
   const s = String(v)
   // Dates arrive as ISO instants; only the day matters on a ledger row.

@@ -443,7 +443,7 @@ export function TaskCreateDialog({
                 Produces output
               </Label>
               <p className="text-muted-foreground text-xs">
-                A page, a video, a design — something to log when done.
+                A page, a video, a design - something to log when done.
               </p>
             </div>
             <Switch

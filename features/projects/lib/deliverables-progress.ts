@@ -35,7 +35,7 @@ export interface ProgressItem {
   project: string
   employeeId: string | null
   employee: string | null
-  /** "14-18 Sep 2026" / "due 20 Sep 2026" / "—" */
+  /** "14-18 Sep 2026" / "due 20 Sep 2026" / "-" */
   period: string
   dueOn: string | null
   completedOn: string | null

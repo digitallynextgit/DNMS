@@ -212,7 +212,7 @@ export function classifyDoc(input: {
   const haystack = `${input.path ?? name}`
     .toLowerCase()
     .replace(/\\/g, "/")
-    .replace(/[_.\-–—]+/g, " ")
+    .replace(/[_.\-–-]+/g, " ")
 
   // Format first. A .mp4 is a video whatever it is called, and calling the
   // Instagram export "Insta images/…mp4" a creative because of its folder would

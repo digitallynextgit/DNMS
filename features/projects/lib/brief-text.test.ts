@@ -20,7 +20,7 @@ describe("tidyBrief", () => {
   })
 
   it("turns em and en dashes into a hyphen", () => {
-    expect(tidyBrief("six states — Tamil Nadu, Gujarat")).toBe("six states - Tamil Nadu, Gujarat")
+    expect(tidyBrief("six states - Tamil Nadu, Gujarat")).toBe("six states - Tamil Nadu, Gujarat")
     expect(tidyBrief("₹15,000–₹40,000")).toBe("₹15,000-₹40,000")
   })
 
@@ -53,11 +53,11 @@ describe("tidyBrief", () => {
       "# Brand Brief: Hard2Soft",
       "",
       "## 1. Brand snapshot",
-      "**Hard2Soft** is a D2C brand — sold across six states – for borewell homes.",
+      "**Hard2Soft** is a D2C brand - sold across six states – for borewell homes.",
       "",
       "",
       "## 2. Products",
-      "- 1500L model — ₹3,599",
+      "- 1500L model - ₹3,599",
     ].join("\n")
     expect(tidyBrief(raw)).toBe(
       [

@@ -17,7 +17,7 @@ There are two independent paths, and they fail for different reasons.
 ### Realtime push (the live path)
 
 The terminal POSTs each punch to `/api/attendance/hook/<secret>`. This is an
-**outbound** HTTPS call from the office, which every firewall already permits —
+**outbound** HTTPS call from the office, which every firewall already permits -
 no port forwarding, no static IP, nothing exposed inbound.
 
 Set up under **Configuration → Network → Advanced → HTTP Listening** (some
@@ -38,7 +38,7 @@ browser → POST https://dnms.digitallynext.com/api/attendance/devices/<id>/sync
 ```
 
 So the network that matters is the **server's**, not yours. Sitting in the
-office on the office wifi does not help if the app you are using is the VPS —
+office on the office wifi does not help if the app you are using is the VPS -
 the VPS is still in a datacenter with no route to `192.168.29.0/24`.
 
 This is why pull sync fails from the deployed app and works from a DNMS

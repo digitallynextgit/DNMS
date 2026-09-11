@@ -259,7 +259,7 @@ function TaskRow({
         />
       )}
 
-      {/* "—" for nothing logged rather than "0m": a zero here usually means the
+      {/* "-" for nothing logged rather than "0m": a zero here usually means the
           clock was never started, not that the work took no time. */}
       {(t.estimatedHours != null || t.loggedHours > 0) && (
         <span className="text-muted-foreground hidden w-24 shrink-0 items-center justify-end gap-1 tabular-nums sm:inline-flex">

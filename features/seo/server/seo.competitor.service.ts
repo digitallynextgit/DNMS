@@ -92,7 +92,7 @@ function cleanTopic(phrase: string): string {
   return (
     phrase
       // Titles usually end with a separator then the brand: "Topic | Brand".
-      .split(/\s+[|–—-]\s+/)[0]!
+      .split(/\s+[|–--]\s+/)[0]!
       .trim()
       .replace(/\s+/g, " ")
   )

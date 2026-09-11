@@ -21,7 +21,7 @@ import type { DeliverablesProgress, ProgressItem } from "../lib/deliverables-pro
 // the number, one tab per project (or per person, for anyone looking at a
 // team) so a project's rows are a click away instead of a scroll through every
 // other project's. "All" keeps the whole list, sectioned, for anyone who wants
-// it. Everything here is derived from the payload the page already holds — no
+// it. Everything here is derived from the payload the page already holds - no
 // extra fetch, so what you click on is exactly what the tile counted.
 
 const ALL = "all"
@@ -39,7 +39,7 @@ const KPI: Record<
 > = {
   todo: {
     title: "To do",
-    blurb: "Still open in this window — planned, in progress or sent back.",
+    blurb: "Still open in this window - planned, in progress or sent back.",
     expected: (t) => t.open,
     pick: (d) => d.notDone,
   },
@@ -101,7 +101,7 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
   const spec = KPI[kpi]
   const items = useMemo(() => spec.pick(data), [spec, data])
   const expected = spec.expected(data.totals)
-  const people = useMemo(() => new Set(items.map((i) => i.employeeId ?? "—")).size, [items])
+  const people = useMemo(() => new Set(items.map((i) => i.employeeId ?? "-")).size, [items])
   const finished = kpi === "completed"
 
   const [query, setQuery] = useState("")
@@ -124,7 +124,7 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
       : items
     const map = new Map<string, { key: string; label: string; items: ProgressItem[] }>()
     for (const it of shown) {
-      const key = groupBy === "project" ? it.projectId : (it.employeeId ?? "—")
+      const key = groupBy === "project" ? it.projectId : (it.employeeId ?? "-")
       const label = groupBy === "project" ? it.project : (it.employee ?? "Unassigned")
       const g = map.get(key) ?? { key, label, items: [] }
       g.items.push(it)
@@ -157,7 +157,7 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
         <DialogDescription>
           {spec.blurb}
           {items.length < expected
-            ? ` Showing ${items.length} of ${expected} — narrow the window to see all of them.`
+            ? ` Showing ${items.length} of ${expected} - narrow the window to see all of them.`
             : null}
         </DialogDescription>
       </DialogHeader>
@@ -292,7 +292,7 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
                             ) : null}
                           </td>
                           <td className="py-2 pr-3 whitespace-nowrap">
-                            {groupBy === "project" ? (it.employee ?? "—") : it.project}
+                            {groupBy === "project" ? (it.employee ?? "-") : it.project}
                           </td>
                           <td
                             className={cn(
@@ -308,13 +308,13 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
                           <td className="py-2">
                             {finished ? (
                               <span className="whitespace-nowrap">
-                                {it.completedOn ? formatDate(it.completedOn, "d MMM yyyy") : "—"}
+                                {it.completedOn ? formatDate(it.completedOn, "d MMM yyyy") : "-"}
                                 {it.late ? (
                                   <span className="ml-1.5 text-[11px] text-amber-500">late</span>
                                 ) : null}
                               </span>
                             ) : (
-                              <span className="text-muted-foreground">{it.why || "—"}</span>
+                              <span className="text-muted-foreground">{it.why || "-"}</span>
                             )}
                           </td>
                         </tr>

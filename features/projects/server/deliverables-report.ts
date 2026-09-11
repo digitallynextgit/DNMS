@@ -466,13 +466,13 @@ function bucketize(
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 const dmy = (d: Date | null | undefined): string =>
-  d ? `${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}` : "—"
+  d ? `${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}` : "-"
 const day = (s: string): Date => new Date(`${s}T00:00:00.000Z`)
 const trunc = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
 
 function periodOf(r: Row): string {
   if (r.periodStart && r.periodEnd) return formatPeriod(r.periodStart, r.periodEnd)
-  return r.dueOn ? `due ${dmy(r.dueOn)}` : "—"
+  return r.dueOn ? `due ${dmy(r.dueOn)}` : "-"
 }
 
 function whyNotDone(r: Row, today: Date): string {
@@ -494,7 +494,7 @@ function whyNotDone(r: Row, today: Date): string {
   } else {
     why = `Not started · ${dueBit}`
   }
-  if (r.notes && r.status !== "REJECTED") why += ` — ${trunc(r.notes, 60)}`
+  if (r.notes && r.status !== "REJECTED") why += ` - ${trunc(r.notes, 60)}`
   return trunc(why, 140)
 }
 
@@ -935,7 +935,7 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
         rosterRows.push([
           cell(fullName(t.manager), { bold: true }),
           cell("Team manager", { color: C.blue, bold: true }),
-          cell("—"),
+          cell("-"),
           cell(t.name),
           cell(t.project.name),
           num(seenCount.get(t.manager.id) ?? 0),
@@ -946,7 +946,7 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
         rosterRows.push([
           cell(fullName(m.employee)),
           cell("Member"),
-          cell(m.employee.designation?.title ?? "—"),
+          cell(m.employee.designation?.title ?? "-"),
           cell(t.name),
           cell(t.project.name),
           num(seenCount.get(m.employee.id) ?? 0),
@@ -1145,7 +1145,7 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
     cell(periodOf(r)),
     cell(`${Math.min(r.deliveredQuantity, r.quantity)}/${r.quantity}`, { align: "right" }),
     cell(DELIVERABLE_STATUS_LABELS[r.status], { color: STATUS_COLOR[r.status], bold: true }),
-    cell(isSelf ? (r.team?.name ?? "—") : r.employee ? fullName(r.employee) : "—", {
+    cell(isSelf ? (r.team?.name ?? "-") : r.employee ? fullName(r.employee) : "-", {
       italic: !isSelf && !r.employee,
       color: !isSelf && !r.employee ? C.muted : C.ink,
     }),
@@ -1186,7 +1186,7 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
       byUrgency.map((r) => [
         cell(trunc(r.project.name, 28)),
         cell(trunc(r.title, 44)),
-        cell(isSelf ? (r.team?.name ?? "—") : r.employee ? fullName(r.employee) : "—"),
+        cell(isSelf ? (r.team?.name ?? "-") : r.employee ? fullName(r.employee) : "-"),
         cell(DELIVERABLE_STATUS_LABELS[r.status], { color: STATUS_COLOR[r.status], bold: true }),
         cell(whyNotDone(r, today), { fontSize: 8.5 }),
       ]),
@@ -1216,13 +1216,13 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
           italic: b.key === "__unclaimed__",
           color: b.key === "__unclaimed__" ? C.muted : C.ink,
         }),
-        cell(b.sub || "—"),
+        cell(b.sub || "-"),
         num(b.total),
         num(b.done),
         num(b.open),
         cell(String(b.overdue), { align: "right", color: b.overdue ? C.red : C.ink }),
         num(b.sentBack),
-        b.total ? pctCell(pct(b.done, b.total)) : cell("—", { align: "right", color: C.muted }),
+        b.total ? pctCell(pct(b.done, b.total)) : cell("-", { align: "right", color: C.muted }),
       ]),
       [2.2, 1.6, 0.9, 0.8, 0.8, 0.9, 0.95, 0.95],
       { perSlide: 13 },
@@ -1290,12 +1290,12 @@ export async function buildDeliverablesDeck(input: DeckInput): Promise<BuiltDeck
                   `- ${b.label}: ${b.total} assigned, ${b.done} done, ${b.open} open, ${b.overdue} overdue, ${b.sentBack} sent back`,
               ),
           ]),
-      "NOT COMPLETED (title — why):",
+      "NOT COMPLETED (title - why):",
       ...notDone
         .slice(0, 25)
         .map(
           (r) =>
-            `- ${r.title} (${r.project.name}${r.employee ? `, ${fullName(r.employee)}` : ""}) — ${whyNotDone(r, today)}`,
+            `- ${r.title} (${r.project.name}${r.employee ? `, ${fullName(r.employee)}` : ""}) - ${whyNotDone(r, today)}`,
         ),
     ].join("\n")
     const lines = await takeaways(block)

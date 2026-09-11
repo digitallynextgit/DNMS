@@ -721,7 +721,7 @@ function NotDoneCard({ items, showWho }: { items: ProgressItem[]; showWho: boole
                   <td className="py-2 pr-3 whitespace-nowrap">{it.project}</td>
                   {showWho && (
                     <td className="py-2 pr-3 whitespace-nowrap">
-                      {it.employee ?? <span className="text-muted-foreground">—</span>}
+                      {it.employee ?? <span className="text-muted-foreground">-</span>}
                     </td>
                   )}
                   <td className="py-2 pr-3">
@@ -788,14 +788,14 @@ function DeliveredCard({ items, showWho }: { items: ProgressItem[]; showWho: boo
                   <td className="py-2 pr-3 whitespace-nowrap">{it.project}</td>
                   {showWho && (
                     <td className="py-2 pr-3 whitespace-nowrap">
-                      {it.employee ?? <span className="text-muted-foreground">—</span>}
+                      {it.employee ?? <span className="text-muted-foreground">-</span>}
                     </td>
                   )}
                   <td className="py-2 pr-3">
                     <StatusPill status={it.status} />
                   </td>
                   <td className="text-muted-foreground py-2 text-xs whitespace-nowrap">
-                    {it.completedOn ? formatDate(it.completedOn, "d MMM yyyy") : "—"}
+                    {it.completedOn ? formatDate(it.completedOn, "d MMM yyyy") : "-"}
                     {it.late && <span className="ml-2 text-amber-500">late</span>}
                   </td>
                 </tr>

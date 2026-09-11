@@ -640,7 +640,7 @@ export function DeliverableFormDialog({
               />
               {tasks.isSuccess && taskGroups.mine.length === 0 && taskGroups.total > 0 && (
                 <p className="text-muted-foreground text-[11px]">
-                  Nothing assigned to {makerName} here — pick an unassigned task or leave it.
+                  Nothing assigned to {makerName} here - pick an unassigned task or leave it.
                 </p>
               )}
             </div>

@@ -171,7 +171,7 @@ Until M4, the tenant controlled routing but not data: every query still read wha
   - `findUnique` is filtered too, which matters most: `findUnique({ where: { id } })` with an id off
     the URL is the realistic way one company reads another's row. Prisma's `extendedWhereUnique`
     accepts the extra filter, verified against this database, so no rewrite to `findFirst` is needed.
-  - `TENANT_ENFORCEMENT=off|warn|strict`. Default `warn`. **The whole app passes in `strict`** —
+  - `TENANT_ENFORCEMENT=off|warn|strict`. Default `warn`. **The whole app passes in `strict`** -
     turn it on before onboarding the second company.
 - **Context entry.** `getSession()` in `server/api-handler.ts` covers API routes _and_ server
   actions in one line (`requireSession()` goes through it).
@@ -254,7 +254,7 @@ the tenant is removed and Digitally Next is byte-for-byte unchanged.
 
 ## After the new build is deployed and confirmed
 
-These are the deletions M1-M4 kept alive on purpose, and **none of them may run before the deploy** —
+These are the deletions M1-M4 kept alive on purpose, and **none of them may run before the deploy** -
 each one breaks the build currently on the VPS:
 
 - the `tenant_id` DB defaults (they are what let the pre-tenancy build INSERT). Audit nested writes
