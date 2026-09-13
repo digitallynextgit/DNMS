@@ -55,6 +55,7 @@ import { DateField } from "@/components/shared/date-field"
 import { useSession } from "next-auth/react"
 import { TaskCreateDialog } from "@/features/projects/components/task-create-dialog"
 import { TasksSheetView } from "@/features/projects/components/tasks-sheet-view"
+import { MyTasksSheetSkeleton } from "@/features/projects/components/my-tasks-skeleton"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 
@@ -519,6 +520,7 @@ export default function MyTasksPage() {
 
       {/* Summary strip */}
       <StatStrip
+        loading={isLoading}
         items={[
           { label: "Total", value: tasks.length },
           {
@@ -627,11 +629,7 @@ export default function MyTasksPage() {
 
       {/* Sheet or day cards */}
       {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full rounded-sm" />
-          ))}
-        </div>
+        <MyTasksSheetSkeleton />
       ) : viewMode === "sheet" ? (
         // Before the empty check: an empty week is exactly when you need the
         // grid, because the blank cells are what you type the plan into.
