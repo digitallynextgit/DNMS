@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import NextTopLoader from "nextjs-toploader"
 import "./globals.css"
@@ -51,7 +51,22 @@ export const metadata: Metadata = {
   // apple-touch-icon is a 180x180 derivative, not the 2505x2200 / 729 KB master:
   // iOS downloads this whole file just to draw a home-screen icon.
   icons: { icon: "/favicon.ico", shortcut: "/favicon.ico", apple: "/apple-touch-icon.png" },
-  alternates: { canonical: "/" },
+  // NO canonical here. A canonical in the ROOT layout is inherited by every page
+  // that does not set its own, which told search engines that /signup, /login and
+  // every other un-overridden route were all duplicates of the homepage - while
+  // sitemap.xml was simultaneously submitting /signup as a page in its own right.
+  // The homepage sets `canonical: "/"` itself in (marketing)/page.tsx, as do the
+  // other eight marketing pages.
+}
+
+// themeColor lives on `viewport`, not `metadata` (Next 14+). Matches
+// --background in globals.css, so the browser chrome and the page agree in both
+// schemes; public/theme-boot.js applies the same palette before first paint.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

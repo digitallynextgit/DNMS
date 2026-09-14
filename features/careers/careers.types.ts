@@ -3,7 +3,7 @@
 // The public contract (CareersDepartmentGroup[]) is exactly what the marketing
 // site renders, so the site swap is a one-line change. See temp/README.md §4.
 
-import type { CareersTone } from "@/features/recruitment/careers-types"
+import type { CareersTone } from "@/features/recruitment"
 
 export type { CareersTone }
 export type CareersMode = "full-time" | "internship"

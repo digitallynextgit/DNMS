@@ -888,8 +888,10 @@ export function useProjectMessages(projectId: string | undefined) {
     queryFn: () => apiFetch<{ data: ProjectMessage[] }>(`/api/projects/${projectId}/messages`),
     enabled: !!projectId,
     staleTime: 10_000,
-    // Near real-time: refresh while the tab is open and whenever the user returns.
-    refetchInterval: 15_000,
+    // NO POLL. The only caller is messages-tab.tsx, which holds an EventSource on
+    // /api/chat/stream and invalidates THIS key on every "project-message" frame,
+    // so the list is already live - a 15s poll on top of that was a second copy of
+    // the same job, four requests a minute per open project.
     refetchOnWindowFocus: true,
   })
 }
@@ -1105,7 +1107,12 @@ export function useUnreadMessageCount(projectId: string | undefined) {
       ),
     enabled: !!projectId,
     staleTime: 10_000,
-    refetchInterval: 15_000, // keep the badge live while the project is open
+    // 60s, not 15s. This badge is read on the project page, where the Messages
+    // tab - and therefore the SSE subscription that would invalidate this key -
+    // is usually NOT mounted, so the poll cannot be removed outright the way the
+    // two message lists' polls were. A badge may lag a minute; it need not cost
+    // four requests one.
+    refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
 }
@@ -1131,7 +1138,8 @@ export function useMessageReplies(projectId: string, messageId: string, enabled:
       ),
     enabled: enabled && !!messageId,
     staleTime: 10_000,
-    refetchInterval: 15_000,
+    // NO POLL - same reason as useProjectMessages above: messages-tab.tsx's SSE
+    // handler invalidates this exact key when a frame arrives for this thread.
     refetchOnWindowFocus: true,
   })
 }

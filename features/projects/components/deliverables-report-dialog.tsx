@@ -63,7 +63,6 @@ const ROLE_COPY: Record<Role, { who: string; all: string; hint: string }> = {
   },
 }
 
-
 interface FilterSummary {
   projectLabel?: string
   teamLabel?: string
@@ -208,11 +207,12 @@ function ReportForm({
     <>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <Download className="h-5 w-5 text-primary" />
+          <Download className="text-primary h-5 w-5" />
           Export Deliverables Report
         </DialogTitle>
         <DialogDescription>
-          Export the exact deliverables, metrics, and progress you see on screen into your chosen format.
+          Export the exact deliverables, metrics, and progress you see on screen into your chosen
+          format.
         </DialogDescription>
       </DialogHeader>
 
@@ -223,14 +223,14 @@ function ReportForm({
       ) : (
         <div className="space-y-4 py-2">
           {/* Summary of current active view */}
-          <div className="rounded-lg border bg-muted/40 p-3.5 text-xs space-y-2">
-            <div className="font-semibold text-foreground text-[11px] tracking-wider uppercase text-muted-foreground">
+          <div className="bg-muted/40 space-y-2 rounded-lg border p-3.5 text-xs">
+            <div className="text-foreground text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
               Current View to Export
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
                 <span className="text-muted-foreground block text-[11px]">Period</span>
-                <span className="font-medium text-foreground">
+                <span className="text-foreground font-medium">
                   {range.from && range.to
                     ? `${formatDate(range.from, "d MMM yyyy")} – ${formatDate(range.to, "d MMM yyyy")}`
                     : "All time"}
@@ -238,33 +238,34 @@ function ReportForm({
               </div>
               <div>
                 <span className="text-muted-foreground block text-[11px]">Scope</span>
-                <span className="font-medium text-foreground truncate block" title={scopeDesc}>
+                <span className="text-foreground block truncate font-medium" title={scopeDesc}>
                   {scopeDesc}
                 </span>
               </div>
               {typeof filterSummary?.totalCount === "number" && (
-                <div className="col-span-2 pt-0.5 border-t border-border/40">
+                <div className="border-border/40 col-span-2 border-t pt-0.5">
                   <span className="text-muted-foreground">Deliverables in view: </span>
-                  <span className="font-semibold text-foreground">
-                    {filterSummary.totalCount} {filterSummary.totalCount === 1 ? "deliverable" : "deliverables"}
+                  <span className="text-foreground font-semibold">
+                    {filterSummary.totalCount}{" "}
+                    {filterSummary.totalCount === 1 ? "deliverable" : "deliverables"}
                   </span>
                 </div>
               )}
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
+          <label className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 text-xs">
             <Checkbox checked={withAi} onCheckedChange={(v) => setWithAi(v === true)} />
             Include AI-generated summary and speaker takeaways
           </label>
         </div>
       )}
 
-      <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between items-center pt-2">
+      <DialogFooter className="flex-col items-center gap-2 pt-2 sm:flex-row sm:justify-between">
         <Button variant="ghost" onClick={onClose} disabled={exportingFormat !== null}>
           Cancel
         </Button>
-        <div className="flex flex-wrap gap-2 justify-end w-full sm:w-auto">
+        <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
           <Button
             className="gap-1.5"
             variant="outline"

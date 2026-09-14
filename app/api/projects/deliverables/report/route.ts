@@ -40,15 +40,12 @@ export const GET = withSession(
   async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
     const q = req.nextUrl.searchParams
     const format = (q.get("format") ?? "pptx") as ReportFormat
-    if (!['pptx', 'xlsx', 'docx'].includes(format)) {
-      return NextResponse.json({ error: 'format must be pptx, xlsx or docx' }, { status: 400 })
+    if (!["pptx", "xlsx", "docx"].includes(format)) {
+      return NextResponse.json({ error: "format must be pptx, xlsx or docx" }, { status: 400 })
     }
     const rawFrom = q.get("from")
     const rawTo = q.get("to")
-    const isAllTime =
-      !rawFrom ||
-      !rawTo ||
-      (rawFrom <= "2001-01-01" && rawTo >= "2090-01-01")
+    const isAllTime = !rawFrom || !rawTo || (rawFrom <= "2001-01-01" && rawTo >= "2090-01-01")
 
     const from = isAllTime ? ALL_TIME_FROM : rawFrom
     const to = isAllTime ? ALL_TIME_TO : rawTo
@@ -78,14 +75,17 @@ export const GET = withSession(
         )
       }
 
-      const report = await buildDeliverablesReport({
-        session,
-        scope,
-        pick,
-        from,
-        to,
-        ai: q.get("ai") !== "0",
-      }, format)
+      const report = await buildDeliverablesReport(
+        {
+          session,
+          scope,
+          pick,
+          from,
+          to,
+          ai: q.get("ai") !== "0",
+        },
+        format,
+      )
       return new NextResponse(report.bytes, {
         status: 200,
         headers: {

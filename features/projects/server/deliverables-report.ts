@@ -785,7 +785,7 @@ export interface DeckInput {
   ai: boolean
 }
 
-export type ReportFormat = 'pptx' | 'xlsx' | 'docx'
+export type ReportFormat = "pptx" | "xlsx" | "docx"
 
 export interface BuiltReport {
   bytes: Uint8Array<ArrayBuffer>
@@ -1531,11 +1531,26 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
   kpiValRow.height = 30
   kpiValRow.font = { name: "Segoe UI", size: 18, bold: true, color: { argb: "FF0F172A" } }
   kpiValRow.alignment = { horizontal: "center", vertical: "middle" }
-  kpiValRow.getCell(2).font = { name: "Segoe UI", size: 18, bold: true, color: { argb: "FF10B981" } }
+  kpiValRow.getCell(2).font = {
+    name: "Segoe UI",
+    size: 18,
+    bold: true,
+    color: { argb: "FF10B981" },
+  }
   if (overdue > 0)
-    kpiValRow.getCell(3).font = { name: "Segoe UI", size: 18, bold: true, color: { argb: "FFEF4444" } }
+    kpiValRow.getCell(3).font = {
+      name: "Segoe UI",
+      size: 18,
+      bold: true,
+      color: { argb: "FFEF4444" },
+    }
   if (sentBack > 0)
-    kpiValRow.getCell(4).font = { name: "Segoe UI", size: 18, bold: true, color: { argb: "FFF59E0B" } }
+    kpiValRow.getCell(4).font = {
+      name: "Segoe UI",
+      size: 18,
+      bold: true,
+      color: { argb: "FFF59E0B" },
+    }
 
   const kpiSubRow = wsOverview.addRow([
     overdue ? `${overdue} overdue` : "nothing overdue",
@@ -1577,8 +1592,15 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
   const statusHeadRow = wsOverview.addRow(["Status", "Deliverables", "Share (%)"])
   statusHeadRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } }
   for (let c = 1; c <= 3; c++) {
-    statusHeadRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } }
-    statusHeadRow.getCell(c).alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" }
+    statusHeadRow.getCell(c).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF1E293B" },
+    }
+    statusHeadRow.getCell(c).alignment = {
+      horizontal: c === 1 ? "left" : "right",
+      vertical: "middle",
+    }
   }
 
   const statusRows = [
@@ -1617,8 +1639,15 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
   ])
   projHeadRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } }
   for (let c = 1; c <= 7; c++) {
-    projHeadRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } }
-    projHeadRow.getCell(c).alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" }
+    projHeadRow.getCell(c).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF1E293B" },
+    }
+    projHeadRow.getCell(c).alignment = {
+      horizontal: c === 1 ? "left" : "right",
+      vertical: "middle",
+    }
   }
 
   for (let idx = 0; idx < byProject.length; idx++) {
@@ -1665,8 +1694,15 @@ export async function buildDeliverablesXlsx(input: DeckInput): Promise<BuiltRepo
     ])
     memHeadRow.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } }
     for (let c = 1; c <= 7; c++) {
-      memHeadRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } }
-      memHeadRow.getCell(c).alignment = { horizontal: c === 1 ? "left" : "right", vertical: "middle" }
+      memHeadRow.getCell(c).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF1E293B" },
+      }
+      memHeadRow.getCell(c).alignment = {
+        horizontal: c === 1 ? "left" : "right",
+        vertical: "middle",
+      }
     }
 
     for (let idx = 0; idx < byMember.length; idx++) {
@@ -1858,7 +1894,13 @@ export async function buildDeliverablesDocx(input: DeckInput): Promise<BuiltRepo
   const dCell = (
     text: string,
     widthPct: number,
-    opts?: { bold?: boolean; color?: string; align?: AlignmentTypeValue; bg?: string; italic?: boolean },
+    opts?: {
+      bold?: boolean
+      color?: string
+      align?: AlignmentTypeValue
+      bg?: string
+      italic?: boolean
+    },
   ) =>
     new TableCell({
       width: { size: widthPct, type: WidthType.PERCENTAGE },
@@ -2416,15 +2458,18 @@ export async function buildDeliverablesDocx(input: DeckInput): Promise<BuiltRepo
   }
 }
 
-export async function buildDeliverablesReport(input: DeckInput, format: ReportFormat): Promise<BuiltReport> {
-  if (format === 'xlsx') return buildDeliverablesXlsx(input)
-  if (format === 'docx') return buildDeliverablesDocx(input)
-  
+export async function buildDeliverablesReport(
+  input: DeckInput,
+  format: ReportFormat,
+): Promise<BuiltReport> {
+  if (format === "xlsx") return buildDeliverablesXlsx(input)
+  if (format === "docx") return buildDeliverablesDocx(input)
+
   const deck = await buildDeliverablesDeck(input)
   return {
     bytes: deck.bytes,
     filename: deck.filename,
-    contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   }
 }
 

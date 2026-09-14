@@ -4,7 +4,7 @@ import { db } from "@/server/db"
 import { PERMISSIONS } from "@/lib/constants"
 import { requirePermission } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
-import { slugifyCareer, type CareersTone } from "@/features/recruitment/careers-types"
+import { slugifyCareer, type CareersTone } from "@/features/recruitment"
 import {
   createGroupSchema,
   updateGroupSchema,

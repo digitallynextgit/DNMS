@@ -80,7 +80,9 @@ export default function ProjectProgressPage() {
         open={exportOpen}
         onOpenChange={setExportOpen}
         range={range}
-        projectId={filters?.projectId && filters.projectId !== "all" ? filters.projectId : undefined}
+        projectId={
+          filters?.projectId && filters.projectId !== "all" ? filters.projectId : undefined
+        }
         teamIds={filters?.teamIds}
         employeeId={filters?.personId && filters.personId !== "all" ? filters.personId : undefined}
         filterSummary={filters ?? undefined}

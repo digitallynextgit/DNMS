@@ -42,6 +42,13 @@ next-env.d.ts
 # generated script output - can contain real employee attendance data (PII)
 /scripts/output/
 
+# Database snapshot written by `pnpm db:snapshot`. It is a dump of the LIVE
+# database - employee names, emails, personal phone numbers, dates of birth,
+# salary structures and payroll records - so it must never be committed. It was,
+# until 2026-09-14; `git rm --cached` took it out of the index, but it is still
+# in the history of every existing clone (see docs/codebase-audit-2026-09-14.md).
+/prisma/snapshot.json
+
 # Claude Code
 .claude/
 completed_tasks.txt

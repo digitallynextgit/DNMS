@@ -32,7 +32,7 @@ export function MyTasksSheetSkeleton() {
               <th
                 rowSpan={2}
                 className={cn(
-                  "bg-muted z-20 w-32 min-w-32 sm:w-44 sm:min-w-44 border-b px-3 py-2 text-left text-[11px] font-semibold tracking-wide uppercase",
+                  "bg-muted z-20 w-32 min-w-32 border-b px-3 py-2 text-left text-[11px] font-semibold tracking-wide uppercase sm:w-44 sm:min-w-44",
                   STICKY_EDGE,
                 )}
               >
@@ -60,10 +60,18 @@ export function MyTasksSheetSkeleton() {
             <tr className="bg-muted/40 text-muted-foreground text-[10px] tracking-wide uppercase">
               {days.map((day) => (
                 <Fragment key={day}>
-                  <th className="min-w-36 border-r border-b px-3 py-1 text-left font-medium">Plan</th>
-                  <th className="min-w-36 border-r border-b px-3 py-1 text-left font-medium">Actual</th>
-                  <th className="w-16 min-w-16 border-r border-b px-2 py-1 text-right font-medium">Hrs</th>
-                  <th className="w-28 min-w-28 border-r border-b px-2 py-1 text-left font-medium">Resources</th>
+                  <th className="min-w-36 border-r border-b px-3 py-1 text-left font-medium">
+                    Plan
+                  </th>
+                  <th className="min-w-36 border-r border-b px-3 py-1 text-left font-medium">
+                    Actual
+                  </th>
+                  <th className="w-16 min-w-16 border-r border-b px-2 py-1 text-right font-medium">
+                    Hrs
+                  </th>
+                  <th className="w-28 min-w-28 border-r border-b px-2 py-1 text-left font-medium">
+                    Resources
+                  </th>
                 </Fragment>
               ))}
             </tr>
@@ -93,7 +101,7 @@ export function MyTasksSheetSkeleton() {
                       {rIdx % 2 === 0 ? <Skeleton className="h-3 w-16" /> : null}
                     </td>
                     <td className="border-r border-b p-2 text-right">
-                      {rIdx % 2 === 0 ? <Skeleton className="h-3 w-8 ml-auto" /> : null}
+                      {rIdx % 2 === 0 ? <Skeleton className="ml-auto h-3 w-8" /> : null}
                     </td>
                     <td className="border-r border-b p-2">
                       {rIdx % 3 === 0 ? <Skeleton className="h-3 w-12" /> : null}
@@ -101,7 +109,7 @@ export function MyTasksSheetSkeleton() {
                   </Fragment>
                 ))}
                 <td className="border-b p-2 text-center">
-                  <Skeleton className="h-3 w-8 mx-auto" />
+                  <Skeleton className="mx-auto h-3 w-8" />
                 </td>
               </tr>
             ))}
@@ -111,7 +119,6 @@ export function MyTasksSheetSkeleton() {
     </div>
   )
 }
-
 
 export function MyTasksFullSkeleton() {
   return (
@@ -151,4 +158,3 @@ export function MyTasksFullSkeleton() {
     </div>
   )
 }
-

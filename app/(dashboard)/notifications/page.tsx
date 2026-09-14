@@ -89,8 +89,12 @@ export default function NotificationsPage() {
       if (!res.ok) throw new Error("Failed to load notifications")
       return res.json()
     },
-    // Keep the feed live without a manual reload.
-    refetchInterval: 20_000,
+    // 120s, not 20s. RealtimeNotifications (mounted in the dashboard shell)
+    // invalidates ["notifications"] on every SSE frame, and that prefix-matches
+    // this key - so the feed is already live and this interval is only the
+    // safety net for the stream being down. It was running 4.5x faster than the
+    // fallback it duplicates.
+    refetchInterval: 120_000,
     refetchOnWindowFocus: true,
   })
 

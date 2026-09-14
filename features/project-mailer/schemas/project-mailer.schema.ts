@@ -55,6 +55,22 @@ export const recipientBulkSchema = z.object({
 export type RecipientBulkInput = z.infer<typeof recipientBulkSchema>
 
 /**
+ * Remove several recipients at once.
+ *
+ * Capped so one request cannot try to delete an entire 5,000-address list in a
+ * single statement; the UI selects a page at a time, which is well inside this.
+ */
+export const RECIPIENT_DELETE_LIMIT = 500
+
+export const recipientDeleteSchema = z.object({
+  ids: z
+    .array(z.string().uuid())
+    .min(1, "Select at least one recipient")
+    .max(RECIPIENT_DELETE_LIMIT, `Remove at most ${RECIPIENT_DELETE_LIMIT} at a time`),
+})
+export type RecipientDeleteInput = z.infer<typeof recipientDeleteSchema>
+
+/**
  * One import can carry this many rows. A real subscriber list is well under it;
  * anything larger is a paste accident or a whole CRM export, and it would sit in
  * one request body and one transaction.

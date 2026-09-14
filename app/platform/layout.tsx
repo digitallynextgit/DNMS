@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { notFound } from "next/navigation"
+import type { Metadata } from "next"
 import { PlatformSidebar } from "@/components/layout/platform-sidebar"
 import { Topbar } from "@/components/layout/topbar"
 import { TenantProvider } from "@/components/tenant-link"
@@ -28,6 +29,15 @@ import { currentTenantSlugOrFounding } from "@/server/tenant-request"
  * means any /platform/* screen added later is covered from the moment it is
  * created rather than the moment somebody remembers.
  */
+/**
+ * The console answers notFound() to anyone who may not see it, so a crawler gets
+ * a 404 rather than a page. This is the belt to that braces: the one surface
+ * listing every customer must never be indexable even if that check changes.
+ */
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
+
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
   const session = await getPlatformAdminSession()
   // notFound(), not redirect: a 403 or a bounce confirms the route exists. For

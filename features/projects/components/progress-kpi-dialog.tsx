@@ -11,7 +11,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn, formatDate } from "@/lib/utils"
 import { DELIVERABLE_STATUS_LABELS, type DeliverableStatus } from "../lib/deliverable-lifecycle"
 import type { DeliverablesProgress, ProgressItem } from "../lib/deliverables-progress"
@@ -185,9 +191,7 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL}>
-                    All ({shownCount})
-                  </SelectItem>
+                  <SelectItem value={ALL}>All ({shownCount})</SelectItem>
                   {groups.map((g) => (
                     <SelectItem key={g.key} value={g.key}>
                       {g.label} ({g.items.length})
@@ -223,7 +227,9 @@ function KpiBody({ kpi, data }: { kpi: KpiKey; data: DeliverablesProgress }) {
                   <tr className="text-muted-foreground text-[11px] tracking-wide uppercase">
                     <th className="py-1.5 pr-3 text-left font-medium">Deliverable</th>
                     <th className="py-1.5 pr-3 text-left font-medium">Project</th>
-                    <th className="whitespace-nowrap py-1.5 pr-3 text-left font-medium">Owned by</th>
+                    <th className="py-1.5 pr-3 text-left font-medium whitespace-nowrap">
+                      Owned by
+                    </th>
                     <th className="py-1.5 pr-3 text-left font-medium">Period</th>
                     <th className="py-1.5 pr-3 text-left font-medium">Status</th>
                     <th className="py-1.5 text-left font-medium">

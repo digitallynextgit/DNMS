@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
-import { slugifyCareer } from "@/features/recruitment/careers-types"
+import { slugifyCareer } from "@/features/recruitment"
 import type { Session } from "next-auth"
 
 function asStringArray(value: unknown): string[] {

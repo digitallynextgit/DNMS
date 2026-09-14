@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import type { Metadata } from "next"
 import { db } from "@/server/db"
 import { TenantProvider } from "@/components/tenant-link"
 import {
@@ -13,6 +14,11 @@ import {
  * dashboard layout, re-reads isActive on every navigation - a stateless JWT
  * outlives an account being disabled.
  */
+/** A customer's private workspace - never a search result. See the dashboard layout. */
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
+
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   // Establishes the tenant context for everything this layout renders (M4).
   const session = await tenantScopedSession()

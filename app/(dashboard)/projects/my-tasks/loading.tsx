@@ -3,4 +3,3 @@ import { MyTasksFullSkeleton } from "@/features/projects/components/my-tasks-ske
 export default function Loading() {
   return <MyTasksFullSkeleton />
 }
-

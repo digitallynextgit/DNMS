@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import type { Metadata } from "next"
 import { db } from "@/server/db"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Topbar } from "@/components/layout/topbar"
@@ -9,6 +10,17 @@ import { AiAssistant } from "@/components/shared/ai-assistant"
 import { AccountDeactivated } from "@/features/auth"
 import { TenantProvider } from "@/components/tenant-link"
 import { currentTenantSlugOrFounding, tenantScopedSession } from "@/server/tenant-request"
+
+/**
+ * Nothing under here may be indexed. The proxy already bounces a crawler to
+ * /login, and robots.txt now denies by default, but neither covers the case this
+ * guards against: a page that somehow renders for a crawler would otherwise
+ * inherit `index: true` from the root layout. Declared once for the whole group,
+ * so a section added later is covered the day it is created.
+ */
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // Establishes the tenant context for everything this layout renders (M4).

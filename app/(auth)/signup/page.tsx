@@ -8,6 +8,12 @@ import type { Metadata } from "next"
 export const metadata: Metadata = {
   title: "Create your workspace",
   description: "Start a 21-day DNMS trial for your company. No card required.",
+  // Overrides the (auth) group's noindex: every other page in this group is a
+  // door, but this one is where the public is asked to convert, and sitemap.xml
+  // submits it at priority 0.9. Its own canonical, too - the root layout no
+  // longer claims every page is a copy of the homepage.
+  robots: { index: true, follow: true },
+  alternates: { canonical: "/signup" },
 }
 
 export default async function SignupPage() {

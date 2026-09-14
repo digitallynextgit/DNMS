@@ -335,8 +335,6 @@ export function MyProgress({ range, onFilterChange }: MyProgressProps) {
             />
           )}
 
-
-
           {data.truncated && (
             <p className="text-muted-foreground text-xs">
               Showing the first 1,500 deliverables only - narrow the window or pick a project for
@@ -636,12 +634,14 @@ function GroupCard({
           <thead>
             <tr className="text-muted-foreground text-[11px] tracking-wide uppercase">
               <th className="py-1 text-left font-medium">{what}</th>
-              <th className="whitespace-nowrap px-3 py-1 text-left font-medium">Completed</th>
-              <th className="whitespace-nowrap px-3 py-1 text-left font-medium">Open</th>
-              <th className="whitespace-nowrap px-3 py-1 text-left font-medium">Overdue</th>
-              <th className="whitespace-nowrap px-3 py-1 text-left font-medium">Sent back</th>
-              <th className="whitespace-nowrap px-3 py-1 text-left font-medium">All</th>
-              <th className="w-28 whitespace-nowrap py-1 pl-3 text-left font-medium sm:w-36">Progress</th>
+              <th className="px-3 py-1 text-left font-medium whitespace-nowrap">Completed</th>
+              <th className="px-3 py-1 text-left font-medium whitespace-nowrap">Open</th>
+              <th className="px-3 py-1 text-left font-medium whitespace-nowrap">Overdue</th>
+              <th className="px-3 py-1 text-left font-medium whitespace-nowrap">Sent back</th>
+              <th className="px-3 py-1 text-left font-medium whitespace-nowrap">All</th>
+              <th className="w-28 py-1 pl-3 text-left font-medium whitespace-nowrap sm:w-36">
+                Progress
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -658,15 +658,19 @@ function GroupCard({
                       {r.label}
                     </button>
                   ) : (
-                    <span className="block truncate font-medium" title={r.label}>{r.label}</span>
+                    <span className="block truncate font-medium" title={r.label}>
+                      {r.label}
+                    </span>
                   )}
                   {r.sub && <div className="text-muted-foreground truncate text-xs">{r.sub}</div>}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-left text-emerald-500 tabular-nums">{r.done}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-left tabular-nums">{r.open}</td>
+                <td className="px-3 py-2 text-left whitespace-nowrap text-emerald-500 tabular-nums">
+                  {r.done}
+                </td>
+                <td className="px-3 py-2 text-left whitespace-nowrap tabular-nums">{r.open}</td>
                 <td
                   className={cn(
-                    "whitespace-nowrap px-3 py-2 text-left tabular-nums",
+                    "px-3 py-2 text-left whitespace-nowrap tabular-nums",
                     r.overdue ? "text-red-500" : "text-muted-foreground/60",
                   )}
                 >
@@ -674,13 +678,15 @@ function GroupCard({
                 </td>
                 <td
                   className={cn(
-                    "whitespace-nowrap px-3 py-2 text-left tabular-nums",
+                    "px-3 py-2 text-left whitespace-nowrap tabular-nums",
                     r.sentBack ? "text-amber-500" : "text-muted-foreground/60",
                   )}
                 >
                   {r.sentBack}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-left font-medium tabular-nums">{r.total}</td>
+                <td className="px-3 py-2 text-left font-medium whitespace-nowrap tabular-nums">
+                  {r.total}
+                </td>
                 <td className="py-2 pl-3">
                   <ProgressBar done={r.done} overdue={r.overdue} total={r.total} />
                 </td>

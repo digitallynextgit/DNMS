@@ -21,6 +21,7 @@ import {
   templateSchema,
   recipientSchema,
   recipientBulkSchema,
+  recipientDeleteSchema,
   recipientImportSchema,
   campaignSchema,
   testSendSchema,
@@ -28,6 +29,7 @@ import {
   type TemplateInput,
   type RecipientInput,
   type RecipientBulkInput,
+  type RecipientDeleteInput,
   type RecipientImportInput,
   type CampaignInput,
   type TestSendInput,
@@ -448,17 +450,56 @@ export async function deleteTemplate(
 
 // ─── Recipients ─────────────────────────────────────────────────────────────
 
+/**
+ * Every address already on this project's list, keyed by its LOWER-CASED form.
+ *
+ * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
+ * The unique index is `(project_id, email)`, and Postgres compares text
+ * case-sensitively. Every write path here lower-cases before inserting, so in
+ * theory the two agree - but any row that reached the table another way (a
+ * restored snapshot, a seed, a hand-written INSERT, or a build from before the
+ * schema gained `.toLowerCase()`) can hold `Person@Example.com`. Against such a
+ * row:
+ *
+ *   • the exact-match existence checks below miss it, and
+ *   • `skipDuplicates` misses it too, because the index does not match either,
+ *
+ * so adding `person@example.com` INSERTS A SECOND ROW. The list then shows the
+ * same address twice, once per tag, which is exactly the duplicate reported
+ * from the Recipients tab.
+ *
+ * Comparing on the lower-cased form closes both holes at once. It reads the
+ * project's addresses rather than filtering by the candidate set, because
+ * `email: { in: [...] }` cannot be made case-insensitive in Prisma, and a
+ * raw `lower(email) = ANY(...)` would step around the tenant guard for no gain -
+ * this stays an ordinary, tenant-scoped query.
+ */
+async function existingEmailIds(projectId: string): Promise<Map<string, string>> {
+  const rows = await db.projectRecipient.findMany({
+    where: { projectId },
+    select: { id: true, email: true },
+  })
+  const byEmail = new Map<string, string>()
+  for (const row of rows) {
+    // First row wins, so a pre-existing duplicate pair resolves consistently
+    // rather than depending on row order.
+    const key = row.email.trim().toLowerCase()
+    if (!byEmail.has(key)) byEmail.set(key, row.id)
+  }
+  return byEmail
+}
+
 export async function addRecipient(
   projectId: string,
   body: RecipientInput,
 ): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const input = recipientSchema.parse(body)
-    const existing = await db.projectRecipient.findFirst({
-      where: { projectId, email: input.email },
-      select: { id: true },
-    })
-    if (existing) return fail("That address is already on the list", undefined, 409)
+    // Case-insensitive: see existingEmailIds. An exact match here let
+    // "Person@Example.com" and "person@example.com" both onto the list.
+    const existing = await existingEmailIds(projectId)
+    if (existing.has(input.email))
+      return fail("That address is already on the list", undefined, 409)
 
     const recipient = await db.projectRecipient.create({
       data: {
@@ -503,16 +544,25 @@ export async function addRecipientsBulk(
     // Dedupe within the paste itself before touching the database.
     const unique = [...new Map(parsed.map((p) => [p.email, p])).values()]
 
-    const result = await db.projectRecipient.createMany({
-      data: unique.map((p) => ({
-        projectId,
-        email: p.email,
-        name: p.name,
-        tags: input.tags,
-      })),
-      // Re-pasting a list must not explode on the ones already there.
-      skipDuplicates: true,
-    })
+    // Then against the list, case-insensitively - `skipDuplicates` alone leans on
+    // the case-SENSITIVE unique index, so a legacy mixed-case row would let the
+    // same address in a second time. See existingEmailIds.
+    const existing = await existingEmailIds(projectId)
+    const fresh = unique.filter((p) => !existing.has(p.email))
+
+    const result = fresh.length
+      ? await db.projectRecipient.createMany({
+          data: fresh.map((p) => ({
+            projectId,
+            email: p.email,
+            name: p.name,
+            tags: input.tags,
+          })),
+          // Still set: another paste running concurrently could insert one of
+          // these between the read above and this write.
+          skipDuplicates: true,
+        })
+      : { count: 0 }
 
     return ok(
       serialize({
@@ -577,12 +627,10 @@ export async function importRecipients(
       )
     }
 
-    const emails = [...valid.keys()]
-    const existing = await db.projectRecipient.findMany({
-      where: { projectId, email: { in: emails } },
-      select: { email: true },
-    })
-    const already = new Set(existing.map((e) => e.email))
+    // Case-insensitive, so a sheet row cannot re-add an address the list already
+    // holds in another casing - that inserted a duplicate. See existingEmailIds.
+    const onList = await existingEmailIds(projectId)
+    const already = new Set([...valid.keys()].filter((email) => onList.has(email)))
 
     const fresh = [...valid.values()].filter((r) => !already.has(r.email))
     const created = fresh.length
@@ -611,7 +659,7 @@ export async function importRecipients(
         SET tags = ARRAY(SELECT DISTINCT unnest(tags || ${input.tags}::text[])),
             updated_at = now()
         WHERE project_id = ${projectId}
-          AND email = ANY(${[...already]}::text[])
+          AND lower(email) = ANY(${[...already]}::text[])
       `
     }
 
@@ -662,6 +710,35 @@ export async function deleteRecipient(
 
     await db.projectRecipient.delete({ where: { id: recipientId } })
     return ok(serialize({ data: { id: recipientId } }))
+  })
+}
+
+/**
+ * Remove several recipients in one request.
+ *
+ * `deleteMany` filters on `projectId` as well as the ids, so an id belonging to
+ * another project is simply not matched rather than deleted - the same rule the
+ * single-row delete follows. The returned count is what actually went, which is
+ * why the UI reports it instead of echoing back how many were selected: if a
+ * row was removed by someone else a moment ago, the two differ and the person
+ * should see the real number.
+ *
+ * Sends already queued or delivered keep working: ProjectCampaignSend.recipient
+ * is ON DELETE SET NULL, so campaign history survives the address being removed.
+ */
+export async function deleteRecipientsBulk(
+  projectId: string,
+  body: RecipientDeleteInput,
+): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    const input = recipientDeleteSchema.parse(body)
+
+    const result = await db.projectRecipient.deleteMany({
+      where: { projectId, id: { in: input.ids } },
+    })
+    if (result.count === 0) return fail("None of those recipients are on this list", undefined, 404)
+
+    return ok(serialize({ data: { deleted: result.count, requested: input.ids.length } }))
   })
 }
 

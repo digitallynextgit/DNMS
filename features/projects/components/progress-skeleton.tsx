@@ -8,7 +8,7 @@ export function ProgressSkeleton() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i} className="transition-colors">
-            <CardContent className="p-4 space-y-2">
+            <CardContent className="space-y-2 p-4">
               <div className="flex items-center justify-between">
                 <Skeleton className="h-3 w-16" />
                 <Skeleton className="h-3.5 w-3.5 rounded-full" />
@@ -31,7 +31,7 @@ export function ProgressSkeleton() {
           <CardContent className="pt-4">
             {/* Donut ring simulation */}
             <div className="relative flex h-[210px] items-center justify-center">
-              <div className="relative flex h-36 w-36 items-center justify-center rounded-full border-[14px] border-muted/50">
+              <div className="border-muted/50 relative flex h-36 w-36 items-center justify-center rounded-full border-[14px]">
                 <div className="flex flex-col items-center justify-center space-y-1">
                   <Skeleton className="h-6 w-10" />
                   <Skeleton className="h-2.5 w-14" />
@@ -47,7 +47,7 @@ export function ProgressSkeleton() {
                   key={i}
                   className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-3 rounded-sm px-2.5 py-1.5"
                 >
-                  <Skeleton className="h-2.5 w-2.5 rounded-full shrink-0" />
+                  <Skeleton className="h-2.5 w-2.5 shrink-0 rounded-full" />
                   <div className="min-w-0 space-y-1">
                     <Skeleton className="h-3 w-20" />
                     <Skeleton className="h-1 w-full rounded-full" />
@@ -68,8 +68,8 @@ export function ProgressSkeleton() {
           <CardContent className="pt-4">
             <div className="w-full">
               {/* Table header */}
-              <div className="grid grid-cols-7 gap-2 pb-3 border-b border-border/60">
-                <Skeleton className="h-3 w-16 col-span-2" />
+              <div className="border-border/60 grid grid-cols-7 gap-2 border-b pb-3">
+                <Skeleton className="col-span-2 h-3 w-16" />
                 <Skeleton className="h-3 w-12 justify-self-center" />
                 <Skeleton className="h-3 w-10 justify-self-center" />
                 <Skeleton className="h-3 w-12 justify-self-center" />
@@ -77,9 +77,9 @@ export function ProgressSkeleton() {
                 <Skeleton className="h-3 w-16 justify-self-end" />
               </div>
               {/* Table rows */}
-              <div className="divide-y divide-border/60">
+              <div className="divide-border/60 divide-y">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="grid grid-cols-7 gap-2 py-3 items-center">
+                  <div key={i} className="grid grid-cols-7 items-center gap-2 py-3">
                     <div className="col-span-2 space-y-1.5">
                       <Skeleton className="h-3.5 w-28" />
                       <Skeleton className="h-2.5 w-16" />
@@ -88,7 +88,7 @@ export function ProgressSkeleton() {
                     <Skeleton className="h-3.5 w-6 justify-self-center" />
                     <Skeleton className="h-3.5 w-6 justify-self-center" />
                     <Skeleton className="h-3.5 w-6 justify-self-center" />
-                    <div className="flex items-center gap-2 justify-self-end w-full max-w-[110px]">
+                    <div className="flex w-full max-w-[110px] items-center gap-2 justify-self-end">
                       <Skeleton className="h-1.5 flex-1 rounded-full" />
                       <Skeleton className="h-3 w-6" />
                     </div>
@@ -108,8 +108,8 @@ export function ProgressSkeleton() {
         <CardContent className="pt-4">
           <div className="w-full">
             {/* Table header */}
-            <div className="grid grid-cols-7 gap-2 pb-3 border-b border-border/60">
-              <Skeleton className="h-3 w-16 col-span-2" />
+            <div className="border-border/60 grid grid-cols-7 gap-2 border-b pb-3">
+              <Skeleton className="col-span-2 h-3 w-16" />
               <Skeleton className="h-3 w-12 justify-self-center" />
               <Skeleton className="h-3 w-10 justify-self-center" />
               <Skeleton className="h-3 w-12 justify-self-center" />
@@ -117,9 +117,9 @@ export function ProgressSkeleton() {
               <Skeleton className="h-3 w-16 justify-self-end" />
             </div>
             {/* Table rows */}
-            <div className="divide-y divide-border/60">
+            <div className="divide-border/60 divide-y">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="grid grid-cols-7 gap-2 py-3 items-center">
+                <div key={i} className="grid grid-cols-7 items-center gap-2 py-3">
                   <div className="col-span-2 space-y-1.5">
                     <Skeleton className="h-3.5 w-32" />
                     <Skeleton className="h-2.5 w-20" />
@@ -128,7 +128,7 @@ export function ProgressSkeleton() {
                   <Skeleton className="h-3.5 w-6 justify-self-center" />
                   <Skeleton className="h-3.5 w-6 justify-self-center" />
                   <Skeleton className="h-3.5 w-6 justify-self-center" />
-                  <div className="flex items-center gap-2 justify-self-end w-full max-w-[110px]">
+                  <div className="flex w-full max-w-[110px] items-center gap-2 justify-self-end">
                     <Skeleton className="h-1.5 flex-1 rounded-full" />
                     <Skeleton className="h-3 w-6" />
                   </div>
@@ -141,4 +141,3 @@ export function ProgressSkeleton() {
     </div>
   )
 }
-

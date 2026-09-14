@@ -45,6 +45,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Progress } from "@/components/ui/progress"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { BulkActionBar } from "@/components/shared/bulk-action-bar"
+import { useRowSelection } from "@/hooks/use-row-selection"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TabsBar } from "@/components/shared/tabs-bar"
 import {
@@ -962,6 +964,17 @@ function TemplateDialog({
 const TAG_ALL = "__all__"
 const TAG_UNTAGGED = "__untagged__"
 
+/**
+ * Rows rendered at once. The list can hold thousands, and a table that long is
+ * both slow and unreadable - search and the tag chips are how you reach the rest.
+ *
+ * It also bounds a bulk delete: "select all" covers what is on screen, never the
+ * whole list, so the count in the confirm dialog is always a number the person
+ * can see. Kept under RECIPIENT_DELETE_LIMIT (500) in the schema so a full page
+ * of selections is always within one request.
+ */
+const ROW_CAP = 200
+
 /** One segment in the tag strip: name plus how many people are in it. */
 function TagChip({
   label,
@@ -1019,6 +1032,7 @@ function RecipientsSection({
   const [importOpen, setImportOpen] = React.useState(false)
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [removing, setRemoving] = React.useState<Recipient | null>(null)
+  const [removingMany, setRemovingMany] = React.useState(false)
   const [search, setSearch] = React.useState("")
   const [tag, setTag] = React.useState<string>(TAG_ALL)
 
@@ -1067,6 +1081,44 @@ function RecipientsSection({
       return r.email.toLowerCase().includes(q) || (r.name ?? "").toLowerCase().includes(q)
     })
   }, [recipients, search, tag])
+
+  // The rows actually on screen. Extracted from the render so selection and the
+  // table agree on exactly which rows "select all" covers - selecting rows the
+  // table is not showing is how a bulk delete removes something unexpected.
+  const visible = React.useMemo(() => filtered.slice(0, ROW_CAP), [filtered])
+  const visibleIds = React.useMemo(() => visible.map((r) => r.id), [visible])
+  const selection = useRowSelection(visibleIds)
+  const { clear: clearSelection, setSelected } = selection
+
+  // Narrowing the list must not keep a hidden row selected: the count in the bar
+  // would then include somebody the person can no longer see.
+  //
+  // Returning `prev` when nothing is selected matters - this runs on every
+  // keystroke in the search box, and handing back a fresh empty Set each time
+  // would re-render the whole table for no change.
+  React.useEffect(() => {
+    setSelected((prev) => (prev.size === 0 ? prev : new Set()))
+  }, [search, tag, setSelected])
+
+  const removeMany = useMutation({
+    mutationFn: (ids: string[]) =>
+      apiFetch<{ data: { data: { deleted: number; requested: number } } }>(
+        `${base}/recipients/bulk`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        },
+      ),
+    onSuccess: (res) => {
+      const deleted = res?.data?.data?.deleted ?? 0
+      toast.success(`Removed ${deleted} recipient${deleted === 1 ? "" : "s"}`)
+      setRemovingMany(false)
+      clearSelection()
+      onDone()
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
 
   return (
     <div className="space-y-3">
@@ -1149,11 +1201,38 @@ function RecipientsSection({
         />
       )}
 
+      <BulkActionBar count={selection.count} onClear={selection.clear}>
+        <Button
+          variant="destructive"
+          className="gap-1.5"
+          disabled={removeMany.isPending}
+          onClick={() => setRemovingMany(true)}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Remove
+        </Button>
+      </BulkActionBar>
+
       {filtered.length > 0 && (
         <div className="overflow-x-auto rounded-sm border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-muted-foreground">
               <tr>
+                <th className="w-10 px-3 py-2.5 text-left">
+                  <Checkbox
+                    checked={
+                      selection.allSelected
+                        ? true
+                        : selection.someSelected
+                          ? "indeterminate"
+                          : false
+                    }
+                    onCheckedChange={selection.toggleAll}
+                    aria-label={
+                      selection.allSelected ? "Clear selection" : "Select all shown recipients"
+                    }
+                  />
+                </th>
                 <th className="px-3 py-2.5 text-left text-xs font-medium">Email</th>
                 <th className="px-3 py-2.5 text-left text-xs font-medium">Name</th>
                 <th className="px-3 py-2.5 text-left text-xs font-medium">Tags</th>
@@ -1162,8 +1241,18 @@ function RecipientsSection({
               </tr>
             </thead>
             <tbody>
-              {filtered.slice(0, 200).map((r) => (
-                <tr key={r.id} className="border-t">
+              {visible.map((r) => (
+                <tr
+                  key={r.id}
+                  className={cn("border-t", selection.isSelected(r.id) && "bg-accent/40")}
+                >
+                  <td className="px-3 py-2.5">
+                    <Checkbox
+                      checked={selection.isSelected(r.id)}
+                      onCheckedChange={() => selection.toggle(r.id)}
+                      aria-label={`Select ${r.email}`}
+                    />
+                  </td>
                   <td className="px-3 py-2.5 text-xs">{r.email}</td>
                   <td className="text-muted-foreground px-3 py-2.5 text-xs">{r.name ?? "-"}</td>
                   <td className="px-3 py-2.5">
@@ -1193,9 +1282,9 @@ function RecipientsSection({
               ))}
             </tbody>
           </table>
-          {(filtered.length > 200 || !loadedAll) && (
+          {(filtered.length > ROW_CAP || !loadedAll) && (
             <p className="text-muted-foreground border-t px-3 py-2 text-[11px]">
-              Showing {Math.min(filtered.length, 200)} of {filtered.length} loaded
+              Showing {visible.length} of {filtered.length} loaded
               {!loadedAll && ` · ${recipientCount} on the list in total`}. Narrow with search or a
               segment.
             </p>
@@ -1234,6 +1323,19 @@ function RecipientsSection({
         variant="destructive"
         isLoading={remove.isPending}
         onConfirm={() => removing && remove.mutate(removing)}
+      />
+
+      <ConfirmDialog
+        open={removingMany}
+        onOpenChange={(o) => !o && setRemovingMany(false)}
+        title={`Remove ${selection.count} recipient${selection.count === 1 ? "" : "s"}?`}
+        description={`${
+          selection.count === 1 ? "This address is" : "These addresses are"
+        } deleted from the list. Campaigns already sent keep their history. Unsubscribing instead keeps the record and stops future sends.`}
+        confirmLabel={`Remove ${selection.count}`}
+        variant="destructive"
+        isLoading={removeMany.isPending}
+        onConfirm={() => removeMany.mutate(selection.selectedIds)}
       />
     </div>
   )

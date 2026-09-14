@@ -42,7 +42,10 @@ const nextConfig = {
     optimizePackageImports: ["lucide-react", "recharts", "date-fns"],
   },
   typescript: {
-    ignoreBuildErrors: true,
+    // `pnpm type-check` is clean, so the build has no errors to ignore - and
+    // leaving this on only means the next type error ships instead of failing
+    // the build.
+    ignoreBuildErrors: false,
   },
   images: {
     remotePatterns: [

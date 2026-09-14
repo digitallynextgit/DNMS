@@ -3,7 +3,7 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
 import { createAuditLog } from "@/lib/audit"
-import { slugifyCareer } from "@/features/recruitment/careers-types"
+import { slugifyCareer } from "@/features/recruitment"
 import type { Session } from "next-auth"
 
 function asStringArray(value: unknown): string[] {

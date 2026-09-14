@@ -20,7 +20,12 @@ export function useUnreadChatCount() {
   return useQuery({
     queryKey: ["chat", "unread-count"],
     queryFn: fetchUnreadChat,
-    refetchInterval: 20_000,
+    // 60s, not 20s. On the Chat screen the SSE stream invalidates this key on
+    // every frame, so the poll does nothing there; everywhere else it is the only
+    // thing keeping the badge honest, which is why it cannot go entirely. A
+    // sidebar count is allowed to be a minute behind - it was costing three
+    // requests a minute on every page in the app.
+    refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
 }
