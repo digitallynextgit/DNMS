@@ -6,7 +6,9 @@ findings.
 > **Status: the same-day items have been carried out** (2026-09-14). See the
 > [cleanup log](#cleanup-log---what-was-actually-changed) at the end for exactly what changed and
 > what deliberately did not. Findings below are written as they were found; the Priority summary
-> marks what is now done. One item in §1.1 was **wrong** and is corrected in §7.
+> marks what is now done. **Two recommendations in this audit were wrong**: the `prisma/sql/` one
+> in §1.1 (corrected in §7, caught before any damage) and the `ignoreBuildErrors` one in §1.5
+> (corrected in §8, after it broke a production build).
 
 ## How the audit was run
 
@@ -38,7 +40,7 @@ Numbers in this document were measured on the working tree at commit `ddba72c` (
 | 6.1 | `robots.ts` disallow list never matches real app URLs (`/{tenant}/...`); no `noindex` on gated layouts                                                   | P1       | hours   | **done**                            |
 | 6.2 | `/signup` and `/login` inherit `canonical: "/"` from the root layout while `/signup` is in the sitemap                                                   | P1       | minutes | **done**                            |
 | 6.3 | No web app manifest despite service worker + icons                                                                                                       | P2       | hour    | **done**                            |
-| 1.5 | Config debris: `typescript.ignoreBuildErrors: true`, dead `pnpm.onlyBuiltDependencies`, two copies of the project standard, one-line README              | P2       | hour    | **partly** - config done; docs open |
+| 1.5 | Config debris: dead `pnpm.onlyBuiltDependencies`, two copies of the project standard, one-line README (**`ignoreBuildErrors` was NOT debris - see §8**)  | P2       | hour    | **partly** - config done; docs open |
 | 4.1 | 49 client-rendered pages, only 5 use server prefetch; project page lazy-loads 19 tabs through one barrel                                                 | P1       | days    | open                                |
 | 4.2 | `await auth()` in the root layout makes the public marketing site fully dynamic (no static/CDN caching)                                                  | P1       | hours   | open                                |
 | 4.4 | 72 `react-hooks/set-state-in-effect` errors, mostly in shared components every screen uses                                                               | P1       | days    | open                                |
@@ -121,8 +123,10 @@ outside that feature, with `app/api/**` exempt for `server/`) would stop the dri
 
 ### 1.5 Config debris
 
-- `next.config.mjs` → `typescript.ignoreBuildErrors: true`. `tsc` is clean today, so this only
-  removes the safety net from `next build`. Set it to `false`.
+- ~~`next.config.mjs` → `typescript.ignoreBuildErrors: true`. `tsc` is clean today, so this only
+  removes the safety net from `next build`. Set it to `false`.~~ **This was wrong - see §8.** The
+  flag is load-bearing: without it `next build` runs tsc in a build worker that has neither the
+  8 GB heap the `type-check` script sets nor enough memory to finish, and the deploy fails.
 - `package.json` → `"pnpm": { "onlyBuiltDependencies": [...] }` is ignored by pnpm 10 (it prints a
   warning on every command); `pnpm-workspace.yaml` `allowBuilds` already covers it. Delete the field.
 - `postcss.config.mjs` JSDoc references `postcss-load-config`, which is not installed (knip
@@ -344,7 +348,8 @@ would also shrink the chunks in §4.1.
 2. Delete the dead files/assets in §1.1 (`git rm` the three root data files, `brand-mark.png`, `logo_white_bg.png`, `ui/table.tsx`, the two project components, `prisma/sql/`).
 3. Purge `prisma/snapshot.json` from the repo (§S1).
 4. Remove `refetchInterval` where an SSE stream exists (§4.3) - three hooks, one page, one provider.
-5. `typescript.ignoreBuildErrors: false`.
+5. ~~`typescript.ignoreBuildErrors: false`.~~ **Do not** - it breaks the deploy build (§8). Run
+   `pnpm type-check` before deploying instead; that is where the heap setting lives.
 6. Fix or remove the `scripts/` references (§1.4).
 7. `noindex` on gated layouts, fix robots rules and per-page canonicals (§6).
 
@@ -464,6 +469,52 @@ then `prisma/sql/` must stay in the repository: **it is the schema record, not l
 
 ---
 
+## 8. `typescript.ignoreBuildErrors` is load-bearing (a wrong call, and its correction)
+
+This audit listed `typescript.ignoreBuildErrors: true` as config debris and recommended turning it
+off, reasoning that `tsc` is clean so the build had nothing to ignore. That was wrong, and setting
+it to `false` **broke the production deploy**:
+
+```
+  Creating an optimized production build ...
+✓ Compiled successfully in 90s
+  Running TypeScript  ...
+FATAL ERROR: Ineffective mark-compacts near heap limit
+Allocation failed - JavaScript heap out of memory
+Next.js build worker exited with code: null and signal: SIGABRT
+```
+
+**Why.** `next build` type-checks inside its own build worker. That worker does not inherit the
+flag the `type-check` script sets:
+
+```json
+"type-check": "node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc --noEmit"
+```
+
+That 8 GB is not decoration - this project does not type-check in the default heap. The worker ran
+out at roughly 2040 MB of a ~2048 MB cap. The evidence was in `package.json` the whole time: a
+codebase that needs an explicit 8 GB heap to run `tsc` standalone cannot run it inside a build
+worker that has no such setting.
+
+**Nothing is lost by leaving it on.** Type errors are caught by `pnpm type-check`, which is the
+gate with the memory to do the job. Run it before deploying (and in CI); the build itself stays a
+build.
+
+**If you do want it inside the build**, give the worker the heap first, and check the box has the
+RAM to spare:
+
+```bash
+NODE_OPTIONS=--max-old-space-size=8192 pnpm build
+```
+
+**The general lesson, which also applies to §1.1 and §7:** a disabled safety flag, an unreferenced
+SQL file and a script no code imports all look like debris from inside the repository. Whether they
+are depends on facts the repository does not state - what the deploy box has, what was applied to
+the database by hand, what somebody runs from a terminal. Check the environment before removing
+something whose only visible property is that nothing points at it.
+
+---
+
 ## S. Security findings noticed while auditing (not requested, but must not go unreported)
 
 - **S1 - PII committed to git.** `prisma/snapshot.json` (203 KB, tracked) contains 11 `employees`
@@ -539,7 +590,8 @@ Routing those 35 through the barrel would pull both form components into every o
 
 ### Config (§1.5)
 
-- `next.config.mjs`: `typescript.ignoreBuildErrors` → `false`. The verification build exercises it.
+- `next.config.mjs`: `typescript.ignoreBuildErrors` was set to `false` and **reverted to `true`** the
+  same day after it broke the production deploy - see §8.
 - `package.json`: removed the `pnpm.onlyBuiltDependencies` field (ignored by pnpm 10+, warned on
   every command; `pnpm-workspace.yaml` `allowBuilds` already covers it) and the `export:punches`
   script, whose target `scripts/export-hikvision-punches.ts` does not exist. The script is

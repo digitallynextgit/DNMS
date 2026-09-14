@@ -42,10 +42,27 @@ const nextConfig = {
     optimizePackageImports: ["lucide-react", "recharts", "date-fns"],
   },
   typescript: {
-    // `pnpm type-check` is clean, so the build has no errors to ignore - and
-    // leaving this on only means the next type error ships instead of failing
-    // the build.
-    ignoreBuildErrors: false,
+    // ── DO NOT SET THIS TO false. IT IS NOT DEBRIS. ─────────────────────────
+    // Type checking IS enforced - by `pnpm type-check`, which runs tsc with
+    //
+    //     node --max-old-space-size=8192
+    //
+    // because a project this size does not type-check inside the default heap.
+    // `next build` runs tsc in its own build worker, which does NOT inherit that
+    // flag, so turning this off makes the worker die on the deploy box:
+    //
+    //     Running TypeScript ...
+    //     FATAL ERROR: Ineffective mark-compacts near heap limit
+    //     Allocation failed - JavaScript heap out of memory
+    //     Next.js build worker exited with code: null and signal: SIGABRT
+    //
+    // It reached ~2040 MB of a ~2048 MB cap before aborting. Nothing is skipped
+    // by leaving this on: run `pnpm type-check` before deploying, which is the
+    // gate that has the memory to do the job. To do it inside the build anyway,
+    // give the worker the heap first and make sure the box has the RAM spare:
+    //
+    //     NODE_OPTIONS=--max-old-space-size=8192 pnpm build
+    ignoreBuildErrors: true,
   },
   images: {
     remotePatterns: [
