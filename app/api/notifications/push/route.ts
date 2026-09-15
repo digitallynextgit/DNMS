@@ -24,10 +24,27 @@ export const POST = withSession(
 
       const userAgent = req.headers.get("user-agent")?.slice(0, 300) ?? null
 
+      // Which SITE is registering. Taken from the Origin header, never from the
+      // body: the browser sets it and a caller cannot forge it, and the whole
+      // point is to tell a real registration from a dev server pointed at this
+      // same database. Falls back to the Referer's origin for the rare client
+      // that omits Origin on a same-origin POST.
+      const origin = (() => {
+        const header = req.headers.get("origin")
+        if (header) return header
+        const referer = req.headers.get("referer")
+        if (!referer) return null
+        try {
+          return new URL(referer).origin
+        } catch {
+          return null
+        }
+      })()
+
       await db.pushSubscription.upsert({
         where: { endpoint },
-        create: { employeeId: session.user.id, endpoint, p256dh, auth, userAgent },
-        update: { employeeId: session.user.id, p256dh, auth, userAgent },
+        create: { employeeId: session.user.id, endpoint, p256dh, auth, userAgent, origin },
+        update: { employeeId: session.user.id, p256dh, auth, userAgent, origin },
       })
 
       return NextResponse.json({ data: { ok: true } })

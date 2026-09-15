@@ -1003,11 +1003,27 @@ model PushSubscription {
   p256dh     String   @map("p256dh")
   auth       String   @map("auth")
   userAgent  String?  @map("user_agent")
+  /// The SITE that registered this browser, e.g. "https://dnms.digitallynext.com".
+  ///
+  /// A push endpoint is a URL at the browser vendor (fcm.googleapis.com), never
+  /// at us, so the row otherwise cannot say which origin it came from - and a
+  /// dev server pointed at the production database silently files its
+  /// localhost registration here alongside the real ones. Every notification
+  /// then fired twice: once from the deployed site and once from a
+  /// localhost service worker still installed in the browser, which wakes on
+  /// push without ever contacting localhost and so keeps firing long after the
+  /// dev server is stopped.
+  ///
+  /// Recorded from the request's Origin header, never from the body. Null on
+  /// rows created before this column existed.
+  origin     String?  @map("origin")
   createdAt  DateTime @default(now()) @map("created_at")
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  // Drives the send path, which filters to the app's own origin.
+  @@index([employeeId, origin])
   @@index([tenantId])
   @@map("push_subscriptions")
 }
