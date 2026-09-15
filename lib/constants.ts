@@ -521,6 +521,20 @@ export const LEAVE_STATUS_COLORS: Record<string, string> = {
   CANCELLED: TONE.neutral,
 }
 
+// ── Deliverables / content plan ──────────────────────────────────────────────
+// The labels live with the state machine (features/projects/lib/
+// deliverable-lifecycle.ts) because the rules there depend on them. Only the
+// palette belongs here, on TONE like every other status map.
+
+export const DELIVERABLE_STATUS_COLORS: Record<string, string> = {
+  PLANNED: TONE.neutral,
+  IN_PROGRESS: TONE.blue,
+  DELIVERED: TONE.purple,
+  ACCEPTED: TONE.green,
+  // Amber, not red: work sent back is waiting on somebody, not broken.
+  REJECTED: TONE.amber,
+}
+
 // ── HR checklists (onboarding / exit clearance) ──────────────────────────────
 
 export const CHECKLIST_STATUS_LABELS: Record<string, string> = {

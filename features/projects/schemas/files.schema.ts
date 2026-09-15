@@ -53,6 +53,25 @@ export const resourcePatchSchema = z
     tag: tag.optional(),
     fileName: z.string().trim().min(1, "Name is required").max(255).optional(),
     folderId: folderId.optional(),
+    /**
+     * Publish this file to the client portal, or pull it back.
+     *
+     * The one field on this form that changes who OUTSIDE the company can see
+     * the file, which is why it is an explicit boolean rather than something
+     * inferred from a category or a folder. Sharing also opens the review loop;
+     * unsharing closes it and clears the decision, because an approval of a file
+     * nobody can see any more is not a fact worth keeping.
+     */
+    isClientVisible: z.boolean().optional(),
+    /**
+     * A staff decision on a file the CLIENT uploaded.
+     *
+     * The client cannot approve their own upload - that is what makes the
+     * review meaningful - so somebody on this side has to. Only valid on a
+     * shared file, which the table's CHECK constraint also enforces.
+     */
+    reviewStatus: z.enum(["IN_REVIEW", "APPROVED", "CHANGES_REQUESTED"]).optional(),
+    reviewNote: z.string().trim().max(1000).optional().or(z.literal("")),
   })
   .refine((v) => Object.keys(v).length > 0, "Nothing to update")
 

@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label"
 import { DateField } from "@/components/shared/date-field"
 import { useProjectTeams } from "../hooks/use-projects"
 import {
+  daysIn,
   formatPeriod,
   parseDay,
   periodFor,
@@ -38,10 +39,15 @@ import {
 //   2. WHO   - which teams are on the hook.
 //   3. WHAT  - per team, what they owe and how many.
 //
-// Deliverables are planned by the WORKING WEEK only - no months, no ad-hoc
-// ranges - so every board reads the same way and the numbers compare. A week
-// that already has items can be planned again: what is added joins what is
-// there, and nothing already planned changes.
+// The working week is the DEFAULT shape and the first two buttons, because a
+// retainer's output is weekly and boards that share a window compare cleanly.
+// It is no longer the ONLY shape: a campaign running twenty assets between the
+// 8th and the 23rd is a real commitment that had nowhere to live, so a date
+// range is the third option. Reach for it when the work genuinely is not
+// weekly, not to avoid picking a week.
+//
+// A period that already has items can be planned again: what is added joins
+// what is there, and nothing already planned changes.
 //
 // The old dialog asked all of it at once, one deliverable at a time, which is
 // why a week of work across three teams meant opening it a dozen times. Here
@@ -175,9 +181,12 @@ function Body({
 
   // ── Step 1: when ───────────────────────────────────────────────────────────
   const [presetIdx, setPresetIdx] = React.useState(0)
-  const [another, setAnother] = React.useState(false)
+  /** "preset" = this/next week, "week" = another week, "range" = two dates. */
+  const [mode, setMode] = React.useState<"preset" | "week" | "range">("preset")
   // Any day of the week wanted - it is read as that week's Monday to Friday.
   const [anyDay, setAnyDay] = React.useState("")
+  const [rangeFrom, setRangeFrom] = React.useState("")
+  const [rangeTo, setRangeTo] = React.useState("")
 
   const preset = PRESETS[presetIdx]!
   const period = React.useMemo(() => {
@@ -186,10 +195,17 @@ function Body({
       const b = parseDay(fixed.end)
       return a && b ? periodFor("range", a, b) : null
     }
-    if (!another) return presetPeriod("week", preset.offset)
+    if (mode === "preset") return presetPeriod("week", preset.offset)
+    if (mode === "range") {
+      const a = parseDay(rangeFrom)
+      const b = parseDay(rangeTo)
+      // periodFor("range") reads a backwards pair the way round it was meant,
+      // so a mis-ordered picker is not an error the person has to fix.
+      return a && b ? periodFor("range", a, b) : null
+    }
     const d = parseDay(anyDay)
     return d ? weekOf(d) : null
-  }, [fixed, another, preset, anyDay])
+  }, [fixed, mode, preset, anyDay, rangeFrom, rangeTo])
 
   // Items already planned, by the week's Monday - so a week can say "6 items
   // already planned" before it is picked again.
@@ -345,9 +361,9 @@ function Body({
                       formatPeriod(pp.start, pp.end),
                       alreadyPlanned.get(ymd(pp.start)),
                     )}
-                    active={!another && presetIdx === i}
+                    active={mode === "preset" && presetIdx === i}
                     onClick={() => {
-                      setAnother(false)
+                      setMode("preset")
                       setPresetIdx(i)
                     }}
                   />
@@ -355,19 +371,33 @@ function Body({
               })}
             </div>
 
-            {/* Weeks only. Any day will do - it is read as that working week. */}
-            <PresetCard
-              label="Another week"
-              detail={
-                another && period
-                  ? withPlanned(formatPeriod(period.start, period.end), already)
-                  : "Pick any day in it"
-              }
-              active={another}
-              onClick={() => setAnother(true)}
-            />
+            <div className="grid gap-2 sm:grid-cols-2">
+              {/* Any day will do - it is read as that working week. */}
+              <PresetCard
+                label="Another week"
+                detail={
+                  mode === "week" && period
+                    ? withPlanned(formatPeriod(period.start, period.end), already)
+                    : "Pick any day in it"
+                }
+                active={mode === "week"}
+                onClick={() => setMode("week")}
+              />
+              {/* For work that genuinely is not weekly - a campaign window, a
+                  launch run-up. The week above stays the habitual choice. */}
+              <PresetCard
+                label="A date range"
+                detail={
+                  mode === "range" && period
+                    ? withPlanned(formatPeriod(period.start, period.end), already)
+                    : "Any start and end"
+                }
+                active={mode === "range"}
+                onClick={() => setMode("range")}
+              />
+            </div>
 
-            {another && (
+            {mode === "week" && (
               <div className="space-y-1.5">
                 <Label required className="text-muted-foreground text-[11px]">
                   Any day of that week
@@ -376,15 +406,44 @@ function Body({
                 <p className="text-muted-foreground text-[11px]">
                   {period
                     ? `Monday to Friday: ${formatPeriod(period.start, period.end)}.`
-                    : "Deliverables are planned by the working week, Monday to Friday."}
+                    : "A week is read as Monday to Friday."}
+                </p>
+              </div>
+            )}
+
+            {mode === "range" && (
+              <div className="space-y-1.5">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label required className="text-muted-foreground text-[11px]">
+                      Start
+                    </Label>
+                    <DateField
+                      value={rangeFrom}
+                      onChange={setRangeFrom}
+                      placeholder="First day"
+                      modal
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label required className="text-muted-foreground text-[11px]">
+                      End
+                    </Label>
+                    <DateField value={rangeTo} onChange={setRangeTo} placeholder="Last day" modal />
+                  </div>
+                </div>
+                <p className="text-muted-foreground text-[11px]">
+                  {period
+                    ? `${formatPeriod(period.start, period.end)} - ${daysIn(period)} days.`
+                    : "Both dates are included. A plan covers at most a year."}
                 </p>
               </div>
             )}
 
             {already > 0 && (
               <p className="text-muted-foreground text-[11px]">
-                This week already has {already} item{already === 1 ? "" : "s"} planned. What you add
-                joins them - nothing already there changes.
+                This period already has {already} item{already === 1 ? "" : "s"} planned. What you
+                add joins them - nothing already there changes.
               </p>
             )}
           </>

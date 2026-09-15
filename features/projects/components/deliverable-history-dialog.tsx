@@ -184,7 +184,7 @@ function EventList({ events }: { events: DeliverableEventRow[] }) {
                 <span className="text-muted-foreground">
                   {" · "}
                   {fmtWhen(e.createdAt)}
-                  {e.actorName ? ` · ${e.actorName}` : ""}
+                  {e.actorName ? ` · ${e.actorName}${e.actorIsClient ? " (the client)" : ""}` : ""}
                 </span>
               </p>
               {changes.length > 0 && (

@@ -602,16 +602,23 @@ export function DeliverableRowView({
               ≈ {formatHours(r.hoursPerUnit)}/unit
             </span>
           )}
-          {r.acceptedByName && <span>accepted by {r.acceptedByName}</span>}
+          {r.acceptedByName && (
+            <span>
+              accepted by {r.acceptedByName}
+              {r.acceptedByClient ? " (the client)" : ""}
+            </span>
+          )}
           {r.verifiedByName && <span>checked by {r.verifiedByName}</span>}
           {r.sentBack && (
             <span className="text-amber-500" title={r.sentBack.reason ?? undefined}>
-              sent back by {r.sentBack.by ?? "a manager"}
+              sent back by {r.sentBack.by ?? (r.sentBack.byClient ? "the client" : "a manager")}
             </span>
           )}
           {r.task && <span>from task: {r.task.title}</span>}
           {r.loggedByName && r.loggedByName !== r.employee?.name && (
-            <span>logged by {r.loggedByName}</span>
+            <span>
+              {r.plannedByClient ? "asked for by" : "logged by"} {r.loggedByName}
+            </span>
           )}
         </p>
         {(r.links.length > 0 || r.files.length > 0) && (
@@ -958,13 +965,17 @@ function SignOff({ r }: { r: DeliverableRow }) {
 
   if (r.status === "REJECTED" && r.sentBack) {
     bits.push({
-      text: `sent back by ${r.sentBack.by ?? "a manager"}`,
+      text: `sent back by ${r.sentBack.by ?? (r.sentBack.byClient ? "the client" : "a manager")}`,
       title: r.sentBack.reason ?? undefined,
       tone: "text-amber-500",
     })
   } else if (r.status === "ACCEPTED") {
+    // A client acceptance is the client's own word, not staff recording it,
+    // and it is the account manager who can re-open it - so say which happened.
     bits.push({
-      text: `accepted by ${r.acceptedByName ?? "the account manager"}`,
+      text: r.acceptedByClient
+        ? `finalised by ${r.acceptedByName ?? "the client"}`
+        : `accepted by ${r.acceptedByName ?? "the account manager"}`,
       title: r.verifiedByName ? `Checked first by ${r.verifiedByName}` : undefined,
       tone: "text-emerald-500",
     })
@@ -989,7 +1000,9 @@ function SignOff({ r }: { r: DeliverableRow }) {
   if (r.sentBack && r.status !== "REJECTED" && r.revisionCount > 0) {
     bits.push({
       text: `rev ${r.revisionCount}`,
-      title: `Last sent back by ${r.sentBack.by ?? "a manager"}${
+      title: `Last sent back by ${
+        r.sentBack.by ?? (r.sentBack.byClient ? "the client" : "a manager")
+      }${
         r.sentBack.reason ? `: ${r.sentBack.reason}` : ""
       }`,
       tone: "text-muted-foreground",

@@ -1,12 +1,14 @@
 "use client"
 
 import { Link, useAppPathname } from "@/components/tenant-link"
-import { Package, Store, Boxes, Mail, Activity } from "lucide-react"
+import { Package, Store, Boxes, Mail, Activity, FolderOpen, CalendarRange } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { CLIENT_MODULES, type ClientModuleKey } from "../modules"
 
 const ICONS: Record<ClientModuleKey, React.ComponentType<{ className?: string }>> = {
+  plan: CalendarRange,
+  documents: FolderOpen,
   products: Package,
   channels: Store,
   inventory: Boxes,

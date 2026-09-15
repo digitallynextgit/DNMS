@@ -305,3 +305,77 @@ describe("hasProof", () => {
     expect(hasProof({ ...bare, notes: "   \n  " })).toBe(false)
   })
 })
+
+// ─── The client actor ────────────────────────────────────────────────────────
+// Written out separately from ACTORS on purpose. The client is not a rung on
+// the staff ladder - they may accept, which outranks a team manager, and may
+// not start work, which a maker can - so folding them into the ranked loop
+// would test a relationship that does not exist.
+
+describe("the client actor", () => {
+  // The only two moves the portal may make, named one at a time.
+  const CLIENT_ALLOWED: Record<string, string[]> = {
+    "DELIVERED>ACCEPTED": [],
+    "DELIVERED>REJECTED": ["reason"],
+  }
+
+  for (const from of STATUS_ORDER) {
+    for (const to of STATUS_ORDER) {
+      const needs = CLIENT_ALLOWED[`${from}>${to}`]
+      const expected = needs !== undefined
+      it(`${from} -> ${to} as a client is ${expected ? "allowed" : "refused"}`, () => {
+        const res = allowedTransition(from, to, "client")
+        expect(res.ok).toBe(expected)
+        if (res.ok) expect(res.needs).toEqual(needs)
+      })
+    }
+  }
+
+  it("finalises a delivered item", () => {
+    expect(allowedTransition("DELIVERED", "ACCEPTED", "client").ok).toBe(true)
+  })
+
+  it("must say what is wrong before sending work back", () => {
+    const res = allowedTransition("DELIVERED", "REJECTED", "client")
+    expect(res.ok).toBe(true)
+    // "Changes please" with no changes named is the thing this prevents.
+    if (res.ok) expect(res.needs).toEqual(["reason"])
+  })
+
+  it("cannot re-open what it already finalised - that is the account manager's call", () => {
+    const res = allowedTransition("ACCEPTED", "DELIVERED", "client")
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.reason).toBe("actor")
+  })
+
+  it("cannot start or deliver the work itself", () => {
+    expect(allowedTransition("PLANNED", "IN_PROGRESS", "client").ok).toBe(false)
+    expect(allowedTransition("IN_PROGRESS", "DELIVERED", "client").ok).toBe(false)
+    expect(allowedTransition("REJECTED", "DELIVERED", "client").ok).toBe(false)
+  })
+
+  it("is refused as the wrong PERSON, not the wrong move, on a real transition", () => {
+    // A 403 and a 422 are different answers, and the row actions draw from the
+    // same distinction.
+    const res = allowedTransition("IN_PROGRESS", "DELIVERED", "client")
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.reason).toBe("actor")
+  })
+
+  it("offers exactly the two buttons the portal draws", () => {
+    expect(nextActions("DELIVERED", "client")).toEqual(["ACCEPTED", "REJECTED"])
+  })
+
+  it("offers nothing anywhere else", () => {
+    for (const s of ["PLANNED", "IN_PROGRESS", "ACCEPTED", "REJECTED"] as DeliverableStatus[]) {
+      expect(nextActions(s, "client"), s).toEqual([])
+    }
+  })
+
+  it("leaves the account manager's reopen intact", () => {
+    // The escape hatch that makes giving the client the last word safe.
+    const res = allowedTransition("ACCEPTED", "DELIVERED", "project_manager")
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.needs).toEqual(["reason"])
+  })
+})

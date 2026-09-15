@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest"
 
+import { addDays } from "@/lib/dates"
 import {
+  MAX_PERIOD_DAYS,
   daysIn,
   formatPeriod,
-  isWorkingWeek,
   monthOf,
   parseDay,
   periodFor,
+  periodProblem,
   presetPeriod,
   startOfWeek,
   weekOf,
@@ -137,22 +139,41 @@ describe("parseDay", () => {
   })
 })
 
-describe("isWorkingWeek", () => {
-  it("is exactly Monday to Friday of one week", () => {
-    expect(isWorkingWeek(day("2026-09-14"), day("2026-09-18"))).toBe(true)
+describe("periodProblem", () => {
+  // A plan is no longer confined to one working week. What replaced the old
+  // refusal is this: any range, as long as it is a range at all.
+  it("accepts a working week", () => {
+    expect(periodProblem(day("2026-09-14"), day("2026-09-18"))).toBeNull()
   })
 
-  it("refuses every other shape", () => {
+  it("accepts the shapes the old weekly rule used to refuse", () => {
     const cases: [string, string][] = [
       ["2026-09-14", "2026-09-20"], // Mon-Sun
-      ["2026-09-15", "2026-09-19"], // Tue-Sat: five days, not the working week
+      ["2026-09-15", "2026-09-19"], // Tue-Sat
       ["2026-09-01", "2026-09-30"], // a month
       ["2026-09-14", "2026-09-14"], // a single day
+      ["2026-09-08", "2026-09-23"], // the campaign window that motivated this
       ["2026-09-14", "2026-09-25"], // two weeks
-      ["2026-09-18", "2026-09-14"], // backwards
     ]
     for (const [a, b] of cases) {
-      expect(isWorkingWeek(day(a), day(b)), `${a}..${b}`).toBe(false)
+      expect(periodProblem(day(a), day(b)), `${a}..${b}`).toBeNull()
     }
+  })
+
+  it("refuses a backwards range", () => {
+    expect(periodProblem(day("2026-09-18"), day("2026-09-14"))).toBe(
+      "The period ends before it starts.",
+    )
+  })
+
+  it("accepts exactly a year, and refuses one day more", () => {
+    // The boundary is inclusive: MAX_PERIOD_DAYS days is still a plan.
+    const start = day("2026-01-01")
+    expect(periodProblem(start, addDays(start, MAX_PERIOD_DAYS - 1))).toBeNull()
+    expect(periodProblem(start, addDays(start, MAX_PERIOD_DAYS))).toContain("at most a year")
+  })
+
+  it("catches a mis-keyed year rather than planting rows in 2062", () => {
+    expect(periodProblem(day("2026-09-14"), day("2062-09-18"))).toContain("at most a year")
   })
 })

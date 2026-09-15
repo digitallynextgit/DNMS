@@ -14,7 +14,17 @@
 
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Activity, Mail, FileText, Users, Server, LogIn, KeyRound } from "lucide-react"
+import {
+  Activity,
+  Mail,
+  FileText,
+  Users,
+  Server,
+  LogIn,
+  KeyRound,
+  CalendarRange,
+  FolderOpen,
+} from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
 import { cn } from "@/lib/utils"
@@ -35,6 +45,8 @@ interface ActivityEvent {
 
 /** Icon per action family. Falls back to a generic dot for anything unmapped. */
 function iconFor(action: string): React.ComponentType<{ className?: string }> {
+  if (action.startsWith("content_plan:")) return CalendarRange
+  if (action.startsWith("portal_document:")) return FolderOpen
   if (action.startsWith("campaign:")) return Mail
   if (action.startsWith("project_template:")) return FileText
   if (action.startsWith("recipient")) return Users

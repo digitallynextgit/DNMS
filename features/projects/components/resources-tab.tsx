@@ -22,6 +22,8 @@ import {
   useProjectTeams,
   useUploadResource,
   useDeleteResource,
+  useShareResource,
+  useReviewResource,
   getResourceDownloadUrl,
   type ProjectResource,
 } from "@/features/projects/hooks/use-projects"
@@ -29,6 +31,8 @@ import {
   Upload,
   Download,
   Trash2,
+  Eye,
+  EyeOff,
   FileText,
   Folder,
   Inbox,
@@ -37,7 +41,7 @@ import {
   FileVideo,
   FileArchive,
 } from "lucide-react"
-import { formatDate } from "@/lib/utils"
+import { cn, formatDate } from "@/lib/utils"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { RESOURCE_CATEGORY_COLORS } from "@/lib/constants"
 
@@ -133,17 +137,23 @@ export function ResourcesTab({ projectId, currentUserId, isProjectAdmin }: Props
     },
     {
       header: "Uploaded by",
+      // uploadedBy is null when the file came from the CLIENT PORTAL - a client
+      // is not an employee, so there is no staff row to show. Naming them and
+      // marking the row keeps it obvious where an unfamiliar file came from.
       cell: (r) => (
         <div className="flex items-center gap-1.5">
           <AvatarDisplay
-            src={r.uploadedBy.profilePhoto}
-            firstName={r.uploadedBy.firstName}
-            lastName={r.uploadedBy.lastName}
+            src={r.uploadedBy?.profilePhoto ?? null}
+            firstName={r.uploadedBy?.firstName ?? r.uploadedByClient?.name ?? "Client"}
+            lastName={r.uploadedBy?.lastName ?? ""}
             size="xs"
           />
           <span className="text-xs">
-            {r.uploadedBy.firstName} {r.uploadedBy.lastName}
+            {r.uploadedBy
+              ? `${r.uploadedBy.firstName} ${r.uploadedBy.lastName}`
+              : (r.uploadedByClient?.name ?? "Client")}
           </span>
+          {!r.uploadedBy && <span className="text-muted-foreground text-[10px]">· client</span>}
         </div>
       ),
     },
@@ -241,6 +251,8 @@ function ResourceActions({
 }) {
   const del = useDeleteResource(projectId)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [changesOpen, setChangesOpen] = useState(false)
+  const [changeNote, setChangeNote] = useState("")
 
   async function handleDownload() {
     try {
@@ -252,9 +264,63 @@ function ResourceActions({
   }
 
   const canDelete = resource.uploadedById === currentUserId || isProjectAdmin
+  const shared = resource.isClientVisible === true
+
+  // Publishing to the portal is a project-manager act, not an uploader one: it
+  // is the only control here that changes who OUTSIDE the company can see the
+  // file. The API enforces the same rule, so hiding the button is a courtesy
+  // rather than the boundary.
+  const share = useShareResource(projectId)
+  const review = useReviewResource(projectId)
+
+  // Only a file the CLIENT uploaded and that is still awaiting a decision. A
+  // staff-shared file is the client's to approve, not ours.
+  const needsOurReview =
+    isProjectAdmin && !!resource.uploadedByClient && resource.reviewStatus === "IN_REVIEW"
 
   return (
     <>
+      {isProjectAdmin && (
+        <Button
+          variant="ghost"
+          size="icon"
+          disabled={share.isPending}
+          onClick={() => share.mutate({ fileId: resource.id, isClientVisible: !shared })}
+          aria-label={
+            shared
+              ? `Stop sharing ${resource.fileName}`
+              : `Share ${resource.fileName} with the client`
+          }
+          title={
+            shared
+              ? "Shared with the client - click to stop sharing"
+              : "Share with the client portal"
+          }
+          className={cn(shared && "text-emerald-600 hover:text-emerald-700")}
+        >
+          {shared ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+        </Button>
+      )}
+      {needsOurReview && (
+        <>
+          <Button
+            variant="outline"
+            disabled={review.isPending}
+            onClick={() => review.mutate({ fileId: resource.id, reviewStatus: "APPROVED" })}
+            title="Accept this client upload"
+          >
+            Accept
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={review.isPending}
+            onClick={() => setChangesOpen(true)}
+            title="Ask the client for changes"
+          >
+            Changes
+          </Button>
+        </>
+      )}
       <Button variant="ghost" size="icon" onClick={handleDownload} aria-label="Download">
         <Download className="h-3.5 w-3.5" />
       </Button>
@@ -268,6 +334,46 @@ function ResourceActions({
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       )}
+      <FormDialog
+        open={changesOpen}
+        onOpenChange={setChangesOpen}
+        title="Request changes"
+        description={resource.fileName}
+        submitLabel="Send request"
+        submitVariant="destructive"
+        submitDisabled={!changeNote.trim()}
+        isPending={review.isPending}
+        size="sm"
+        onSubmit={(e) => {
+          e.preventDefault()
+          review.mutate(
+            {
+              fileId: resource.id,
+              reviewStatus: "CHANGES_REQUESTED",
+              reviewNote: changeNote.trim(),
+            },
+            {
+              onSuccess: () => {
+                setChangesOpen(false)
+                setChangeNote("")
+              },
+            },
+          )
+        }}
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="staff-change-note">What needs changing?</Label>
+          <Textarea
+            id="staff-change-note"
+            value={changeNote}
+            onChange={(e) => setChangeNote(e.target.value)}
+            rows={3}
+            maxLength={1000}
+            placeholder="The client sees this in their portal."
+          />
+        </div>
+      </FormDialog>
+
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}

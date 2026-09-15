@@ -231,10 +231,17 @@ export interface ProjectResource {
   fileSize: number
   mimeType: string
   description: string | null
-  uploadedById: string
+  /** Null when the file came from the client portal - see uploadedByClient. */
+  uploadedById: string | null
   createdAt: string
-  uploadedBy: EmployeeSnippet
+  uploadedBy: EmployeeSnippet | null
   team: { id: string; name: string } | null
+  /** Set when the file came from the client portal rather than a staff member. */
+  uploadedByClient?: { id: string; name: string } | null
+  /** Published to the client portal. Undefined on responses that predate it. */
+  isClientVisible?: boolean
+  /** Where a shared file stands in the client's review. */
+  reviewStatus?: "IN_REVIEW" | "APPROVED" | "CHANGES_REQUESTED" | null
 }
 
 // Projects. `enabled: false` skips the fetch for callers that only render the
@@ -623,6 +630,66 @@ export function useUploadResource(projectId: string) {
         ["project-files", projectId],
       ],
       // No per-file toast: uploads are batched and the caller shows one summary.
+    }),
+  )
+}
+
+/**
+ * Publish a project file to the client portal, or pull it back.
+ *
+ * The only control in the Files tab that changes who OUTSIDE the company can
+ * see a file, which is why the API restricts it to project managers and audits
+ * every flip. Sharing also opens the review loop; unsharing closes it.
+ */
+export function useShareResource(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (vars: { fileId: string; isClientVisible: boolean }) =>
+        apiFetch(`/api/projects/${projectId}/resources/${vars.fileId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isClientVisible: vars.isClientVisible }),
+        }),
+      invalidate: [
+        ["project-resources", projectId],
+        ["project-files", projectId],
+      ],
+      success: (_d, vars) =>
+        vars.isClientVisible ? "Shared with the client" : "No longer shared with the client",
+    }),
+  )
+}
+
+/**
+ * A staff decision on a file the CLIENT uploaded.
+ *
+ * The client cannot approve their own upload, so without this the file would
+ * sit in "Awaiting review" with nobody able to move it.
+ */
+export function useReviewResource(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (vars: {
+        fileId: string
+        reviewStatus: "APPROVED" | "CHANGES_REQUESTED"
+        reviewNote?: string
+      }) =>
+        apiFetch(`/api/projects/${projectId}/resources/${vars.fileId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reviewStatus: vars.reviewStatus,
+            reviewNote: vars.reviewNote ?? "",
+          }),
+        }),
+      invalidate: [
+        ["project-resources", projectId],
+        ["project-files", projectId],
+      ],
+      success: (_d, vars) =>
+        vars.reviewStatus === "APPROVED" ? "Asset accepted" : "Changes requested",
     }),
   )
 }

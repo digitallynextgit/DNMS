@@ -3,7 +3,16 @@
 import { useEffect } from "react"
 import { Link, useAppPathname } from "@/components/tenant-link"
 import Image from "next/image"
-import { Package, Store, Boxes, ChevronDown, Mail, Activity } from "lucide-react"
+import {
+  Package,
+  Store,
+  Boxes,
+  ChevronDown,
+  Mail,
+  Activity,
+  FolderOpen,
+  CalendarRange,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useSidebarStore } from "@/stores/sidebar-store"
@@ -19,6 +28,8 @@ import {
 import { CLIENT_MODULES, type ClientModuleKey } from "../modules"
 
 const ICONS: Record<ClientModuleKey, React.ComponentType<{ className?: string }>> = {
+  plan: CalendarRange,
+  documents: FolderOpen,
   products: Package,
   channels: Store,
   inventory: Boxes,
@@ -161,12 +172,6 @@ export function PortalSidebar({
               <div aria-hidden className="h-2" />
             )}
           </>
-        )}
-
-        {!isCollapsed && (
-          <p className="text-muted-foreground px-2.5 pb-1 text-[10px] font-medium tracking-widest uppercase">
-            Store
-          </p>
         )}
 
         {modules.map((m) => {

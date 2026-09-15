@@ -4,10 +4,13 @@ import { addDays, latestCalendarDay, todayUtc } from "@/lib/dates"
 // The life of a deliverable, as rules rather than prose.
 //
 // A row starts as a promise (PLANNED - "we owe them three reels"), becomes work
-// (IN_PROGRESS), becomes a thing (DELIVERED), and then gets a verdict recorded
-// against it by whoever runs the account: ACCEPTED, or REJECTED with a reason
-// and a redelivery. Nothing here talks to a client - the verdict is STAFF
-// RECORDED, so the ledger can say "they signed it off" without a portal.
+// (IN_PROGRESS), becomes a thing (DELIVERED), and then gets a verdict: ACCEPTED,
+// or REJECTED with a reason and a redelivery.
+//
+// That verdict used to be staff-recorded only, so the ledger could say "they
+// signed it off" without a portal. A client with the content plan module now
+// gives it directly - the same two moves, from the same one state, by the
+// person whose opinion they always represented.
 //
 // ── THREE SETS, THREE DIFFERENT QUESTIONS ────────────────────────────────────
 // MADE      - the team produced it. Counts for capacity and hours, even if the
@@ -81,10 +84,18 @@ export function isOpenStatus(status: DeliverableStatus): boolean {
  * Higher implies lower: a project manager may do anything a maker may do. The
  * ranking is what lets the table say "maker" and mean "maker or above" instead
  * of listing three actors on every line.
+ *
+ * ── WHY "client" IS NOT IN THE RANKING ───────────────────────────────────────
+ * The other four are one ladder: more seniority, strictly more moves. A client
+ * is not further up or further down that ladder, they are standing beside it.
+ * They may accept work - which outranks a team manager - and may not start it -
+ * which a maker can. Giving them a number would let one of those leak through
+ * a >= comparison, so the rules name them explicitly instead and the ranking
+ * never applies to them.
  */
-export type DeliverableActor = "project_manager" | "team_manager" | "maker" | "none"
+export type DeliverableActor = "project_manager" | "team_manager" | "maker" | "none" | "client"
 
-const RANK: Record<DeliverableActor, number> = {
+const RANK: Record<Exclude<DeliverableActor, "client">, number> = {
   none: 0,
   maker: 1,
   team_manager: 2,
@@ -105,10 +116,17 @@ export type TransitionCheck =
     }
 
 interface Rule {
-  /** The LOWEST standing that may do it. */
-  actor: DeliverableActor
+  /** The LOWEST staff standing that may do it. */
+  actor: Exclude<DeliverableActor, "client">
   needs: TransitionNeed[]
-  /** Said to somebody who ranks below `actor`. */
+  /**
+   * May the client do this too? Absent means no - every move is closed to the
+   * portal until somebody writes it down here, which is the right default for
+   * a table an outsider is measured against.
+   */
+  client?: boolean
+  needsFromClient?: TransitionNeed[]
+  /** Said to somebody who ranks below `actor`, or to a client where absent. */
   denied: string
 }
 
@@ -129,14 +147,23 @@ const RULES: Partial<Record<DeliverableStatus, Partial<Record<DeliverableStatus,
   // stage, because a manager who spots a problem should not have to wait for
   // somebody senior to say so.
   DELIVERED: {
+    // The client's own sign-off, and the only place in the table where they
+    // outrank staff: the account manager accepts ON their behalf, so when they
+    // are in the room themselves their word is the one that counts.
     ACCEPTED: {
       actor: "project_manager",
       needs: [],
+      client: true,
       denied: "Only the account manager can accept work.",
     },
+    // A review that cannot say "not this one" is not a review. The client must
+    // give a reason, same as the team manager - "changes please" with no
+    // changes named is the thing this field exists to prevent.
     REJECTED: {
       actor: "team_manager",
       needs: ["reason"],
+      client: true,
+      needsFromClient: ["reason"],
       denied: "Only the team manager or the account manager can send work back.",
     },
   },
@@ -144,6 +171,9 @@ const RULES: Partial<Record<DeliverableStatus, Partial<Record<DeliverableStatus,
     DELIVERED: { actor: "maker", needs: ["completedOn"], denied: MAKER_SIDE },
   },
   ACCEPTED: {
+    // Deliberately NOT open to the client. Their finalise is meant to be the
+    // last word; reopening it is the account manager's call, which is exactly
+    // the escape hatch that lets the last word be safe to give.
     DELIVERED: {
       actor: "project_manager",
       needs: ["reason"],
@@ -196,6 +226,15 @@ export function allowedTransition(
   }
   const rule = RULES[from]?.[to]
   if (!rule) return { ok: false, why: whyNot(from, to), reason: "path" }
+
+  // The client is checked by name, never by rank - see DeliverableActor.
+  if (actor === "client") {
+    if (!rule.client) {
+      return { ok: false, why: "That is for the team to do.", reason: "actor" }
+    }
+    return { ok: true, needs: rule.needsFromClient ?? rule.needs }
+  }
+
   if (RANK[actor] < RANK[rule.actor]) return { ok: false, why: rule.denied, reason: "actor" }
   return { ok: true, needs: rule.needs }
 }

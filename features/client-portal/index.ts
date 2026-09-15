@@ -43,12 +43,23 @@ export {
   type ClientGrantUpdateInput,
 } from "./schemas/client-portal.schema"
 
+export {
+  clientPlanCreateSchema,
+  clientPlanLinkSchema,
+  clientPlanDecisionSchema,
+  type ClientPlanCreateInput,
+  type ClientPlanLinkInput,
+  type ClientPlanDecisionInput,
+} from "./schemas/plan.schema"
+
 // Components
 export { ClientSetPasswordForm } from "./components/client-set-password-form"
 export { PortalSidebar, type PortalProject } from "./components/portal-sidebar"
 export { PortalTopbar } from "./components/portal-topbar"
 export { PortalMobileTabbar } from "./components/portal-mobile-tabbar"
 export { PortalProductGrid } from "./components/portal-product-grid"
+export { PortalDocuments } from "./components/portal-documents"
+export { PortalPlan } from "./components/portal-plan"
 export { PortalActivityLog } from "./components/portal-activity-log"
 export { ProjectClientsTab } from "./components/project-clients-tab"
 export {

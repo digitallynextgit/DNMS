@@ -21,7 +21,14 @@
 // Client-safe (no server imports): the admin package editor renders from it too.
 // =============================================================================
 
-export type ClientModuleKey = "products" | "channels" | "inventory" | "mailer" | "activity"
+export type ClientModuleKey =
+  | "plan"
+  | "documents"
+  | "products"
+  | "channels"
+  | "inventory"
+  | "mailer"
+  | "activity"
 
 export interface ClientModule {
   key: ClientModuleKey
@@ -33,6 +40,27 @@ export interface ClientModule {
 }
 
 export const CLIENT_MODULES: readonly ClientModule[] = [
+  {
+    key: "plan",
+    label: "Content plan",
+    // The second module a client can WRITE to, and the further-reaching of the
+    // two: this one lets them commit the team to work and close it off. The
+    // description says both halves, because whoever ticks the box is agreeing
+    // to both.
+    description:
+      "What is planned between two dates and what has been made against it. The client can add plan items, attach finished work, and finalise or send back what the team delivers.",
+    path: "plan",
+  },
+  {
+    key: "documents",
+    label: "Documents & assets",
+    // A module the client can WRITE to. Says so plainly, for the same reason
+    // the mailer does: whoever ticks this box should know before they tick it.
+    // Deciding on work happens in the content plan, not here.
+    description:
+      "Shared process documents and campaign assets, to read and download. The client can upload files here.",
+    path: "documents",
+  },
   {
     key: "products",
     label: "Product catalog",

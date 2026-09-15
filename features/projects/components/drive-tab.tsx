@@ -328,7 +328,8 @@ export function DriveTab({ projectId, canManage }: { projectId: string; canManag
       // it excludes - fall back to the same guess a fresh upload would get.
       tag: r.tag ?? classifyDoc({ name: r.fileName, mimeType: r.mimeType }),
       tagIsStored: r.tag !== null,
-      addedBy: person(r.uploadedBy),
+      // Null for a portal upload: the uploader is a client, not an employee.
+      addedBy: r.uploadedBy ? person(r.uploadedBy) : null,
       ownerId: r.uploadedById,
       description: r.description,
     }))

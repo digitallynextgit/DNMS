@@ -56,6 +56,10 @@ export const GET = withProjectAccess(
         where,
         include: {
           uploadedBy: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
+          // Null for a staff upload; set when the file arrived from the client
+          // portal. isClientVisible and reviewStatus are scalars and ride along
+          // with `include` automatically.
+          uploadedByClient: { select: { id: true, name: true } },
           team: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: "desc" },

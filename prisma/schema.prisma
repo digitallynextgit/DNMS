@@ -778,6 +778,7 @@ model Employee {
   managedTeams           ProjectTeam[]          @relation("TeamManager")
   projectTeamMemberships ProjectTeamMember[]    @relation("ProjectTeamMembership")
   uploadedResources      ProjectResource[]      @relation("ResourceUploader")
+  reviewedResources      ProjectResource[]      @relation("ResourceStaffReviewer")
   createdFolders         ProjectFolder[]        @relation("FolderCreator")
   createdLinks           ProjectLink[]          @relation("LinkCreator")
   taskComments           TaskComment[]          @relation("CommentAuthor")
@@ -2209,6 +2210,17 @@ model ProjectTeamMember {
   @@map("project_team_members")
 }
 
+/// Where a client-visible file stands in the approval loop.
+///
+/// Only ever set on a file that has been SHARED - an internal brief has no
+/// review state because nobody outside has been asked to look at it. Null
+/// therefore means "not part of a review", not "not yet reviewed".
+enum AssetReviewStatus {
+  IN_REVIEW
+  APPROVED
+  CHANGES_REQUESTED
+}
+
 enum ResourceCategory {
   BRIEFS
   ASSETS
@@ -2247,7 +2259,33 @@ model ProjectResource {
   mimeType      String           @map("mime_type")
   objectKey     String           @unique @map("object_key") // B2 object key
   description   String?          @map("description")
-  uploadedById  String           @map("uploaded_by_id")
+  /// Nullable since clients can upload too - see uploadedByClientId. Exactly
+  /// one of the two is set, enforced by a CHECK constraint in the migration.
+  uploadedById  String?          @map("uploaded_by_id")
+  /// Set when the file came from the CLIENT PORTAL rather than a staff member.
+  /// Mirrors the createdById / createdByClientId pair on campaigns: staff and
+  /// portal accounts live in different tables, so one column cannot hold both.
+  uploadedByClientId String?     @map("uploaded_by_client_id")
+
+  /// Whether this file is visible in the client portal. OFF BY DEFAULT, and
+  /// that default IS the security model: this table holds internal briefs,
+  /// references and working files, so a file reaches an outsider only because
+  /// somebody deliberately shared it. Same principle as the module registry -
+  /// the absence of a decision narrows access rather than widening it.
+  isClientVisible Boolean        @default(false) @map("is_client_visible")
+  sharedAt      DateTime?        @map("shared_at")
+
+  /// The approval loop. Only meaningful while isClientVisible.
+  reviewStatus  AssetReviewStatus? @map("review_status")
+  reviewedAt    DateTime?        @map("reviewed_at")
+  reviewedByClientId String?     @map("reviewed_by_client_id")
+  /// Set when a STAFF member reviewed instead - which is how a CLIENT UPLOAD
+  /// gets decided. The client cannot approve their own file, so without this
+  /// column an uploaded asset would sit in IN_REVIEW with nobody able to move
+  /// it. Same staff/client actor split as the uploader pair above.
+  reviewedById  String?          @map("reviewed_by_id")
+  /// What the client wrote when asking for changes.
+  reviewNote    String?          @map("review_note")
   /// Set when the file is the output of a logged deliverable. SetNull on the
   /// entry's deletion: a wrong log line must not destroy real work product.
   deliverableId String?          @map("deliverable_id")
@@ -2259,7 +2297,10 @@ model ProjectResource {
 
   project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   team        ProjectTeam?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  uploadedBy  Employee            @relation("ResourceUploader", fields: [uploadedById], references: [id])
+  uploadedBy  Employee?           @relation("ResourceUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedByClient ClientUser?    @relation("ResourceClientUploader", fields: [uploadedByClientId], references: [id], onDelete: SetNull)
+  reviewedByClient ClientUser?    @relation("ResourceReviewer", fields: [reviewedByClientId], references: [id], onDelete: SetNull)
+  reviewedBy  Employee?           @relation("ResourceStaffReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   deliverable ProjectDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
   folder      ProjectFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
@@ -2269,6 +2310,8 @@ model ProjectResource {
   @@index([tag])
   @@index([deliverableId])
   @@index([projectId, folderId])
+  // Drives the portal list: this project's SHARED files only.
+  @@index([projectId, isClientVisible])
   @@index([tenantId])
   @@map("project_resources")
 }
@@ -2354,6 +2397,10 @@ model ProjectDeliverable {
   employeeId        String?           @map("employee_id")
   /// Who wrote the entry - the maker, or a manager logging on their behalf.
   loggedById        String?           @map("logged_by_id")
+  /// Set instead of loggedById when the entry came from the client portal.
+  /// No CHECK pairs the two: loggedById has always been nullable and live rows
+  /// legitimately have neither, so "exactly one" would fail on correct data.
+  loggedByClientId  String?           @map("logged_by_client_id")
   /// The task it came out of, when there was one.
   taskId            String?           @map("task_id")
   /// "Video", "Reel", "Product page"... Free text with per-team suggestions,
@@ -2388,6 +2435,9 @@ model ProjectDeliverable {
   revisionCount     Int               @default(0) @map("revision_count")
   acceptedAt        DateTime?         @map("accepted_at")
   acceptedById      String?           @map("accepted_by_id")
+  /// Set instead of acceptedById when the client finalised it themselves in
+  /// the portal, rather than staff recording their word second-hand.
+  acceptedByClientId String?          @map("accepted_by_client_id")
   acceptanceNote    String?           @map("acceptance_note") @db.Text
   /// Where it lives: the Drive folder, the published page. http(s) only.
   links             String[]          @default([]) @map("links")
@@ -2405,6 +2455,8 @@ model ProjectDeliverable {
   loggedBy   Employee?                 @relation("DeliverableLogger", fields: [loggedById], references: [id], onDelete: SetNull)
   verifiedBy Employee?                 @relation("DeliverableVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
   acceptedBy Employee?                 @relation("DeliverableAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+  loggedByClient   ClientUser?         @relation("DeliverableClientLogger", fields: [loggedByClientId], references: [id], onDelete: SetNull)
+  acceptedByClient ClientUser?         @relation("DeliverableClientAcceptor", fields: [acceptedByClientId], references: [id], onDelete: SetNull)
   task       ProjectTask?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
   goal       ProjectGoal?              @relation(fields: [goalId], references: [id], onDelete: SetNull)
   files      ProjectResource[]
@@ -2455,10 +2507,15 @@ model ProjectDeliverableEvent {
   changes       Json?                @map("changes")
   reason        String?              @map("reason") @db.Text
   actorId       String?              @map("actor_id")
+  /// Set instead of actorId when the portal did it. actorId is a foreign key
+  /// to employees, so a client id cannot go there, and a log that cannot name
+  /// who acted is not a log.
+  actorClientId String?              @map("actor_client_id")
   createdAt     DateTime             @default(now()) @map("created_at")
 
   deliverable ProjectDeliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
   actor       Employee?          @relation("DeliverableEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorClient ClientUser?        @relation("DeliverableEventClientActor", fields: [actorClientId], references: [id], onDelete: SetNull)
 
   @@index([deliverableId, createdAt])
   @@index([tenantId])
@@ -3952,6 +4009,8 @@ model ClientUser {
   createdBy Employee?             @relation("ClientUserCreator", fields: [createdById], references: [id], onDelete: SetNull)
   client    Client?               @relation(fields: [clientId], references: [id], onDelete: SetNull)
   access    ClientProjectAccess[]
+  uploadedResources ProjectResource[] @relation("ResourceClientUploader")
+  reviewedResources ProjectResource[] @relation("ResourceReviewer")
   activity  ClientActivityLog[]
 
   /// The platform identity this portal account belongs to (M2).
@@ -3961,6 +4020,12 @@ model ClientUser {
   campaigns    ProjectCampaign[]      @relation("CampaignClientAuthor")
   templates    ProjectEmailTemplate[] @relation("TemplateClientAuthor")
   mailerAssets ProjectMailerAsset[]   @relation("MailerAssetClientAuthor")
+
+  /// The content plan: rows they planned, rows they finalised, and every move
+  /// they made on one.
+  plannedDeliverables  ProjectDeliverable[]      @relation("DeliverableClientLogger")
+  acceptedDeliverables ProjectDeliverable[]      @relation("DeliverableClientAcceptor")
+  deliverableEvents    ProjectDeliverableEvent[] @relation("DeliverableEventClientActor")
 
   @@index([isActive])
   @@index([clientId])

@@ -147,6 +147,30 @@ export const PATCH = withSession(
         )
       }
       const body = parsed.data
+      // Retag, rename and move are recoverable and open to the uploader. SHARING
+      // is not in that class - it is the only field here that changes who
+      // outside the company can see the file - so it takes the project-manager
+      // permission rather than "I uploaded it".
+      // A review decision is a project-manager act too: it is what releases a
+      // client's asset as accepted, and it is recorded against whoever made it.
+      if (body.reviewStatus !== undefined && !isAdmin) {
+        return NextResponse.json(
+          { error: "Only a project manager can review a client file" },
+          { status: 403 },
+        )
+      }
+      if (body.reviewStatus !== undefined && !resource.isClientVisible) {
+        return NextResponse.json(
+          { error: "Share the file with the client before reviewing it" },
+          { status: 409 },
+        )
+      }
+      if (body.isClientVisible !== undefined && !isAdmin) {
+        return NextResponse.json(
+          { error: "Only a project manager can share a file with the client" },
+          { status: 403 },
+        )
+      }
       if (body.folderId) {
         const folder = await db.projectFolder.findFirst({
           where: { id: body.folderId, projectId },
@@ -164,6 +188,36 @@ export const PATCH = withSession(
           ...(body.tag !== undefined ? { tag: body.tag as DocTag | null } : {}),
           ...(body.fileName !== undefined ? { fileName: body.fileName } : {}),
           ...(body.folderId !== undefined ? { folderId: body.folderId } : {}),
+          // Sharing opens the review loop; unsharing closes it and clears the
+          // decision, because an approval of a file nobody can see any more is
+          // not a fact worth keeping. The table's CHECK constraint refuses a
+          // review status on an unshared row, so these move together or not at all.
+          ...(body.isClientVisible === true
+            ? {
+                isClientVisible: true,
+                sharedAt: resource.sharedAt ?? new Date(),
+                reviewStatus: resource.reviewStatus ?? ("IN_REVIEW" as const),
+              }
+            : {}),
+          ...(body.reviewStatus !== undefined
+            ? {
+                reviewStatus: body.reviewStatus,
+                reviewedAt: new Date(),
+                // The staff column, not the client one - see the schema note.
+                reviewedById: session.user.id,
+                reviewedByClientId: null,
+                reviewNote: body.reviewNote || null,
+              }
+            : {}),
+          ...(body.isClientVisible === false
+            ? {
+                isClientVisible: false,
+                reviewStatus: null,
+                reviewedAt: null,
+                reviewedByClientId: null,
+                reviewNote: null,
+              }
+            : {}),
         },
         include: {
           uploadedBy: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
@@ -182,6 +236,19 @@ export const PATCH = withSession(
           ...(body.fileName !== undefined ? { renamedTo: updated.fileName } : {}),
           ...(body.folderId !== undefined
             ? { folder: { from: resource.folderId, to: updated.folderId } }
+            : {}),
+          // Logged loudly: this is the field that exposes a file to people
+          // outside the company.
+          ...(body.reviewStatus !== undefined
+            ? { review: { from: resource.reviewStatus, to: body.reviewStatus } }
+            : {}),
+          ...(body.isClientVisible !== undefined
+            ? {
+                sharedWithClient: {
+                  from: resource.isClientVisible,
+                  to: updated.isClientVisible,
+                },
+              }
             : {}),
         } as object,
       })

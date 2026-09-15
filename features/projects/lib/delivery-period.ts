@@ -13,6 +13,14 @@ import { addDays, todayUtc } from "@/lib/dates"
 // days nobody was going to work. The weekend therefore falls in no period at
 // all - that is the intent, not an oversight.
 //
+// The working week is the DEFAULT shape, not the only one. It used to be the
+// only one: the server refused anything else outright. That held while the
+// only thing being planned was a retainer's weekly output, and broke the first
+// time a campaign ran "these twenty assets between the 8th and the 23rd" - a
+// real commitment with no way to write it down. Any range is accepted now;
+// `periodProblem` says what still is not one, and the presets still offer
+// weeks first so nothing about the habitual path changed.
+//
 // Pure and client-safe: the wizard uses it to preview a range, the server uses
 // it to store one, and the tests use it to prove they agree.
 // =============================================================================
@@ -55,13 +63,30 @@ export function weekOf(d: Date): DeliveryPeriod {
 }
 
 /**
- * Exactly one working week: `start` is a Monday and `end` that week's Friday.
- * Deliverables are planned by the working week and nothing else, so this is
- * the shape the server insists on.
+ * The longest window one plan may cover.
+ *
+ * A year is past any real commitment and well short of a typo: it is there to
+ * catch a mis-keyed year (2026 -> 2062), which would otherwise plant rows
+ * decades out where nobody will ever look at them again.
  */
-export function isWorkingWeek(start: Date, end: Date): boolean {
-  const w = weekOf(start)
-  return w.start.getTime() === start.getTime() && w.end.getTime() === end.getTime()
+export const MAX_PERIOD_DAYS = 366
+
+/**
+ * What is wrong with this period, in the words the person should read - or
+ * null when nothing is.
+ *
+ * One function for the wizard, the staff server and the portal, so a range the
+ * form lets somebody build is never one the server then refuses.
+ */
+export function periodProblem(start: Date, end: Date): string | null {
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return "That is not a date."
+  }
+  if (end.getTime() < start.getTime()) return "The period ends before it starts."
+  if (daysIn({ start, end }) > MAX_PERIOD_DAYS) {
+    return `A plan covers at most a year - check the dates.`
+  }
+  return null
 }
 
 /** First-to-last day of the calendar month containing `d`. */

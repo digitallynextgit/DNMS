@@ -8,7 +8,7 @@ import { latestCalendarDay, todayUtc } from "@/lib/dates"
 import { canAccessProject, canManageProject } from "./project-access"
 import { logActivity } from "./activity"
 import { openFirstStatusPeriod } from "./task-status-periods"
-import { isWorkingWeek, ymd as ymdOf } from "../lib/delivery-period"
+import { periodProblem, ymd as ymdOf } from "../lib/delivery-period"
 import { dedupeLinks, isSafeHttpUrl } from "../lib/task-links"
 import { MAX_LINKS, MAX_QUANTITY, MAX_TYPE_LENGTH, cleanType } from "../lib/deliverable-types"
 import {
@@ -1373,7 +1373,14 @@ export async function planDeliverables(
   const start = parseDay(input.periodStart, "Period start")
   const end = parseDay(input.periodEnd, "Period end")
   if (!start || !end) throw new ValidationError("A plan needs a period to cover.")
-  if (end < start) throw new ValidationError("The period ends before it starts.")
+
+  // Any range, bounded only by sanity. This used to insist on exactly one
+  // working week, which suited a weekly retainer and had no way to express a
+  // campaign running "twenty assets between the 8th and the 23rd". The wizard
+  // still offers weeks first, so the habitual path is unchanged; what went is
+  // the refusal, not the default.
+  const problem = periodProblem(start, end)
+  if (problem) throw new ValidationError(problem)
 
   const lines = input.lines ?? []
   if (lines.length === 0) throw new ValidationError("Add at least one thing to the plan.")
@@ -1389,15 +1396,8 @@ export async function planDeliverables(
     await assertTeamInProject(projectId, teamId)
   }
 
-  // Deliverables are planned by the WORKING WEEK, one week at a time: the
-  // wizard offers only weeks, and a hand-built request meets the same rule
-  // here. The same week may be planned again - what arrives joins what is
-  // already there.
-  if (!isWorkingWeek(start, end)) {
-    throw new ValidationError(
-      "Deliverables are planned by the working week (Monday to Friday) - pick a week.",
-    )
-  }
+  // The same period may be planned again - what arrives joins what is already
+  // there rather than replacing it.
 
   // Resolve the vocabulary and the goals ONCE, before the transaction opens:
   // canonicalType reads the project's existing types, and doing that inside a

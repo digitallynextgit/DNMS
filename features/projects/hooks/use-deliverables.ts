@@ -51,6 +51,8 @@ export interface DeliverableRow {
   /** The maker. Null while the row is still owed by the team and unclaimed. */
   employee: { id: string; name: string; profilePhoto: string | null } | null
   loggedByName: string | null
+  /** The client asked for this one through the portal, rather than the team planning it. */
+  plannedByClient: boolean
   task: { id: string; title: string } | null
   goal: { id: string; title: string } | null
   type: string
@@ -70,11 +72,19 @@ export interface DeliverableRow {
   /** Stage two: the account manager signed it off. */
   acceptedAt: string | null
   acceptedByName: string | null
+  /** The client signed it off themselves, rather than staff recording their word. */
+  acceptedByClient: boolean
   /** Stage one: the maker's manager checked it. Null if it skipped straight to stage two. */
   verifiedByName: string | null
   verifiedAt: string | null
   /** The last time it was sent back, kept even after it moves on. */
-  sentBack: { by: string | null; reason: string | null; at: string } | null
+  sentBack: {
+    by: string | null
+    reason: string | null
+    at: string
+    /** Sent back by the client, not by a manager. Different thing to answer. */
+    byClient: boolean
+  } | null
   links: string[]
   notes: string | null
   files: DeliverableFile[]
@@ -94,6 +104,8 @@ export interface DeliverableEventRow {
   changes: Record<string, [unknown, unknown]> | null
   reason: string | null
   actorName: string | null
+  /** The actor was the client, through the portal, not a member of staff. */
+  actorIsClient: boolean
   createdAt: string
 }
 

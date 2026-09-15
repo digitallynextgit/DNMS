@@ -60,6 +60,8 @@ export interface DeliverableRow {
   /** The maker. Null while the row is still owed by the team and unclaimed. */
   employee: { id: string; name: string; profilePhoto: string | null } | null
   loggedByName: string | null
+  /** The client asked for this one through the portal, rather than the team planning it. */
+  plannedByClient: boolean
   task: { id: string; title: string } | null
   goal: { id: string; title: string } | null
   type: string
@@ -79,6 +81,8 @@ export interface DeliverableRow {
   /** Stage two: the account manager's sign-off. */
   acceptedAt: string | null
   acceptedByName: string | null
+  /** The client signed it off themselves, rather than staff recording their word. */
+  acceptedByClient: boolean
   /**
    * Stage one: checked by the maker's manager, before the account manager
    * sees it. Null when it went straight to the account manager - who is
@@ -93,7 +97,13 @@ export interface DeliverableRow {
    * ever holds the CURRENT state - once it is redelivered, the columns would
    * have forgotten that it ever bounced.
    */
-  sentBack: { by: string | null; reason: string | null; at: string } | null
+  sentBack: {
+    by: string | null
+    reason: string | null
+    at: string
+    /** Sent back by the client, not by a manager. Different thing to answer. */
+    byClient: boolean
+  } | null
   links: string[]
   notes: string | null
   files: DeliverableFile[]
@@ -114,6 +124,8 @@ export interface DeliverableEventRow {
   changes: Record<string, [unknown, unknown]> | null
   reason: string | null
   actorName: string | null
+  /** The actor was the client, through the portal, not a member of staff. */
+  actorIsClient: boolean
   createdAt: string
 }
 
@@ -258,6 +270,10 @@ const ROW_SELECT = {
   employee: { select: { id: true, firstName: true, lastName: true, profilePhoto: true } },
   loggedBy: { select: { firstName: true, lastName: true } },
   acceptedBy: { select: { firstName: true, lastName: true } },
+  // The portal's side of the same three questions. Exactly one of each pair is
+  // ever set, so the row mapper falls back from staff to client.
+  loggedByClient: { select: { name: true } },
+  acceptedByClient: { select: { name: true } },
   verifiedBy: { select: { firstName: true, lastName: true } },
   // Only the latest bounce, as a lateral join - a full event history per row
   // would be a needless payload on a list that can run to hundreds of rows.
@@ -269,6 +285,7 @@ const ROW_SELECT = {
       reason: true,
       createdAt: true,
       actor: { select: { firstName: true, lastName: true } },
+      actorClient: { select: { name: true } },
     },
   },
   goal: { select: { id: true, title: true } },
@@ -292,14 +309,19 @@ function bounce(
     reason: string | null
     createdAt: Date
     actor: { firstName: string; lastName: string } | null
+    actorClient: { name: string } | null
   }[],
-): { by: string | null; reason: string | null; at: string } | null {
+): { by: string | null; reason: string | null; at: string; byClient: boolean } | null {
   const last = events[0]
   if (!last) return null
+  // A client bounce and a team-manager bounce mean different things to whoever
+  // reads the row, so the name alone is not enough - say which it was.
+  const byClient = !last.actor && !!last.actorClient
   return {
-    by: fullName(last.actor),
+    by: fullName(last.actor) ?? last.actorClient?.name ?? null,
     reason: last.reason,
     at: last.createdAt.toISOString(),
+    byClient,
   }
 }
 const fullName = (p: { firstName: string; lastName: string | null } | null) =>
@@ -365,7 +387,10 @@ async function toRow(
           profilePhoto: r.employee.profilePhoto,
         }
       : null,
-    loggedByName: fullName(r.loggedBy),
+    loggedByName: fullName(r.loggedBy) ?? r.loggedByClient?.name ?? null,
+    // The client asked for this one. The board marks it, because "who wanted
+    // this" changes how a team manager reads an unassigned row.
+    plannedByClient: !r.loggedBy && !!r.loggedByClient,
     task: r.task ? { id: r.task.id, title: r.task.title } : null,
     goal: r.goal,
     type: r.type,
@@ -380,7 +405,9 @@ async function toRow(
     periodEnd: ymd(r.periodEnd),
     revisionCount: r.revisionCount,
     acceptedAt: r.acceptedAt?.toISOString() ?? null,
-    acceptedByName: fullName(r.acceptedBy),
+    acceptedByName: fullName(r.acceptedBy) ?? r.acceptedByClient?.name ?? null,
+    /** The client signed it off themselves, rather than staff recording it. */
+    acceptedByClient: !r.acceptedBy && !!r.acceptedByClient,
     verifiedByName: fullName(r.verifiedBy),
     verifiedAt: r.verifiedAt?.toISOString() ?? null,
     sentBack: bounce(r.events),
@@ -702,6 +729,7 @@ export async function listDeliverableEvents(
       reason: true,
       createdAt: true,
       actor: { select: { firstName: true, lastName: true } },
+      actorClient: { select: { name: true } },
     },
   })
   return events.map((e) => ({
@@ -711,7 +739,8 @@ export async function listDeliverableEvents(
     toStatus: e.toStatus,
     changes: (e.changes as unknown as DeliverableEventRow["changes"]) ?? null,
     reason: e.reason,
-    actorName: fullName(e.actor),
+    actorName: fullName(e.actor) ?? e.actorClient?.name ?? null,
+    actorIsClient: !e.actor && !!e.actorClient,
     createdAt: e.createdAt.toISOString(),
   }))
 }
