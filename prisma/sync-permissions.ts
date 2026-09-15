@@ -5,7 +5,12 @@
  * the destructive full reseed (which wipes role_permissions and recreates roles).
  * Run it after adding a scope to PERMISSION_DEFINITIONS:
  *
- *   npx tsx prisma/sync-permissions.ts
+ *   pnpm db:permissions
+ *
+ * NOT a bare `npx tsx prisma/sync-permissions.ts`, which is what this comment
+ * used to say and which cannot work: the @/server/db import below chains
+ * through server/tenant-guard.ts, whose `import "server-only"` throws unless
+ * the `react-server` export condition is enabled. The pnpm script sets it.
  *
  * What it does, all upserts (safe to run repeatedly):
  *   1. Ensure every catalogue scope exists as a Permission row.
@@ -23,10 +28,20 @@ import { forEachTenant } from "@/server/tenant-jobs"
 
 /** Extra scopes a named role should hold (beyond what it already has). */
 const ROLE_GRANTS: Record<string, string[]> = {
-  hr_manager: ["announcement:write", "gallery:write"],
+  hr_manager: [
+    "announcement:write",
+    "gallery:write",
+    // HR checklists. hr_manager runs both, including the exit sign-off that
+    // issues relieving and deactivates the account.
+    "onboarding:read",
+    "onboarding:write",
+    "exit:read",
+    "exit:write",
+  ],
   // Self-service payslips: the route self-scopes non payroll:write callers to
   // their own records, so this exposes only the HR employee's own pay.
-  hr_employee: ["payroll:read"],
+  // Checklists are read-only here - running an exit stays with hr_manager.
+  hr_employee: ["payroll:read", "onboarding:read", "exit:read"],
 }
 
 async function main() {

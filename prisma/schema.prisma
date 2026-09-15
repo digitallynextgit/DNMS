@@ -319,6 +319,39 @@ enum DocumentCategory {
   OTHER
 }
 
+// ── HR checklists (onboarding / exit clearance) ───────────────────────────────
+
+// The two processes the checklist engine runs. One template per kind per tenant.
+enum ChecklistKind {
+  ONBOARDING
+  EXIT
+}
+
+// TASK is a thing somebody does and ticks. CLEARANCE is a SIGN-OFF: it names a
+// person who must personally confirm, and while a required one is unsigned the
+// exit cannot be completed, so no relieving letter is issued. That distinction
+// is the whole reason the exit checklist is worth having in software.
+enum ChecklistItemKind {
+  TASK
+  CLEARANCE
+}
+
+// Who an item belongs to. Resolved to a real employee when the checklist is
+// instantiated - see resolveAssignee() in the checklists service.
+// HR is deliberately left unresolved: it is a pool, not a person.
+enum ChecklistAssigneeRole {
+  HR
+  MANAGER
+  EMPLOYEE
+  DEPARTMENT_HEAD
+}
+
+enum ChecklistStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
 // =============================================================================
 // NEXT-AUTH MODELS
 // =============================================================================
@@ -482,12 +515,13 @@ model Department {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  head        Employee?    @relation("DepartmentHead", fields: [headId], references: [id], onDelete: SetNull)
-  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children    Department[] @relation("DepartmentHierarchy")
-  employees   Employee[]
-  jobPostings JobPosting[]
-  jobRoles    JobRole[]
+  head            Employee?               @relation("DepartmentHead", fields: [headId], references: [id], onDelete: SetNull)
+  parent          Department?             @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children        Department[]            @relation("DepartmentHierarchy")
+  employees       Employee[]
+  jobPostings     JobPosting[]
+  jobRoles        JobRole[]
+  clearanceItems  ChecklistTemplateItem[] @relation("ChecklistClearanceDepartment")
 
   @@unique([tenantId, name])
   @@unique([tenantId, code])
@@ -732,6 +766,13 @@ model Employee {
   // Resignation (self-service, manager/HR approved)
   resignations         Resignation[] @relation("ResignationEmployee")
   resignationsReviewed Resignation[] @relation("ResignationReviewer")
+
+  // HR checklists - onboarding and exit clearance
+  checklists          ChecklistInstance[]     @relation("ChecklistEmployee")
+  checklistsStarted   ChecklistInstance[]     @relation("ChecklistStartedBy")
+  checklistsCompleted ChecklistInstance[]     @relation("ChecklistCompletedBy")
+  checklistItems      ChecklistInstanceItem[] @relation("ChecklistItemAssignee")
+  checklistItemsDone  ChecklistInstanceItem[] @relation("ChecklistItemDoneBy")
 
   // V2 Project Management
   managedTeams           ProjectTeam[]          @relation("TeamManager")
@@ -1229,13 +1270,183 @@ model Resignation {
   createdAt                DateTime    @default(now()) @map("created_at")
   updatedAt                DateTime    @updatedAt @map("updated_at")
 
-  employee Employee  @relation("ResignationEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
-  reviewer Employee? @relation("ResignationReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  employee  Employee           @relation("ResignationEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer  Employee?          @relation("ResignationReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  checklist ChecklistInstance?
 
   @@index([employeeId])
   @@index([status])
   @@index([tenantId])
   @@map("resignations")
+}
+
+// =============================================================================
+// HR CHECKLISTS - onboarding and exit clearance
+// =============================================================================
+// Two processes, one engine. HR ran both on paper: a Word master and a copy of
+// an xlsx per leaver, which is why nothing could be queried and the document's
+// own rule - "until all department clearances are signed, relieving will not be
+// issued" - depended on somebody remembering it.
+//
+// TEMPLATE (3 models) is per-tenant reference data, editable like leave types.
+// INSTANCE (2 models) is a SNAPSHOT of that template for one employee.
+//
+// The snapshot is the important part: section titles and item text are COPIED
+// onto the instance rather than read through a relation. Editing the template
+// must never silently reword a clearance somebody has already signed, and a
+// leaver's record has to still read the way it read on the day they left.
+// =============================================================================
+
+model ChecklistTemplate {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String        @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String        @id @default(uuid()) @map("id")
+  kind        ChecklistKind @map("kind")
+  name        String        @map("name")
+  description String?       @map("description")
+  isActive    Boolean       @default(true) @map("is_active")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  sections  ChecklistTemplateSection[]
+  instances ChecklistInstance[]
+
+  // One template per process per company - "the onboarding checklist" has to
+  // mean one thing when an employee is created and nobody is there to choose.
+  @@unique([tenantId, kind])
+  @@index([tenantId])
+  @@map("checklist_templates")
+}
+
+model ChecklistTemplateSection {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id           String   @id @default(uuid()) @map("id")
+  templateId   String   @map("template_id")
+  /// The document's own headings - "Step 3. Department-Wise Clearance".
+  title        String   @map("title")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  template ChecklistTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  items    ChecklistTemplateItem[]
+
+  @@index([templateId])
+  @@index([tenantId])
+  @@map("checklist_template_sections")
+}
+
+model ChecklistTemplateItem {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId     String                @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id           String                @id @default(uuid()) @map("id")
+  sectionId    String                @map("section_id")
+  text         String                @map("text")
+  /// Optional expansion shown under the item - the document's sub-bullets.
+  helpText     String?               @map("help_text")
+  itemKind     ChecklistItemKind     @default(TASK) @map("item_kind")
+  assigneeRole ChecklistAssigneeRole @default(HR) @map("assignee_role")
+  /// Which department clears this, for DEPARTMENT_HEAD items. Finance and
+  /// IT/Admin have no dedicated structure anywhere in this schema, so they are
+  /// modelled as whichever Department the company points this at.
+  clearanceDepartmentId String?      @map("clearance_department_id")
+  /// A required CLEARANCE blocks completion. A required TASK only warns.
+  isRequired   Boolean               @default(true) @map("is_required")
+  /// Days from the instance's anchor date (joining date / last working date).
+  /// This is what turns "Week 3: handle one client deliverable" into a date.
+  offsetDays   Int?                  @map("offset_days")
+  displayOrder Int                   @default(0) @map("display_order")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  section    ChecklistTemplateSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  department Department?              @relation("ChecklistClearanceDepartment", fields: [clearanceDepartmentId], references: [id], onDelete: SetNull)
+
+  @@index([sectionId])
+  @@index([tenantId])
+  @@map("checklist_template_items")
+}
+
+model ChecklistInstance {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String          @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id         String          @id @default(uuid()) @map("id")
+  kind       ChecklistKind   @map("kind")
+  employeeId String          @map("employee_id")
+  /// Exit checklists hang off the resignation that started them. One each.
+  resignationId String?      @unique @map("resignation_id")
+  /// Provenance only. Nulled if the template is deleted - the snapshot stands
+  /// on its own and must outlive the template it came from.
+  templateId String?         @map("template_id")
+  status     ChecklistStatus @default(IN_PROGRESS) @map("status")
+  /// dateOfJoining for onboarding, lastWorkingDate for exit. Every item's due
+  /// date is derived from this, so a shifted last day moves the whole exit.
+  anchorDate DateTime?       @db.Date @map("anchor_date")
+
+  startedById   String?   @map("started_by_id")
+  completedAt   DateTime? @map("completed_at")
+  completedById String?   @map("completed_by_id")
+  /// Why it was cancelled - a withdrawn resignation, a rescinded offer.
+  cancelReason  String?   @map("cancel_reason")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  employee    Employee                @relation("ChecklistEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  resignation Resignation?            @relation(fields: [resignationId], references: [id], onDelete: SetNull)
+  template    ChecklistTemplate?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  startedBy   Employee?               @relation("ChecklistStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
+  completedBy Employee?               @relation("ChecklistCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  items       ChecklistInstanceItem[]
+
+  @@index([employeeId])
+  @@index([kind, status])
+  @@index([status])
+  @@index([tenantId])
+  @@map("checklist_instances")
+}
+
+model ChecklistInstanceItem {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId   String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id         String @id @default(uuid()) @map("id")
+  instanceId String @map("instance_id")
+
+  /// Denormalised from the template - see the snapshot note on the block above.
+  sectionTitle String                @map("section_title")
+  text         String                @map("text")
+  helpText     String?               @map("help_text")
+  itemKind     ChecklistItemKind     @default(TASK) @map("item_kind")
+  assigneeRole ChecklistAssigneeRole @default(HR) @map("assignee_role")
+  /// The resolved person. Null means the HR pool: anyone holding the write
+  /// scope may action it. A CLEARANCE with an assignee may only be signed by
+  /// that person (or an HR override) - see signClearance().
+  assigneeId   String?               @map("assignee_id")
+  isRequired   Boolean               @default(true) @map("is_required")
+  dueDate      DateTime?             @db.Date @map("due_date")
+  displayOrder Int                   @default(0) @map("display_order")
+  /// Added on the instance rather than copied from the template, e.g. a
+  /// clearance for a department the leaver happened to work with.
+  isAdHoc      Boolean               @default(false) @map("is_ad_hoc")
+
+  isDone   Boolean   @default(false) @map("is_done")
+  doneAt   DateTime? @map("done_at")
+  doneById String?   @map("done_by_id")
+  /// What the signer wrote - "laptop returned, asset tag DN-114".
+  note     String?   @map("note")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  instance ChecklistInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  assignee Employee?         @relation("ChecklistItemAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  doneBy   Employee?         @relation("ChecklistItemDoneBy", fields: [doneById], references: [id], onDelete: SetNull)
+
+  @@index([instanceId])
+  // Drives the "awaiting my sign-off" inbox.
+  @@index([assigneeId, isDone])
+  @@index([tenantId])
+  @@map("checklist_instance_items")
 }
 
 // =============================================================================

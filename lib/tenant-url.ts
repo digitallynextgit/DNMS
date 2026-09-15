@@ -45,6 +45,12 @@ export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   "leave",
   "more",
   "notifications",
+  // HR checklists. "onboarding" and "clearances" read exactly like company
+  // names to looksLikeSlug, so without these the proxy strips them as a tenant
+  // prefix and bounces /onboarding to /select-workspace?next=/onboarding.
+  "onboarding",
+  "clearances",
+  "exit-clearance",
   "payroll",
   "performance",
   "profile",

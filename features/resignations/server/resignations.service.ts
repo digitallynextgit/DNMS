@@ -4,6 +4,7 @@ import { db } from "@/server/db"
 import { hasPermission } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { createNotification, notifyApprovers } from "@/lib/notifications"
+import { instantiateAndNotify } from "@/features/hr-checklists/server/checklists.service"
 import { createAuditLog } from "@/lib/audit"
 import { sendEmailAs } from "@/lib/mailer"
 import { addEmailJob } from "@/lib/queue"
@@ -19,7 +20,18 @@ import { getConfig, warmConfig } from "@/server/app-config"
 const HR_ROLE_NAMES = ["hr_manager", "admin"]
 
 // An employee may only have one resignation in flight at a time.
-const OPEN_STATUSES = ["PENDING"] as const
+/**
+ * Statuses that stop somebody resigning again.
+ *
+ * Includes APPROVED, which it did not need to before: approval used to close
+ * the account in the same transaction, so an accepted leaver could not reach
+ * the form at all. Now approval starts a NOTICE PERIOD and they stay signed in
+ * until their exit is signed off - so without this they could resign twice.
+ *
+ * Deliberately NOT reused for the review queue, which filters on PENDING
+ * directly: an accepted resignation must not reappear in a reviewer's inbox.
+ */
+const BLOCKING_STATUSES = ["PENDING", "APPROVED"] as const
 
 // ---------------------------------------------------------------------------
 // getMyResignation - the current user's latest resignation (any status), used
@@ -73,9 +85,16 @@ export async function applyResignation(input: {
       return fail("You have already resigned")
 
     const existing = await db.resignation.findFirst({
-      where: { employeeId: me.id, status: { in: [...OPEN_STATUSES] } },
+      where: { employeeId: me.id, status: { in: [...BLOCKING_STATUSES] } },
+      select: { status: true },
     })
-    if (existing) return fail("You already have a resignation request pending approval")
+    if (existing) {
+      return fail(
+        existing.status === "APPROVED"
+          ? "Your resignation has already been accepted and you are serving your notice period"
+          : "You already have a resignation request pending approval",
+      )
+    }
 
     let lastWorkingDate: Date | null = null
     if (input.requestedLastWorkingDate) {
@@ -388,7 +407,23 @@ export async function reviewResignation(
       return ok(serialize({ data: updated }))
     }
 
-    // APPROVE: accept the resignation AND deactivate the employee in one transaction.
+    // ── APPROVE = "accepted, now serving notice" ────────────────────────────
+    //
+    // This used to set isActive:false in the same breath, which locked the
+    // employee out the instant their manager clicked Approve. That made the
+    // whole exit process impossible: the handover document, the transfer of
+    // client communications and of Drive ownership are all THEIR work, done
+    // during the notice period, and none of it can happen from a dead account.
+    //
+    // The dates are recorded and the account stays ACTIVE. Deactivation moves to
+    // HR's final sign-off on the exit checklist (completeExitChecklist), which
+    // refuses until every required department clearance is signed - and, as a
+    // backstop for a checklist nobody finishes, to the exit-deactivation cron on
+    // the day after the last working day.
+    //
+    // EmployeeStatus deliberately gains no SERVING_NOTICE value: "serving
+    // notice" is derived from an accepted resignation plus an active account, so
+    // no existing status filter in the app changes meaning.
     const lastWorkingDate = resignation.requestedLastWorkingDate ?? new Date()
     const [updated] = await db.$transaction([
       db.resignation.update({
@@ -402,20 +437,30 @@ export async function reviewResignation(
       }),
       db.employee.update({
         where: { id: resignation.employeeId },
-        data: {
-          status: "RESIGNED",
-          isActive: false,
-          resignationDate: new Date(),
-          lastWorkingDate,
-        },
+        data: { resignationDate: new Date(), lastWorkingDate },
       }),
     ])
+
+    // Start the exit clearance from the tenant's template, dated back from the
+    // last working day. Best-effort: a tenant with no template yet must not lose
+    // the resignation decision itself, and HR can start one by hand.
+    try {
+      await instantiateAndNotify({
+        employeeId: resignation.employeeId,
+        kind: "EXIT",
+        resignationId: id,
+        anchorDate: lastWorkingDate,
+        actorId: session.user.id,
+      })
+    } catch (e) {
+      console.error("[reviewResignation] exit checklist failed", e)
+    }
 
     await createNotification({
       employeeId: resignation.employeeId,
       title: "Resignation approved",
       message:
-        "Your resignation has been approved. Your account has been deactivated and you will be signed out.",
+        "Your resignation has been accepted. You are now serving your notice period - your exit clearance has been started and you keep full access until your last working day.",
       type: "info",
       link: "/profile",
     })
@@ -450,7 +495,13 @@ export async function reviewResignation(
       module: "employee",
       entityType: "Resignation",
       entityId: id,
-      changes: { employeeId: resignation.employeeId, deactivated: true },
+      changes: {
+        employeeId: resignation.employeeId,
+        // NOT deactivated any more - the notice period starts here and the
+        // account closes at the exit sign-off.
+        deactivated: false,
+        lastWorkingDate: toDateOnly(lastWorkingDate),
+      },
       ...meta,
     })
 

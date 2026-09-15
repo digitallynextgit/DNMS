@@ -173,6 +173,10 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   [/^\/leave\/apply(\/|$)/, null],
   [/^\/wfh\/apply(\/|$)/, null],
   [/^\/employees\/org-chart(\/|$)/, null],
+  // Anyone can be asked to sign a clearance - a Finance or IT head holds no HR
+  // scope at all - so this page is open to every signed-in user. The API scopes
+  // it to the caller's OWN assigned items, which is the real boundary.
+  [/^\/clearances(\/|$)/, null],
   [/^\/holiday-calendar(\/|$)/, null],
   [/^\/leave$/, null],
   [/^\/wfh$/, null],
@@ -182,6 +186,10 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   [/^\/employees\/import(\/|$)/, "employee:write"],
   [/^\/employees\/[^/]+\/edit(\/|$)/, "employee:write"],
   [/^\/employees(\/|$)/, "employee:read"],
+
+  // --- Onboarding / exit checklists (HR) ---------------------------------
+  [/^\/onboarding(\/|$)/, ["onboarding:read", "onboarding:write"]],
+  [/^\/exit-clearance(\/|$)/, ["exit:read", "exit:write"]],
 
   // --- Attendance (HR) ---------------------------------------------------
   [/^\/attendance(\/|$)/, "attendance:write"],

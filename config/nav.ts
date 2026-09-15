@@ -26,6 +26,8 @@ import {
   Images,
   MessageSquare,
   Building2,
+  ClipboardCheck,
+  DoorOpen,
 } from "lucide-react"
 
 import { PERMISSIONS } from "@/lib/constants"
@@ -50,7 +52,7 @@ export interface NavItem {
   permission?: string
   children?: NavChild[]
   /** Live count badge to render next to the item. */
-  badge?: "pending-resignations" | "unread-notifications" | "unread-chat"
+  badge?: "pending-resignations" | "unread-notifications" | "unread-chat" | "pending-clearances"
 }
 
 // ── Employee: personal self-service. No permission gate - every signed-in
@@ -66,6 +68,14 @@ export const EMPLOYEE_ITEMS: NavItem[] = [
   // No permission gate: referring somebody is open to every employee, and the
   // page only ever shows the caller's own referrals.
   { label: "My Referrals", href: "/referrals", icon: UserPlus },
+  // No permission gate, deliberately: a Finance or IT head holds no HR scope
+  // and is exactly who this exists for. It hides itself when empty.
+  {
+    label: "Waiting on you",
+    href: "/clearances",
+    icon: ClipboardCheck,
+    badge: "pending-clearances",
+  },
   { label: "Notifications", href: "/notifications", icon: Bell, badge: "unread-notifications" },
 ]
 
@@ -138,6 +148,18 @@ export const HRMS_ITEMS: NavItem[] = [
       { label: "Designations", href: "/employees/designations" },
       { label: "Job Roles", href: "/employees/job-roles" },
     ],
+  },
+  {
+    label: "Onboarding",
+    href: "/onboarding",
+    icon: ClipboardCheck,
+    permission: PERMISSIONS.ONBOARDING_WRITE,
+  },
+  {
+    label: "Exit Clearance",
+    href: "/exit-clearance",
+    icon: DoorOpen,
+    permission: PERMISSIONS.EXIT_READ,
   },
   {
     label: "Resignations",

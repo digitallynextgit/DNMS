@@ -8,6 +8,11 @@ import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
 import bcrypt from "bcryptjs"
 import { PERMISSION_DEFINITIONS } from "../lib/constants"
+// Relative, like the import above: this script runs as plain tsx with a bare
+// PrismaClient, outside Next and outside the tenant guard. Both modules are
+// pure data/logic with no server-only or framework imports.
+import { FOUNDING_TENANT_ID } from "../lib/tenant-url"
+import { seedChecklistTemplates } from "../features/hr-checklists/lib/seed-templates"
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -137,6 +142,10 @@ async function main() {
         "holiday:write",
         "resignation:read",
         "resignation:approve",
+        "onboarding:read",
+        "onboarding:write",
+        "exit:read",
+        "exit:write",
         "wfh:read",
         "wfh:write",
         "wfh:approve",
@@ -187,6 +196,8 @@ async function main() {
         "performance:read",
         "performance:write",
         "resignation:read",
+        "onboarding:read",
+        "exit:read",
         "recruitment:read",
         "recruitment:write",
       ],
@@ -1779,6 +1790,21 @@ async function main() {
   const leaveTypeMap = new Map(leaveTypeRecords.map((lt) => [lt.code, lt.id]))
 
   console.log(`  ✓ Created ${leaveTypeRecords.length} leave types`)
+
+  // ===========================================================================
+  // STEP 9b - HR checklist templates (onboarding + exit clearance)
+  // ===========================================================================
+  // Shared with provisionTenant() so a seeded database and a newly provisioned
+  // company start from the same two checklists rather than two copies that
+  // drift. FOUNDING_TENANT_ID is passed explicitly: this script runs outside a
+  // request, so there is no ambient tenant for the guard to stamp from.
+  console.log("Step 9b: Creating HR checklist templates...")
+
+  const checklistSeed = await seedChecklistTemplates(prisma, FOUNDING_TENANT_ID)
+  console.log(
+    `  ✓ Created ${checklistSeed.created.length} checklist template(s)` +
+      (checklistSeed.skipped.length ? ` (${checklistSeed.skipped.length} already present)` : ""),
+  )
 
   // ===========================================================================
   // STEP 10 - Leave balances

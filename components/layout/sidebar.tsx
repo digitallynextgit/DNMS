@@ -23,6 +23,7 @@ import {
   type NavItem,
 } from "@/config/nav"
 import { usePendingResignationCount } from "@/features/resignations"
+import { useMyClearanceCount } from "@/features/hr-checklists"
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
 import { useUnreadChatCount } from "@/hooks/use-unread-chat"
 
@@ -109,6 +110,13 @@ function CountBadge({ collapsed, count }: { collapsed: boolean; count: number })
   )
 }
 
+/** Clearance sign-offs and checklist items waiting on this user. */
+function ClearanceCountBadge({ collapsed }: { collapsed: boolean }) {
+  const { data: count = 0 } = useMyClearanceCount()
+  if (count <= 0) return null
+  return <CountBadge collapsed={collapsed} count={count} />
+}
+
 // Dispatch a nav item's badge key to its live-count component.
 function NavBadge({
   badge,
@@ -118,6 +126,7 @@ function NavBadge({
   collapsed: boolean
 }) {
   if (badge === "pending-resignations") return <ResignationCountBadge collapsed={collapsed} />
+  if (badge === "pending-clearances") return <ClearanceCountBadge collapsed={collapsed} />
   if (badge === "unread-chat") return <ChatCountBadge collapsed={collapsed} />
   return <NotificationCountBadge collapsed={collapsed} />
 }

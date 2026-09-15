@@ -7,6 +7,7 @@ import { runUnscoped } from "@/server/tenant-context"
 import { isValidSlug, slugRejectionReason } from "@/server/tenants"
 import { normalizeEmail, provisionIdentity } from "@/server/identity"
 import { ROLE_CATALOGUE, FOUNDER_ROLE } from "@/lib/role-catalogue"
+import { seedChecklistTemplates } from "@/features/hr-checklists/lib/seed-templates"
 import { generateEmployeeNo } from "@/lib/utils"
 
 // =============================================================================
@@ -24,6 +25,8 @@ import { generateEmployeeNo } from "@/lib/utils"
 //     platform-level and shared, because a scope describes what the software can
 //     do, not what a customer bought.
 //   - default LEAVE TYPES, or the leave module has nothing to offer.
+//   - the ONBOARDING and EXIT CHECKLIST templates, because the first thing a
+//     new company does is add an employee, which instantiates one.
 //   - the founding EMPLOYEE, their platform identity, and their membership.
 //
 // Departments, designations and holidays are deliberately NOT seeded: they are
@@ -176,6 +179,12 @@ export async function provisionTenant(input: ProvisionInput): Promise<ProvisionR
           maxCarryDays: "maxCarryDays" in t ? t.maxCarryDays : 0,
         })),
       })
+
+      // ── HR checklists ─────────────────────────────────────────────────────
+      // The onboarding and exit-clearance templates. Seeded, not left empty,
+      // because the very first thing a new company does is add an employee -
+      // and that is the moment an onboarding checklist has to already exist.
+      await seedChecklistTemplates(tx, tenant.id)
 
       // ── the founding admin ────────────────────────────────────────────────
       const employee = await tx.employee.create({

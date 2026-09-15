@@ -27,14 +27,22 @@ import { useEmployee } from "@/features/employees/hooks/use-employees"
 import { usePendingResignationCount } from "@/features/resignations"
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"
 import { useUnreadChatCount } from "@/hooks/use-unread-chat"
+import { useMyClearanceCount } from "@/features/hr-checklists"
 import { useThemeStore } from "@/stores/theme-store"
 
 function Count({ badge }: { badge: NonNullable<NavItem["badge"]> }) {
   const { data: resignations = 0 } = usePendingResignationCount()
   const { data: notifications = 0 } = useUnreadNotificationCount()
   const { data: chat = 0 } = useUnreadChatCount()
+  const { data: clearances = 0 } = useMyClearanceCount()
   const count =
-    badge === "pending-resignations" ? resignations : badge === "unread-chat" ? chat : notifications
+    badge === "pending-resignations"
+      ? resignations
+      : badge === "unread-chat"
+        ? chat
+        : badge === "pending-clearances"
+          ? clearances
+          : notifications
   if (count <= 0) return null
   return (
     <span className="bg-destructive flex h-5 min-w-5 items-center justify-center rounded-sm px-1.5 text-[11px] leading-none font-semibold text-white">

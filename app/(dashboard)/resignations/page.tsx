@@ -80,7 +80,7 @@ export default function ResignationsPage() {
       { id: approveTarget.id, action: "APPROVE" },
       {
         onSuccess: () => {
-          toast.success("Resignation approved - account deactivated")
+          toast.success("Resignation accepted - notice period started, exit clearance created")
           setApproveTarget(null)
         },
         onError: (e: Error) => toast.error(e.message),
@@ -195,11 +195,10 @@ export default function ResignationsPage() {
         title="Approve this resignation?"
         description={
           approveTarget
-            ? `${approveTarget.employee.firstName} ${approveTarget.employee.lastName} will be marked as RESIGNED and their account deactivated immediately. They will be signed out and can no longer log in. This cannot be undone here.`
+            ? `${approveTarget.employee.firstName} ${approveTarget.employee.lastName} starts their notice period. They keep full access until their last working day so they can hand over, and their exit clearance is created now. The account closes when HR signs off the clearance.`
             : ""
         }
-        confirmLabel="Approve & deactivate"
-        variant="destructive"
+        confirmLabel="Accept resignation"
         isLoading={reviewMut.isPending}
         onConfirm={confirmApprove}
       />

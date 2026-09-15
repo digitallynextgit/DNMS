@@ -27,7 +27,8 @@ import {
 /**
  * Self-service actions shown on the employee's own /profile page:
  *   • Edit Profile Photo (upload / remove)
- *   • Apply Resignation  (submit → manager approval → account deactivated)
+ *   • Apply Resignation  (submit → manager accepts → notice period → exit
+ *                        clearance → HR sign-off closes the account)
  * Replaces the old "Edit Profile" button.
  */
 export function ProfileSelfActions({

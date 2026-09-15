@@ -17,6 +17,8 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
+    "db:permissions": "tsx --conditions=react-server prisma/sync-permissions.ts",
+    "db:checklists": "tsx --conditions=react-server prisma/backfill-hr-checklists.ts",
     "db:snapshot": "tsx prisma/export-snapshot.ts",
     "db:restore": "tsx prisma/seed-snapshot.ts",
     "db:restore:check": "tsx prisma/seed-snapshot.ts --dry-run",

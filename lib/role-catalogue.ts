@@ -60,6 +60,12 @@ export const ROLE_CATALOGUE: readonly RoleDefinition[] = [
       "holiday:write",
       "resignation:read",
       "resignation:approve",
+      // Runs both HR checklists, including the exit sign-off that issues
+      // relieving and closes the account.
+      "onboarding:read",
+      "onboarding:write",
+      "exit:read",
+      "exit:write",
       "wfh:read",
       "wfh:write",
       "wfh:approve",
@@ -109,6 +115,11 @@ export const ROLE_CATALOGUE: readonly RoleDefinition[] = [
       "performance:read",
       "performance:write",
       "resignation:read",
+      // Read-only on both checklists: an HR employee follows a joiner's
+      // progress, but running an exit - and the sign-off that deactivates the
+      // account - stays with hr_manager.
+      "onboarding:read",
+      "exit:read",
       "recruitment:read",
       "recruitment:write",
     ],

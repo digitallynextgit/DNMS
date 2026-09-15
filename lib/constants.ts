@@ -34,6 +34,13 @@ export const PERMISSIONS = {
   // Resignations (was borrowing employee:read / employee:write).
   RESIGNATION_READ: "resignation:read",
   RESIGNATION_APPROVE: "resignation:approve",
+  // Onboarding and exit-clearance checklists. Separate scopes on purpose: the
+  // people who welcome a joiner are not always the people who may issue a
+  // relieving letter, and exit:write is the one that can deactivate an account.
+  ONBOARDING_READ: "onboarding:read",
+  ONBOARDING_WRITE: "onboarding:write",
+  EXIT_READ: "exit:read",
+  EXIT_WRITE: "exit:write",
   // Work From Home
   WFH_READ: "wfh:read",
   WFH_WRITE: "wfh:write",
@@ -116,6 +123,8 @@ export const MODULES = [
   "asc",
   "holiday",
   "resignation",
+  "onboarding",
+  "exit",
 ] as const
 
 export const PERMISSION_DEFINITIONS = [
@@ -208,6 +217,30 @@ export const PERMISSION_DEFINITIONS = [
     module: "resignation",
     action: "approve",
     description: "Review and decide resignation requests",
+  },
+  {
+    scope: "onboarding:read",
+    module: "onboarding",
+    action: "read",
+    description: "View onboarding checklists",
+  },
+  {
+    scope: "onboarding:write",
+    module: "onboarding",
+    action: "write",
+    description: "Run onboarding checklists and edit the onboarding template",
+  },
+  {
+    scope: "exit:read",
+    module: "exit",
+    action: "read",
+    description: "View exit clearance checklists",
+  },
+  {
+    scope: "exit:write",
+    module: "exit",
+    action: "write",
+    description: "Run exit clearances, sign off and issue relieving",
   },
   {
     scope: "dashboard:read",
@@ -486,6 +519,42 @@ export const LEAVE_STATUS_COLORS: Record<string, string> = {
   APPROVED: TONE.green,
   REJECTED: TONE.red,
   CANCELLED: TONE.neutral,
+}
+
+// ── HR checklists (onboarding / exit clearance) ──────────────────────────────
+
+export const CHECKLIST_STATUS_LABELS: Record<string, string> = {
+  IN_PROGRESS: "In progress",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+}
+
+export const CHECKLIST_STATUS_COLORS: Record<string, string> = {
+  IN_PROGRESS: TONE.blue,
+  COMPLETED: TONE.green,
+  CANCELLED: TONE.neutral,
+}
+
+export const CHECKLIST_KIND_LABELS: Record<string, string> = {
+  ONBOARDING: "Onboarding",
+  EXIT: "Exit clearance",
+}
+
+/**
+ * An item's state, derived rather than stored: done, overdue, or waiting.
+ * Overdue is amber and not red - a checklist item running late is a nudge, and
+ * colouring routine lateness as an error teaches people to ignore red.
+ */
+export const CHECKLIST_ITEM_STATE_LABELS: Record<string, string> = {
+  DONE: "Done",
+  OVERDUE: "Overdue",
+  PENDING: "Pending",
+}
+
+export const CHECKLIST_ITEM_STATE_COLORS: Record<string, string> = {
+  DONE: TONE.green,
+  OVERDUE: TONE.amber,
+  PENDING: TONE.neutral,
 }
 
 export const PAYROLL_STATUS_LABELS: Record<string, string> = {

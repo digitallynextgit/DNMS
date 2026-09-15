@@ -37,6 +37,11 @@ export const SNAPSHOT_TABLES = [
   "notifications",
   "attendance_logs",
   "floating_holiday_selections",
+  // Added with the HR checklists: checklist_instances carries an FK to this
+  // table, so a restore that skipped it failed on the first exit checklist.
+  // It had been missing since the resignation feature shipped - the snapshot
+  // was quietly dropping every resignation on restore.
+  "resignations",
   "wfh_requests",
   "leave_balances",
   "leave_requests",
@@ -61,6 +66,14 @@ export const SNAPSHOT_TABLES = [
   "task_comments",
   "task_checklist_items",
   "interviews",
+  // HR checklists. Parent-first: template -> sections -> items, then the
+  // instances (which reference templates, employees and resignations) and
+  // finally their items.
+  "checklist_templates",
+  "checklist_template_sections",
+  "checklist_template_items",
+  "checklist_instances",
+  "checklist_instance_items",
 ] as const
 
 export type SnapshotTable = (typeof SNAPSHOT_TABLES)[number]

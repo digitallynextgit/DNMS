@@ -18,6 +18,7 @@ import { canAccessEmployee } from "@/lib/permissions"
 // Server-only cross-feature call (not the client barrel): seed leave balances
 // from the policy matrix when a new hire is created.
 import { allocateFromPolicy } from "@/features/leave/server/leave-accrual.service"
+import { instantiateAndNotify } from "@/features/hr-checklists/server/checklists.service"
 import { encrypt } from "@/lib/crypto"
 import bcrypt from "bcryptjs"
 import { randomInt } from "crypto"
@@ -400,6 +401,21 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         await allocateFromPolicy(employee.id, new Date().getFullYear())
       } catch (e) {
         console.error("[createEmployee] leave allocation failed", e)
+      }
+
+      // Start their onboarding checklist from the tenant template, with due
+      // dates measured from the joining date. Best-effort for the same reason
+      // as the balances above: a tenant provisioned before this feature has no
+      // template yet, and a missing checklist must never cost somebody their
+      // employee record - HR can start one by hand from the Onboarding screen.
+      try {
+        await instantiateAndNotify({
+          employeeId: employee.id,
+          kind: "ONBOARDING",
+          actorId: session.user.id,
+        })
+      } catch (e) {
+        console.error("[createEmployee] onboarding checklist failed", e)
       }
 
       const meta = await getAuditMeta()
