@@ -1,8 +1,8 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { ensureProjectDriveFolder } from "@/lib/drive-media"
 import {
-  ensureFolderForProject,
   listFolder,
   uploadToFolder,
   createGoogleFile,
@@ -37,15 +37,14 @@ async function projectMemberEmails(projectId: string): Promise<string[]> {
   return [...emails]
 }
 
-/** Ensure the project's folder exists (named "<code> · <name>") and return it. */
-export async function ensureProjectFolder(projectId: string): Promise<DriveFile> {
-  const project = await db.project.findUnique({
-    where: { id: projectId },
-    select: { code: true, name: true },
-  })
-  const folderName = project ? `${project.code} · ${project.name}` : projectId
-  return ensureFolderForProject(projectId, folderName)
-}
+/**
+ * Ensure the project's folder exists (named "<code> · <name>") and return it.
+ *
+ * The implementation moved to lib/drive-media.ts so the client portal can resolve
+ * the same folder without importing this feature's server internals. Re-exported
+ * here because every caller below and in the Files tab already knows this name.
+ */
+export const ensureProjectFolder = ensureProjectDriveFolder
 
 /**
  * Make the folder's shared-with list match the project's members exactly:

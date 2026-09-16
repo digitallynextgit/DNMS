@@ -232,7 +232,7 @@ export const SETTING_FIELDS: SettingField[] = [
     type: "password",
     group: "Google Search Console",
     secret: true,
-    help: "Optional. Core Web Vitals work without it but are heavily rate-limited; a key raises the free quota to 25,000 calls/day. Create one in Google Cloud Console -> Credentials -> API key.",
+    help: "Required for Core Web Vitals. Without a key, calls are billed to Google's shared anonymous project, whose daily allowance is normally already spent - so measurements fail with HTTP 429 rather than merely running slowly. A key of your own is free and gives 25,000 calls/day. Google Cloud Console -> enable 'PageSpeed Insights API' -> Credentials -> API key.",
   },
   {
     key: "INDEXNOW_KEY",

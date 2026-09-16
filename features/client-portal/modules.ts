@@ -24,6 +24,7 @@
 export type ClientModuleKey =
   | "plan"
   | "documents"
+  | "calendars"
   | "products"
   | "channels"
   | "inventory"
@@ -60,6 +61,18 @@ export const CLIENT_MODULES: readonly ClientModule[] = [
     description:
       "Shared process documents and campaign assets, to read and download. The client can upload files here.",
     path: "documents",
+  },
+  {
+    key: "calendars",
+    label: "Calendars",
+    // The third module a client can WRITE to, so it says so - and says what it
+    // does NOT let them do, because "fill a sheet" could reasonably be read as
+    // "edit the sheet". Granting this module does not share anything on its
+    // own: each calendar is published separately from the project's Calendars
+    // tab, so a package with this ticked and nothing shared shows an empty page.
+    description:
+      "Content calendars the team has shared with this client. They can fill cells and add rows; the columns and the calendars themselves stay yours. Each calendar is shared individually from the project.",
+    path: "calendars",
   },
   {
     key: "products",

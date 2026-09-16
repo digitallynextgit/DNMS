@@ -11,6 +11,9 @@ import { hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
 import { uploadFile, getObjectKey, ensureBucket } from "@/lib/storage"
+import { uploadVideoAsset, VideoUploadError } from "@/lib/drive-media"
+import { syncMadeCount, attachmentCount } from "@/lib/deliverable-counts"
+import { isVideoUpload } from "@/lib/upload-rules"
 import { classifyDoc, isDocTag } from "@/features/projects/lib/doc-tag"
 import { canEditDeliverable } from "@/features/projects/server/deliverables.service"
 import type { Session } from "next-auth"
@@ -157,7 +160,9 @@ export const POST = withSession(
       // 6. Size check
       if (file.size > MAX_SIZE_BYTES) {
         return NextResponse.json(
-          { error: `File exceeds 100MB limit (size: ${(file.size / 1024 / 1024).toFixed(1)} MB)` },
+          {
+            error: `File exceeds the ${MAX_SIZE_BYTES / 1024 / 1024}MB limit (size: ${(file.size / 1024 / 1024).toFixed(1)} MB)`,
+          },
           { status: 413 },
         )
       }
@@ -212,33 +217,72 @@ export const POST = withSession(
         }
       }
 
-      // 9. Make sure the storage bucket exists (no-op if it already does)
-      await ensureBucket()
-
-      // 10. Build storage path
-      const prefix = teamId
-        ? `projects/${projectId}/teams/${teamId}/${category}`
-        : `projects/${projectId}/${category}`
-
       const resourceId = randomUUID()
-      const objectKey = getObjectKey(prefix, fileName, resourceId)
 
-      // 11. Read into buffer and upload
-      let buffer: Buffer
-      try {
-        const arrayBuf = await file.arrayBuffer()
-        buffer = Buffer.from(arrayBuf)
-      } catch (e) {
-        console.error("[RESOURCES_POST] file read error:", e)
-        return NextResponse.json({ error: "Could not read file contents" }, { status: 400 })
+      // 9. Pick the store. Video goes to Drive - the same rule the client portal
+      //    applies - so a finished video has a link that can be sent to someone
+      //    with no login here. Everything else stays on Backblaze.
+      let storage: {
+        objectKey: string | null
+        driveFileId: string | null
+        driveWebViewLink: string | null
+        isPublicLink: boolean
+        shareToken: string | null
+        sharedPubliclyAt: Date | null
       }
 
-      try {
-        await uploadFile(objectKey, buffer, file.type || "application/octet-stream", file.size)
-      } catch (e) {
-        console.error("[RESOURCES_POST] storage upload error:", e)
-        const msg = e instanceof Error ? e.message : "Storage upload failed"
-        return NextResponse.json({ error: msg }, { status: 500 })
+      if (isVideoUpload({ name: fileName, type: file.type })) {
+        try {
+          const uploaded = await uploadVideoAsset(projectId, file)
+          storage = {
+            objectKey: null,
+            driveFileId: uploaded.driveFileId,
+            driveWebViewLink: uploaded.webViewLink,
+            isPublicLink: true,
+            shareToken: uploaded.shareToken,
+            sharedPubliclyAt: new Date(),
+          }
+        } catch (e) {
+          if (e instanceof VideoUploadError) {
+            return NextResponse.json({ error: e.message }, { status: e.status })
+          }
+          console.error("[RESOURCES_POST] drive upload error:", e)
+          const msg = e instanceof Error ? e.message : "Drive upload failed"
+          return NextResponse.json({ error: msg }, { status: 500 })
+        }
+      } else {
+        // Make sure the storage bucket exists (no-op if it already does)
+        await ensureBucket()
+
+        const prefix = teamId
+          ? `projects/${projectId}/teams/${teamId}/${category}`
+          : `projects/${projectId}/${category}`
+        const objectKey = getObjectKey(prefix, fileName, resourceId)
+
+        let buffer: Buffer
+        try {
+          const arrayBuf = await file.arrayBuffer()
+          buffer = Buffer.from(arrayBuf)
+        } catch (e) {
+          console.error("[RESOURCES_POST] file read error:", e)
+          return NextResponse.json({ error: "Could not read file contents" }, { status: 400 })
+        }
+
+        try {
+          await uploadFile(objectKey, buffer, file.type || "application/octet-stream", file.size)
+        } catch (e) {
+          console.error("[RESOURCES_POST] storage upload error:", e)
+          const msg = e instanceof Error ? e.message : "Storage upload failed"
+          return NextResponse.json({ error: msg }, { status: 500 })
+        }
+        storage = {
+          objectKey,
+          driveFileId: null,
+          driveWebViewLink: null,
+          isPublicLink: false,
+          shareToken: null,
+          sharedPubliclyAt: null,
+        }
       }
 
       // 12. DB record
@@ -252,7 +296,7 @@ export const POST = withSession(
           fileName,
           fileSize: file.size,
           mimeType: file.type || "application/octet-stream",
-          objectKey,
+          ...storage,
           description: description?.trim() || null,
           uploadedById: session.user.id,
           deliverableId,
@@ -263,6 +307,21 @@ export const POST = withSession(
           team: { select: { id: true, name: true } },
         },
       })
+
+      // 12a. A file attached to a deliverable is work handed over, so "Made"
+      //      moves with it - the same rule the portal applies, from lib so the
+      //      two sides cannot drift. Read AFTER the insert, so the new row is
+      //      included and `before` is one less.
+      if (deliverableId) {
+        const entry = await db.projectDeliverable.findUnique({
+          where: { id: deliverableId },
+          select: { id: true, quantity: true },
+        })
+        if (entry) {
+          const after = await attachmentCount(deliverableId)
+          await syncMadeCount(entry, after - 1, after)
+        }
+      }
 
       // 13. Audit log
       await createAuditLog(session, {

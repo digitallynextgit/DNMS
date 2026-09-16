@@ -120,8 +120,12 @@ export interface SheetWorkbook {
   name: string
   position: number
   createdByName: string | null
+  /** Set when a CLIENT started this calendar in the portal. Null for the team's own. */
+  createdByClientId: string | null
   /** Who owns this sheet now, or null when nobody has picked it up. */
   assignedTo: SheetAssignee | null
+  /** Published to the client portal, where the client may fill its cells. */
+  isClientVisible: boolean
   updatedAt: string
   /** Its tabs, in order. Never empty: a workbook is created with one. */
   sheets: ProjectSheet[]
@@ -145,4 +149,23 @@ export function normalizeCell(type: SheetColumnType, raw: unknown): CellValue {
   }
   const s = typeof raw === "string" ? raw : String(raw)
   return s.trim() === "" ? null : s
+}
+
+/**
+ * 0 -> A, 25 -> Z, 26 -> AA. The reference people actually use out loud
+ * ("what's in C4?"), which is why it is worth showing even though every column
+ * here also has a name.
+ *
+ * Lives here rather than in the staff grid because the portal grid shows the
+ * same letters, and two copies of this loop would be two chances to disagree
+ * about what column 27 is called.
+ */
+export function columnLetter(index: number): string {
+  let n = index
+  let out = ""
+  do {
+    out = String.fromCharCode(65 + (n % 26)) + out
+    n = Math.floor(n / 26) - 1
+  } while (n >= 0)
+  return out
 }

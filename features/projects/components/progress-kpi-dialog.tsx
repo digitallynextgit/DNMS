@@ -68,12 +68,16 @@ const KPI: Record<
   },
 }
 
+// In step with DELIVERABLE_STATUS_CHIP - the same status must not be one colour
+// on a row and another in this dialog.
 const STATUS_TONE: Record<DeliverableStatus, string> = {
   PLANNED: "text-muted-foreground",
-  IN_PROGRESS: "text-sky-500",
-  DELIVERED: "text-emerald-500",
-  ACCEPTED: "text-emerald-600",
-  REJECTED: "text-red-500",
+  IN_PROGRESS: "text-blue-500",
+  DELIVERED: "text-green-500",
+  ACCEPTED: "text-emerald-500",
+  REJECTED: "text-orange-500",
+  STUCK: "text-amber-500",
+  DISCARDED: "text-red-500",
 }
 
 type GroupBy = "project" | "person"

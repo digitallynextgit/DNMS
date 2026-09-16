@@ -26,6 +26,7 @@ import { todayUtc } from "@/lib/dates"
 import { formatPeriod } from "../lib/delivery-period"
 import {
   DELIVERABLE_STATUS_LABELS,
+  OPEN_STATUSES,
   STATUS_ORDER,
   type DeliverableStatus,
 } from "../lib/deliverable-lifecycle"
@@ -373,7 +374,12 @@ async function loadRoster(scope: ReportScope, pick: ReportPick): Promise<RosterT
 function windowWhere(from: string, to: string): Prisma.ProjectDeliverableWhereInput {
   const start = new Date(`${from}T00:00:00.000Z`)
   const end = new Date(`${to}T23:59:59.999Z`)
-  const notDone = { status: { in: ["PLANNED", "IN_PROGRESS", "REJECTED"] as DeliverableStatus[] } }
+  // Open work plus rejected work: both are still owed. STUCK belongs here for
+  // the same reason - blocked work carried into a window is exactly what a
+  // report about that window should surface, not hide.
+  const notDone = {
+    status: { in: [...OPEN_STATUSES, "REJECTED"] as DeliverableStatus[] },
+  }
   return {
     OR: [
       { completedOn: { gte: start, lte: end } },
@@ -548,17 +554,25 @@ const C = {
   line: "E5E7EB",
   light: "F3F4F6",
   green: "16A34A",
+  emerald: "059669",
   amber: "D97706",
+  orange: "EA580C",
   red: "DC2626",
   grey: "9CA3AF",
   white: "FFFFFF",
 }
+// The same seven as the on-screen chips, in print-weight equivalents. A deck a
+// client reads next to the board it came from has to use one colour language;
+// DELIVERED was amber here and blue-ish on screen, which is how "made" ended up
+// looking like a warning in every exported report.
 const STATUS_COLOR: Record<DeliverableStatus, string> = {
   PLANNED: C.grey,
   IN_PROGRESS: C.blue,
-  DELIVERED: C.amber,
-  ACCEPTED: C.green,
-  REJECTED: C.red,
+  DELIVERED: C.green,
+  ACCEPTED: C.emerald,
+  REJECTED: C.orange,
+  STUCK: C.amber,
+  DISCARDED: C.red,
 }
 const FONT = "Calibri"
 const W = 10

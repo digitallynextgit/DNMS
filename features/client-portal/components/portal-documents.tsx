@@ -134,9 +134,7 @@ export function PortalDocuments({ projectRef }: { projectRef: string }) {
     {
       header: "Size",
       align: "right",
-      cell: (f) => (
-        <span className="text-xs whitespace-nowrap">{formatFileSize(f.fileSize)}</span>
-      ),
+      cell: (f) => <span className="text-xs whitespace-nowrap">{formatFileSize(f.fileSize)}</span>,
     },
     {
       header: "Shared by",

@@ -42,6 +42,11 @@ const DIGEST_KIND = "weekly-work"
  * said about it. (The shared constant lives in the deliverable lifecycle module;
  * this job keeps its own copy so a digest can never be blocked by a refactor
  * somewhere else.)
+ *
+ * The price of that copy is that a new status does NOT arrive here on its own,
+ * and nothing will fail to tell you - so anyone adding one has to come and look.
+ * STUCK and DISCARDED were checked when they were added: neither was made, so
+ * both are correctly absent.
  */
 const MADE_STATUSES = ["DELIVERED", "ACCEPTED", "REJECTED"] as const
 
@@ -249,7 +254,10 @@ export async function runWeeklyWorkDigest(now: Date = new Date()): Promise<WorkD
     db.projectDeliverable.findMany({
       where: {
         projectId: { in: projectIds },
-        status: { in: ["PLANNED", "IN_PROGRESS"] },
+        // Owed work, which now includes STUCK: blocked output is precisely what
+        // a chase list is for, and leaving it out would let a stuck commitment
+        // go quiet in the one report meant to catch it.
+        status: { in: ["PLANNED", "IN_PROGRESS", "STUCK"] },
         dueOn: { not: null, lt: addDays(today, DUE_SOON_DAYS + 1) },
       },
       select: {

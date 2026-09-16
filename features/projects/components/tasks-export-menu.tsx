@@ -147,6 +147,8 @@ export function TasksExportMenu({
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuItem onClick={() => void run("xlsx")} className="flex-col items-start gap-0.5">
           <span>Excel (.xlsx)</span>
+          {/* "Header frozen" was untrue under SheetJS, which silently ignores
+              freeze panes; it is true again now the writer is ExcelJS. */}
           <span className="text-muted-foreground text-[11px]">Sized columns, header frozen</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => void run("csv")} className="flex-col items-start gap-0.5">

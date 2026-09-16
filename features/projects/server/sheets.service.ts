@@ -88,6 +88,8 @@ async function record(
     label?: string
     before?: unknown
     after?: unknown
+    /** Set instead of actorId when the edit came from the CLIENT PORTAL. */
+    actorClientId?: string | null
   } = {},
 ): Promise<void> {
   try {
@@ -95,6 +97,7 @@ async function record(
       data: {
         sheetId,
         actorId,
+        actorClientId: extra.actorClientId ?? null,
         type,
         rowId: extra.rowId ?? null,
         columnId: extra.columnId ?? null,
@@ -180,7 +183,10 @@ export async function getSheetHistory(sheetId: string, limit = 200): Promise<She
     where: { sheetId, type: { in: SHOWN_IN_HISTORY } },
     orderBy: { createdAt: "desc" },
     take: limit,
-    include: { actor: { select: { firstName: true, lastName: true } } },
+    include: {
+      actor: { select: { firstName: true, lastName: true } },
+      actorClient: { select: { name: true } },
+    },
   })
   return events.map((e) => ({
     id: e.id,
@@ -188,7 +194,11 @@ export async function getSheetHistory(sheetId: string, limit = 200): Promise<She
     label: e.label,
     before: e.before,
     after: e.after,
-    actorName: name(e.actor),
+    // A client edit has no employee actor, so without the fallback every change
+    // made from the portal would read as having no author - which is the one
+    // question a history exists to answer. Marked as the client, because "who"
+    // and "which side" are the same question here.
+    actorName: name(e.actor) ?? (e.actorClient ? `${e.actorClient.name} (client)` : null),
     at: e.createdAt.toISOString(),
   }))
 }
@@ -208,6 +218,9 @@ export async function sheetBelongsToProject(sheetId: string, projectId: string):
 
 const WORKBOOK_INCLUDE = {
   createdBy: { select: { firstName: true, lastName: true } },
+  // So a client-started calendar says who started it instead of reading as
+  // authorless on the team's Calendars tab.
+  createdByClient: { select: { name: true } },
   assignedTo: {
     select: { id: true, firstName: true, lastName: true, profilePhoto: true },
   },
@@ -223,8 +236,13 @@ function toWorkbook(w: WorkbookRecord): SheetWorkbook {
     id: w.id,
     name: w.name,
     position: w.position,
-    createdByName: name(w.createdBy),
+    // "(client)" for the same reason getSheetHistory says it: on the team's
+    // Calendars tab an unqualified name reads as a colleague.
+    createdByName:
+      name(w.createdBy) ?? (w.createdByClient ? `${w.createdByClient.name} (client)` : null),
+    createdByClientId: w.createdByClientId,
     assignedTo: w.assignedTo,
+    isClientVisible: w.isClientVisible,
     updatedAt: w.updatedAt.toISOString(),
     sheets: w.sheets.map(toSheet),
   }
@@ -238,6 +256,52 @@ export async function listWorkbooks(projectId: string): Promise<SheetWorkbook[]>
     include: WORKBOOK_INCLUDE,
   })
   return books.map(toWorkbook)
+}
+
+/**
+ * The calendars a CLIENT may see: the shared ones, and only from this project.
+ *
+ * A separate function rather than a flag on listWorkbooks, so the portal cannot
+ * accidentally call the unfiltered one - the narrow query is the only thing the
+ * portal service imports.
+ */
+export async function listClientWorkbooks(projectId: string): Promise<SheetWorkbook[]> {
+  const books = await db.projectWorkbook.findMany({
+    where: { projectId, isClientVisible: true },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    include: WORKBOOK_INCLUDE,
+  })
+  return books.map(toWorkbook)
+}
+
+/**
+ * Is this sheet on a calendar THIS project has SHARED with its client?
+ *
+ * The portal's write guard. `sheetBelongsToProject` is not enough on its own -
+ * it would happily accept a sheet from an internal calendar on the same
+ * project, which is exactly the thing the share flag exists to prevent.
+ */
+export async function sheetIsClientVisible(
+  sheetId: string,
+  projectId: string,
+  workbookId?: string,
+): Promise<boolean> {
+  const sheet = await db.projectSheet.findFirst({
+    // workbookId is the calendar named in the portal's URL. Checking it makes
+    // that path segment load-bearing rather than decorative: a sheet id can
+    // then only be written through the calendar it actually belongs to.
+    where: { id: sheetId, projectId, workbookId, workbook: { isClientVisible: true } },
+    select: { id: true },
+  })
+  return sheet !== null
+}
+
+/** Publish a calendar to the client portal, or withdraw it. */
+export async function setWorkbookClientVisible(
+  workbookId: string,
+  isClientVisible: boolean,
+): Promise<void> {
+  await db.projectWorkbook.update({ where: { id: workbookId }, data: { isClientVisible } })
 }
 
 export async function workbookBelongsToProject(
@@ -255,10 +319,24 @@ export async function workbookBelongsToProject(
  * A workbook opens with one tab, so there is always somewhere to type: a
  * workbook with no tabs is a name and nothing else.
  */
+/**
+ * Create a calendar and its first tab.
+ *
+ * `actorId` is an EMPLOYEE id. A client creating their own calendar from the
+ * portal passes null plus `actorClientId`, exactly as addRow and writeCellsAt
+ * do, and also passes `isClientVisible` - a calendar somebody made for
+ * themselves that they then could not see would be absurd, and the flag is the
+ * only thing that puts it on their list.
+ */
 export async function createWorkbook(
   projectId: string,
-  actorId: string,
-  input: { name: string; firstTab?: string | null },
+  actorId: string | null,
+  input: {
+    name: string
+    firstTab?: string | null
+    isClientVisible?: boolean
+    actorClientId?: string | null
+  },
 ): Promise<SheetWorkbook> {
   const title = input.name.trim()
   if (!title) throw new Error("A sheet needs a name")
@@ -268,11 +346,23 @@ export async function createWorkbook(
     select: { position: true },
   })
   const book = await db.projectWorkbook.create({
-    data: { projectId, name: title, position: (last?.position ?? -1) + 1, createdById: actorId },
+    data: {
+      projectId,
+      name: title,
+      position: (last?.position ?? -1) + 1,
+      createdById: actorId,
+      // Recorded on the workbook, not just in its first tab's history: this is
+      // what the portal's delete rule reads, and a rule that has to walk the
+      // event log to answer "is this yours" is a rule that will one day be
+      // asked about a calendar whose events have been trimmed.
+      createdByClientId: input.actorClientId ?? null,
+      isClientVisible: input.isClientVisible ?? false,
+    },
   })
   await createSheet(projectId, actorId, {
     workbookId: book.id,
     name: input.firstTab?.trim() || "Tab 1",
+    actorClientId: input.actorClientId,
   })
   const full = await db.projectWorkbook.findUniqueOrThrow({
     where: { id: book.id },
@@ -313,14 +403,39 @@ export async function deleteWorkbook(workbookId: string): Promise<void> {
   await db.projectWorkbook.delete({ where: { id: workbookId } })
 }
 
+/**
+ * One SHARED workbook on one project, or null - the portal's lookup.
+ *
+ * Both filters matter and neither is redundant: `projectId` stops an id from
+ * another project resolving, and `isClientVisible` stops an internal calendar
+ * on the RIGHT project resolving. It returns just enough to decide what may be
+ * done with it, so callers do not reach for the full record and then have to
+ * remember not to send it.
+ */
+export async function getClientVisibleWorkbook(
+  workbookId: string,
+  projectId: string,
+): Promise<{ id: string; name: string; createdByClientId: string | null } | null> {
+  return db.projectWorkbook.findFirst({
+    where: { id: workbookId, projectId, isClientVisible: true },
+    select: { id: true, name: true, createdByClientId: true },
+  })
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sheets - one TAB of a workbook: a grid of columns and rows
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function createSheet(
   projectId: string,
-  actorId: string,
-  input: { workbookId: string; name: string; description?: string | null },
+  actorId: string | null,
+  input: {
+    workbookId: string
+    name: string
+    description?: string | null
+    /** Set instead of actorId when a client created it from the portal. */
+    actorClientId?: string | null
+  },
 ): Promise<ProjectSheet> {
   const title = input.name.trim()
   if (!title) throw new Error("A tab needs a name")
@@ -359,7 +474,10 @@ export async function createSheet(
     include: SHEET_INCLUDE,
   })
 
-  await record(sheet.id, actorId, "SHEET_CREATED", { label: sheet.name })
+  await record(sheet.id, actorId, "SHEET_CREATED", {
+    label: sheet.name,
+    actorClientId: input.actorClientId,
+  })
   return toSheet(sheet)
 }
 
@@ -568,7 +686,20 @@ export async function deleteColumn(columnId: string, actorId: string): Promise<v
 // Rows and cells
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function addRow(sheetId: string, actorId: string): Promise<void> {
+/**
+ * Append a row.
+ *
+ * `actorId` is an EMPLOYEE id, and a portal client is not an employee - they
+ * pass null here and their id as `actorClientId`, which is what the event
+ * records. `row.createdById` is then left null: the history is where "who" is
+ * answered, and a second actor pair on the row itself would add a column to
+ * keep in step for nothing.
+ */
+export async function addRow(
+  sheetId: string,
+  actorId: string | null,
+  actorClientId?: string | null,
+): Promise<void> {
   const last = await db.projectSheetRow.findFirst({
     where: { sheetId },
     orderBy: { position: "desc" },
@@ -577,7 +708,7 @@ export async function addRow(sheetId: string, actorId: string): Promise<void> {
   const row = await db.projectSheetRow.create({
     data: { sheetId, position: (last?.position ?? -1) + 1, createdById: actorId },
   })
-  await record(sheetId, actorId, "ROW_ADDED", { rowId: row.id })
+  await record(sheetId, actorId, "ROW_ADDED", { rowId: row.id, actorClientId })
 }
 
 /**
@@ -590,8 +721,9 @@ export async function addRow(sheetId: string, actorId: string): Promise<void> {
  */
 export async function updateCells(
   rowId: string,
-  actorId: string,
+  actorId: string | null,
   updates: Record<string, unknown>,
+  actorClientId?: string | null,
 ): Promise<void> {
   const row = await db.projectSheetRow.findUniqueOrThrow({ where: { id: rowId } })
   const columns = await db.projectSheetColumn.findMany({ where: { sheetId: row.sheetId } })
@@ -624,6 +756,7 @@ export async function updateCells(
       label: c.label,
       before: c.before,
       after: c.after,
+      actorClientId,
     })
   }
 }
@@ -642,8 +775,9 @@ export async function updateCells(
 export async function writeCellsAt(
   sheetId: string,
   position: number,
-  actorId: string,
+  actorId: string | null,
   cells: Record<string, unknown>,
+  actorClientId?: string | null,
 ): Promise<void> {
   let row = await db.projectSheetRow.findFirst({ where: { sheetId, position } })
   if (!row) {
@@ -652,9 +786,9 @@ export async function writeCellsAt(
     const meaningful = Object.values(cells).some((v) => v !== null && v !== "")
     if (!meaningful) return
     row = await db.projectSheetRow.create({ data: { sheetId, position, createdById: actorId } })
-    await record(sheetId, actorId, "ROW_ADDED", { rowId: row.id })
+    await record(sheetId, actorId, "ROW_ADDED", { rowId: row.id, actorClientId })
   }
-  await updateCells(row.id, actorId, cells)
+  await updateCells(row.id, actorId, cells, actorClientId)
 }
 
 /**

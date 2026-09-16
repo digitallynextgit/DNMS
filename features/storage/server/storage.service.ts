@@ -209,12 +209,17 @@ export async function getStorageOverview(accountId?: string): Promise<StorageOve
       refType: "brand-asset",
       name: b.fileName,
     })
-  for (const r of resources)
+  for (const r of resources) {
+    // Drive-hosted rows (video) have no Backblaze object at all, so they
+    // reference nothing in this bucket and must be skipped rather than keyed on
+    // null - this map is what decides which objects are orphans.
+    if (!r.objectKey) continue
     refs.set(r.objectKey, {
       owner: r.project?.name ?? "Project",
       refType: "project-resource",
       name: r.fileName,
     })
+  }
   for (const p of projectLogos)
     if (p.logoKey)
       refs.set(p.logoKey, {

@@ -291,7 +291,14 @@ const ROW_SELECT = {
   goal: { select: { id: true, title: true } },
   task: { select: { id: true, title: true, loggedHours: true } },
   files: {
-    select: { id: true, fileName: true, fileSize: true, mimeType: true, objectKey: true },
+    select: {
+      id: true,
+      fileName: true,
+      fileSize: true,
+      mimeType: true,
+      objectKey: true,
+      driveWebViewLink: true,
+    },
     orderBy: { createdAt: "asc" },
   },
 } satisfies Prisma.ProjectDeliverableSelect
@@ -370,8 +377,11 @@ async function toRow(
       mimeType: f.mimeType,
       // Inline-viewable for an hour, served from the signed-URL cache: a ledger
       // page lists many files and re-signing each on every load is wasted
-      // round-trips to B2.
-      url: await getCachedSignedUrl(f.objectKey, 3600).catch(() => ""),
+      // round-trips to B2. A Drive-hosted video has no signed url - its Drive
+      // viewer link is already durable, so it is used as-is.
+      url: f.objectKey
+        ? await getCachedSignedUrl(f.objectKey, 3600).catch(() => "")
+        : (f.driveWebViewLink ?? ""),
     })),
   )
   const hours = rowHours(r, qtyByTask)

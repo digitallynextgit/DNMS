@@ -103,9 +103,18 @@ export function periodKeyFromSlug(slug: string): string | null {
 export function derivePeriodStatus(statuses: readonly DeliverableStatus[]): PeriodStatus {
   if (statuses.length === 0) return "PLANNED"
   if (statuses.some((s) => s === "REJECTED")) return "REJECTED"
-  if (statuses.every((s) => s === "ACCEPTED")) return "ACCEPTED"
-  if (statuses.every(isMade)) return "DELIVERED"
-  if (statuses.some((s) => s !== "PLANNED")) return "IN_PROGRESS"
+
+  // Dropped rows are not evidence about the period - a week whose only surviving
+  // item is made should read "made", not be dragged back to "in progress" by the
+  // one that was called off. So they are set aside before the rest is judged,
+  // and only a period that is ENTIRELY discarded reports as discarded.
+  const live = statuses.filter((s) => s !== "DISCARDED")
+  if (live.length === 0) return "DISCARDED"
+
+  if (live.every((s) => s === "ACCEPTED")) return "ACCEPTED"
+  if (live.every(isMade)) return "DELIVERED"
+  // STUCK counts as touched: the week is underway, something is just blocked.
+  if (live.some((s) => s !== "PLANNED")) return "IN_PROGRESS"
   return "PLANNED"
 }
 

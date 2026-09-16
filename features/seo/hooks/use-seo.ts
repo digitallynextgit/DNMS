@@ -266,20 +266,33 @@ export function useRunVitals(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (propertyId: string) =>
-      apiFetch<{ data: { vitals: { checked: number; failed: number; green: number } } }>(
-        `/api/projects/${projectId}/seo/${propertyId}/vitals`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ traffic: true }),
-        },
-      ).then((r) => r.data),
+      apiFetch<{
+        data: {
+          vitals: {
+            checked: number
+            failed: number
+            green: number
+            skipped: number
+            quotaError?: string
+          }
+        }
+      }>(`/api/projects/${projectId}/seo/${propertyId}/vitals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ traffic: true }),
+      }).then((r) => r.data),
     onSuccess: (d) => {
       const v = d.vitals
-      toast.success(
-        `Checked ${v.checked} page${v.checked === 1 ? "" : "s"} · ${v.green} passing` +
-          (v.failed ? ` · ${v.failed} unreachable` : ""),
-      )
+      // Google refusing us is not the same as the pages being down - say which.
+      if (v.quotaError) {
+        toast.error(v.quotaError, { duration: 12_000 })
+      } else {
+        toast.success(
+          `Checked ${v.checked} page${v.checked === 1 ? "" : "s"} · ${v.green} passing` +
+            (v.skipped ? ` · ${v.skipped} still fresh` : "") +
+            (v.failed ? ` · ${v.failed} unreachable` : ""),
+        )
+      }
       qc.invalidateQueries({ queryKey: ["seo-vitals"] })
       qc.invalidateQueries({ queryKey: ["seo-scorecard"] })
     },

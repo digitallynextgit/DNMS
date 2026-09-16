@@ -10,6 +10,8 @@ import { hasPermission } from "@/lib/permissions"
 import { createAuditLog } from "@/lib/audit"
 import { PERMISSIONS } from "@/lib/constants"
 import { getSignedUrl, deleteFile } from "@/lib/storage"
+import { deleteVideoAsset } from "@/lib/drive-media"
+import { syncMadeCount, attachmentCount } from "@/lib/deliverable-counts"
 import { isDocTag, type DocTag } from "@/features/projects/lib/doc-tag"
 import { resourcePatchSchema } from "@/features/projects/schemas/files.schema"
 import type { Session } from "next-auth"
@@ -35,11 +37,19 @@ export const GET = withProjectAccess(
         return NextResponse.json({ error: "Resource not found" }, { status: 404 })
       }
 
-      const signedUrl = await getSignedUrl(
-        resource.objectKey,
-        900, // 15 min
-        asDownload ? { downloadFileName: resource.fileName } : undefined,
-      )
+      // Drive-hosted (video): Drive's own viewer, which streams rather than
+      // making the browser pull the whole file first. No signed url to mint.
+      const signedUrl = resource.driveFileId
+        ? asDownload
+          ? `https://drive.google.com/uc?export=download&id=${resource.driveFileId}`
+          : resource.driveWebViewLink
+        : await getSignedUrl(
+            // Non-null whenever driveFileId is null - the table's CHECK
+            // constraint gives every row exactly one store.
+            resource.objectKey!,
+            900, // 15 min
+            asDownload ? { downloadFileName: resource.fileName } : undefined,
+          )
       return NextResponse.json({ data: { ...resource, signedUrl } })
     } catch (error) {
       console.error("[RESOURCE_GET]", error)
@@ -78,18 +88,40 @@ export const DELETE = withSession(
       }
 
       try {
-        await deleteFile(resource.objectKey)
+        // A Drive video must be UN-PUBLISHED, not just trashed: dropping the row
+        // leaves Drive still serving the public link to everyone who saved it,
+        // with nothing in this app left pointing at it.
+        if (resource.driveFileId) await deleteVideoAsset(resource.driveFileId)
+        else await deleteFile(resource.objectKey!)
       } catch {
         /* file may already be gone */
       }
       await db.projectResource.delete({ where: { id: fileId } })
+
+      // One fewer thing handed over, so Made follows it down - unless the count
+      // was already running ahead of the attachments, which syncMadeCount
+      // leaves alone. Read AFTER the delete, so `before` is one more.
+      if (resource.deliverableId) {
+        const entry = await db.projectDeliverable.findUnique({
+          where: { id: resource.deliverableId },
+          select: { id: true, quantity: true },
+        })
+        if (entry) {
+          const after = await attachmentCount(resource.deliverableId)
+          await syncMadeCount(entry, after + 1, after)
+        }
+      }
 
       await createAuditLog(session, {
         action: "DELETE",
         module: "project",
         entityType: "ProjectResource",
         entityId: fileId,
-        changes: { fileName: resource.fileName, objectKey: resource.objectKey },
+        changes: {
+          fileName: resource.fileName,
+          objectKey: resource.objectKey,
+          driveFileId: resource.driveFileId,
+        },
       })
 
       return NextResponse.json({ success: true })

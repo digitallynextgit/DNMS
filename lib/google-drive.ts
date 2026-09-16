@@ -350,3 +350,73 @@ export async function revokeAccess(fileId: string, permissionId: string): Promis
   const { drive } = await getDrive()
   await drive.permissions.delete({ fileId, permissionId, ...SD })
 }
+
+/**
+ * Withdraw any "anyone with the link" access a file has.
+ *
+ * This Workspace refuses to CREATE such a permission (publishOutNotPermitted),
+ * so the app never grants one - but a person can still publish a file by hand
+ * from Drive's own UI on a Workspace where it is allowed. Deleting our row must
+ * not leave that behind, so the delete path clears it either way. A no-op when
+ * there is nothing to revoke.
+ */
+export async function revokeAnyoneAccess(fileId: string): Promise<void> {
+  const { drive } = await getDrive()
+  const perms = await listPermissions(fileId)
+  for (const p of perms.filter((p) => p.type === "anyone")) {
+    await drive.permissions.delete({ fileId, permissionId: p.id, ...SD }).catch(() => {})
+  }
+}
+
+// ── Streaming (what the public share route serves) ────────────────────────────
+
+export interface DriveStream {
+  /** 200, or 206 when the caller sent a Range header Drive honoured. */
+  status: number
+  body: NodeJS.ReadableStream
+  contentType: string
+  contentLength: string | null
+  /** Present on a 206; the browser needs it verbatim to seek. */
+  contentRange: string | null
+}
+
+/**
+ * Read a file's bytes through the service account.
+ *
+ * `range` is passed straight through to Drive rather than being parsed here, and
+ * Drive's own status and Content-Range come straight back. That is deliberate:
+ * a <video> element seeks by asking for byte ranges, so mishandling this gives a
+ * clip that plays from the start and refuses to scrub. Letting Drive do the
+ * arithmetic keeps the semantics exactly right.
+ */
+export async function streamDriveFile(fileId: string, range?: string | null): Promise<DriveStream> {
+  const { drive } = await getDrive()
+  const res = await drive.files.get(
+    { fileId, alt: "media", ...SD },
+    { responseType: "stream", headers: range ? { Range: range } : {} },
+  )
+  return {
+    status: res.status === 206 ? 206 : 200,
+    body: res.data as unknown as NodeJS.ReadableStream,
+    contentType: header(res.headers, "content-type") ?? "application/octet-stream",
+    contentLength: header(res.headers, "content-length"),
+    contentRange: header(res.headers, "content-range"),
+  }
+}
+
+/**
+ * Read one response header from whatever googleapis hands back.
+ *
+ * It returns a Headers-LIKE object: its constructor is named `Headers` but it is
+ * not an instance of the global one, and indexing it (`h["content-range"]`)
+ * yields undefined while `.get()` works. Reading it the obvious way therefore
+ * fails SILENTLY - the stream still plays, the 206 is still correct, and only
+ * seeking is dead, because Content-Range never reaches the browser. Older
+ * versions did hand back a plain object, so try both.
+ */
+function header(h: unknown, name: string): string | null {
+  if (h && typeof (h as Headers).get === "function") {
+    return (h as Headers).get(name)
+  }
+  return (h as Record<string, string | undefined>)?.[name] ?? null
+}

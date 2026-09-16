@@ -28,7 +28,27 @@ import { addDays, latestCalendarDay, todayUtc } from "@/lib/dates"
 // Pure and client-safe on purpose - no `server-only`, no Prisma, no db.
 // =============================================================================
 
-export type DeliverableStatus = "PLANNED" | "IN_PROGRESS" | "DELIVERED" | "ACCEPTED" | "REJECTED"
+export type DeliverableStatus =
+  | "PLANNED"
+  | "IN_PROGRESS"
+  | "DELIVERED"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "STUCK"
+  | "DISCARDED"
+
+// ── Where STUCK and DISCARDED sit, and why ───────────────────────────────────
+// Adding a status is easy; CLASSIFYING it is the part that quietly breaks
+// reports, because a status missing from every set below simply stops being
+// counted anywhere and nothing complains.
+//
+//   STUCK     - blocked, but nobody has been let off. It is OPEN and not MADE,
+//               so it stays on "what do we owe", stays overdue when its window
+//               passes, and stays on the digest's chase list. That visibility is
+//               the entire reason for marking something stuck.
+//   DISCARDED - dropped. In NEITHER set: it was never made, and nobody owes it
+//               any more. Counting it as open would chase work that has been
+//               called off; counting it as made would credit work nobody did.
 
 /** The team produced it: capacity, hours, "what did we make in March". */
 export const MADE_STATUSES = ["DELIVERED", "ACCEPTED", "REJECTED"] as const
@@ -36,19 +56,21 @@ export const MADE_STATUSES = ["DELIVERED", "ACCEPTED", "REJECTED"] as const
 /** It counts toward a goal target. A rejected thing does not, until it returns. */
 export const OUTCOME_STATUSES = ["DELIVERED", "ACCEPTED"] as const
 
-/** Owed: promised, nothing produced yet. */
-export const OPEN_STATUSES = ["PLANNED", "IN_PROGRESS"] as const
+/** Owed: promised, nothing produced yet. STUCK is owed too - see above. */
+export const OPEN_STATUSES = ["PLANNED", "IN_PROGRESS", "STUCK"] as const
 
-/** What a new row may be created as. ACCEPTED/REJECTED are verdicts, not starts. */
+/** What a new row may be created as. Verdicts and endings are not starts. */
 export const CREATABLE_STATUSES = ["PLANNED", "IN_PROGRESS", "DELIVERED"] as const
 
 /** Reading order for chips, filters and the status breakdown. */
 export const STATUS_ORDER: DeliverableStatus[] = [
   "PLANNED",
   "IN_PROGRESS",
+  "STUCK",
   "DELIVERED",
   "ACCEPTED",
   "REJECTED",
+  "DISCARDED",
 ]
 
 /**
@@ -59,9 +81,13 @@ export const STATUS_ORDER: DeliverableStatus[] = [
 export const DELIVERABLE_STATUS_LABELS: Record<DeliverableStatus, string> = {
   PLANNED: "To do",
   IN_PROGRESS: "In progress",
-  DELIVERED: "Delivered",
+  // "Made" rather than "Delivered": the portal reads this beside a "Made N of M"
+  // count, and two words for one idea made the row look like it held two.
+  DELIVERED: "Made",
   ACCEPTED: "Accepted",
   REJECTED: "Awaiting revision",
+  STUCK: "Stuck",
+  DISCARDED: "Discarded",
 }
 
 export function isMadeStatus(status: DeliverableStatus): boolean {
@@ -132,14 +158,78 @@ interface Rule {
 
 const MAKER_SIDE = "Only the maker, their team manager or a project manager can do that."
 
+/**
+ * Stop work, with a reason. Reachable from every unfinished state, by staff or
+ * by the client.
+ *
+ * The reason is not politeness - "stuck" or "dropped" with nothing said is a row
+ * nobody can act on, which is the failure REJECTED's reason field already exists
+ * to prevent. `needsFromClient` repeats it so the portal is held to the same bar.
+ */
+const STOP = (to: "STUCK" | "DISCARDED"): Rule => ({
+  actor: "maker",
+  needs: ["reason"],
+  client: true,
+  needsFromClient: ["reason"],
+  denied:
+    to === "STUCK"
+      ? "Only the maker, their team manager, a project manager or the client can flag work as stuck."
+      : "Only the maker, their team manager, a project manager or the client can discard work.",
+})
+
+/**
+ * Mark it made. Staff supply the day it counts for; the client does not - they
+ * are recording that it happened, not filing it against a date, and the server
+ * dates it today. That asymmetry is what `needsFromClient` is for.
+ */
+const MARK_MADE: Rule = {
+  actor: "maker",
+  needs: ["completedOn"],
+  client: true,
+  needsFromClient: [],
+  denied: MAKER_SIDE,
+}
+
+/** Put it back in the queue. No reason needed - the row speaks for itself. */
+const REOPEN_TO = (): Rule => ({
+  actor: "maker",
+  needs: [],
+  client: true,
+  denied: MAKER_SIDE,
+})
+
 const RULES: Partial<Record<DeliverableStatus, Partial<Record<DeliverableStatus, Rule>>>> = {
   // No PLANNED -> DELIVERED. Work that was never started cannot be finished,
   // and the jump skipped the only state that tells a manager it is underway.
   PLANNED: {
-    IN_PROGRESS: { actor: "maker", needs: [], denied: MAKER_SIDE },
+    IN_PROGRESS: REOPEN_TO(),
+    // PLANNED -> DELIVERED is open to the CLIENT but not to staff, which looks
+    // backwards until you read what each is recording. Staff marking work made
+    // without ever starting it hides the state a manager needs; a client saying
+    // "this exists now" is a statement about the world, not a workflow step, and
+    // they were never in IN_PROGRESS to pass through.
+    DELIVERED: { ...MARK_MADE, actor: "project_manager", denied: MAKER_SIDE },
+    STUCK: STOP("STUCK"),
+    DISCARDED: STOP("DISCARDED"),
   },
   IN_PROGRESS: {
-    DELIVERED: { actor: "maker", needs: ["completedOn"], denied: MAKER_SIDE },
+    PLANNED: REOPEN_TO(),
+    DELIVERED: MARK_MADE,
+    STUCK: STOP("STUCK"),
+    DISCARDED: STOP("DISCARDED"),
+  },
+  // Blocked, not finished: everything an unstarted row can do, a stuck one can
+  // do too. Its way out is back into the queue, on to made, or dropped.
+  STUCK: {
+    PLANNED: REOPEN_TO(),
+    IN_PROGRESS: REOPEN_TO(),
+    DELIVERED: MARK_MADE,
+    DISCARDED: STOP("DISCARDED"),
+  },
+  // Dropped work can be revived, but only back to the start - reviving it
+  // straight to "made" would skip the question of whether it was ever done.
+  DISCARDED: {
+    PLANNED: REOPEN_TO(),
   },
   // Delivered work is checked TWICE: the team's manager first, the account
   // manager last. Accepting is the account manager's alone - it is the word
@@ -147,25 +237,29 @@ const RULES: Partial<Record<DeliverableStatus, Partial<Record<DeliverableStatus,
   // stage, because a manager who spots a problem should not have to wait for
   // somebody senior to say so.
   DELIVERED: {
-    // The client's own sign-off, and the only place in the table where they
-    // outrank staff: the account manager accepts ON their behalf, so when they
-    // are in the room themselves their word is the one that counts.
+    // ── The approval loop is STAFF-ONLY now ──────────────────────────────────
+    // Both of these used to carry `client: true`. The portal they belong to is
+    // used to track an event's work, not to run sign-off, and a row that is
+    // both "Made" and awaiting a verdict carries two ideas of done. Dropping
+    // the flag is the whole removal: the portal draws its buttons from this
+    // table, so nothing else has to know.
+    //
+    // Staff keep both. The account manager still accepts ON the client's
+    // behalf, which is what it always meant before the portal existed.
     ACCEPTED: {
       actor: "project_manager",
       needs: [],
-      client: true,
       denied: "Only the account manager can accept work.",
     },
-    // A review that cannot say "not this one" is not a review. The client must
-    // give a reason, same as the team manager - "changes please" with no
-    // changes named is the thing this field exists to prevent.
     REJECTED: {
       actor: "team_manager",
       needs: ["reason"],
-      client: true,
-      needsFromClient: ["reason"],
       denied: "Only the team manager or the account manager can send work back.",
     },
+    // Made by mistake, or made and then blocked/dropped afterwards.
+    IN_PROGRESS: REOPEN_TO(),
+    STUCK: STOP("STUCK"),
+    DISCARDED: STOP("DISCARDED"),
   },
   REJECTED: {
     DELIVERED: { actor: "maker", needs: ["completedOn"], denied: MAKER_SIDE },

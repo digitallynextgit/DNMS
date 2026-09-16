@@ -28,21 +28,55 @@ const ACTORS: DeliverableActor[] = ["none", "maker", "team_manager", "project_ma
 // answer the same way the code does proves nothing.
 const ALLOWED: { from: DeliverableStatus; to: DeliverableStatus; min: DeliverableActor }[] = [
   { from: "PLANNED", to: "IN_PROGRESS", min: "maker" },
+  // Staff may not jump straight to made - that hides the state a manager reads.
+  // The account manager can, because a client recording "this exists" arrives
+  // through them and never passed through IN_PROGRESS.
+  { from: "PLANNED", to: "DELIVERED", min: "project_manager" },
+  { from: "PLANNED", to: "STUCK", min: "maker" },
+  { from: "PLANNED", to: "DISCARDED", min: "maker" },
+  { from: "IN_PROGRESS", to: "PLANNED", min: "maker" },
   { from: "IN_PROGRESS", to: "DELIVERED", min: "maker" },
+  { from: "IN_PROGRESS", to: "STUCK", min: "maker" },
+  { from: "IN_PROGRESS", to: "DISCARDED", min: "maker" },
+  // Blocked, not finished: everything an unstarted row can do.
+  { from: "STUCK", to: "PLANNED", min: "maker" },
+  { from: "STUCK", to: "IN_PROGRESS", min: "maker" },
+  { from: "STUCK", to: "DELIVERED", min: "maker" },
+  { from: "STUCK", to: "DISCARDED", min: "maker" },
   { from: "DELIVERED", to: "ACCEPTED", min: "project_manager" },
   // The team manager bounces work at their stage; only the account manager accepts.
   { from: "DELIVERED", to: "REJECTED", min: "team_manager" },
+  { from: "DELIVERED", to: "IN_PROGRESS", min: "maker" },
+  { from: "DELIVERED", to: "STUCK", min: "maker" },
+  { from: "DELIVERED", to: "DISCARDED", min: "maker" },
   { from: "REJECTED", to: "DELIVERED", min: "maker" },
   { from: "ACCEPTED", to: "DELIVERED", min: "project_manager" },
+  // Revived only back to the start: straight to "made" would skip the question
+  // of whether it was ever actually done.
+  { from: "DISCARDED", to: "PLANNED", min: "maker" },
 ]
 
 const NEEDS: Record<string, string[]> = {
   "PLANNED>IN_PROGRESS": [],
+  "PLANNED>DELIVERED": ["completedOn"],
+  "PLANNED>STUCK": ["reason"],
+  "PLANNED>DISCARDED": ["reason"],
+  "IN_PROGRESS>PLANNED": [],
   "IN_PROGRESS>DELIVERED": ["completedOn"],
+  "IN_PROGRESS>STUCK": ["reason"],
+  "IN_PROGRESS>DISCARDED": ["reason"],
+  "STUCK>PLANNED": [],
+  "STUCK>IN_PROGRESS": [],
+  "STUCK>DELIVERED": ["completedOn"],
+  "STUCK>DISCARDED": ["reason"],
   "DELIVERED>ACCEPTED": [],
   "DELIVERED>REJECTED": ["reason"],
+  "DELIVERED>IN_PROGRESS": [],
+  "DELIVERED>STUCK": ["reason"],
+  "DELIVERED>DISCARDED": ["reason"],
   "REJECTED>DELIVERED": ["completedOn"],
   "ACCEPTED>DELIVERED": ["reason"],
+  "DISCARDED>PLANNED": [],
 }
 
 const rank = (a: DeliverableActor) => ACTORS.indexOf(a)
@@ -75,7 +109,8 @@ describe("allowedTransition", () => {
   it("names the same-status case instead of falling through to 'not a step'", () => {
     const res = allowedTransition("DELIVERED", "DELIVERED", "project_manager")
     expect(res.ok).toBe(false)
-    if (!res.ok) expect(res.why).toBe("It is already delivered.")
+    // Built from DELIVERABLE_STATUS_LABELS, so it followed the rename to "Made".
+    if (!res.ok) expect(res.why).toBe("It is already made.")
   })
 
   it("tells a manager to un-accept before rejecting", () => {
@@ -98,16 +133,29 @@ describe("allowedTransition", () => {
 })
 
 describe("nextActions", () => {
-  it("gives a maker only START on a to-do row - finishing comes after starting", () => {
-    expect(nextActions("PLANNED", "maker")).toEqual(["IN_PROGRESS"])
+  it("gives a maker start-or-stop on a to-do row, but never a jump to made", () => {
+    // Finishing still comes after starting for staff; stopping does not, because
+    // work can be blocked or called off before anyone touches it.
+    expect(nextActions("PLANNED", "maker")).toEqual(["IN_PROGRESS", "STUCK", "DISCARDED"])
   })
 
-  it("gives a maker nothing on a delivered row - the verdict is not theirs", () => {
-    expect(nextActions("DELIVERED", "maker")).toEqual([])
+  it("gives a maker no VERDICT on a delivered row - that part is not theirs", () => {
+    // They may reopen, block or drop it; they may not accept or reject it. That
+    // distinction is the original intent of this test, and it still holds.
+    const moves = nextActions("DELIVERED", "maker")
+    expect(moves).not.toContain("ACCEPTED")
+    expect(moves).not.toContain("REJECTED")
+    expect(moves).toEqual(["IN_PROGRESS", "STUCK", "DISCARDED"])
   })
 
   it("gives a project manager accept and reject on a delivered row", () => {
-    expect(nextActions("DELIVERED", "project_manager")).toEqual(["ACCEPTED", "REJECTED"])
+    expect(nextActions("DELIVERED", "project_manager")).toEqual([
+      "IN_PROGRESS",
+      "STUCK",
+      "ACCEPTED",
+      "REJECTED",
+      "DISCARDED",
+    ])
   })
 
   it("gives an outsider nothing anywhere", () => {
@@ -129,12 +177,32 @@ describe("status sets", () => {
     expect(isOutcomeStatus("REJECTED")).toBe(false)
   })
 
-  it("splits every status into exactly one of made / open", () => {
+  it("puts every status in made or open, bar the one deliberate exception", () => {
+    // THE invariant that stops a status silently falling out of every report:
+    // a value in neither set is counted nowhere, and nothing else complains.
+    //
+    // DISCARDED is the single intended exception - dropped work was never made
+    // and is no longer owed. Any OTHER status landing in neither set is a bug,
+    // so this asserts both directions rather than just the exclusivity.
+    const NEITHER: DeliverableStatus[] = ["DISCARDED"]
     for (const s of STATUS_ORDER) {
       const made = (MADE_STATUSES as readonly string[]).includes(s)
       const open = (OPEN_STATUSES as readonly string[]).includes(s)
-      expect(made).toBe(!open)
+      expect(made && open, `${s} cannot be both made and open`).toBe(false)
+      expect(made || open, `${s} must be made or open`).toBe(!NEITHER.includes(s))
     }
+  })
+
+  it("counts stuck work as still owed, and discarded work as neither", () => {
+    // Why it matters: STUCK in OPEN is what keeps blocked work on the "what do
+    // we owe" lists instead of vanishing; DISCARDED in neither is what stops
+    // called-off work being chased or credited.
+    expect((OPEN_STATUSES as readonly string[]).includes("STUCK")).toBe(true)
+    expect(isMadeStatus("STUCK")).toBe(false)
+    expect(isMadeStatus("DISCARDED")).toBe(false)
+    expect((OPEN_STATUSES as readonly string[]).includes("DISCARDED")).toBe(false)
+    expect(isOutcomeStatus("STUCK")).toBe(false)
+    expect(isOutcomeStatus("DISCARDED")).toBe(false)
   })
 
   it("keeps outcomes a subset of made", () => {
@@ -313,10 +381,28 @@ describe("hasProof", () => {
 // would test a relationship that does not exist.
 
 describe("the client actor", () => {
-  // The only two moves the portal may make, named one at a time.
+  // Every move the portal may make, named one at a time. The portal is a
+  // tracker now, not an approval queue: the client sets the state of the work
+  // and does NOT give a verdict on it.
   const CLIENT_ALLOWED: Record<string, string[]> = {
-    "DELIVERED>ACCEPTED": [],
-    "DELIVERED>REJECTED": ["reason"],
+    "PLANNED>IN_PROGRESS": [],
+    // No completedOn from the portal - they are recording that it happened,
+    // not filing it against a date. The server dates it today.
+    "PLANNED>DELIVERED": [],
+    "PLANNED>STUCK": ["reason"],
+    "PLANNED>DISCARDED": ["reason"],
+    "IN_PROGRESS>PLANNED": [],
+    "IN_PROGRESS>DELIVERED": [],
+    "IN_PROGRESS>STUCK": ["reason"],
+    "IN_PROGRESS>DISCARDED": ["reason"],
+    "STUCK>PLANNED": [],
+    "STUCK>IN_PROGRESS": [],
+    "STUCK>DELIVERED": [],
+    "STUCK>DISCARDED": ["reason"],
+    "DELIVERED>IN_PROGRESS": [],
+    "DELIVERED>STUCK": ["reason"],
+    "DELIVERED>DISCARDED": ["reason"],
+    "DISCARDED>PLANNED": [],
   }
 
   for (const from of STATUS_ORDER) {
@@ -331,43 +417,75 @@ describe("the client actor", () => {
     }
   }
 
-  it("finalises a delivered item", () => {
-    expect(allowedTransition("DELIVERED", "ACCEPTED", "client").ok).toBe(true)
+  // ── The approval loop is closed to the portal ──────────────────────────────
+  // These two used to be the ONLY client moves. They are now staff-only, which
+  // is the whole "drop the approval flow" change - asserted here because the
+  // portal draws its buttons from this table and nothing else guards it.
+
+  it("no longer finalises work - that is the account manager's again", () => {
+    const res = allowedTransition("DELIVERED", "ACCEPTED", "client")
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.reason).toBe("actor")
   })
 
-  it("must say what is wrong before sending work back", () => {
+  it("no longer sends work back", () => {
     const res = allowedTransition("DELIVERED", "REJECTED", "client")
-    expect(res.ok).toBe(true)
-    // "Changes please" with no changes named is the thing this prevents.
-    if (res.ok) expect(res.needs).toEqual(["reason"])
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.reason).toBe("actor")
   })
 
-  it("cannot re-open what it already finalised - that is the account manager's call", () => {
+  it("leaves both verdicts working for staff", () => {
+    expect(allowedTransition("DELIVERED", "ACCEPTED", "project_manager").ok).toBe(true)
+    expect(allowedTransition("DELIVERED", "REJECTED", "team_manager").ok).toBe(true)
+  })
+
+  it("cannot re-open an accepted row - the verdict stays the staff side's", () => {
     const res = allowedTransition("ACCEPTED", "DELIVERED", "client")
     expect(res.ok).toBe(false)
     if (!res.ok) expect(res.reason).toBe("actor")
   })
 
-  it("cannot start or deliver the work itself", () => {
-    expect(allowedTransition("PLANNED", "IN_PROGRESS", "client").ok).toBe(false)
-    expect(allowedTransition("IN_PROGRESS", "DELIVERED", "client").ok).toBe(false)
+  it("cannot redeliver a rejected row", () => {
     expect(allowedTransition("REJECTED", "DELIVERED", "client").ok).toBe(false)
   })
 
-  it("is refused as the wrong PERSON, not the wrong move, on a real transition", () => {
-    // A 403 and a 422 are different answers, and the row actions draw from the
-    // same distinction.
-    const res = allowedTransition("IN_PROGRESS", "DELIVERED", "client")
-    expect(res.ok).toBe(false)
-    if (!res.ok) expect(res.reason).toBe("actor")
+  it("must say why before flagging stuck or discarding", () => {
+    // "Blocked" with nothing named is a row nobody can act on - the same thing
+    // REJECTED's reason has always existed to prevent.
+    for (const to of ["STUCK", "DISCARDED"] as DeliverableStatus[]) {
+      const res = allowedTransition("IN_PROGRESS", to, "client")
+      expect(res.ok, to).toBe(true)
+      if (res.ok) expect(res.needs, to).toEqual(["reason"])
+    }
   })
 
-  it("offers exactly the two buttons the portal draws", () => {
-    expect(nextActions("DELIVERED", "client")).toEqual(["ACCEPTED", "REJECTED"])
+  it("is never asked for a completion date - the server dates it", () => {
+    for (const from of ["PLANNED", "IN_PROGRESS", "STUCK"] as DeliverableStatus[]) {
+      const res = allowedTransition(from, "DELIVERED", "client")
+      expect(res.ok, from).toBe(true)
+      if (res.ok) expect(res.needs, from).toEqual([])
+    }
   })
 
-  it("offers nothing anywhere else", () => {
-    for (const s of ["PLANNED", "IN_PROGRESS", "ACCEPTED", "REJECTED"] as DeliverableStatus[]) {
+  it("offers the tracker moves the portal draws", () => {
+    // Order follows STATUS_ORDER, which is the reading order the dropdown uses.
+    expect(nextActions("PLANNED", "client")).toEqual([
+      "IN_PROGRESS",
+      "STUCK",
+      "DELIVERED",
+      "DISCARDED",
+    ])
+    expect(nextActions("STUCK", "client")).toEqual([
+      "PLANNED",
+      "IN_PROGRESS",
+      "DELIVERED",
+      "DISCARDED",
+    ])
+    expect(nextActions("DISCARDED", "client")).toEqual(["PLANNED"])
+  })
+
+  it("offers nothing on a row the staff side has ruled on", () => {
+    for (const s of ["ACCEPTED", "REJECTED"] as DeliverableStatus[]) {
       expect(nextActions(s, "client"), s).toEqual([])
     }
   })

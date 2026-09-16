@@ -42,19 +42,20 @@ export const clientPlanLinkSchema = z.object({
 export type ClientPlanLinkInput = z.infer<typeof clientPlanLinkSchema>
 
 /**
- * The verdict on one delivered item.
+ * Moving one item to another state.
  *
- * A reason is required to send something back and optional to finalise it, for
- * the same reason it is on a document review: "not this one" is useless to the
- * person who made it without saying why, while "yes" explains itself.
+ * The portal is a tracker, not an approval queue: the client records where the
+ * work has got to, and does not pass a verdict on it. ACCEPTED and REJECTED are
+ * therefore absent here AND from the client's side of the transition table -
+ * belt and braces, because this schema guards the shape while that table guards
+ * the rule.
+ *
+ * A reason is required for STUCK and DISCARDED and refused nowhere: "blocked"
+ * or "dropped" with nothing said is a row nobody can act on. Which transitions
+ * demand one is decided by `allowedTransition`, not here - this only carries it.
  */
-export const clientPlanDecisionSchema = z
-  .object({
-    decision: z.enum(["FINALISE", "REQUEST_CHANGES"]),
-    reason: z.string().trim().max(1000).optional().or(z.literal("")),
-  })
-  .refine((v) => v.decision === "FINALISE" || Boolean(v.reason?.trim()), {
-    message: "Say what needs changing",
-    path: ["reason"],
-  })
-export type ClientPlanDecisionInput = z.infer<typeof clientPlanDecisionSchema>
+export const clientPlanStatusSchema = z.object({
+  status: z.enum(["PLANNED", "IN_PROGRESS", "DELIVERED", "STUCK", "DISCARDED"]),
+  reason: z.string().trim().max(1000).optional().or(z.literal("")),
+})
+export type ClientPlanStatusInput = z.infer<typeof clientPlanStatusSchema>

@@ -42,7 +42,8 @@ export const POST = withProjectManager(
       return NextResponse.json({ error: "Site not found" }, { status: 404 })
 
     const body = await req.json().catch(() => ({}))
-    const vitals = await runVitalsCheck(propertyId!)
+    // A human is waiting, so reuse only very recent readings - see FRESH_MS.
+    const vitals = await runVitalsCheck(propertyId!, "MOBILE", { trigger: "manual" })
     const traffic = body?.traffic ? await runTrafficSync(propertyId!) : null
     return NextResponse.json({ data: { vitals, traffic } })
   },

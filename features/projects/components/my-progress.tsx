@@ -66,6 +66,9 @@ const STATUS_COLOR: Record<DeliverableStatus, string> = {
   DELIVERED: "var(--state-done)",
   ACCEPTED: "var(--state-done)",
   REJECTED: "var(--state-overdue)",
+  // Stuck shares the overdue hue: it is work that has stopped moving.
+  STUCK: "var(--state-overdue)",
+  DISCARDED: "var(--state-todo)",
 }
 // Delivered and accepted share a hue - both are "done" - the lighter one is
 // the half the client has not signed off on yet.
@@ -75,6 +78,9 @@ const STATUS_OPACITY: Record<DeliverableStatus, number> = {
   DELIVERED: 0.55,
   ACCEPTED: 1,
   REJECTED: 1,
+  STUCK: 1,
+  // Faded: on the chart for completeness, not for attention.
+  DISCARDED: 0.4,
 }
 
 const ALL = "all"

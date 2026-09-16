@@ -46,10 +46,10 @@ export {
 export {
   clientPlanCreateSchema,
   clientPlanLinkSchema,
-  clientPlanDecisionSchema,
+  clientPlanStatusSchema,
   type ClientPlanCreateInput,
   type ClientPlanLinkInput,
-  type ClientPlanDecisionInput,
+  type ClientPlanStatusInput,
 } from "./schemas/plan.schema"
 
 // Components
@@ -60,6 +60,7 @@ export { PortalMobileTabbar } from "./components/portal-mobile-tabbar"
 export { PortalProductGrid } from "./components/portal-product-grid"
 export { PortalDocuments } from "./components/portal-documents"
 export { PortalPlan } from "./components/portal-plan"
+export { PortalCalendars } from "./components/portal-calendars"
 export { PortalActivityLog } from "./components/portal-activity-log"
 export { ProjectClientsTab } from "./components/project-clients-tab"
 export {

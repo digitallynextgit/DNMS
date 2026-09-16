@@ -40,25 +40,44 @@ import { fmtWhen } from "./goal-status"
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * One colour per state. Semantic, and deliberately in step with the goals
- * palette: blue is work in flight, emerald is settled, amber is "somebody has
- * to do something", muted is "nothing exists yet".
+ * One colour per state. Semantic, and in step with the goals palette: blue is
+ * work in flight, emerald is settled, amber is "somebody has to do something",
+ * muted is "nothing exists yet".
+ *
+ * Three additions since: GREEN for made (it exists, and is the step before
+ * settled - so green next to emerald), ORANGE for sent back, RED for discarded.
+ *
+ * ── WHY DELIVERED IS NO LONGER `primary` ─────────────────────────────────────
+ * `primary` is the brand colour, which says "this is ours", not "this is done".
+ * It also left made and discarded reading as the only two states with no colour
+ * opinion at all, on a row where the colour is the first thing looked at.
+ *
+ * MUST stay in step with DELIVERABLE_STATUS_COLORS in lib/constants.ts, which is
+ * the same seven for the portal. A row that is green on the client's screen and
+ * purple on the team's is the same row telling two stories.
  */
 export const DELIVERABLE_STATUS_CHIP: Record<DeliverableStatus, string> = {
   PLANNED: "bg-muted text-muted-foreground",
   IN_PROGRESS: "bg-blue-500/12 text-blue-500",
-  DELIVERED: "bg-primary/12 text-primary",
+  DELIVERED: "bg-green-500/12 text-green-500",
   ACCEPTED: "bg-emerald-500/12 text-emerald-500",
-  REJECTED: "bg-amber-500/12 text-amber-500",
+  // Orange, not amber: it sat on the same colour as STUCK below, and "the team
+  // has to redo it" and "it is blocked on somebody else" are different jobs.
+  REJECTED: "bg-orange-500/12 text-orange-500",
+  STUCK: "bg-amber-500/12 text-amber-500",
+  // Red and struck through: the work is gone, which is worth seeing at a glance.
+  DISCARDED: "bg-red-500/12 text-red-500 line-through",
 }
 
-/** The same five, as a solid dot for the trail's timeline and the tracker's legend. */
+/** The same set, as a solid dot for the trail's timeline and the tracker's legend. */
 export const DELIVERABLE_STATUS_DOT: Record<DeliverableStatus, string> = {
   PLANNED: "bg-muted-foreground/40",
   IN_PROGRESS: "bg-blue-500",
-  DELIVERED: "bg-primary",
+  DELIVERED: "bg-green-500",
   ACCEPTED: "bg-emerald-500",
-  REJECTED: "bg-amber-500",
+  REJECTED: "bg-orange-500",
+  STUCK: "bg-amber-500",
+  DISCARDED: "bg-red-500",
 }
 
 /**
@@ -71,19 +90,23 @@ export const DELIVERABLE_STATUS_DOT: Record<DeliverableStatus, string> = {
  */
 export const DELIVERABLE_STATUS_FILL: Record<DeliverableStatus, string> = {
   PLANNED: "hsl(var(--muted-foreground) / 0.35)",
-  IN_PROGRESS: "#3b82f6",
-  DELIVERED: "hsl(var(--primary))",
-  ACCEPTED: "#10b981",
-  REJECTED: "#f59e0b",
+  IN_PROGRESS: "#3b82f6", // blue-500
+  DELIVERED: "#22c55e", // green-500
+  ACCEPTED: "#10b981", // emerald-500
+  REJECTED: "#f97316", // orange-500
+  STUCK: "#f59e0b", // amber-500
+  DISCARDED: "#ef4444", // red-500
 }
 
 /** The same colour again as plain text, for the from → to line. */
 export const DELIVERABLE_STATUS_TEXT: Record<DeliverableStatus, string> = {
   PLANNED: "text-muted-foreground",
   IN_PROGRESS: "text-blue-500",
-  DELIVERED: "text-primary",
+  DELIVERED: "text-green-500",
   ACCEPTED: "text-emerald-500",
-  REJECTED: "text-amber-500",
+  REJECTED: "text-orange-500",
+  STUCK: "text-amber-500",
+  DISCARDED: "text-red-500",
 }
 
 export function DeliverableStatusPill({

@@ -14,6 +14,22 @@ import { lastCompleteWindow } from "@/lib/gsc"
 const MAX_PAGES = 10 // the plan's "5-10 money pages"
 
 /**
+ * How long a reading stays fresh enough to reuse.
+ *
+ * CrUX field data is a 28-day rolling average that Google refreshes once a day,
+ * so measuring the same URL more often than this spends quota to learn nothing.
+ * The weekly job uses the long window; an operator who clicked "measure now"
+ * gets the short one, which still absorbs a double-click.
+ */
+const FRESH_MS = { scheduled: 20 * 60 * 60 * 1000, manual: 15 * 60 * 1000 } as const
+
+// PSI allows 240 calls/minute with a key. Spacing calls keeps a multi-site run
+// clear of the burst limit instead of relying on the retry inside lib/psi.
+const GAP_MS = 300
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/**
  * Which URLs to measure: the configured money pages, else the top pages by
  * clicks from the most recent snapshot (so a site with no config still gets
  * something useful), else the site root.
@@ -48,6 +64,15 @@ export interface VitalsRunResult {
   checked: number
   failed: number
   green: number
+  /** URLs whose last reading was still fresh, so no call was spent on them. */
+  skipped: number
+  /**
+   * Set when the run stopped early because PSI refused us (quota gone, or the
+   * key is missing/rejected). Distinguishing this from `failed` matters: the
+   * pages are fine, the API is not, and the UI must say so rather than claim
+   * every money page is unreachable.
+   */
+  quotaError?: string
   urls: { url: string; verdict: string | null; source: string }[]
 }
 
@@ -55,18 +80,55 @@ export interface VitalsRunResult {
 export async function runVitalsCheck(
   propertyId: string,
   formFactor: FormFactor = "MOBILE",
+  opts: { trigger?: "scheduled" | "manual" } = {},
 ): Promise<VitalsRunResult> {
   const urls = await resolveMoneyPages(propertyId)
-  const out: VitalsRunResult = { propertyId, checked: 0, failed: 0, green: 0, urls: [] }
+  const out: VitalsRunResult = {
+    propertyId,
+    checked: 0,
+    failed: 0,
+    green: 0,
+    skipped: 0,
+    urls: [],
+  }
+  if (urls.length === 0) return out
+
+  // Reuse readings Google has not refreshed yet - one query for the whole page
+  // set rather than a round trip per URL.
+  const freshSince = new Date(Date.now() - FRESH_MS[opts.trigger ?? "scheduled"])
+  const fresh = await db.seoVitals.findMany({
+    where: { propertyId, formFactor, url: { in: urls }, checkedAt: { gte: freshSince } },
+    select: { url: true },
+    distinct: ["url"],
+  })
+  const isFresh = new Set(fresh.map((r) => r.url))
 
   // Sequential: PSI is slow (a real Lighthouse run) and rate-limits hard when
   // hit in parallel.
+  let first = true
   for (const url of urls) {
-    const v = await fetchVitals(url, formFactor)
-    if (!v) {
-      out.failed++
+    if (isFresh.has(url)) {
+      out.skipped++
       continue
     }
+    if (!first) await sleep(GAP_MS)
+    first = false
+
+    const res = await fetchVitals(url, formFactor)
+    if (!res.ok) {
+      // A quota refusal is not this page's fault and will not clear by trying
+      // the next one - stop, and let the caller report why.
+      if (res.reason === "QUOTA") {
+        out.quotaError = res.message
+        console.error("[psi] run aborted:", res.message)
+        break
+      }
+      out.failed++
+      console.warn("[psi] unmeasurable", url, res.message)
+      continue
+    }
+
+    const v = res.vitals
     await db.seoVitals.create({
       data: {
         propertyId,

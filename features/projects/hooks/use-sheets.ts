@@ -78,6 +78,31 @@ export function useSheetMutations(projectId: string) {
     onError: (e) => fail(e, "Could not rename the sheet"),
   })
 
+  /** Publish a calendar to the client portal, or withdraw it. Managers only. */
+  const shareWorkbook = useMutation({
+    mutationFn: ({
+      workbookId,
+      isClientVisible,
+    }: {
+      workbookId: string
+      isClientVisible: boolean
+    }) =>
+      apiFetch(`${workbooks}/${workbookId}/share`, {
+        method: "PATCH",
+        headers: json,
+        body: JSON.stringify({ isClientVisible }),
+      }),
+    onSuccess: (_res, vars) => {
+      void invalidate()
+      toast.success(
+        vars.isClientVisible
+          ? "Shared with the client - they can now fill this calendar in"
+          : "Withdrawn - the client can no longer see this calendar",
+      )
+    },
+    onError: (e) => fail(e, "Could not change who can see this sheet"),
+  })
+
   const assignWorkbook = useMutation({
     mutationFn: ({ workbookId, employeeId }: { workbookId: string; employeeId: string | null }) =>
       apiFetch<{ data: SheetWorkbook }>(`${workbooks}/${workbookId}/assign`, {
@@ -280,6 +305,7 @@ export function useSheetMutations(projectId: string) {
     createWorkbook,
     renameWorkbook,
     assignWorkbook,
+    shareWorkbook,
     deleteWorkbook,
     createSheet,
     renameSheet,

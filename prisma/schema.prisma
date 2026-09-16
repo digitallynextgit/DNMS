@@ -2053,20 +2053,41 @@ model ProjectWorkbook {
   name         String   @map("name")
   position     Int      @default(0) @map("position")
   createdById  String?  @map("created_by_id")
+  /// Set when a CLIENT started this calendar from the portal instead of a staff
+  /// member. Mirrors ProjectResource.uploadedByClientId: staff and portal
+  /// accounts live in different tables, so one column cannot hold both.
+  ///
+  /// It is also the delete rule. A client may remove a calendar they started
+  /// and nothing else: the team's calendars are the team's to delete, and
+  /// un-ticking isClientVisible is how they take one back.
+  createdByClientId String? @map("created_by_client_id")
   /// Who owns this sheet now. Distinct from createdById: a sheet changes hands,
   /// its author does not. Null = nobody has picked it up.
   assignedToId String?  @map("assigned_to_id")
+  /// Ticked by staff to publish this calendar to the CLIENT PORTAL, where the
+  /// client can fill its cells and add rows.
+  ///
+  /// OFF BY DEFAULT, and that default IS the security model - the same
+  /// reasoning as ProjectResource.isClientVisible. A project's calendars
+  /// include internal working sheets, so one reaches an outsider only because
+  /// somebody deliberately shared it, and a calendar created later is never
+  /// shared by having been created.
+  isClientVisible Boolean @default(false) @map("is_client_visible")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdBy  Employee?      @relation("WorkbookAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdByClient ClientUser? @relation("WorkbookClientAuthor", fields: [createdByClientId], references: [id], onDelete: SetNull)
   assignedTo Employee?      @relation("WorkbookAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   sheets     ProjectSheet[]
 
   @@unique([projectId, name])
   @@index([projectId])
   @@index([assignedToId])
+  @@index([createdByClientId])
+  /// Drives the portal's list: this project's SHARED calendars only.
+  @@index([projectId, isClientVisible])
   @@index([tenantId])
   @@map("project_workbooks")
 }
@@ -2154,10 +2175,16 @@ model ProjectSheetEvent {
   before    Json?          @map("before")
   after     Json?          @map("after")
   actorId   String?        @map("actor_id")
+  /// Set when a CLIENT made the edit from the portal rather than a staff member.
+  /// Mirrors ProjectDeliverableEvent.actorClientId: staff and portal accounts
+  /// live in different tables, so one column cannot hold both. Both null is a
+  /// system write, which this table already allowed.
+  actorClientId String?     @map("actor_client_id")
   createdAt DateTime       @default(now()) @map("created_at")
 
   sheet ProjectSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
   actor Employee?    @relation("SheetEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorClient ClientUser? @relation("SheetEventClientActor", fields: [actorClientId], references: [id], onDelete: SetNull)
 
   @@index([sheetId, createdAt])
   @@index([tenantId])
@@ -2257,7 +2284,33 @@ model ProjectResource {
   fileName      String           @map("file_name")
   fileSize      Int              @map("file_size")
   mimeType      String           @map("mime_type")
-  objectKey     String           @unique @map("object_key") // B2 object key
+  /// B2 object key. NULL when the file lives in Google Drive instead - video is
+  /// routed there because it is too large for the 20 MB portal cap and because
+  /// Drive can hand out a public link. Exactly one of objectKey / driveFileId is
+  /// set, enforced by a CHECK constraint in the migration.
+  objectKey     String?          @unique @map("object_key")
+  /// Drive file id, set only for Drive-hosted assets (see objectKey).
+  driveFileId   String?          @unique @map("drive_file_id")
+  /// Drive's own viewer URL. Internal only - the file is NOT public in Drive, so
+  /// this asks an outsider to request access. Public sharing goes through
+  /// shareToken below instead.
+  driveWebViewLink String?       @map("drive_web_view_link")
+  /// True while a live share link exists. Kept beside shareToken so the portal
+  /// can render the Copy button without ever selecting the secret itself.
+  isPublicLink  Boolean          @default(false) @map("is_public_link")
+  /// The secret behind /api/public/share/<token>, which streams the video to
+  /// anyone holding it with no sign-in.
+  ///
+  /// Why the app serves this rather than Drive: this Workspace forbids public
+  /// Drive files outright (the API refuses `type: anyone` with
+  /// `publishOutNotPermitted`), and the alternative - loosening that policy -
+  /// would publish EVERY company file, not just these videos. Proxying keeps the
+  /// grant per-video and revocable here: clearing this column kills the link
+  /// immediately, which a Drive permission handed out to the world does not.
+  ///
+  /// NEVER return this in a list query - see the select in client-plan.service.
+  shareToken    String?          @unique @map("share_token")
+  sharedPubliclyAt DateTime?     @map("shared_publicly_at")
   description   String?          @map("description")
   /// Nullable since clients can upload too - see uploadedByClientId. Exactly
   /// one of the two is set, enforced by a CHECK constraint in the migration.
@@ -2415,8 +2468,16 @@ model ProjectDeliverable {
   /// made, so the two can never disagree about a finished row.
   deliveredQuantity Int               @default(0) @map("delivered_quantity")
   /// Where it is in its life. PLANNED = owed (nothing made yet); DELIVERED =
-  /// made; ACCEPTED / REJECTED = the client's verdict, recorded by staff.
+  /// made; ACCEPTED / REJECTED = the client's verdict, recorded by staff;
+  /// STUCK = blocked but still owed; DISCARDED = dropped without being made.
   status            DeliverableStatus @default(DELIVERED) @map("status")
+  /// Why it is STUCK or DISCARDED, shown under the badge in the portal.
+  ///
+  /// The per-transition reason already lives on ProjectDeliverableEvent; this is
+  /// the CURRENT one, so a list can render it without joining history for every
+  /// row. Cleared whenever the row moves to a status that needs no reason, so a
+  /// stale "waiting on footage" cannot outlive the block it described.
+  statusReason      String?           @map("status_reason")
   /// When a PLANNED row is owed by. Null for after-the-fact logging.
   dueOn             DateTime?         @map("due_on") @db.Date
   /// The window the commitment covers - a week, a month, a custom range.
@@ -2480,6 +2541,13 @@ enum DeliverableStatus {
   DELIVERED
   ACCEPTED
   REJECTED
+  /// Blocked on something, and STILL OWED - it sits in OPEN_STATUSES beside
+  /// PLANNED, which is what keeps it on the "what do we owe" lists rather than
+  /// letting a blocked commitment quietly drop out of view. Carries a reason.
+  STUCK
+  /// Dropped: closed WITHOUT being made. In neither the made nor the open set,
+  /// so it counts as work done by nobody and owed by nobody. Carries a reason.
+  DISCARDED
 }
 
 /// What happened to a deliverable. Append-only.
@@ -4016,6 +4084,9 @@ model ClientUser {
   /// The platform identity this portal account belongs to (M2).
   membership Membership?
 
+  /// Calendars they started themselves, and the only ones they may delete.
+  calendars ProjectWorkbook[] @relation("WorkbookClientAuthor")
+
   /// Things a client made on the shared mailer surface.
   campaigns    ProjectCampaign[]      @relation("CampaignClientAuthor")
   templates    ProjectEmailTemplate[] @relation("TemplateClientAuthor")
@@ -4026,6 +4097,9 @@ model ClientUser {
   plannedDeliverables  ProjectDeliverable[]      @relation("DeliverableClientLogger")
   acceptedDeliverables ProjectDeliverable[]      @relation("DeliverableClientAcceptor")
   deliverableEvents    ProjectDeliverableEvent[] @relation("DeliverableEventClientActor")
+
+  /// Cells they filled and rows they added on a shared calendar.
+  sheetEvents ProjectSheetEvent[] @relation("SheetEventClientActor")
 
   @@index([isActive])
   @@index([clientId])

@@ -472,7 +472,37 @@ export const ALLOWED_FILE_TYPES = [
   "image/webp",
 ]
 
+/** The same set by extension, for the uploads that arrive with no MIME type.
+ *  See lib/upload-rules.ts for why a blank type must not skip the check. */
+export const ALLOWED_FILE_EXTENSIONS = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".webp"]
+
 export const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
+
+// ── Video assets ──────────────────────────────────────────────────────────────
+// Deliberately NOT folded into ALLOWED_FILE_TYPES / MAX_FILE_SIZE above: those
+// two are shared by the employee-document, company-document, client-document and
+// employee-form uploads, and widening them to 250 MB of video would open all
+// four. Video is a content-plan concern, so it gets its own pair.
+
+export const ALLOWED_VIDEO_TYPES = [
+  "video/mp4",
+  "video/quicktime", // .mov - what phones and Safari send
+  "video/webm",
+  "video/x-matroska", // .mkv
+  "video/x-msvideo", // .avi
+]
+
+/** Extension fallback: browsers routinely send an EMPTY file.type, and a MIME-only
+ *  check would then either reject a real video or wave anything through. */
+export const ALLOWED_VIDEO_EXTENSIONS = [".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v"]
+
+/**
+ * 250 MB. Not a preference - the ceiling is set by the stack: proxyClientMaxBodySize
+ * is 260mb in next.config.mjs and nginx's client_max_body_size is 250M. Above that
+ * the multipart body is TRUNCATED rather than rejected, and req.formData() dies on
+ * the missing boundary. Matches the staff upload routes for the same reason.
+ */
+export const MAX_VIDEO_SIZE = 250 * 1024 * 1024
 
 export const ATTENDANCE_STATUS_LABELS: Record<string, string> = {
   PRESENT: "Present",
@@ -526,13 +556,44 @@ export const LEAVE_STATUS_COLORS: Record<string, string> = {
 // deliverable-lifecycle.ts) because the rules there depend on them. Only the
 // palette belongs here, on TONE like every other status map.
 
+// ── One colour per state, all seven distinguishable ──────────────────────────
+// Read as a traffic system: grey is nothing yet, blue is moving, amber has
+// stopped, green exists, red is gone. No two states share a tone, because the
+// colour is the first thing read on a row and two states wearing one tone means
+// the badge is decoration rather than information.
 export const DELIVERABLE_STATUS_COLORS: Record<string, string> = {
+  // Nothing has happened yet, so nothing to draw the eye.
   PLANNED: TONE.neutral,
   IN_PROGRESS: TONE.blue,
-  DELIVERED: TONE.purple,
-  ACCEPTED: TONE.green,
-  // Amber, not red: work sent back is waiting on somebody, not broken.
-  REJECTED: TONE.amber,
+  // Green: it exists. Was purple, which said nothing about the state.
+  DELIVERED: TONE.green,
+  // The deeper green of the same family - signed off is "made, and settled",
+  // so it should read as related to made rather than as a different idea.
+  ACCEPTED: TONE.emerald,
+  // Orange, not amber: it is the neighbour of STUCK below and the two used to
+  // be the same colour. Both mean "somebody has to do something", so they stay
+  // warm - but they are different somebodies, and the row has to say which.
+  REJECTED: TONE.orange,
+  STUCK: TONE.amber,
+  // Red: called off. Not a fault, but it IS the one state where the work is
+  // gone, and that is worth seeing at a glance.
+  DISCARDED: TONE.red,
+}
+
+/**
+ * The same seven as a solid dot, for menus where a full badge would be noise.
+ *
+ * Kept beside the badge map on purpose: a dot and a badge for the same status
+ * disagreeing is exactly the kind of drift that makes colour untrustworthy.
+ */
+export const DELIVERABLE_STATUS_DOTS: Record<string, string> = {
+  PLANNED: "bg-muted-foreground/40",
+  IN_PROGRESS: "bg-blue-500",
+  DELIVERED: "bg-green-500",
+  ACCEPTED: "bg-emerald-500",
+  REJECTED: "bg-orange-500",
+  STUCK: "bg-amber-500",
+  DISCARDED: "bg-red-500",
 }
 
 // ── HR checklists (onboarding / exit clearance) ──────────────────────────────

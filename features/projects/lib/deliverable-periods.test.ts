@@ -89,6 +89,28 @@ describe("derivePeriodStatus", () => {
     expect(derivePeriodStatus(["ACCEPTED", "ACCEPTED"])).toBe("ACCEPTED")
   })
 
+  it("a blocked piece leaves the period in progress, not owed", () => {
+    // Stuck work has been touched - saying "to do" would hide that somebody
+    // already hit a wall on it.
+    expect(derivePeriodStatus(["PLANNED", "STUCK"])).toBe("IN_PROGRESS")
+    expect(derivePeriodStatus(["STUCK"])).toBe("IN_PROGRESS")
+  })
+
+  it("does not let a dropped piece drag a finished period backwards", () => {
+    // The surviving work is made; the discarded row is not evidence about the
+    // week. Without setting them aside this read "in progress" forever.
+    expect(derivePeriodStatus(["DELIVERED", "DISCARDED"])).toBe("DELIVERED")
+    expect(derivePeriodStatus(["ACCEPTED", "DISCARDED"])).toBe("ACCEPTED")
+  })
+
+  it("a period that was entirely called off says so", () => {
+    expect(derivePeriodStatus(["DISCARDED", "DISCARDED"])).toBe("DISCARDED")
+  })
+
+  it("still reports what is outstanding when only some was dropped", () => {
+    expect(derivePeriodStatus(["PLANNED", "DISCARDED"])).toBe("PLANNED")
+  })
+
   it("one rejection outranks everything, including acceptances", () => {
     // The one state waiting on the team must not hide behind a green pill.
     expect(derivePeriodStatus(["ACCEPTED", "ACCEPTED", "REJECTED"])).toBe("REJECTED")
@@ -196,14 +218,19 @@ describe("groupIntoPeriods", () => {
 })
 
 describe("unitsByStatus", () => {
-  it("returns all five statuses in reading order, zeroes included", () => {
+  it("returns every status in reading order, zeroes included", () => {
     const out = unitsByStatus([row("PLANNED")])
+    // Derived from STATUS_ORDER, so a new status appears here automatically -
+    // which is the point: a breakdown that silently omits one is a breakdown
+    // whose numbers do not add up to the total.
     expect(out.map((s) => s.status)).toEqual([
       "PLANNED",
       "IN_PROGRESS",
+      "STUCK",
       "DELIVERED",
       "ACCEPTED",
       "REJECTED",
+      "DISCARDED",
     ])
     expect(out.filter((s) => s.units > 0)).toHaveLength(1)
   })

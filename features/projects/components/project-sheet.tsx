@@ -14,6 +14,8 @@ import {
   Pencil,
   Check,
   ExternalLink,
+  Eye,
+  EyeOff,
 } from "lucide-react"
 import { SheetImportDialog } from "./sheet-import-dialog"
 
@@ -54,6 +56,7 @@ import { useProjectSheets, useSheetHistory, useSheetMutations } from "../hooks/u
 import {
   COLUMN_TYPE_HINT,
   COLUMN_TYPE_LABEL,
+  columnLetter,
   MAX_COL_W,
   MAX_ROW_H,
   MIN_COL_W,
@@ -123,11 +126,6 @@ const TOTAL_ROWS = 1000
 const OVERSCAN = 8
 
 /**
- * 0 -> A, 25 -> Z, 26 -> AA. The reference people actually use out loud
- * ("what's in C4?"), which is why it is worth showing even though every column
- * here also has a name.
- */
-/**
  * Types whose control IS the editor.
  *
  * A dropdown or a checkbox commits in one gesture, so there is no "start
@@ -135,16 +133,6 @@ const OVERSCAN = 8
  * one, or the cell ends up in a state it cannot leave.
  */
 const LIVE_TYPES = new Set<SheetColumnType>(["SELECT", "PERSON", "CHECKBOX"])
-
-function columnLetter(index: number): string {
-  let n = index
-  let out = ""
-  do {
-    out = String.fromCharCode(65 + (n % 26)) + out
-    n = Math.floor(n / 26) - 1
-  } while (n >= 0)
-  return out
-}
 
 function fmtWhen(iso: string): string {
   return new Date(iso).toLocaleString("en-GB", {
@@ -1194,6 +1182,34 @@ export function ProjectSheetSection({
                   m.assignWorkbook.mutate({ workbookId: workbook.id, employeeId })
                 }
               />
+              {/* Managers only, unlike renaming beside it: this is the one
+                  control here that decides whether an OUTSIDE party can read
+                  and write the sheet. */}
+              {canManage && (
+                <Button
+                  variant={workbook.isClientVisible ? "secondary" : "ghost"}
+                  className="gap-1 px-2"
+                  disabled={m.shareWorkbook.isPending}
+                  title={
+                    workbook.isClientVisible
+                      ? "Shared with the client - they can fill cells and add rows. Click to withdraw."
+                      : "Share this calendar with the client so they can fill it in"
+                  }
+                  onClick={() =>
+                    m.shareWorkbook.mutate({
+                      workbookId: workbook.id,
+                      isClientVisible: !workbook.isClientVisible,
+                    })
+                  }
+                >
+                  {workbook.isClientVisible ? (
+                    <Eye className="h-3.5 w-3.5" />
+                  ) : (
+                    <EyeOff className="h-3.5 w-3.5" />
+                  )}
+                  {workbook.isClientVisible ? "Shared" : "Share"}
+                </Button>
+              )}
               <span className="bg-border mx-1 h-4 w-px" aria-hidden />
             </>
           )}

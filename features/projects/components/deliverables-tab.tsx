@@ -124,8 +124,10 @@ import { formatHours } from "../lib/format-hours"
  *  deliverable shows all of it. */
 const PERIODS_PER_PAGE = 20
 
-/** Owed work, for the tile and the list that hangs off it. */
-const OPEN_FILTER: DeliverableStatus[] = ["PLANNED", "IN_PROGRESS"]
+/** Owed work, for the tile and the list that hangs off it. Mirrors OPEN_STATUSES
+ *  - STUCK is owed too, and a blocked row missing from the "owed" tile is the
+ *  one most worth seeing there. */
+const OPEN_FILTER: DeliverableStatus[] = ["PLANNED", "IN_PROGRESS", "STUCK"]
 
 /** Today as yyyy-MM-dd, for "is this overdue" comparisons on plain strings. */
 const todayKey = (): string => toDateString(new Date())
@@ -1002,9 +1004,7 @@ function SignOff({ r }: { r: DeliverableRow }) {
       text: `rev ${r.revisionCount}`,
       title: `Last sent back by ${
         r.sentBack.by ?? (r.sentBack.byClient ? "the client" : "a manager")
-      }${
-        r.sentBack.reason ? `: ${r.sentBack.reason}` : ""
-      }`,
+      }${r.sentBack.reason ? `: ${r.sentBack.reason}` : ""}`,
       tone: "text-muted-foreground",
     })
   }

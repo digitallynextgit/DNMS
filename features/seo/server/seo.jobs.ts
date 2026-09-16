@@ -127,6 +127,12 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
   let notified = 0
   const results: { domain: string; ok: boolean; error?: string; alerts?: number }[] = []
 
+  // PSI quota is per Cloud project, not per site, so once it is gone it is gone
+  // for every remaining property in this sweep. Latch it and stop asking - a
+  // 13-subdomain project would otherwise fire 130 doomed calls and fill the log
+  // with identical 429s.
+  let psiQuotaError: string | null = null
+
   // Sequential on purpose: Google rate-limits per project, and a weekly job has
   // no reason to be fast.
   for (const p of properties) {
@@ -157,10 +163,13 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
     // the scorecard reads whatever the two collectors just stored. Each is
     // independently failure-tolerant: a site with no GA4 id still scores on
     // Search Console alone, with `coverage` reporting the shortfall.
-    try {
-      await runVitalsCheck(p.id)
-    } catch (e) {
-      console.error("[SEO_WEEKLY] vitals", p.domain, e)
+    if (!psiQuotaError) {
+      try {
+        const v = await runVitalsCheck(p.id, "MOBILE", { trigger: "scheduled" })
+        if (v.quotaError) psiQuotaError = v.quotaError
+      } catch (e) {
+        console.error("[SEO_WEEKLY] vitals", p.domain, e)
+      }
     }
     try {
       await runTrafficSync(p.id)
@@ -212,6 +221,23 @@ export async function runSeoWeeklyJob(): Promise<SeoWeeklyResult> {
             : `${worst.title}. ${worst.detail}`,
         type: worst.level === "critical" ? "error" : "warning",
         link: projectHref({ id: p.projectId, slug: p.project.slug }, "seo"),
+      })
+      notified++
+    }
+  }
+
+  // Tell someone once, not once per site. Skipping vitals silently would let the
+  // scorecard drift on stale Core Web Vitals with nothing in the UI to explain
+  // why - the same reason a failed Search Console sync raises an alert above.
+  if (psiQuotaError) {
+    console.error("[SEO_WEEKLY] vitals skipped:", psiQuotaError)
+    const owner = properties.find((p) => p.project.ownerId)?.project.ownerId
+    if (owner) {
+      await createNotification({
+        employeeId: owner,
+        title: "SEO: Core Web Vitals skipped",
+        message: psiQuotaError,
+        type: "warning",
       })
       notified++
     }

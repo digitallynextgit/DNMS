@@ -6,6 +6,7 @@ import { recordActivity } from "@/lib/activity"
 import { createNotifications } from "@/lib/notifications"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { getObjectKey, uploadFile, getSignedUrl, deleteFile, isB2Configured } from "@/lib/storage"
+import { deleteVideoAsset } from "@/lib/drive-media"
 import { MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from "@/lib/constants"
 
 // =============================================================================
@@ -92,14 +93,29 @@ export async function getClientDocumentUrl(
     // not exist.
     const file = await db.projectResource.findFirst({
       where: { id: fileId, projectId: grant.projectId, isClientVisible: true },
-      select: { id: true, objectKey: true, fileName: true },
+      select: {
+        id: true,
+        objectKey: true,
+        fileName: true,
+        driveFileId: true,
+        driveWebViewLink: true,
+      },
     })
     if (!file) return fail("File not found", undefined, 404)
-    if (!isB2Configured()) return fail("File storage is not configured", undefined, 503)
 
-    const url = await getSignedUrl(file.objectKey, 3600, {
-      downloadFileName: opts.download ? file.fileName : undefined,
-    })
+    // This list is every client-visible resource, so it includes the content
+    // plan's Drive-hosted videos as well as Backblaze documents. Those stream
+    // through us: the client has no Google account in that Workspace, so Drive's
+    // own link would show them a request-access page.
+    let url: string
+    if (file.driveFileId) {
+      url = `/api/portal/projects/${projectRef}/documents/${file.id}/stream`
+    } else {
+      if (!isB2Configured()) return fail("File storage is not configured", undefined, 503)
+      url = await getSignedUrl(file.objectKey!, 3600, {
+        downloadFileName: opts.download ? file.fileName : undefined,
+      })
+    }
 
     await recordActivity(session, {
       action: "portal_document:download",
@@ -223,7 +239,13 @@ export async function deleteClientDocument(
 
     const file = await db.projectResource.findFirst({
       where: { id: fileId, projectId: grant.projectId, uploadedByClientId: session.user.id },
-      select: { id: true, objectKey: true, fileName: true, reviewStatus: true },
+      select: {
+        id: true,
+        objectKey: true,
+        fileName: true,
+        reviewStatus: true,
+        driveFileId: true,
+      },
     })
     // Deliberately narrow: a client may withdraw their OWN upload and nothing
     // else. A staff-published document is not theirs to remove.
@@ -234,11 +256,15 @@ export async function deleteClientDocument(
 
     await db.projectResource.delete({ where: { id: file.id } })
     try {
-      await deleteFile(file.objectKey)
+      // Withdrawing a published video has to REVOKE the public link, not just
+      // delete the row - otherwise the thing the client is withdrawing stays
+      // reachable to everyone they already sent it to.
+      if (file.driveFileId) await deleteVideoAsset(file.driveFileId)
+      else await deleteFile(file.objectKey!)
     } catch (e) {
       // The row is gone; an orphaned object is a storage-cleanup problem, not a
       // reason to fail the request the person already saw succeed.
-      console.error("[portal] object delete failed", file.objectKey, e)
+      console.error("[portal] object delete failed", file.objectKey ?? file.driveFileId, e)
     }
 
     await recordActivity(session, {
