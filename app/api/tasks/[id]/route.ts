@@ -313,22 +313,21 @@ export const PATCH = withSession(
       // The task row and its status history move together: a recorded status
       // with no period (or the reverse) would make every duration wrong from
       // that point on.
-      const { task, resumeTask, removedResume, sharedTasks } = await db.$transaction(async (tx) => {
+      const { task, resumeTask, removedResume } = await db.$transaction(async (tx) => {
         // ── Settle BEFORE the status moves ──────────────────────────────────
-        // Every running clock is paid its share of the stretch that is ending,
-        // at the rate that applied while it ran. Doing it first is what makes
-        // the arithmetic exact: after this line every running task (including
-        // this one, if it was running) is banked and restarted from `now`, so
-        // starting or stopping below is a clean cut. See task-clock.service.ts.
+        // Every running clock banks the full stretch that is ending. Doing it
+        // first is what keeps the arithmetic exact: after this line every
+        // running task (including this one, if it was running) is banked and
+        // restarted from `now`, so starting or stopping below is a clean cut.
+        // See task-clock.service.ts.
         const now = new Date()
-        const sharedTasks =
-          clockAction === null
-            ? []
-            : await settleRunningTasks(tx, {
-                assigneeId: auth.task.assigneeId,
-                actorId: session.user.id,
-                at: now,
-              })
+        if (clockAction !== null) {
+          await settleRunningTasks(tx, {
+            assigneeId: auth.task.assigneeId,
+            actorId: session.user.id,
+            at: now,
+          })
+        }
 
         // Now this task's own clock. Several of a person's tasks may run at
         // once; starting one does NOT stop the others.
@@ -375,7 +374,7 @@ export const PATCH = withSession(
           // into a future week.
           removedResume = await removeResumeTaskIfPristine(tx, updated.id)
         }
-        return { task: updated, resumeTask: resume, removedResume, sharedTasks }
+        return { task: updated, resumeTask: resume, removedResume }
       })
 
       // Before AND after, not just the new value: "who moved the deadline, and
@@ -485,13 +484,7 @@ export const PATCH = withSession(
         })
       }
 
-      // sharedTasks is returned so the client can say the stretch was SHARED.
-      // Time landing on a task at half rate, with nothing on screen explaining
-      // why, is the kind of thing people only notice at the end of the month.
-      return NextResponse.json({
-        data: task,
-        ...(sharedTasks.length > 0 ? { sharedTasks } : {}),
-      })
+      return NextResponse.json({ data: task })
     } catch (error) {
       console.error("[TASK_PATCH]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })

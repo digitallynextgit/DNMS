@@ -231,7 +231,13 @@ export function mondayOf(d: Date): Date {
 
 // ── Time ─────────────────────────────────────────────────────────────────────
 
-/** Banked time plus the stretch currently running, in hours. */
+/**
+ * Banked time plus the whole stretch currently running, in hours.
+ *
+ * Undivided, matching what settleRunningTasks banks: clocks running side by
+ * side each earn the full stretch (task-clock.service.ts), so this figure does
+ * not change when one of them stops.
+ */
 function spentHours(task: SheetTask): number {
   const live = task.inProgressSince
     ? Math.max(0, Date.now() - new Date(task.inProgressSince).getTime()) / 3_600_000

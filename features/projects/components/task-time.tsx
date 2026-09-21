@@ -17,7 +17,13 @@ interface Props {
   className?: string
 }
 
-/** Hours elapsed since `since`, or 0 when the clock is not running. */
+/**
+ * Hours elapsed since `since`, or 0 when the clock is not running.
+ *
+ * The WHOLE stretch, matching what settleRunningTasks banks: a task running
+ * beside others is not accruing any slower, so the live figure and the banked
+ * one are the same number and nothing jumps when the clock stops.
+ */
 function elapsedHoursSince(since: string | null | undefined): number {
   if (!since) return 0
   const ms = Date.now() - new Date(since).getTime()

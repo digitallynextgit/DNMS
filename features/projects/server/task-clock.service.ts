@@ -3,7 +3,7 @@ import "server-only"
 import type { DbTransaction } from "@/server/db"
 
 // =============================================================================
-// Several tasks at once, without billing the same hour twice.
+// Several tasks at once, each on its own clock.
 //
 // Time spent is MEASURED, not typed in: a clock starts when a task enters
 // IN_PROGRESS and the elapsed stretch is banked into loggedHours when it stops.
@@ -11,45 +11,40 @@ import type { DbTransaction } from "@/server/db"
 // copy, two pages open side by side - so any number of a person's tasks may run
 // at the same time.
 //
-// ── THE PROBLEM THAT CREATES, AND THE FIX ────────────────────────────────────
-// Two clocks over one morning used to bank the morning TWICE. On 19 Aug 2026
-// two tasks were started three seconds apart and finished together; each banked
-// 6h 33m, so a 6h 33m morning was booked as 13h 6m. Three tasks would have made
-// it 19h 39m. Those numbers feed the performance page, the progress buckets and
-// the over-budget reminders, all of which were reading a day that could not
-// physically have happened.
+// EVERY RUNNING TASK BANKS THE FULL STRETCH. Two tasks running across the same
+// hour each bank an hour. A task's hours are its own: what else happened to be
+// running beside it never changes them, so the figure on a task is simply how
+// long that task was open.
 //
-// So concurrent tasks SHARE the clock. While N of a person's tasks are running,
-// each accrues at 1/N of real time. Two tasks over 6h 33m get 3h 16m each; the
-// day still totals 6h 33m, which is the only total that can be true.
+// ── WHAT THAT MEANS FOR PER-PERSON TOTALS ────────────────────────────────────
+// Summed across tasks, a person's day CAN exceed the hours in it: two clocks
+// over a 6h 33m morning total 13h 6m. That is intended and is the deliberate
+// trade for per-task figures that nothing else can dilute. These numbers answer
+// "how long was this task open", NOT "how long was this person working".
+// Anything needing the second question - capacity, utilisation, the real length
+// of someone's day - has to measure attendance, because summing task clocks
+// cannot answer it.
 //
-// ── HOW THE SHARING STAYS EXACT ──────────────────────────────────────────────
-// Not by tracking attention, which nothing can do, but by SETTLING the whole
-// running set every time it changes. Starting or stopping any task first credits
-// every running task with `elapsed / N` for the stretch just ended, then resets
-// them all to the same instant. Each stretch is therefore paid out at the rate
-// that was true while it ran:
+// Between 19 Aug and 21 Sep 2026 this worked the other way: concurrent clocks
+// shared real time, each accruing 1/N, so a day always totalled the wall clock.
+// That made a task's own figure depend on unrelated work running beside it -
+// start a second task and the first silently halved - which is what this
+// replaces.
 //
-//   t0  A starts                      A alone
-//   t1  B starts   -> settle: A += (t1-t0)/1        both now marked from t1
-//   t2  A stops    -> settle: A += (t2-t1)/2, B += (t2-t1)/2
-//   t3  B stops    -> settle: B += (t3-t2)/1
-//
-//   A + B  =  (t1-t0) + (t2-t1) + (t3-t2)  =  t3 - t0.  Exactly the wall clock.
-//
-// The one thing this cannot know is which task you were really looking at. Start
-// three and walk away and all three earn a third each. That is a fair split of a
-// real hour rather than three invented ones, and it is the honest answer
-// available without asking someone to click every time their attention moves.
+// ── SETTLING ─────────────────────────────────────────────────────────────────
+// Starting or stopping any clock still banks the stretch every running task has
+// just finished and restarts them all from the same instant. At full rate that
+// is arithmetically a no-op for the tasks left running - banking (t1-t0) now and
+// (t2-t1) later is the same total as banking (t2-t0) at the end. It is kept
+// because it also sweeps up a row whose status drifted out of IN_PROGRESS while
+// the timestamp survived, which would otherwise accrue unnoticed for a week.
 // =============================================================================
 
 export interface SettledTask {
   id: string
   title: string
-  /** Hours credited by this settle - the stretch's share. */
+  /** Hours credited by this settle - the whole stretch that just ended. */
   creditedHours: number
-  /** How many clocks were sharing the stretch. 1 = it ran alone. */
-  sharedWith: number
 }
 
 /**
@@ -57,13 +52,13 @@ export interface SettledTask {
  * and restart them all from `at`.
  *
  * Call this BEFORE starting or stopping a clock, so the stretch that is ending
- * is paid at the rate that applied while it ran rather than the rate that is
- * about to apply. Runs inside the caller's transaction: a settle without the
- * status change it accompanies, or the reverse, is how hours go missing.
+ * is banked against the task that earned it. Runs inside the caller's
+ * transaction: a settle without the status change it accompanies, or the
+ * reverse, is how hours go missing.
  *
- * Returns only the tasks that actually shared with another (sharedWith > 1), so
- * a caller can tell the user their time was split without narrating the ordinary
- * single-clock case.
+ * Each running task is credited the FULL stretch - concurrent clocks do not
+ * divide it between them. Returns what was banked, for callers that want to
+ * show it.
  */
 export async function settleRunningTasks(
   tx: DbTransaction,
@@ -88,12 +83,12 @@ export async function settleRunningTasks(
   })
   if (running.length === 0) return []
 
-  const share = running.length
   const settled: SettledTask[] = []
 
   for (const t of running) {
-    const elapsed = Math.max(0, (at.getTime() - t.inProgressSince!.getTime()) / 3_600_000)
-    const credited = elapsed / share
+    // The WHOLE stretch, to every clock that was running for it. Running two
+    // tasks side by side is not a reason to pay either of them less.
+    const credited = Math.max(0, (at.getTime() - t.inProgressSince!.getTime()) / 3_600_000)
     await tx.projectTask.update({
       where: { id: t.id },
       data: {
@@ -107,20 +102,8 @@ export async function settleRunningTasks(
       id: t.id,
       title: t.title,
       creditedHours: Math.round(credited * 3600) / 3600,
-      sharedWith: share,
     })
   }
 
-  return share > 1 ? settled : []
-}
-
-/**
- * How many of a person's clocks are running right now.
- *
- * The live figure on a sheet is `loggedHours` plus the stretch in flight, and
- * that stretch is being shared - so a caller showing live time has to divide by
- * this or it over-reports until the next settle. See weekly-hours.queries.ts.
- */
-export function liveShare(runningCount: number): number {
-  return runningCount > 0 ? runningCount : 1
+  return settled
 }
