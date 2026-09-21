@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withProjectAccess } from "@/features/projects/server/project-access"
-import { createSheet, listWorkbooks } from "@/features/projects/server/sheets.service"
+import { createSheet, listWorkbookIndex } from "@/features/projects/server/sheets.service"
 import type { Session } from "next-auth"
 
 /**
- * GET  - every workbook on the project (what the UI calls a "sheet"), each
- *        with its tabs, columns and rows.
+ * GET  - every calendar on the project, with its tab NAMES only.
+ *
+ *        It used to return every tab's columns and rows as well. It cannot any
+ *        more: a calendar has one edition per MONTH now, so that payload grew
+ *        by twelve a year per calendar. Callers that need a grid fetch the one
+ *        edition from GET /workbooks/[workbookId].
  * POST - create a TAB inside a workbook.  body { workbookId, name, description? }
  *
  * Both are behind withProjectAccess, not withProjectManager, and that is the
@@ -14,7 +18,7 @@ import type { Session } from "next-auth"
  */
 export const GET = withProjectAccess(
   async (_req: NextRequest, ctx: { params: Record<string, string> }) =>
-    NextResponse.json({ data: await listWorkbooks(ctx.params.id!) }),
+    NextResponse.json({ data: await listWorkbookIndex(ctx.params.id!) }),
 )
 
 export const POST = withProjectAccess(

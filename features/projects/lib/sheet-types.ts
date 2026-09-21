@@ -48,6 +48,8 @@ export const COLUMN_TYPE_HINT: Record<SheetColumnType, string> = {
   PERSON: "Someone on the project",
 }
 
+import type { WorkbookTeamStatus } from "./workbook-team-progress"
+
 export type SheetEventType =
   | "SHEET_CREATED"
   | "SHEET_RENAMED"
@@ -118,6 +120,15 @@ export interface SheetAssignee {
 export interface SheetWorkbook {
   id: string
   name: string
+  /**
+   * The month this edition covers, as "YYYY-MM-01". Null = an undated calendar.
+   *
+   * NULLABLE rather than required, and that is load-bearing: this interface is
+   * shared with the client portal, so a required field would break every
+   * consumer at once - and every calendar made before calendars were monthly
+   * genuinely has no month.
+   */
+  periodMonth: string | null
   position: number
   createdByName: string | null
   /** Set when a CLIENT started this calendar in the portal. Null for the team's own. */
@@ -130,6 +141,83 @@ export interface SheetWorkbook {
   /** Its tabs, in order. Never empty: a workbook is created with one. */
   sheets: ProjectSheet[]
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The per-team plan.
+//
+// STAFF ONLY. None of this travels through toWorkbook(), which the client
+// portal shares - see the comment on listClientWorkbooks in sheets.service.ts.
+// Who is doing the work, how much they owe and when it is due is an internal
+// conversation, and the portal must never be one refactor away from it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Someone put on a team's row for this calendar. */
+export interface WorkbookTeamMember {
+  employeeId: string
+  firstName: string
+  lastName: string
+  profilePhoto: string | null
+  designation: string | null
+}
+
+/** A file produced against a team's row. Uploaded through the project's own pipeline. */
+export interface WorkbookTeamAttachment {
+  id: string
+  fileName: string
+  fileSize: number
+  mimeType: string
+  /** Set when the file lives in Google Drive instead of Backblaze (video). */
+  driveFileId: string | null
+  uploadedByName: string | null
+  createdAt: string
+}
+
+/** One team's commitment on one monthly calendar. */
+export interface WorkbookTeam {
+  id: string
+  teamId: string
+  /** "WEB", "VIDEO"… the project's fixed team names. */
+  teamName: string
+  /** Who manages that team on this project, for "is this mine to edit". */
+  teamManagerId: string | null
+  /** How many items they owe. 0 = on the calendar, not yet quantified. */
+  quantity: number
+  /** Where the month stands. See lib/workbook-team-progress.ts. */
+  status: WorkbookTeamStatus
+  /** "YYYY-MM-DD", or null when no date has been agreed. */
+  dueOn: string | null
+  /** Task URLs, Drive folders, published pages. */
+  links: string[]
+  notes: string | null
+  members: WorkbookTeamMember[]
+  attachments: WorkbookTeamAttachment[]
+}
+
+/**
+ * One calendar in the PICKER: enough to name it, date it and say who runs it,
+ * and nothing else.
+ *
+ * Deliberately carries no columns and no rows. The picker lists every edition
+ * of every calendar on the project, and monthly editions mean that list grows
+ * by twelve a year per calendar - sending each one's whole grid to draw a
+ * dropdown would make opening the tab cost more every month it is used.
+ */
+export interface WorkbookIndexEntry {
+  id: string
+  name: string
+  periodMonth: string | null
+  position: number
+  createdByName: string | null
+  createdByClientId: string | null
+  assignedTo: SheetAssignee | null
+  isClientVisible: boolean
+  updatedAt: string
+  /** Tab names only, in order - enough for the importer to match one by name. */
+  tabs: { id: string; name: string; position: number }[]
+}
+
+/** One calendar in FULL: the grid, plus the team plan. Staff only. */
+export type StaffWorkbook = SheetWorkbook & { teams: WorkbookTeam[] }
 
 /**
  * Coerce whatever arrives for a cell into something storable.

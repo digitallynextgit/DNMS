@@ -4,6 +4,16 @@
 
 generator client {
   provider = "prisma-client-js"
+  /// partialIndexes (Prisma 7.4+) is here for exactly one index: the "undated
+  /// calendars are unique by name" rule on ProjectWorkbook.
+  ///
+  /// It is not decoration. Since 7.4 the migration differ READS partial-index
+  /// predicates, so a partial index that exists in the database but not in this
+  /// schema now reads as drift - and `db push` would drop it, silently taking
+  /// the constraint with it. CHECK constraints are still safe to hand-write
+  /// (the differ ignores those, which is why project_deliverables_period_check
+  /// has survived untouched); partial indexes are no longer in that class.
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -712,6 +722,8 @@ model Employee {
   taskStatusChanges  TaskStatusPeriod[]     @relation("TaskStatusActor")
   contentEntries     ContentCalendarEntry[] @relation("ContentAssignee")
   sheetsCreated      ProjectSheet[]         @relation("SheetAuthor")
+  workbookTeamsCreated ProjectWorkbookTeam[] @relation("WorkbookTeamAuthor")
+  workbookTeamSeats  ProjectWorkbookTeamMember[] @relation("WorkbookTeamMembership")
   workbooksCreated   ProjectWorkbook[]      @relation("WorkbookAuthor")
   workbooksAssigned  ProjectWorkbook[]      @relation("WorkbookAssignee")
   sheetRowsCreated   ProjectSheetRow[]      @relation("SheetRowAuthor")
@@ -2051,6 +2063,23 @@ model ProjectWorkbook {
   id           String   @id @default(uuid()) @map("id")
   projectId    String   @map("project_id")
   name         String   @map("name")
+  /// The MONTH this edition of the calendar covers, stored as the first day of
+  /// it (2026-09-01 = September 2026).
+  ///
+  /// A calendar is planned a month at a time, so "Performance Marketing
+  /// Calendar" is not one sheet that grows forever - it is one sheet PER MONTH,
+  /// each with its own grid and its own team plan. Before this column that was
+  /// done by writing the month into the name ("...(H2S-Sept)"), which left the
+  /// September and October editions as two unrelated rows.
+  ///
+  /// A DATE pinned to the 1st rather than a year/month pair, matching
+  /// ProjectDeliverable.periodStart: ordering and "which months exist" stay the
+  /// database's job instead of becoming two columns the app must sort by hand.
+  ///
+  /// NULL = an undated calendar. Every calendar that predates this column is
+  /// one, and so is an ideas sheet that was never monthly - see the two PARTIAL
+  /// unique indexes in the migration for how both cases stay unique.
+  periodMonth  DateTime? @map("period_month") @db.Date
   position     Int      @default(0) @map("position")
   createdById  String?  @map("created_by_id")
   /// Set when a CLIENT started this calendar from the portal instead of a staff
@@ -2061,8 +2090,13 @@ model ProjectWorkbook {
   /// and nothing else: the team's calendars are the team's to delete, and
   /// un-ticking isClientVisible is how they take one back.
   createdByClientId String? @map("created_by_client_id")
-  /// Who owns this sheet now. Distinct from createdById: a sheet changes hands,
-  /// its author does not. Null = nobody has picked it up.
+  /// The CALENDAR MANAGER: the one person supervising this month's calendar.
+  /// Distinct from createdById - a calendar changes hands, its author does not.
+  /// Null = nobody has picked it up.
+  ///
+  /// One person on purpose. The work itself is split across teams, and that
+  /// split lives in ProjectWorkbookTeam; this is who answers for the whole of
+  /// it, which is a question with exactly one answer.
   assignedToId String?  @map("assigned_to_id")
   /// Ticked by staff to publish this calendar to the CLIENT PORTAL, where the
   /// client can fill its cells and add rows.
@@ -2081,8 +2115,27 @@ model ProjectWorkbook {
   createdByClient ClientUser? @relation("WorkbookClientAuthor", fields: [createdByClientId], references: [id], onDelete: SetNull)
   assignedTo Employee?      @relation("WorkbookAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   sheets     ProjectSheet[]
+  teams      ProjectWorkbookTeam[]
 
-  @@unique([projectId, name])
+  /// One calendar of a given name PER MONTH.
+  ///
+  /// Every row this index compares has a real month, so Postgres compares the
+  /// tuples normally and this is enough on its own for DATED editions. A second
+  /// index `WHERE period_month IS NOT NULL` would be pure duplication.
+  ///
+  /// It also doubles as the picker's read - "every month of this calendar, in
+  /// order" - because a btree scans backwards. A separate DESC index on the
+  /// same three columns would be a second index on the feature's hottest write.
+  @@unique([projectId, name, periodMonth])
+  /// The other half of the rule, and the reason the one above is not enough:
+  /// NULLs are DISTINCT inside a Postgres unique index, so two UNDATED
+  /// calendars called the same thing would both be allowed - the regression
+  /// that relaxing the old (projectId, name) index would otherwise introduce.
+  ///
+  /// DO NOT use the generated `undatedName` input as a lookup. Prisma emits a
+  /// compound-unique where-input for a partial index but does NOT append the
+  /// predicate, so findUnique on it quietly behaves like findFirst.
+  @@unique([projectId, name], name: "undatedName", map: "project_workbooks_project_id_name_undated_key", where: raw("period_month IS NULL"))
   @@index([projectId])
   @@index([assignedToId])
   @@index([createdByClientId])
@@ -2090,6 +2143,111 @@ model ProjectWorkbook {
   @@index([projectId, isClientVisible])
   @@index([tenantId])
   @@map("project_workbooks")
+}
+
+/// Where a team's month stands.
+///
+/// The same words the rest of the app already uses - TODO / IN_PROGRESS / DONE
+/// from ProjectTask, STUCK and DISCARDED from DeliverableStatus - so somebody
+/// reading a calendar and somebody reading the task board are reading one
+/// vocabulary rather than two dialects of it.
+enum WorkbookTeamStatus {
+  TODO
+  IN_PROGRESS
+  /// Everything promised has been handed over. Only reachable once the row
+  /// carries at least `quantity` links and files between them - the rule
+  /// lives in features/projects/lib/workbook-team-progress.ts.
+  DONE
+  /// Blocked, but still owed.
+  STUCK
+  /// Dropped without being made. Deliberately distinct from taking the team
+  /// off the plan: this remembers that it WAS promised and then was not.
+  DISCARDED
+}
+
+/// ONE TEAM'S COMMITMENT on one monthly calendar: how much they owe, by when,
+/// who is doing it, and what came out.
+///
+/// The calendar itself has a single manager (ProjectWorkbook.assignedToId), but
+/// the WORK is split across the project's fixed teams - VIDEO owes reels, WEB
+/// owes pages - each with its own deadline and volume. Before this table that
+/// split had nowhere to live and was agreed in chat, so nothing on the calendar
+/// said who owed what.
+///
+/// Deliberately NOT a ProjectTask, and it creates none: this is the PLAN. The
+/// team may well open tasks to do the work, and `links` is where those go.
+model ProjectWorkbookTeam {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId    String    @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id          String    @id @default(uuid()) @map("id")
+  workbookId  String    @map("workbook_id")
+  teamId      String    @map("team_id")
+  /// How many items this team owes on this calendar. 0 = on it, not yet
+  /// quantified - which is a real state, and why this is not nullable.
+  quantity    Int       @default(0) @map("quantity")
+  /// Where this team's month stands. TODO until somebody says otherwise.
+  status      WorkbookTeamStatus @default(TODO) @map("status")
+  /// The day this team hands its part over. Null = no date agreed yet.
+  /// A @db.Date, like every other deadline here: a due date is a day, and
+  /// storing a timestamp invites a timezone to move it.
+  dueOn       DateTime? @map("due_on") @db.Date
+  /// Where the work is: the task that was opened for it, a Drive folder, a
+  /// published page. http(s) only, validated by the route. Files proper are
+  /// ProjectResource rows pointing back here - a link costs nothing to add and
+  /// an upload is a different act, so both exist.
+  links       String[]  @default([]) @map("links")
+  notes       String?   @map("notes") @db.Text
+  createdById String?   @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  workbook    ProjectWorkbook             @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+  team        ProjectTeam                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy   Employee?                   @relation("WorkbookTeamAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  members     ProjectWorkbookTeamMember[]
+  attachments ProjectResource[]
+
+  /// A team appears at most once per calendar - a second row for VIDEO would be
+  /// a second answer to "what does VIDEO owe this month".
+  @@unique([workbookId, teamId])
+  @@index([workbookId])
+  @@index([teamId])
+  /// "What is due, soonest first" across a project's calendars.
+  @@index([dueOn])
+  /// "What is still owed" - the board's read.
+  @@index([status])
+  @@index([tenantId])
+  @@map("project_workbook_teams")
+}
+
+/// Who, specifically, is on a team's row for this calendar.
+///
+/// Narrower than the team's full membership on purpose: VIDEO may be six
+/// people, but this month's calendar is Dev's. Nothing here grants access -
+/// everyone on the project can already see the calendar - it records who is
+/// expected to do the work, and it is who gets notified.
+model ProjectWorkbookTeamMember {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId       String   @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id             String   @id @default(uuid()) @map("id")
+  workbookTeamId String   @map("workbook_team_id")
+  /// Denormalised from the parent row, exactly as ProjectTeamMember carries
+  /// projectId, and for the same reason: it is the only way to express "one
+  /// team per calendar per person" as a constraint rather than a convention.
+  workbookId     String   @map("workbook_id")
+  employeeId     String   @map("employee_id")
+  addedAt        DateTime @default(now()) @map("added_at")
+
+  workbookTeam ProjectWorkbookTeam @relation(fields: [workbookTeamId], references: [id], onDelete: Cascade)
+  employee     Employee            @relation("WorkbookTeamMembership", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([workbookTeamId, employeeId])
+  /// One team per calendar per person. See workbookId above.
+  @@unique([workbookId, employeeId])
+  @@index([workbookTeamId])
+  @@index([employeeId])
+  @@index([tenantId])
+  @@map("project_workbook_team_members")
 }
 
 model ProjectSheetColumn {
@@ -2210,6 +2368,7 @@ model ProjectTeam {
   resources    ProjectResource[]
   requirements ProjectRequirement[]
   deliverables ProjectDeliverable[]
+  workbookTeams ProjectWorkbookTeam[]
 
   @@unique([projectId, name])
   @@index([projectId])
@@ -2342,6 +2501,10 @@ model ProjectResource {
   /// Set when the file is the output of a logged deliverable. SetNull on the
   /// entry's deletion: a wrong log line must not destroy real work product.
   deliverableId String?          @map("deliverable_id")
+  /// Set when the file is a team's output on a monthly calendar. Same shape and
+  /// same reasoning as deliverableId above: SetNull, because dropping a plan
+  /// must not destroy the work that was done against it.
+  workbookTeamId String?         @map("workbook_team_id")
   /// Folder in the project's Files tree; null = the project's top level.
   /// SetNull on folder deletion is a safety net only - the service refuses to
   /// delete a folder that still has anything in it.
@@ -2355,6 +2518,7 @@ model ProjectResource {
   reviewedByClient ClientUser?    @relation("ResourceReviewer", fields: [reviewedByClientId], references: [id], onDelete: SetNull)
   reviewedBy  Employee?           @relation("ResourceStaffReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   deliverable ProjectDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
+  workbookTeam ProjectWorkbookTeam? @relation(fields: [workbookTeamId], references: [id], onDelete: SetNull)
   folder      ProjectFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
@@ -2362,6 +2526,7 @@ model ProjectResource {
   @@index([category])
   @@index([tag])
   @@index([deliverableId])
+  @@index([workbookTeamId])
   @@index([projectId, folderId])
   // Drives the portal list: this project's SHARED files only.
   @@index([projectId, isClientVisible])

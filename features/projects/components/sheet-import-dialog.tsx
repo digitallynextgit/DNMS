@@ -35,6 +35,8 @@ import {
   type SheetColumn,
   type SheetColumnType,
   type SheetWorkbook,
+  type StaffWorkbook,
+  type WorkbookIndexEntry,
 } from "../lib/sheet-types"
 
 // =============================================================================
@@ -468,8 +470,10 @@ function Body({
       }
     }
     if (created.length > 0) {
-      const fresh = await apiFetch<{ data: SheetWorkbook[] }>(`/api/projects/${projectId}/sheets`)
-      const s = fresh.data.flatMap((w) => w.sheets).find((x) => x.id === targetSheet.id)
+      const fresh = await apiFetch<{ data: StaffWorkbook }>(
+        `/api/projects/${projectId}/workbooks/${targetSheet.workbookId}`,
+      )
+      const s = fresh.data.sheets.find((x) => x.id === targetSheet.id)
       if (!s) throw new Error("The tab is no longer there")
       columns = s.columns
       const known = new Set(targetSheet.columns.map((c) => c.id))
@@ -604,7 +608,9 @@ function Body({
       // creation (a sheet always opens with one tab), so it is not made twice.
       let firstTab: ProjectSheet | null = null
       if (target === "new") {
-        const books = await apiFetch<{ data: SheetWorkbook[] }>(`/api/projects/${projectId}/sheets`)
+        const books = await apiFetch<{ data: WorkbookIndexEntry[] }>(
+          `/api/projects/${projectId}/sheets`,
+        )
         const takenBooks = new Set(books.data.map((b) => normalise(b.name)))
         const base = newSheetName.trim()
         sheetName = base

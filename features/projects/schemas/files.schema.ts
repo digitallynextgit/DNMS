@@ -64,6 +64,17 @@ export const resourcePatchSchema = z
      */
     isClientVisible: z.boolean().optional(),
     /**
+     * Attach this file to a team's row on a monthly calendar, or detach it
+     * (null).
+     *
+     * Detaching is the point. Removing a file from a plan must not delete it:
+     * it drops back to being an ordinary project file on the Files tab, the
+     * same way `folderId: null` moves one to the top level. Deleting somebody's
+     * handed-in work from a planning panel, with no undo, is not something a
+     * planning panel should be able to do.
+     */
+    workbookTeamId: z.string().trim().min(1).nullable().optional(),
+    /**
      * A staff decision on a file the CLIENT uploaded.
      *
      * The client cannot approve their own upload - that is what makes the

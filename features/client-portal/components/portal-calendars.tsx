@@ -32,6 +32,7 @@ import {
   type SheetColumn,
   type SheetWorkbook,
 } from "@/features/projects/lib/sheet-types"
+import { formatMonth } from "@/features/projects/lib/calendar-months"
 
 // =============================================================================
 // The client's view of the team's content calendars.
@@ -252,9 +253,13 @@ export function PortalCalendars({ projectRef }: { projectRef: string }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                {/* The month is part of the NAME here, because the name alone
+                    stopped being unique: a calendar now has one edition per
+                    month, so a team sharing September and October would
+                    otherwise offer two identical-looking rows. */}
                 {workbooks.map((w) => (
                   <SelectItem key={w.id} value={w.id}>
-                    {w.name}
+                    {w.periodMonth ? `${w.name} · ${formatMonth(w.periodMonth)}` : w.name}
                   </SelectItem>
                 ))}
               </SelectContent>

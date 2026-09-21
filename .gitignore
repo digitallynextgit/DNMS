@@ -53,6 +53,9 @@ next-env.d.ts
 .claude/
 completed_tasks.txt
 
+# credential workbooks - plaintext passwords, never commit
+/sheets
+
 # secrets - service-account keys, never commit
 /secrets
 *-sa.json

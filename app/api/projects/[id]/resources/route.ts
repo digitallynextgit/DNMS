@@ -16,6 +16,8 @@ import { syncMadeCount, attachmentCount } from "@/lib/deliverable-counts"
 import { isVideoUpload } from "@/lib/upload-rules"
 import { classifyDoc, isDocTag } from "@/features/projects/lib/doc-tag"
 import { canEditDeliverable } from "@/features/projects/server/deliverables.service"
+import { workbookTeamForProject } from "@/features/projects/server/sheets.service"
+import { canContributeToWorkbookTeam } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
 const MAX_SIZE_BYTES = 250 * 1024 * 1024 // 250 MB
@@ -124,6 +126,14 @@ export const POST = withSession(
       const deliverableIdRaw = formData.get("deliverableId")
       const deliverableId =
         typeof deliverableIdRaw === "string" && deliverableIdRaw ? deliverableIdRaw : null
+      // A file can equally be a team's output against a MONTHLY CALENDAR's
+      // plan. Same shape as deliverableId one line up, and deliberately so:
+      // reusing the column pattern is what lets calendar attachments reuse this
+      // whole route - the size cap, the extension allowlist, and the
+      // video-to-Drive / everything-else-to-Backblaze split below.
+      const workbookTeamIdRaw = formData.get("workbookTeamId")
+      const workbookTeamId =
+        typeof workbookTeamIdRaw === "string" && workbookTeamIdRaw ? workbookTeamIdRaw : null
 
       // Files-tab folder to land in; absent/"null" = the project's top level.
       const folderIdRaw = formData.get("folderId")
@@ -217,6 +227,25 @@ export const POST = withSession(
         }
       }
 
+      // 8c. A calendar link must name a plan row on a calendar of THIS project
+      //     that the uploader may edit - the same rule that governs changing
+      //     what that team owes.
+      if (workbookTeamId) {
+        const row = await workbookTeamForProject(workbookTeamId, projectId)
+        if (!row) {
+          return NextResponse.json(
+            { error: "Calendar row not found in this project" },
+            { status: 404 },
+          )
+        }
+        if (!(await canContributeToWorkbookTeam(session, projectId, row.workbookId, row.teamId))) {
+          return NextResponse.json(
+            { error: "Only somebody on that team can attach files to its row" },
+            { status: 403 },
+          )
+        }
+      }
+
       const resourceId = randomUUID()
 
       // 9. Pick the store. Video goes to Drive - the same rule the client portal
@@ -300,6 +329,7 @@ export const POST = withSession(
           description: description?.trim() || null,
           uploadedById: session.user.id,
           deliverableId,
+          workbookTeamId,
           folderId,
         },
         include: {

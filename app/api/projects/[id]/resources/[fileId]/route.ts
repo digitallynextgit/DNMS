@@ -14,6 +14,8 @@ import { deleteVideoAsset } from "@/lib/drive-media"
 import { syncMadeCount, attachmentCount } from "@/lib/deliverable-counts"
 import { isDocTag, type DocTag } from "@/features/projects/lib/doc-tag"
 import { resourcePatchSchema } from "@/features/projects/schemas/files.schema"
+import { workbookTeamForProject } from "@/features/projects/server/sheets.service"
+import { canContributeToWorkbookTeam } from "@/features/projects/server/project-access"
 import type { Session } from "next-auth"
 
 // GET /api/projects/[id]/resources/[fileId] - returns metadata + signed download URL
@@ -213,6 +215,24 @@ export const PATCH = withSession(
       if (body.tag !== undefined && body.tag !== null && !isDocTag(body.tag)) {
         return NextResponse.json({ error: "Invalid tag" }, { status: 422 })
       }
+      // ATTACHING needs permission on the target row; DETACHING (null) does
+      // not, because it takes nothing away from anyone - the file stays in the
+      // project's Files, and whoever may edit this file may tidy up its links.
+      if (body.workbookTeamId) {
+        const row = await workbookTeamForProject(body.workbookTeamId, projectId)
+        if (!row) {
+          return NextResponse.json(
+            { error: "Calendar row not found in this project" },
+            { status: 404 },
+          )
+        }
+        if (!(await canContributeToWorkbookTeam(session, projectId, row.workbookId, row.teamId))) {
+          return NextResponse.json(
+            { error: "Only somebody on that team can attach files to its row" },
+            { status: 403 },
+          )
+        }
+      }
 
       const updated = await db.projectResource.update({
         where: { id: fileId },
@@ -220,6 +240,7 @@ export const PATCH = withSession(
           ...(body.tag !== undefined ? { tag: body.tag as DocTag | null } : {}),
           ...(body.fileName !== undefined ? { fileName: body.fileName } : {}),
           ...(body.folderId !== undefined ? { folderId: body.folderId } : {}),
+          ...(body.workbookTeamId !== undefined ? { workbookTeamId: body.workbookTeamId } : {}),
           // Sharing opens the review loop; unsharing closes it and clears the
           // decision, because an approval of a file nobody can see any more is
           // not a fact worth keeping. The table's CHECK constraint refuses a

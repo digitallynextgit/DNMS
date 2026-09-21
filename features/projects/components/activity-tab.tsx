@@ -17,6 +17,7 @@ import {
   FileText,
   ArrowRight,
   Activity,
+  CalendarDays,
 } from "lucide-react"
 
 interface Props {
@@ -45,6 +46,12 @@ function getActivityIcon(type: string) {
       return <Users className="h-3.5 w-3.5" />
     case "SHEET_ASSIGNED":
       return <UserPlus className="h-3.5 w-3.5 text-sky-500" />
+    case "CALENDAR_TEAM_PLANNED":
+      return <CalendarDays className="h-3.5 w-3.5 text-sky-500" />
+    case "CALENDAR_TEAM_UPDATED":
+      return <CalendarDays className="text-muted-foreground h-3.5 w-3.5" />
+    case "CALENDAR_TEAM_REMOVED":
+      return <UserMinus className="h-3.5 w-3.5 text-red-500" />
     case "MESSAGE_POSTED":
       return <FileText className="h-3.5 w-3.5 text-amber-600" />
     default:
@@ -77,6 +84,15 @@ function getActivityText(activity: ProjectActivity): string {
       return meta.assigneeName
         ? `assigned sheet "${meta.sheetName ?? ""}" to ${meta.assigneeName}`
         : `removed the owner of sheet "${meta.sheetName ?? ""}"`
+    case "CALENDAR_TEAM_PLANNED":
+    case "CALENDAR_TEAM_UPDATED": {
+      const what = meta.quantity ? ` (${meta.quantity})` : ""
+      const when = meta.dueOn ? `, due ${meta.dueOn}` : ""
+      const verb = activity.type === "CALENDAR_TEAM_PLANNED" ? "put" : "updated"
+      return `${verb} ${meta.teamName ?? "a team"}${what} on "${meta.sheetName ?? ""}" ${meta.month ?? ""}${when}`
+    }
+    case "CALENDAR_TEAM_REMOVED":
+      return `took ${meta.teamName ?? "a team"} off a calendar's plan`
     case "MESSAGE_POSTED":
       return `posted a message: "${meta.title ?? ""}"`
     default:

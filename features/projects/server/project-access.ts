@@ -194,3 +194,144 @@ export function withProjectAccess(handler: ProjectHandler) {
     return handler(req, ctx, session)
   })
 }
+
+/**
+ * May this person edit a TEAM'S ROW on a monthly calendar?
+ *
+ *   - anyone who can manage the project (Account Manager / project:write), or
+ *   - the calendar's MANAGER (workbook.assignedToId), for ANY team's row: they
+ *     supervise the month, so the whole plan is theirs, or
+ *   - the manager of ONE team, for THEIR OWN team's row and nobody else's.
+ *
+ * That last case is the reason this cannot be `withTeamStaffing`. That guard
+ * answers "do they manage any team on this project", which would let the Design
+ * lead rewrite the video team's deadline. Pass `teamId` to ask about one row;
+ * omit it to ask "may they edit anything on this plan at all", which is what
+ * decides whether the Add team button is rendered.
+ *
+ * A team MEMBER is not enough, only its manager - the same line canStaffTeam
+ * draws. Members contribute links and files to their own row, which is a
+ * separate and narrower permission checked at the resource routes.
+ */
+export async function canEditWorkbookTeam(
+  session: Session,
+  projectId: string,
+  workbookId: string,
+  teamId?: string,
+): Promise<boolean> {
+  if (await canManageProject(session, projectId)) return true
+  if (!projectId || !workbookId) return false
+
+  const workbook = await db.projectWorkbook.findFirst({
+    where: { id: workbookId, projectId },
+    select: { assignedToId: true },
+  })
+  // Not found means "not on this project" as much as "does not exist", and both
+  // answers are no.
+  if (!workbook) return false
+  if (workbook.assignedToId === session.user.id) return true
+
+  return canStaffTeam(session, projectId, teamId)
+}
+
+/**
+ * Route guard for the calendar team-plan routes. Expects the project at
+ * `ctx.params.id`, the calendar at `ctx.params.workbookId`, and - on the routes
+ * that are about ONE row - the team at `ctx.params.teamId`.
+ *
+ * The team has to come from the PATH rather than the body: a guard that read
+ * the body would consume the request stream the handler then needs. That is
+ * why the team-plan routes are keyed on (workbookId, teamId) rather than on the
+ * row's own id, which the fixed six-team catalogue makes natural anyway.
+ */
+/**
+ * May this person HAND WORK IN against a team's row - links, files, and moving
+ * the status along?
+ *
+ * Wider than canEditWorkbookTeam on purpose, and the distinction is the whole
+ * point of putting the plan on the calendar:
+ *
+ *   PLAN the row   (who is on it, how many, by when)  - canEditWorkbookTeam
+ *   DELIVER to it  (links, files, status)             - this
+ *
+ * Anybody on that project team qualifies. Not only the people NAMED on the row:
+ * being named is an expectation, not a permission, and a colleague who picks up
+ * a piece of it should not be turned away by the app. The row's member list
+ * still says who is expected to do the work, and who gets notified.
+ */
+export async function canContributeToWorkbookTeam(
+  session: Session,
+  projectId: string,
+  workbookId: string,
+  teamId: string,
+): Promise<boolean> {
+  if (await canEditWorkbookTeam(session, projectId, workbookId, teamId)) return true
+  if (!projectId || !workbookId || !teamId) return false
+
+  // The calendar has to be ON this project. Team membership alone is not
+  // enough: without this, somebody on a team of project A would pass for a
+  // calendar row of project B. The routes scope the lookup before calling this,
+  // so it is belt and braces - but a predicate that is only safe because of
+  // where it happens to be called is one waiting to be called somewhere else.
+  const workbook = await db.projectWorkbook.findFirst({
+    where: { id: workbookId, projectId },
+    select: { id: true },
+  })
+  if (!workbook) return false
+
+  const membership = await db.projectTeamMember.findFirst({
+    where: { projectId, teamId, employeeId: session.user.id },
+    select: { id: true },
+  })
+  return !!membership
+}
+
+/**
+ * Route guard for handing work in: anyone on that team, plus everyone who can
+ * plan it. Routes behind this one must gate the PLANNING fields themselves -
+ * see the PUT on /workbooks/[workbookId]/teams/[teamId].
+ */
+export function withWorkbookTeamContribute(handler: ProjectHandler) {
+  return withSession(async (req, ctx, session) => {
+    const projectId = await resolveProjectId(ctx.params.id)
+    if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    ctx.params.id = projectId
+    const allowed = await canContributeToWorkbookTeam(
+      session,
+      projectId,
+      ctx.params.workbookId!,
+      ctx.params.teamId!,
+    )
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Only somebody on that team can hand work in against it" },
+        { status: 403 },
+      )
+    }
+    return handler(req, ctx, session)
+  })
+}
+
+export function withWorkbookTeamAccess(handler: ProjectHandler) {
+  return withSession(async (req, ctx, session) => {
+    const projectId = await resolveProjectId(ctx.params.id)
+    if (!projectId) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    ctx.params.id = projectId
+    const allowed = await canEditWorkbookTeam(
+      session,
+      projectId,
+      ctx.params.workbookId!,
+      ctx.params.teamId,
+    )
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "Only a project admin, the Account Manager, the calendar's manager or that team's own manager can do this",
+        },
+        { status: 403 },
+      )
+    }
+    return handler(req, ctx, session)
+  })
+}

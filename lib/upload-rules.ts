@@ -24,6 +24,17 @@ import {
 // waiving the rule.
 // =============================================================================
 
+/**
+ * The largest file any upload path here accepts, in bytes.
+ *
+ * Lives beside the type rules rather than in a component so the CLIENT can
+ * check it before spending minutes pushing 300 MB up an agency connection only
+ * to be refused. The server's own cap in app/api/projects/[id]/resources is the
+ * one that enforces it; this is the one that saves the round trip.
+ */
+export const MAX_UPLOAD_MB = 250
+export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+
 type UploadLike = { name: string; type?: string }
 
 const extensionOf = (name: string): string => {

@@ -4,7 +4,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import { apiFetch } from "@/lib/api-fetch"
-import type { ProjectSheet, SheetColumnType, SheetEvent, SheetWorkbook } from "../lib/sheet-types"
+import type { WorkbookTeamStatus } from "../lib/workbook-team-progress"
+import type {
+  ProjectSheet,
+  SheetColumnType,
+  SheetEvent,
+  SheetWorkbook,
+  StaffWorkbook,
+  WorkbookIndexEntry,
+  WorkbookTeam,
+} from "../lib/sheet-types"
 
 /**
  * Project sheets.
@@ -19,13 +28,40 @@ import type { ProjectSheet, SheetColumnType, SheetEvent, SheetWorkbook } from ".
  * per keystroke-commit would make typing feel broken.
  */
 const key = (projectId: string) => ["project-sheets", projectId] as const
+/** One edition's grid and plan. Separate from the index - see useWorkbook. */
+const bookKey = (projectId: string, workbookId: string | null) =>
+  ["project-workbook", projectId, workbookId] as const
 
-/** Every workbook ("sheet" in the UI) on the project, each with its tabs. */
-export function useProjectSheets(projectId: string) {
+/**
+ * The PICKER's list: every calendar on the project, named and dated, with tab
+ * names but no columns and no rows.
+ *
+ * Light on purpose. A calendar now has one edition per MONTH, so this list
+ * grows by twelve a year per calendar; carrying each one's grid would make
+ * opening the Calendars tab cost more every month the project runs. The open
+ * edition is fetched on its own by useWorkbook.
+ */
+export function useWorkbookIndex(projectId: string) {
   return useQuery({
     queryKey: key(projectId),
-    queryFn: () => apiFetch<{ data: SheetWorkbook[] }>(`/api/projects/${projectId}/sheets`),
+    queryFn: () => apiFetch<{ data: WorkbookIndexEntry[] }>(`/api/projects/${projectId}/workbooks`),
     enabled: Boolean(projectId),
+    select: (r) => r.data,
+  })
+}
+
+/**
+ * ONE calendar in full: tabs, columns, rows, and the team plan.
+ *
+ * Keyed on the workbook, so stepping from September to October is a fresh
+ * fetch of October rather than a re-read of every month the project has.
+ */
+export function useWorkbook(projectId: string, workbookId: string | null) {
+  return useQuery({
+    queryKey: bookKey(projectId, workbookId),
+    queryFn: () =>
+      apiFetch<{ data: StaffWorkbook }>(`/api/projects/${projectId}/workbooks/${workbookId}`),
+    enabled: Boolean(projectId && workbookId),
     select: (r) => r.data,
   })
 }
@@ -44,7 +80,19 @@ const json = { "Content-Type": "application/json" }
 
 export function useSheetMutations(projectId: string) {
   const qc = useQueryClient()
-  const invalidate = () => qc.invalidateQueries({ queryKey: key(projectId) })
+  /**
+   * Refresh both reads.
+   *
+   * The index draws the picker and the detail draws the grid, and almost every
+   * write moves one or the other - renaming a calendar changes the picker,
+   * adding a tab changes the grid, creating a month changes both. Refreshing
+   * the pair is one round trip more than the minimum and removes a whole class
+   * of "the dropdown still says the old name" bug.
+   */
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: key(projectId) })
+    void qc.invalidateQueries({ queryKey: ["project-workbook", projectId] })
+  }
   const base = `/api/projects/${projectId}/sheets`
 
   const fail = (e: unknown, fallback: string) =>
@@ -54,7 +102,14 @@ export function useSheetMutations(projectId: string) {
   const workbooks = `/api/projects/${projectId}/workbooks`
 
   const createWorkbook = useMutation({
-    mutationFn: (body: { name: string; firstTab?: string }) =>
+    mutationFn: (body: {
+      name: string
+      firstTab?: string
+      /** "2026-09" / "2026-09-01". Omitted = a calendar with no month. */
+      periodMonth?: string | null
+      /** Start this month from an existing edition. Rows are never copied. */
+      copyFrom?: { workbookId: string; structure?: boolean; teamPlan?: boolean } | null
+    }) =>
       apiFetch<{ data: SheetWorkbook }>(workbooks, {
         method: "POST",
         headers: json,
@@ -120,6 +175,69 @@ export function useSheetMutations(projectId: string) {
       )
     },
     onError: (e) => fail(e, "Could not assign the sheet"),
+  })
+
+  /** Give an edition a month, move it, or clear it. Managers, via the picker. */
+  const setWorkbookMonth = useMutation({
+    mutationFn: ({ workbookId, periodMonth }: { workbookId: string; periodMonth: string | null }) =>
+      apiFetch<{ data: SheetWorkbook }>(`${workbooks}/${workbookId}`, {
+        method: "PATCH",
+        headers: json,
+        body: JSON.stringify({ periodMonth }),
+      }),
+    onSuccess: () => {
+      void invalidate()
+      toast.success("Month updated")
+    },
+    onError: (e) => fail(e, "Could not set the month"),
+  })
+
+  /**
+   * Put a team on this month's plan, or change what it owes. Idempotent, and
+   * one write for the whole row - quantity, due date, links, notes, people -
+   * because that is how the form is filled in.
+   */
+  const saveTeamPlan = useMutation({
+    mutationFn: ({
+      workbookId,
+      teamId,
+      ...body
+    }: {
+      workbookId: string
+      teamId: string
+      quantity?: number | null
+      dueOn?: string | null
+      links?: string[]
+      notes?: string | null
+      employeeIds?: string[]
+      status?: WorkbookTeamStatus
+    }) =>
+      apiFetch<{ data: WorkbookTeam }>(`${workbooks}/${workbookId}/teams/${teamId}`, {
+        method: "PUT",
+        headers: json,
+        body: JSON.stringify(body),
+      }).then((r) => r.data),
+    onSuccess: () => void invalidate(),
+    onError: (e) => fail(e, "Could not save that team's plan"),
+  })
+
+  const removeTeamPlan = useMutation({
+    mutationFn: ({ workbookId, teamId }: { workbookId: string; teamId: string }) =>
+      apiFetch<{ success: true; detachedFiles: number }>(
+        `${workbooks}/${workbookId}/teams/${teamId}`,
+        { method: "DELETE" },
+      ),
+    onSuccess: (res) => {
+      void invalidate()
+      // Say what happened to the files, because "removed" on its own reads as
+      // "deleted" and somebody will go looking for them.
+      toast.success(
+        res.detachedFiles > 0
+          ? `Team removed. ${res.detachedFiles} file${res.detachedFiles === 1 ? "" : "s"} stayed in Files.`
+          : "Team removed from this month",
+      )
+    },
+    onError: (e) => fail(e, "Could not remove that team"),
   })
 
   const deleteWorkbook = useMutation({
@@ -304,6 +422,9 @@ export function useSheetMutations(projectId: string) {
     importRows,
     createWorkbook,
     renameWorkbook,
+    setWorkbookMonth,
+    saveTeamPlan,
+    removeTeamPlan,
     assignWorkbook,
     shareWorkbook,
     deleteWorkbook,

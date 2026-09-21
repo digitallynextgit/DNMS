@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useSession } from "next-auth/react"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   Plus,
   History,
@@ -52,7 +53,24 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAssignableEmployees, useProjectTeams } from "../hooks/use-projects"
-import { useProjectSheets, useSheetHistory, useSheetMutations } from "../hooks/use-sheets"
+import {
+  useSheetHistory,
+  useSheetMutations,
+  useWorkbook,
+  useWorkbookIndex,
+} from "../hooks/use-sheets"
+import {
+  currentMonth,
+  editionIndexForMonth,
+  monthISO,
+  groupIntoSeries,
+  parseMonth,
+  type YearMonth,
+} from "../lib/calendar-months"
+import { CalendarMonthPicker, CalendarNamePicker } from "./calendar/calendar-picker"
+import { NewMonthDialog, SetMonthDialog } from "./calendar/month-dialogs"
+import { TeamPlanStrip } from "./calendar/team-plan-strip"
+import { TeamPlanSheet } from "./calendar/team-plan-sheet"
 import {
   COLUMN_TYPE_HINT,
   COLUMN_TYPE_LABEL,
@@ -69,7 +87,7 @@ import {
   type SheetColumnType,
   type SheetEvent,
   type SheetRow,
-  type SheetWorkbook,
+  type WorkbookIndexEntry,
 } from "../lib/sheet-types"
 
 // =============================================================================
@@ -542,7 +560,7 @@ function PersonAvatar({ person, className }: { person: SheetAssignee; className?
 
 /** Avatar + first name, or a muted "Unassigned". */
 function AssigneeChip({ person }: { person: SheetAssignee | null }) {
-  if (!person) return <span className="text-muted-foreground text-xs">Unassigned</span>
+  if (!person) return <span className="text-muted-foreground text-xs">No manager</span>
   return (
     <span
       className="flex min-w-0 items-center gap-1.5"
@@ -555,10 +573,15 @@ function AssigneeChip({ person }: { person: SheetAssignee | null }) {
 }
 
 /**
- * The owner of the open sheet. A manager gets a picker over every active
- * employee - the point is to be able to hand a calendar to anyone in the
- * company, not only to whoever happens to be on this project's teams.
- * Everyone else sees the same chip, read-only.
+ * The CALENDAR MANAGER: the one person supervising this month.
+ *
+ * A manager gets a picker over every active employee - the point is to be able
+ * to hand a calendar to anyone in the company, not only to whoever happens to
+ * be on this project's teams. Everyone else sees the same chip, read-only.
+ *
+ * One person, on purpose. The work itself is split across teams, and that split
+ * lives in the team plan below; this is who answers for the whole of it, which
+ * is a question with exactly one answer.
  */
 function WorkbookAssignee({
   projectId,
@@ -568,7 +591,7 @@ function WorkbookAssignee({
   pending,
 }: {
   projectId: string
-  workbook: SheetWorkbook
+  workbook: { assignedTo: SheetAssignee | null }
   canStaff: boolean
   onAssign: (employeeId: string | null) => void
   pending: boolean
@@ -595,13 +618,13 @@ function WorkbookAssignee({
           been deactivated and so is missing from the list below. */}
       <SelectTrigger
         className="hover:bg-foreground/5 h-8 w-auto gap-1.5 border-transparent bg-transparent px-2"
-        title="Who owns this sheet"
+        title="Who manages this calendar"
       >
         <AssigneeChip person={workbook.assignedTo} />
       </SelectTrigger>
       <SelectContent align="end" className="max-h-72">
         <SelectItem value={UNASSIGNED}>
-          <span className="text-muted-foreground text-xs">Unassigned</span>
+          <span className="text-muted-foreground text-xs">No manager</span>
         </SelectItem>
         {(people.data?.data ?? []).map((p) => (
           <SelectItem key={p.id} value={p.id}>
@@ -637,29 +660,110 @@ export function ProjectSheetSection({
   projectId: string
   canManage: boolean
 }) {
-  const { data: workbooks, isLoading } = useProjectSheets(projectId)
+  // TWO reads, not one. The index names every calendar and every month of it,
+  // cheaply; the detail carries the open month's grid and team plan. They used
+  // to be one call that returned every row of every tab of every calendar -
+  // which a monthly calendar turns into twelve times that a year.
+  const qc = useQueryClient()
+  const { data: index, isLoading } = useWorkbookIndex(projectId)
   const { data: teams } = useProjectTeams(projectId)
   const m = useSheetMutations(projectId)
   // Assigning follows the staffing rule, not the delete rule: a team manager
   // owns the work, so they get to say who owns the sheet it lives in.
   const { data: session } = useSession()
   const me = session?.user?.id ?? null
-  const canStaff =
-    canManage || (teams?.data ?? []).some((t) => t.managerId != null && t.managerId === me)
-
-  // Two levels: the workbook ("sheet" in the UI) and the tab inside it.
-  const [activeWorkbookId, setActiveWorkbookId] = React.useState<string | null>(null)
-  const workbook = React.useMemo(
-    () => workbooks?.find((w) => w.id === activeWorkbookId) ?? workbooks?.[0] ?? null,
-    [workbooks, activeWorkbookId],
+  const projectTeams = React.useMemo(() => teams?.data ?? [], [teams])
+  const managedTeamId = React.useMemo(
+    () => projectTeams.find((t) => t.managerId != null && t.managerId === me)?.id ?? null,
+    [projectTeams, me],
   )
+  const canStaff = canManage || managedTeamId !== null
+  /**
+   * The one team this person is ON, when there is exactly one.
+   *
+   * Used to emphasise their row in the plan and to let them hand work in
+   * against it. Only when it is unambiguous: somebody on no team, or a manager
+   * across several, gets catalogue order and no highlight, because moving the
+   * list about for them helps nobody.
+   */
+  const myTeamId = React.useMemo(() => {
+    if (!me) return null
+    const mine = projectTeams.filter((t) => t.members.some((mm) => mm.employeeId === me))
+    return mine.length === 1 ? mine[0]!.id : (managedTeamId ?? null)
+  }, [projectTeams, me, managedTeamId])
+
+  // THREE levels now: the calendar (a name), the month of it, and the tab.
+  const series = React.useMemo(() => groupIntoSeries(index ?? []), [index])
+  const [seriesName, setSeriesName] = React.useState<string | null>(null)
+  /**
+   * The month the user has ASKED for, which is not always a month that exists.
+   * Null means "whatever this calendar opens on".
+   */
+  const [requestedMonth, setRequestedMonth] = React.useState<YearMonth | null>(null)
+
+  const activeSeries = React.useMemo(
+    () => series.find((x) => x.name === seriesName) ?? series[0] ?? null,
+    [series, seriesName],
+  )
+
+  /**
+   * The edition on screen, derived rather than stored.
+   *
+   * Holding an id alongside the name and the month would let the three
+   * disagree the first time somebody picks a calendar and a month in one
+   * gesture. The fallbacks resolve here rather than in an effect, for the same
+   * reason the tab below does: an effect would fight the user's first click,
+   * and it would need a second render to do it.
+   */
+  const entry = React.useMemo<WorkbookIndexEntry | null>(() => {
+    if (!activeSeries) return null
+    const at = editionIndexForMonth(activeSeries, requestedMonth)
+    if (at >= 0) return activeSeries.editions[at]!
+    // The requested month has no edition on this calendar - which happens the
+    // moment somebody switches calendars. Fall back to its newest, so picking
+    // a calendar never lands on nothing.
+    return activeSeries.editions[0] ?? null
+  }, [activeSeries, requestedMonth])
+
+  /**
+   * The month actually on screen. DERIVED from the edition, never stored
+   * beside it: the two can only disagree if both exist, so only one does.
+   */
+  const month = React.useMemo(() => parseMonth(entry?.periodMonth), [entry])
+
+  const { data: workbook, isLoading: bookLoading } = useWorkbook(projectId, entry?.id ?? null)
   const sheets = React.useMemo(() => workbook?.sheets, [workbook])
+
+  const [planOpen, setPlanOpen] = React.useState(false)
+  const [planFocusTeamId, setPlanFocusTeamId] = React.useState<string | null>(null)
+  const [newMonthOpen, setNewMonthOpen] = React.useState(false)
+  const [setMonthOpen, setSetMonthOpen] = React.useState(false)
+
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [editing, setEditing] = React.useState<CellRef | null>(null)
   /** The highlighted cell: a ROW POSITION and a column index. A sheet has a
    *  cursor even when nothing is being typed. */
   const [selected, setSelected] = React.useState<{ r: number; c: number } | null>(null)
   const [draft, setDraft] = React.useState("")
+
+  /**
+   * Jump straight to an edition by id - what both pickers hand back.
+   *
+   * Declared here rather than beside the month state because it writes
+   * setActiveId, and a callback that reads a binding declared below it is a
+   * temporal-dead-zone error waiting for the first person to call it early.
+   */
+  const openEdition = React.useCallback(
+    (workbookId: string) => {
+      const found = (index ?? []).find((w) => w.id === workbookId)
+      if (!found) return
+      setSeriesName(found.name)
+      setRequestedMonth(parseMonth(found.periodMonth))
+      // The tab resets: the tab ids belong to the month being left.
+      setActiveId(null)
+    },
+    [index],
+  )
   // Committed-but-not-yet-refetched values, keyed "position:columnId".
   const [overrides, setOverrides] = React.useState<Record<string, CellValue>>({})
   /**
@@ -1014,14 +1118,14 @@ export function ProjectSheetSection({
   if (isLoading) return <Skeleton className="mt-4 h-72 rounded-sm" />
 
   // ── No sheets yet ──────────────────────────────────────────────────────────
-  if (!workbooks || workbooks.length === 0) {
+  if (!index || index.length === 0) {
     return (
       <div className="mt-4">
         <EmptyState
           icon={Table2}
-          title="No sheets yet."
-          description="Build a sheet with whatever tabs and columns this project actually needs - a content calendar, a campaign plan, a tracker. Or import one you already have."
-          action={{ label: "New sheet", onClick: () => setNewSheetOpen(true) }}
+          title="No calendars yet."
+          description="Build a calendar with whatever tabs and columns this project actually needs - a content calendar, a campaign plan, a tracker. Or import one you already have."
+          action={{ label: "New calendar", onClick: () => setNewSheetOpen(true) }}
           secondaryAction={{ label: "Import a spreadsheet", onClick: () => setImportOpen(true) }}
         />
         <NewSheetDialog
@@ -1033,10 +1137,13 @@ export function ProjectSheetSection({
           onCancel={() => setNewSheetOpen(false)}
           onCreate={() =>
             m.createWorkbook.mutate(
-              { name: newSheetName },
+              {
+                name: newSheetName,
+                periodMonth: monthISO(currentMonth().year, currentMonth().month0),
+              },
               {
                 onSuccess: (w) => {
-                  setActiveWorkbookId(w.id)
+                  openEdition(w.id)
                   setActiveId(w.sheets[0]?.id ?? null)
                   setNewSheetName("")
                   setNewSheetOpen(false)
@@ -1109,65 +1216,32 @@ export function ProjectSheetSection({
 
   return (
     <div className="mt-4 space-y-3">
-      {/* Level 1: the sheets (workbooks). */}
+      {/* Level 1: WHICH calendar, and WHICH month of it. Two controls, because
+          they are two questions - the name used to carry the month
+          ("…(H2S-Sept)") and that is what this replaces. */}
       <div className="border-border flex flex-wrap items-center gap-1 border-b pb-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              // No width cap and no truncation: the name of the sheet you are
-              // in is the one label on this bar that has to be readable in
-              // full. The strip wraps, so a long name costs a line, not sense.
-              className="gap-1.5 px-2.5 font-medium"
-              aria-label="Switch sheet"
-              title={workbook?.name}
-            >
-              <span className="whitespace-nowrap">{workbook?.name ?? "No sheet yet"}</span>
-              {workbook?.assignedTo && (
-                <PersonAvatar person={workbook.assignedTo} className="h-4 w-4 shrink-0" />
-              )}
-              <ChevronDown className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-[22rem]">
-            <DropdownMenuLabel className="text-muted-foreground text-[11px] font-medium">
-              {workbooks.length} {workbooks.length === 1 ? "sheet" : "sheets"}
-            </DropdownMenuLabel>
-            {workbooks.map((w) => (
-              <DropdownMenuItem
-                key={w.id}
-                onSelect={() => {
-                  setActiveWorkbookId(w.id)
-                  setActiveId(null)
-                }}
-                className={cn(
-                  "items-start gap-2",
-                  // The open sheet is marked the way every other active thing in
-                  // this file is marked, rather than by a tick in the margin:
-                  // the row itself says "you are here", which reads at a glance
-                  // down a list instead of making the eye reach the end of it.
-                  w.id === workbook?.id && "bg-primary/10 text-primary font-medium",
-                )}
-              >
-                {/* Wrapped, never truncated. Two sheets whose names differ only
-                    at the end - "…Sep-Dec2026" and "…Jan-Mar2027" - are the same
-                    sheet as far as an ellipsis is concerned. */}
-                <span className="min-w-0 flex-1 break-words whitespace-normal">{w.name}</span>
-                {/* The count says how much is inside without opening it. Opacity
-                    rather than a colour, so it stays legible on the active row. */}
-                <span className="shrink-0 text-[11px] tabular-nums opacity-60">
-                  {w.sheets.length}
-                </span>
-                {/* Just the face: who owns each sheet, name one hover away. */}
-                {w.assignedTo && (
-                  <PersonAvatar person={w.assignedTo} className="h-4 w-4 shrink-0" />
-                )}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <CalendarNamePicker
+          series={series}
+          activeName={activeSeries?.name ?? null}
+          onPick={(name) => {
+            // The month is deliberately KEPT: somebody comparing September
+            // across two calendars must not be thrown to December. When the
+            // calendar being opened has no edition for that month, `entry`
+            // falls back to that calendar's newest on its own.
+            setSeriesName(name)
+            setActiveId(null)
+          }}
+        />
+        <CalendarMonthPicker
+          series={activeSeries}
+          month={month}
+          onPickEdition={openEdition}
+          onNewMonth={() => setNewMonthOpen(true)}
+          onSetMonth={() => setSetMonthOpen(true)}
+          canCreate={canStaff}
+        />
         <Button variant="ghost" className="gap-1 px-2" onClick={() => setNewSheetOpen(true)}>
-          <Plus className="h-3.5 w-3.5" /> New sheet
+          <Plus className="h-3.5 w-3.5" /> New calendar
         </Button>
 
         <div className="ml-auto flex items-center gap-1">
@@ -1242,6 +1316,22 @@ export function ProjectSheetSection({
           )}
         </div>
       </div>
+
+      {/* Level 1b: what each team owes THIS month. Read-only here on purpose -
+          the editor is a side panel, so six teams of form fields never push
+          the spreadsheet below the fold. */}
+      {workbook && (
+        <TeamPlanStrip
+          teams={workbook.teams}
+          periodMonth={workbook.periodMonth}
+          myTeamId={myTeamId}
+          canPlan={canStaff}
+          onOpen={(teamId) => {
+            setPlanFocusTeamId(teamId ?? null)
+            setPlanOpen(true)
+          }}
+        />
+      )}
 
       {/* Level 2: the tabs of the open sheet, the way a workbook shows its
           tabs - plus find, which searches the open tab. */}
@@ -1332,6 +1422,13 @@ export function ProjectSheetSection({
           )}
         </div>
       </div>
+
+      {/* Stepping to another month fetches a different grid. Showing a
+          skeleton rather than leaving September's rows on screen matters more
+          here than it would for a plain refetch: the toolbar already says
+          October, and a grid that still holds September under an October label
+          is a screen that is lying. */}
+      {bookLoading && !active && <Skeleton className="h-72 rounded-sm" />}
 
       {active && (
         /* The grid.
@@ -1652,10 +1749,15 @@ export function ProjectSheetSection({
         }}
         onCreate={() =>
           m.createWorkbook.mutate(
-            { name: newSheetName },
+            {
+              name: newSheetName,
+              // Born in THIS month, so the very first calendar is dated and
+              // the stepper works from the moment it exists.
+              periodMonth: monthISO(currentMonth().year, currentMonth().month0),
+            },
             {
               onSuccess: (w) => {
-                setActiveWorkbookId(w.id)
+                openEdition(w.id)
                 setActiveId(w.sheets[0]?.id ?? null)
                 setNewSheetName("")
                 setNewSheetOpen(false)
@@ -1717,11 +1819,68 @@ export function ProjectSheetSection({
           if (!o) setImportIntent(undefined)
         }}
         projectId={projectId}
-        workbook={workbook}
+        workbook={workbook ?? null}
         sheet={active ?? null}
         people={people}
         intent={importIntent}
       />
+      {workbook && (
+        <TeamPlanSheet
+          open={planOpen}
+          onOpenChange={(o) => {
+            setPlanOpen(o)
+            if (!o) setPlanFocusTeamId(null)
+          }}
+          projectId={projectId}
+          workbook={workbook}
+          projectTeams={projectTeams}
+          canPlanAll={canManage || workbook.assignedTo?.id === me}
+          managedTeamId={managedTeamId}
+          myTeamId={myTeamId}
+          focusTeamId={planFocusTeamId}
+          pending={m.saveTeamPlan.isPending || m.removeTeamPlan.isPending}
+          onSave={({ teamId, ...rest }) =>
+            m.saveTeamPlan.mutate({ workbookId: workbook.id, teamId, ...rest })
+          }
+          onRemove={(teamId) => m.removeTeamPlan.mutate({ workbookId: workbook.id, teamId })}
+          // An upload writes a ProjectResource, not a workbook field, so the
+          // usual mutation invalidation never fires for it.
+          onFilesChanged={() =>
+            void qc.invalidateQueries({ queryKey: ["project-workbook", projectId] })
+          }
+        />
+      )}
+
+      <NewMonthDialog
+        open={newMonthOpen}
+        onOpenChange={setNewMonthOpen}
+        series={activeSeries}
+        pending={m.createWorkbook.isPending}
+        onCreate={(input) =>
+          m.createWorkbook.mutate(input, {
+            onSuccess: (w) => {
+              openEdition(w.id)
+              setNewMonthOpen(false)
+            },
+          })
+        }
+      />
+
+      <SetMonthDialog
+        open={setMonthOpen}
+        onOpenChange={setSetMonthOpen}
+        workbook={entry}
+        series={activeSeries}
+        pending={m.setWorkbookMonth.isPending}
+        onSave={(periodMonth) => {
+          if (!entry) return
+          m.setWorkbookMonth.mutate(
+            { workbookId: entry.id, periodMonth },
+            { onSuccess: () => setSetMonthOpen(false) },
+          )
+        }}
+      />
+
       <HistoryDialog
         open={historyOpen}
         onOpenChange={setHistoryOpen}
@@ -1763,7 +1922,9 @@ export function ProjectSheetSection({
           if (confirm.kind === "workbook") {
             m.deleteWorkbook.mutate(confirm.id, {
               onSuccess: () => {
-                setActiveWorkbookId(null)
+                // Back to whatever edition of this calendar is left, or to the
+                // first calendar there is - the month that was open is gone.
+                setRequestedMonth(null)
                 setActiveId(null)
               },
             })

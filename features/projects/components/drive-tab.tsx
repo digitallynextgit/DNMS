@@ -57,6 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/upload-rules"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
@@ -120,8 +121,6 @@ import { FilePreviewSheet, type PreviewItem } from "./files/file-preview-sheet"
 
 // Must match the server caps (drive/route.ts + resources/route.ts) AND stay <=
 // nginx client_max_body_size, or the upload dies at the proxy with a 413.
-const MAX_UPLOAD_MB = 250
-const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 /**
  * Rows per page. One folder is fetched whole (both sources return everything
