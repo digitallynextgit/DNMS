@@ -28,6 +28,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const body = (await req.json()) as {
     date: string
+    /** Last day of the range; omitted = a single-day request. */
+    endDate?: string
     reason?: string
     isEmergency?: boolean
     emailSubject?: string

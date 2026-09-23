@@ -787,6 +787,16 @@ export function ProjectSheetSection({
   const [importOpen, setImportOpen] = React.useState(false)
   /** Which dialog sent us to the importer - see SheetImportDialog. */
   const [importIntent, setImportIntent] = React.useState<"new-tab" | "new-sheet" | undefined>()
+  /**
+   * Set when New month handed off to the importer to build a month from a file.
+   * The month is NOT created here - the importer creates it from the file, so
+   * backing out of the file picker leaves no empty October behind.
+   */
+  const [monthUpload, setMonthUpload] = React.useState<{
+    name: string
+    periodMonth: string
+    copyFrom: { workbookId: string; teamPlan: boolean } | null
+  } | null>(null)
   const [newTabOpen, setNewTabOpen] = React.useState(false)
   const [newTabName, setNewTabName] = React.useState("")
   // Find in the open tab. `matchIdx` is unbounded and wrapped at use, so a
@@ -1813,16 +1823,23 @@ export function ProjectSheetSection({
       />
 
       <SheetImportDialog
-        open={importOpen && (importIntent === "new-sheet" || !!active)}
+        // A month-upload has no active tab of its own yet - the month it is
+        // about to fill does not exist until the file is read.
+        open={importOpen && (importIntent === "new-sheet" || !!monthUpload || !!active)}
         onOpenChange={(o) => {
           setImportOpen(o)
-          if (!o) setImportIntent(undefined)
+          if (!o) {
+            setImportIntent(undefined)
+            setMonthUpload(null)
+          }
         }}
         projectId={projectId}
         workbook={workbook ?? null}
         sheet={active ?? null}
         people={people}
         intent={importIntent}
+        createAs={monthUpload ?? undefined}
+        onCreated={openEdition}
       />
       {workbook && (
         <TeamPlanSheet
@@ -1864,6 +1881,14 @@ export function ProjectSheetSection({
             },
           })
         }
+        // Hand straight over to the importer, which creates the month from the
+        // file it is given. Nothing is created on the way.
+        onUpload={(input) => {
+          setNewMonthOpen(false)
+          setImportIntent(undefined)
+          setMonthUpload(input)
+          setImportOpen(true)
+        }}
       />
 
       <SetMonthDialog

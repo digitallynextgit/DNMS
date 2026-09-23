@@ -57,6 +57,30 @@ export function daysBetween(a: Date, b: Date): number {
 }
 
 /**
+ * Every working day from `start` to `end` INCLUSIVE, skipping weekends and any
+ * day in `holidays` (a set of "YYYY-MM-DD" keys, as produced by `toDateOnly`).
+ * Returns UTC midnights, matching how every DATE column in this app is stored.
+ *
+ * Shared by the WFH service (how many days a range actually costs) and the
+ * attendance calendars (which days of an approved range to paint), so the two
+ * can never disagree about what a range covers. Empty when `end < start` or the
+ * whole span is non-working.
+ */
+export function workingDaysBetween(
+  start: Date,
+  end: Date,
+  holidays: Set<string> = new Set(),
+): Date[] {
+  const days: Date[] = []
+  const last = startOfDayUTC(end)
+  for (let d = startOfDayUTC(start); d <= last; d = addDays(d, 1)) {
+    if (isWeekend(d) || holidays.has(toDateOnly(d))) continue
+    days.push(d)
+  }
+  return days
+}
+
+/**
  * The latest calendar day currently in progress anywhere on Earth (UTC+14 is
  * a day ahead of UTC for ten hours). A date picker is local; a "not in the
  * future" check against plain UTC-today rejects a valid entry from Auckland

@@ -23,6 +23,8 @@ import {
   useCancelWfh,
   useWfhInbox,
   WfhRequestsInbox,
+  formatWfhRangeLabel,
+  formatWfhDaysCount,
 } from "@/features/wfh"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -69,12 +71,15 @@ export default function MyWfhPage() {
     {
       header: "Date",
       className: "font-medium whitespace-nowrap",
-      cell: (r) =>
-        new Date(r.date).toLocaleDateString("en-IN", {
-          weekday: "short",
-          day: "2-digit",
-          month: "short",
-        }),
+      cell: (r) => {
+        const days = formatWfhDaysCount(r.totalDays)
+        return (
+          <div className="space-y-0.5">
+            <p>{formatWfhRangeLabel(r.date, r.endDate)}</p>
+            {days && <p className="text-muted-foreground text-xs font-normal">{days}</p>}
+          </div>
+        )
+      },
     },
     {
       header: "Reason",
@@ -219,11 +224,13 @@ export default function MyWfhPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">
-                      {new Date(r.date).toLocaleDateString("en-IN", {
-                        weekday: "short",
-                        day: "2-digit",
-                        month: "short",
-                      })}
+                      {formatWfhRangeLabel(r.date, r.endDate)}
+                      {formatWfhDaysCount(r.totalDays) && (
+                        <span className="text-muted-foreground font-normal">
+                          {" "}
+                          · {formatWfhDaysCount(r.totalDays)}
+                        </span>
+                      )}
                     </p>
                     {r.isEmergency ? (
                       <Badge

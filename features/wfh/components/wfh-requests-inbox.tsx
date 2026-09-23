@@ -12,7 +12,14 @@ import { Pagination } from "@/components/shared/pagination"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { RejectReasonDialog } from "@/components/shared/reject-reason-dialog"
 import { useUrlPage } from "@/hooks/use-url-state"
-import { useWfhInbox, useApproveWfh, useRejectWfh, type WfhRequest } from "@/features/wfh"
+import {
+  useWfhInbox,
+  useApproveWfh,
+  useRejectWfh,
+  formatWfhRangeLabel,
+  formatWfhDaysCount,
+  type WfhRequest,
+} from "@/features/wfh"
 import { LEAVE_STATUS_LABELS, LEAVE_STATUS_COLORS } from "@/lib/constants"
 
 const PAGE_SIZE = 10
@@ -56,12 +63,15 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
     {
       header: "Date",
       className: "text-muted-foreground whitespace-nowrap",
-      cell: (r) =>
-        new Date(r.date).toLocaleDateString("en-IN", {
-          weekday: "short",
-          day: "2-digit",
-          month: "short",
-        }),
+      cell: (r) => {
+        const days = formatWfhDaysCount(r.totalDays)
+        return (
+          <div className="space-y-0.5">
+            <p>{formatWfhRangeLabel(r.date, r.endDate)}</p>
+            {days && <p className="text-muted-foreground/70 text-xs">{days}</p>}
+          </div>
+        )
+      },
     },
     {
       header: "Reason",
@@ -185,11 +195,8 @@ export function WfhRequestsInbox({ scope = "team" }: { scope?: "team" | "all" })
                     {r.employee.firstName} {r.employee.lastName}
                   </p>
                   <p className="text-muted-foreground truncate text-xs">
-                    {new Date(r.date).toLocaleDateString("en-IN", {
-                      weekday: "short",
-                      day: "2-digit",
-                      month: "short",
-                    })}
+                    {formatWfhRangeLabel(r.date, r.endDate)}
+                    {formatWfhDaysCount(r.totalDays) && ` · ${formatWfhDaysCount(r.totalDays)}`}
                   </p>
                 </div>
               </div>

@@ -9,7 +9,14 @@ import { requireSession } from "@/server/action-guard"
 import { ok, fail, runAction, serialize, type ActionResult } from "@/server/action-result"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
 import { EMPLOYEE_SUMMARY_SELECT } from "@/server/selects"
-import { startOfDayUTC, toDateOnly } from "@/lib/dates"
+import {
+  startOfDayUTC,
+  toDateOnly,
+  daysBetween,
+  isWeekend,
+  monthRange,
+  workingDaysBetween,
+} from "@/lib/dates"
 import { renderDecisionEmail, renderWfhRequestEmail, signatureLogoUrl } from "@/lib/email-layout"
 import { isOnProbation, getProbationEndDate } from "@/features/employees/probation"
 import { getConfig, getConfigSync, warmConfig } from "@/server/app-config"
@@ -66,6 +73,76 @@ const WFH_INCLUDE = {
 // HR/admin roles whose decision is FINAL on a WFH request. A manager's call is
 // advisory (mirrors leave / floating-holiday requests).
 const HR_ROLE_NAMES: string[] = [SYSTEM_ROLES.HR_MANAGER, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.ADMIN_]
+
+/** Active = still occupying the calendar. Rejected/cancelled rows free their days. */
+const ACTIVE_WFH_STATUSES = ["PENDING", "APPROVED"] as const
+
+/**
+ * A single request may not span more than this many CALENDAR days. WFH is meant
+ * to be a day or a short stretch, not an open-ended arrangement; the cap keeps a
+ * slipped date-picker click from silently booking a month.
+ */
+const MAX_WFH_RANGE_DAYS = 14
+
+/** Ordinary (non-emergency) WFH days a fully-eligible employee gets per month. */
+const TIER_3_MONTHLY_QUOTA = 1
+
+// ─── Range helpers ────────────────────────────────────────────────────────────
+
+/** Non-optional company holidays in [start, end] as "YYYY-MM-DD" keys. Optional
+ *  (floating) holidays are excluded because WFH may be applied for on those. */
+async function loadHolidayKeys(start: Date, end: Date): Promise<Set<string>> {
+  const holidays = await db.holiday.findMany({
+    where: { isOptional: false, date: { gte: start, lte: end } },
+    select: { date: true },
+  })
+  return new Set(holidays.map((h) => toDateOnly(h.date)))
+}
+
+/** "Wed Sep 23 2026", or "Wed Sep 23 2026 - Thu Sep 24 2026" for a real range. */
+function formatWfhRange(date: Date | string, endDate: Date | string): string {
+  const start = new Date(date).toDateString()
+  const end = new Date(endDate).toDateString()
+  return start === end ? start : `${start} - ${end}`
+}
+
+/**
+ * Ordinary WFH days this employee already holds in the given month - the figure
+ * the tier-3 monthly quota is spent against.
+ *
+ * Counts DAYS, not rows: one request can now cover several days, so counting
+ * rows would let a 3-day request through as "1 used". Emergency requests are
+ * excluded because they are allowed to exceed the quota (they need Manager + HR
+ * sign-off instead), so they must not consume it either.
+ */
+async function countOrdinaryWfhDaysInMonth(
+  employeeId: string,
+  monthStart: Date,
+  monthEnd: Date,
+  holidays: Set<string>,
+): Promise<number> {
+  const rows = await db.wfhRequest.findMany({
+    where: {
+      employeeId,
+      status: { in: [...ACTIVE_WFH_STATUSES] },
+      isEmergency: false,
+      // Overlap, not containment: a range starting in August and ending in
+      // September spends days from both months.
+      date: { lte: monthEnd },
+      endDate: { gte: monthStart },
+    },
+    select: { date: true, endDate: true },
+  })
+
+  let used = 0
+  for (const row of rows) {
+    // Clip each range to the month before counting.
+    const from = row.date > monthStart ? row.date : monthStart
+    const to = row.endDate < monthEnd ? row.endDate : monthEnd
+    used += workingDaysBetween(from, to, holidays).length
+  }
+  return used
+}
 
 // ─── Application letter (to the manager, HR on Cc) ────────────────────────────
 
@@ -196,7 +273,14 @@ export async function getWfhMailPreview(): Promise<ActionResult<unknown>> {
  */
 async function sendWfhRequestLetter(
   applicantId: string,
-  request: { id: string; date: Date; reason: string | null; isEmergency: boolean },
+  request: {
+    id: string
+    date: Date
+    endDate: Date
+    totalDays: number
+    reason: string | null
+    isEmergency: boolean
+  },
   applicantName: string,
   employeeNo: string | null,
   /** The employee's edited letter/subject from the preview; null = auto-composed. */
@@ -228,6 +312,8 @@ async function sendWfhRequestLetter(
       applicantEmail: applicant?.email ?? null,
       applicantPhone: applicant?.phone ?? null,
       date: toDateOnly(request.date),
+      endDate: toDateOnly(request.endDate),
+      totalDays: request.totalDays,
       reason: request.reason,
       isEmergency: request.isEmergency,
       bodyText: customBody,
@@ -300,25 +386,27 @@ export async function getWfhEligibility(): Promise<ActionResult<unknown>> {
       // UTC boundaries (API-09): rows are stored at UTC midnight; local-midnight
       // bounds on a TZ ahead of UTC (e.g. IST) push the last calendar day out of
       // the window, undercounting the monthly quota.
-      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-      const monthEnd = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+      const { start: monthStart, end: monthEnd } = monthRange(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
       )
-      usedThisMonth = await db.wfhRequest.count({
-        where: {
-          employeeId: session.user.id,
-          status: { in: ["PENDING", "APPROVED"] },
-          date: { gte: monthStart, lte: monthEnd },
-        },
-      })
+      // DAYS, not rows - a request can cover several - and ordinary ones only,
+      // matching exactly what applyWfh() spends the quota against.
+      usedThisMonth = await countOrdinaryWfhDaysInMonth(
+        session.user.id,
+        monthStart,
+        monthEnd,
+        await loadHolidayKeys(monthStart, monthEnd),
+      )
     }
 
     return ok({
       tier,
       label,
       eligibleFromDate,
-      monthlyQuota: tier === 3 ? 1 : 0,
+      monthlyQuota: tier === 3 ? TIER_3_MONTHLY_QUOTA : 0,
       usedThisMonth,
+      maxRangeDays: MAX_WFH_RANGE_DAYS,
       canApplyEmergencyOnly: tier !== 3,
       joiningDate: employee?.dateOfJoining ? toDateOnly(employee.dateOfJoining) : null,
       probationEnd: completed ? toDateOnly(completed) : null,
@@ -346,11 +434,10 @@ export async function getWfhRequests(filters: WfhFilters = {}): Promise<ActionRe
     if (canApprove) {
       if (filters.status) where.status = filters.status
       if (filters.employeeId) where.employeeId = filters.employeeId
-      if (filters.from || filters.to) {
-        where.date = {}
-        if (filters.from) (where.date as Record<string, unknown>).gte = new Date(filters.from)
-        if (filters.to) (where.date as Record<string, unknown>).lte = new Date(filters.to)
-      }
+      // Overlap, not containment: a request running Sep 30 - Oct 2 belongs in a
+      // search for October even though it starts in September.
+      if (filters.to) where.date = { lte: startOfDayUTC(filters.to) }
+      if (filters.from) where.endDate = { gte: startOfDayUTC(filters.from) }
     } else {
       where.employeeId = session.user.id
       if (filters.status) where.status = filters.status
@@ -383,7 +470,10 @@ export async function getWfhRequests(filters: WfhFilters = {}): Promise<ActionRe
 }
 
 export async function applyWfh(body: {
+  /** First day of the range. */
   date: string
+  /** Last day. Omitted (or equal to `date`) = a single-day request. */
+  endDate?: string
   reason?: string
   isEmergency?: boolean
   /** Subject + letter exactly as composed/edited in the apply-screen preview. */
@@ -392,20 +482,47 @@ export async function applyWfh(body: {
 }): Promise<ActionResult<unknown>> {
   return runAction(async () => {
     const session = await requireSession()
-    const { date, reason, isEmergency, emailSubject, emailBody } = body
+    const { date, endDate, reason, isEmergency, emailSubject, emailBody } = body
     if (!date) return fail("date is required")
 
     const wfhDate = startOfDayUTC(date)
     if (isNaN(wfhDate.getTime())) return fail("Invalid date format")
 
+    // No end date = the single-day request this feature started as.
+    const wfhEnd = endDate ? startOfDayUTC(endDate) : wfhDate
+    if (isNaN(wfhEnd.getTime())) return fail("Invalid end date format")
+    if (wfhEnd < wfhDate) return fail("The end date cannot be before the start date")
+
+    const spanDays = daysBetween(wfhDate, wfhEnd) + 1
+    if (spanDays > MAX_WFH_RANGE_DAYS)
+      return fail(
+        `A WFH request can cover at most ${MAX_WFH_RANGE_DAYS} days. Please split it into separate requests.`,
+      )
+
     const today = startOfDayUTC(new Date())
     if (wfhDate < today) return fail("Cannot apply for WFH in the past")
 
-    const dow = wfhDate.getUTCDay()
-    if (dow === 0 || dow === 6) return fail("WFH cannot be applied for weekends")
+    // Weekends/holidays INSIDE a range are simply skipped, but the two ends must
+    // be real working days - otherwise the dates on the request (and in the
+    // letter) name days nobody is actually working from home.
+    if (isWeekend(wfhDate) || isWeekend(wfhEnd)) return fail("WFH cannot be applied for weekends")
 
-    const holiday = await db.holiday.findFirst({ where: { date: wfhDate, isOptional: false } })
-    if (holiday) return fail(`${wfhDate.toDateString()} is a holiday (${holiday.name})`)
+    // One holiday read covers the range AND the per-month quota maths below.
+    const { start: spanFrom } = monthRange(wfhDate.getUTCFullYear(), wfhDate.getUTCMonth())
+    const { end: spanTo } = monthRange(wfhEnd.getUTCFullYear(), wfhEnd.getUTCMonth())
+    const holidayKeys = await loadHolidayKeys(spanFrom, spanTo)
+
+    for (const bound of wfhEnd > wfhDate ? [wfhDate, wfhEnd] : [wfhDate]) {
+      if (!holidayKeys.has(toDateOnly(bound))) continue
+      const holiday = await db.holiday.findFirst({ where: { date: bound, isOptional: false } })
+      return fail(`${bound.toDateString()} is a holiday (${holiday?.name ?? "company holiday"})`)
+    }
+
+    // The days this request actually costs: weekends and company holidays inside
+    // the range don't count, so Fri-Mon is 2 days, not 4.
+    const workingDays = workingDaysBetween(wfhDate, wfhEnd, holidayKeys)
+    if (workingDays.length === 0)
+      return fail("That range has no working days - every day in it is a weekend or a holiday.")
 
     // Same tier rule as getWfhEligibility - the banner the employee is shown and the
     // rule enforced here MUST come from one place, or the UI says "you may apply" and
@@ -429,53 +546,94 @@ export async function applyWfh(body: {
       return fail(tierMsg)
     }
 
-    if (tier === 3) {
-      // UTC boundaries (API-09) - match the UTC-midnight stored dates.
-      const monthStart = new Date(Date.UTC(wfhDate.getUTCFullYear(), wfhDate.getUTCMonth(), 1))
-      const monthEnd = new Date(
-        Date.UTC(wfhDate.getUTCFullYear(), wfhDate.getUTCMonth() + 1, 0, 23, 59, 59, 999),
-      )
-      const usedThisMonth = await db.wfhRequest.count({
-        where: {
-          employeeId: session.user.id,
-          status: { in: ["PENDING", "APPROVED"] },
-          date: { gte: monthStart, lte: monthEnd },
-        },
-      })
-      if (usedThisMonth >= 1)
-        return fail("You have already used or applied for your 1 WFH day this month.")
+    // The tier-3 monthly quota is spent per CALENDAR MONTH, so a range crossing a
+    // month boundary is checked against each month it touches - Sep 30 + Oct 1 is
+    // one day out of each month's allowance, not two out of September's.
+    //
+    // Emergency requests are exempt: they buy that exemption with Manager + HR
+    // sign-off, and (see countOrdinaryWfhDaysInMonth) they don't consume the
+    // ordinary allowance either.
+    if (tier === 3 && !isEmergency) {
+      const newDaysPerMonth = new Map<string, { year: number; month: number; count: number }>()
+      for (const day of workingDays) {
+        const year = day.getUTCFullYear()
+        const month = day.getUTCMonth()
+        const key = `${year}-${month}`
+        const bucket = newDaysPerMonth.get(key) ?? { year, month, count: 0 }
+        bucket.count += 1
+        newDaysPerMonth.set(key, bucket)
+      }
+
+      for (const { year, month, count } of newDaysPerMonth.values()) {
+        const { start: monthStart, end: monthEnd } = monthRange(year, month)
+        const used = await countOrdinaryWfhDaysInMonth(
+          session.user.id,
+          monthStart,
+          monthEnd,
+          holidayKeys,
+        )
+        if (used + count <= TIER_3_MONTHLY_QUOTA) continue
+
+        const monthLabel = monthStart.toLocaleDateString("en-IN", {
+          month: "long",
+          year: "numeric",
+          timeZone: "UTC",
+        })
+        return fail(
+          used >= TIER_3_MONTHLY_QUOTA
+            ? `You have already used or applied for your ${TIER_3_MONTHLY_QUOTA} WFH day in ${monthLabel}.`
+            : `This request needs ${count} WFH days in ${monthLabel}, but you get ${TIER_3_MONTHLY_QUOTA} per month. Mark it as an emergency if it cannot wait - that needs both Manager and HR approval.`,
+        )
+      }
     }
 
     const overlappingLeave = await db.leaveRequest.findFirst({
       where: {
         employeeId: session.user.id,
         status: { in: ["PENDING", "APPROVED"] },
-        AND: [{ startDate: { lte: wfhDate } }, { endDate: { gte: wfhDate } }],
+        AND: [{ startDate: { lte: wfhEnd } }, { endDate: { gte: wfhDate } }],
       },
     })
-    if (overlappingLeave) return fail("WFH cannot be clubbed with a leave on the same day.")
+    if (overlappingLeave)
+      return fail(
+        spanDays > 1
+          ? "WFH cannot be clubbed with a leave. One of these days already has a leave request."
+          : "WFH cannot be clubbed with a leave on the same day.",
+      )
 
     const duplicate = await db.wfhRequest.findFirst({
       where: {
         employeeId: session.user.id,
-        date: wfhDate,
-        status: { in: ["PENDING", "APPROVED"] },
+        status: { in: [...ACTIVE_WFH_STATUSES] },
+        date: { lte: wfhEnd },
+        endDate: { gte: wfhDate },
       },
+      select: { date: true, endDate: true },
     })
-    if (duplicate) return fail("You already have a WFH request for this date.")
+    if (duplicate)
+      return fail(
+        `You already have a WFH request covering ${formatWfhRange(duplicate.date, duplicate.endDate)}.`,
+      )
 
     // The `duplicate` check above is a friendly pre-check, not a guarantee: two
-    // concurrent submissions both pass it. The partial unique index
-    // `wfh_requests_employee_id_date_active_key` (PENDING/APPROVED only, so
-    // re-applying after a rejection still works) is what actually enforces it,
-    // and P2002 is that race surfacing - report it as the same user-facing
-    // message rather than a 500.
+    // concurrent submissions both pass it. The partial EXCLUDE constraint
+    // `wfh_requests_no_active_overlap` (PENDING/APPROVED only, so re-applying
+    // after a rejection still works) is what actually enforces it. A violation
+    // is that race surfacing - report it as the same user-facing message rather
+    // than a 500.
+    //
+    // Two codes, because the guard changed shape with ranges: P2002 is the older
+    // partial UNIQUE (still in place on databases whose role could not create
+    // btree_gist), 23P01 is the EXCLUDE. Prisma has no mapped code for the
+    // latter, so it arrives as a raw SQLSTATE.
     let request
     try {
       request = await db.wfhRequest.create({
         data: {
           employeeId: session.user.id,
           date: wfhDate,
+          endDate: wfhEnd,
+          totalDays: workingDays.length,
           reason: reason ? String(reason).trim() : null,
           status: "PENDING",
           isEmergency: !!isEmergency,
@@ -487,17 +645,23 @@ export async function applyWfh(body: {
         },
       })
     } catch (e) {
-      if ((e as { code?: string }).code === "P2002") {
-        return fail("You already have a WFH request for this date.")
+      const err = e as { code?: string; meta?: { code?: string } }
+      if (err.code === "P2002" || err.code === "23P01" || err.meta?.code === "23P01") {
+        return fail("You already have a WFH request covering one of these dates.")
       }
       throw e
     }
 
     // Route to the employee's manager (advisory) + HR (final), like leave.
+    const rangeLabel = formatWfhRange(wfhDate, wfhEnd)
     await notifyApprovers({
       requesterId: session.user.id,
       title: "WFH request",
-      message: `${request.employee.firstName} ${request.employee.lastName} requested Work From Home on ${wfhDate.toDateString()}.`,
+      message: `${request.employee.firstName} ${request.employee.lastName} requested Work From Home ${
+        workingDays.length > 1
+          ? `for ${rangeLabel} (${workingDays.length} working days)`
+          : `on ${rangeLabel}`
+      }.`,
       link: "/wfh",
     })
 
@@ -592,7 +756,8 @@ export async function updateWfhRequest(
     const updated = await db.wfhRequest.findUnique({ where: { id }, include: WFH_INCLUDE })
     if (!updated) return fail("WFH request not found", undefined, 404)
 
-    const dateStr = new Date(request.date).toDateString()
+    const dateStr = formatWfhRange(request.date, request.endDate)
+    const daysSuffix = request.totalDays > 1 ? ` (${request.totalDays} working days)` : ""
     try {
       if (updated.status === "APPROVED" || updated.status === "REJECTED") {
         const approved = updated.status === "APPROVED"
@@ -600,8 +765,8 @@ export async function updateWfhRequest(
           employeeId: request.employeeId,
           title: approved ? "WFH Approved" : "WFH Rejected",
           message: approved
-            ? `Your Work From Home request for ${dateStr} has been approved.`
-            : `Your Work From Home request for ${dateStr} was rejected.${reason ? ` Reason: ${reason}` : ""}`,
+            ? `Your Work From Home request for ${dateStr}${daysSuffix} has been approved.`
+            : `Your Work From Home request for ${dateStr}${daysSuffix} was rejected.${reason ? ` Reason: ${reason}` : ""}`,
           type: approved ? "success" : "error",
           link: "/wfh",
         })
@@ -610,7 +775,7 @@ export async function updateWfhRequest(
             kind: "WFH request",
             approved,
             firstName: request.employee.firstName,
-            detailLine: `Work From Home · ${dateStr}`,
+            detailLine: `Work From Home · ${dateStr}${daysSuffix}`,
             reason: !approved && reason ? reason : null,
           })
           addEmailJob({

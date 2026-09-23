@@ -24,14 +24,20 @@ interface PreviewData {
  */
 export function WfhMailPreview({
   date,
+  endDate,
+  totalDays,
   reason,
   isEmergency,
   applicantName,
   onBodyChange,
   onSubjectChange,
 }: {
-  /** "yyyy-MM-dd" */
+  /** "yyyy-MM-dd" - first day of the range. */
   date: string
+  /** "yyyy-MM-dd" - last day; equal to `date` for a single-day request. */
+  endDate?: string
+  /** Working days the range covers (weekends/holidays inside it are skipped). */
+  totalDays?: number
   reason: string
   isEmergency: boolean
   applicantName: string
@@ -48,12 +54,25 @@ export function WfhMailPreview({
 
   // Parse as a plain local date - `new Date("2026-08-24")` is UTC midnight, which
   // renders as the previous day for anyone behind UTC.
-  const dateLine = useMemo(() => {
-    if (!date) return "-"
-    const [y, m, d] = date.split("-").map(Number)
-    if (!y || !m || !d) return "-"
+  const toLongDay = (value: string): string | null => {
+    const [y, m, d] = value.split("-").map(Number)
+    if (!y || !m || !d) return null
     return new Date(y, m - 1, d).toDateString()
-  }, [date])
+  }
+
+  // One phrase for the whole request, so the subject and the letter always
+  // describe the same stretch of days. Mirrors renderWfhRequestEmail().
+  const { dateLine, whenPhrase } = useMemo(() => {
+    const start = date ? toLongDay(date) : null
+    if (!start) return { dateLine: "-", whenPhrase: "on -" }
+
+    const end = endDate && endDate !== date ? toLongDay(endDate) : null
+    if (!end) return { dateLine: start, whenPhrase: `on ${start}` }
+
+    const label = `${start} to ${end}`
+    const note = totalDays && totalDays > 1 ? ` (${totalDays} working days)` : ""
+    return { dateLine: label, whenPhrase: `from ${label}${note}` }
+  }, [date, endDate, totalDays])
 
   const managerFirst = data?.to?.name.split(" ")[0] ?? "Manager"
 
@@ -61,23 +80,27 @@ export function WfhMailPreview({
   const composed = useMemo(() => {
     const reasonLine =
       reason.trim() || "I have submitted this request in Digitally Next for your consideration."
+    const isRange = whenPhrase.startsWith("from ")
+    const availability = isRange
+      ? `I will be available online through working hours on each of these days, reachable on call and chat, and will keep my deliverables on track.`
+      : `I will be available online through working hours, reachable on call and chat, and will keep the day's deliverables on track.`
     return [
       `Dear ${managerFirst},`,
       ``,
-      `I would like to request permission to work from home on ${dateLine}.`,
+      `I would like to request permission to work from home ${whenPhrase}.`,
       ``,
       reasonLine,
       ...(isEmergency
         ? [``, `As this is an emergency request, it needs both your approval and HR's sign-off.`]
         : []),
       ``,
-      `I will be available online through working hours, reachable on call and chat, and will keep the day's deliverables on track. Kindly approve the request at your convenience.`,
+      `${availability} Kindly approve the request at your convenience.`,
       ``,
       `Thank you for your consideration.`,
       ``,
       `Best Regards,`,
     ].join("\n")
-  }, [managerFirst, dateLine, reason, isEmergency])
+  }, [managerFirst, whenPhrase, reason, isEmergency])
 
   const composedSubject = `Work From Home request - ${applicantName} - ${dateLine}`
 

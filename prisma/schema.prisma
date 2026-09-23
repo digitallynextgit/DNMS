@@ -1235,7 +1235,16 @@ model WfhRequest {
   tenantId          String      @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
   id                String      @id @default(uuid()) @map("id")
   employeeId        String      @map("employee_id")
-  date              DateTime    @map("date") @db.Date // single day WFH
+  // A request covers a RANGE of working days. `date` is the first day and keeps
+  // its original name (it predates ranges, and renaming it would churn every
+  // consumer for nothing); `endDate` is the last day and equals `date` for a
+  // single-day request, so every range query stays a plain
+  // `date <= x AND end_date >= y` with no null handling.
+  date              DateTime    @map("date") @db.Date // first WFH day (range start)
+  endDate           DateTime    @map("end_date") @db.Date // last WFH day; == date when single-day
+  /// Working days the range actually covers - weekends and company holidays
+  /// inside it are skipped, so Fri-Mon is 2, not 4.
+  totalDays         Int         @default(1) @map("total_days")
   reason            String?     @map("reason")
   status            LeaveStatus @default(PENDING) @map("status")
   isEmergency       Boolean     @default(false) @map("is_emergency") // tier 1/2 emergency override
@@ -1254,9 +1263,15 @@ model WfhRequest {
   managerApprover Employee? @relation("WfhManagerApprover", fields: [managerApproverId], references: [id], onDelete: SetNull)
   hrApprover      Employee? @relation("WfhHrApprover", fields: [hrApproverId], references: [id], onDelete: SetNull)
 
+  // NOTE: the duplicate guard is a partial EXCLUDE constraint
+  // (`wfh_requests_no_active_overlap`) forbidding two PENDING/APPROVED requests
+  // whose date ranges overlap. Prisma's DSL cannot express EXCLUDE, so it lives
+  // only in prisma/migrations/20260922000000_wfh_date_range. It superseded a
+  // partial UNIQUE on (employee_id, date), which only caught same-START-day
+  // collisions once a request could span several days.
   @@index([employeeId])
   @@index([status])
-  @@index([date])
+  @@index([date, endDate])
   @@index([status, createdAt])
   @@index([tenantId])
   @@map("wfh_requests")

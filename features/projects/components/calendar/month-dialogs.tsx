@@ -95,6 +95,42 @@ function MonthYearFields({
   )
 }
 
+/** Where a new month's tabs and columns come from. */
+type StartFrom = "blank" | "edition" | "upload"
+
+/**
+ * One row of the "Start it from" choice. A native radio, so the three options
+ * behave as one group under the keyboard; the styling matches the Checkbox rows
+ * it sits beside.
+ */
+function StartOption({
+  checked,
+  onSelect,
+  title,
+  hint,
+}: {
+  checked: boolean
+  onSelect: () => void
+  title: string
+  hint: string
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2 text-sm">
+      <input
+        type="radio"
+        name="new-month-start-from"
+        checked={checked}
+        onChange={onSelect}
+        className="accent-primary mt-1 h-3.5 w-3.5 shrink-0 cursor-pointer"
+      />
+      <span>
+        {title}
+        <span className="text-muted-foreground block text-xs">{hint}</span>
+      </span>
+    </label>
+  )
+}
+
 /**
  * Another month of a calendar that already exists.
  *
@@ -102,12 +138,19 @@ function MonthYearFields({
  * A month that starts empty means rebuilding the columns every time, and a
  * month that copies everything means last month's posts appear in this month's
  * grid - so the dialog says exactly what travels and what does not.
+ *
+ * The third option, a file, exists because a month is often PLANNED elsewhere:
+ * October arrives as a spreadsheet that need not resemble September at all.
+ * Before it, the only way in was to create the month empty and then import into
+ * it, which meant the blank tab the month was born with had to be cleaned up
+ * afterwards.
  */
 export function NewMonthDialog({
   open,
   onOpenChange,
   series,
   onCreate,
+  onUpload,
   pending,
 }: {
   open: boolean
@@ -117,6 +160,19 @@ export function NewMonthDialog({
     name: string
     periodMonth: string
     copyFrom: { workbookId: string; structure: boolean; teamPlan: boolean } | null
+  }) => void
+  /**
+   * Chosen "A file I upload": hand off to the importer, which creates the month
+   * itself from the file's tabs.
+   *
+   * Nothing is created here on purpose - a month made up-front would occupy the
+   * month's unique slot and have to be deleted again if the file picker is then
+   * abandoned.
+   */
+  onUpload: (input: {
+    name: string
+    periodMonth: string
+    copyFrom: { workbookId: string; teamPlan: boolean } | null
   }) => void
   pending: boolean
 }) {
@@ -133,14 +189,14 @@ export function NewMonthDialog({
   }, [newest])
 
   const [month, setMonth] = React.useState<YearMonth>(suggested)
-  const [copy, setCopy] = React.useState(true)
+  const [startFrom, setStartFrom] = React.useState<StartFrom>("edition")
   const [copyStructure, setCopyStructure] = React.useState(true)
   const [copyTeamPlan, setCopyTeamPlan] = React.useState(true)
 
   React.useEffect(() => {
     if (open) {
       setMonth(suggested)
-      setCopy(Boolean(newest))
+      setStartFrom(newest ? "edition" : "blank")
       setCopyStructure(true)
       setCopyTeamPlan(true)
     }
@@ -163,15 +219,30 @@ export function NewMonthDialog({
       description="Another month of this calendar. The name stays the same - the month is what tells them apart."
       isPending={pending}
       submitDisabled={Boolean(taken)}
-      submitLabel="Create month"
+      // The file path does not create anything yet - it opens the importer - so
+      // the button says what happens next rather than promising a month.
+      submitLabel={startFrom === "upload" ? "Choose a file" : "Create month"}
       onSubmit={(e) => {
         e.preventDefault()
         if (taken) return
+        const periodMonth = monthISO(month.year, month.month0)
+
+        if (startFrom === "upload") {
+          onUpload({
+            name: series.name,
+            periodMonth,
+            // Structure comes from the FILE, so the only thing worth carrying
+            // over is who is on the hook.
+            copyFrom: newest && copyTeamPlan ? { workbookId: newest.id, teamPlan: true } : null,
+          })
+          return
+        }
+
         onCreate({
           name: series.name,
-          periodMonth: monthISO(month.year, month.month0),
+          periodMonth,
           copyFrom:
-            copy && newest
+            startFrom === "edition" && newest
               ? { workbookId: newest.id, structure: copyStructure, teamPlan: copyTeamPlan }
               : null,
         })
@@ -187,51 +258,76 @@ export function NewMonthDialog({
         )}
       </div>
 
-      {newest && (
-        <div className="space-y-2">
-          <Label>Start it from</Label>
-          <label className="flex cursor-pointer items-start gap-2 text-sm">
-            <Checkbox
-              checked={copy}
-              onCheckedChange={(v) => setCopy(v === true)}
-              className="mt-0.5"
-            />
-            <span>
-              {formatMonth(newest.periodMonth)}
-              <span className="text-muted-foreground block text-xs">
-                {newest.tabs.length} {newest.tabs.length === 1 ? "tab" : "tabs"}. Unticked, the
-                month starts with one blank tab.
-              </span>
-            </span>
-          </label>
+      <div className="space-y-2">
+        <Label>Start it from</Label>
 
-          <div className={cn("space-y-2 pl-6", !copy && "pointer-events-none opacity-50")}>
-            <label className="flex cursor-pointer items-start gap-2 text-sm">
-              <Checkbox
-                checked={copyStructure}
-                onCheckedChange={(v) => setCopyStructure(v === true)}
-                disabled={!copy}
-                className="mt-0.5"
-              />
-              <span>
-                Tabs and columns
-                {/* Said out loud, because it is the thing people assume goes
-                    the other way - and a month that opens full is a month
-                    where last month's plan gets shipped by mistake. */}
-                <span className="text-muted-foreground block text-xs">
-                  The rows are never copied - the new month starts empty.
+        {/* Three exclusive choices, so native radios: they come with arrow-key
+            navigation and a real group, which three checkboxes pretending to be
+            exclusive would not. */}
+        <StartOption
+          checked={startFrom === "blank"}
+          onSelect={() => setStartFrom("blank")}
+          title="Nothing"
+          hint="The month opens with one blank tab."
+        />
+
+        {newest && (
+          <>
+            <StartOption
+              checked={startFrom === "edition"}
+              onSelect={() => setStartFrom("edition")}
+              title={formatMonth(newest.periodMonth)}
+              hint={`Carry its ${newest.tabs.length} ${
+                newest.tabs.length === 1 ? "tab" : "tabs"
+              } forward.`}
+            />
+            <div
+              className={cn(
+                "space-y-2 pl-6",
+                startFrom !== "edition" && "pointer-events-none opacity-50",
+              )}
+            >
+              <label className="flex cursor-pointer items-start gap-2 text-sm">
+                <Checkbox
+                  checked={copyStructure}
+                  onCheckedChange={(v) => setCopyStructure(v === true)}
+                  disabled={startFrom !== "edition"}
+                  className="mt-0.5"
+                />
+                <span>
+                  Tabs and columns
+                  {/* Said out loud, because it is the thing people assume goes
+                      the other way - and a month that opens full is a month
+                      where last month's plan gets shipped by mistake. */}
+                  <span className="text-muted-foreground block text-xs">
+                    The rows are never copied - the new month starts empty.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+            </div>
+          </>
+        )}
+
+        <StartOption
+          checked={startFrom === "upload"}
+          onSelect={() => setStartFrom("upload")}
+          title="A file I upload"
+          hint="Its tabs, columns and rows become the month. It need not look anything like the month before."
+        />
+
+        {/* Shared by both copy paths, so it sits outside them. The team plan is
+            about who is on the hook, which is independent of what the grid looks
+            like - an uploaded file has no opinion about it. */}
+        {newest && startFrom !== "blank" && (
+          <div className="space-y-2 pl-6">
             <label className="flex cursor-pointer items-start gap-2 text-sm">
               <Checkbox
                 checked={copyTeamPlan}
                 onCheckedChange={(v) => setCopyTeamPlan(v === true)}
-                disabled={!copy}
                 className="mt-0.5"
               />
               <span>
-                Team plan
+                Team plan from {formatMonth(newest.periodMonth)}
                 <span className="text-muted-foreground block text-xs">
                   Teams, their people and their quantities. Due dates and links are not carried over
                   - they belong to the month they were set for.
@@ -239,8 +335,8 @@ export function NewMonthDialog({
               </span>
             </label>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </FormDialog>
   )
 }

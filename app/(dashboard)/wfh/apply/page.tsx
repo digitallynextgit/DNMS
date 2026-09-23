@@ -11,11 +11,14 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
-import { DateField, toDateString } from "@/components/shared/date-field"
+import { DateField, parseDateString, toDateString } from "@/components/shared/date-field"
 import { useWfhEligibility, useApplyWfh, WfhMailPreview } from "@/features/wfh"
 import { useHolidays } from "@/features/attendance"
 import { AlertTriangle, Info, Home } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+/** Fallback until eligibility loads; the server is the real authority (MAX_WFH_RANGE_DAYS). */
+const MAX_RANGE_DAYS_FALLBACK = 14
 
 export default function ApplyWfhPage() {
   const router = useRouter()
@@ -26,7 +29,10 @@ export default function ApplyWfhPage() {
   const applicantName =
     `${session?.user?.firstName ?? ""} ${session?.user?.lastName ?? ""}`.trim() || "You"
 
+  // A request covers `date`..`endDate` inclusive. endDate is optional and falls
+  // back to date, so the common single-day case is still one click.
   const [date, setDate] = useState("")
+  const [endDate, setEndDate] = useState("")
   const [reason, setReason] = useState("")
   const [isEmergency, setIsEmergency] = useState(false)
 
@@ -63,19 +69,63 @@ export default function ApplyWfhPage() {
     [todayStart, blockedHolidays],
   )
 
+  // An empty To means "same day as From", exactly as the server reads it.
+  const effectiveEnd = endDate || date
+
+  // Mirror of the server's workingDaysBetween(): weekends and company holidays
+  // INSIDE the range are skipped, so Fri-Mon costs 2 days, not 4. Kept in step
+  // with applyWfh() so the count shown here is the count that gets charged.
+  const { workingDays, spanDays } = useMemo(() => {
+    const from = parseDateString(date)
+    const to = parseDateString(effectiveEnd)
+    if (!from || !to || to < from) return { workingDays: 0, spanDays: 0 }
+    let days = 0
+    let span = 0
+    for (const d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+      span += 1
+      const dow = d.getDay()
+      if (dow === 0 || dow === 6) continue
+      if (blockedHolidays.has(toDateString(d))) continue
+      days += 1
+    }
+    return { workingDays: days, spanDays: span }
+  }, [date, effectiveEnd, blockedHolidays])
+
   // For tier 1 or 2 the request is implicitly an emergency (there is no checkbox -
   // the submit handler forces isEmergency: true), so it only needs a detailed
   // reason. Don't gate canSubmit on the isEmergency state or it can never enable.
   const mustBeEmergency = eligibility?.canApplyEmergencyOnly ?? false
-  const canSubmit = !!date && (mustBeEmergency ? reason.trim().length >= 10 : true)
+  const treatAsEmergency = mustBeEmergency || isEmergency
+
+  const maxRangeDays = eligibility?.maxRangeDays ?? MAX_RANGE_DAYS_FALLBACK
+  const tooLong = spanDays > maxRangeDays
+
+  // Tier 3 gets one ORDINARY day a month; an emergency may exceed it (Manager +
+  // HR both sign off). This has to match applyWfh() exactly - the banner must
+  // never promise days the server will refuse, or the other way round.
+  const remainingQuota = Math.max(
+    0,
+    (eligibility?.monthlyQuota ?? 0) - (eligibility?.usedThisMonth ?? 0),
+  )
+  const overQuota =
+    eligibility?.tier === 3 && !treatAsEmergency && workingDays > 0 && workingDays > remainingQuota
+
+  const canSubmit =
+    !!date &&
+    workingDays > 0 &&
+    !tooLong &&
+    !overQuota &&
+    (mustBeEmergency ? reason.trim().length >= 10 : true)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     try {
       await apply.mutateAsync({
         date,
+        // Only send a range when it actually is one.
+        endDate: effectiveEnd !== date ? effectiveEnd : undefined,
         reason: reason.trim() || undefined,
-        isEmergency: mustBeEmergency ? true : isEmergency,
+        isEmergency: treatAsEmergency,
         // The subject + letter exactly as shown/edited in the preview.
         emailBody: emailBodyRef.current.trim() || undefined,
         emailSubject: emailSubjectRef.current.trim() || undefined,
@@ -143,19 +193,83 @@ export default function ApplyWfhPage() {
             </Card>
           ) : null}
 
+          {/* From / To, laid out like Apply for Leave. To is optional - leave it
+              empty for a single day. */}
           <div className="space-y-2">
-            <Label required>WFH Date</Label>
-            <DateField
-              value={date}
-              onChange={setDate}
-              placeholder="Pick a date"
-              startMonth={todayStart}
-              disabled={isDateBlocked}
-            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label required>From Date</Label>
+                <DateField
+                  value={date}
+                  onChange={(v) => {
+                    setDate(v)
+                    // Moving the start past the end would leave an invalid range
+                    // on screen; drop the end instead of silently keeping it.
+                    if (endDate && v && v > endDate) setEndDate("")
+                  }}
+                  placeholder="Pick a date"
+                  startMonth={todayStart}
+                  disabled={isDateBlocked}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>
+                  To Date <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <DateField
+                  value={endDate}
+                  onChange={setEndDate}
+                  placeholder="Same day"
+                  startMonth={parseDateString(date) ?? todayStart}
+                  disabled={(d) => isDateBlocked(d) || d < (parseDateString(date) ?? todayStart)}
+                />
+              </div>
+            </div>
             <p className="text-muted-foreground text-xs">
-              WFH is for a single day. Weekends and holidays cannot be selected.
+              Leave <span className="font-medium">To Date</span> empty for a single day. Weekends
+              and holidays inside a range are skipped and not counted.
             </p>
           </div>
+
+          {/* What the range actually costs, and the two ways it can be refused -
+              shown here rather than only on submit. */}
+          {workingDays > 0 && (
+            <div
+              className={cn(
+                "space-y-1 rounded-sm border px-3 py-2.5 text-xs",
+                tooLong || overQuota
+                  ? "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20"
+                  : "bg-muted/40",
+              )}
+            >
+              <p>
+                This request covers{" "}
+                <span className="font-medium">
+                  {workingDays} working day{workingDays !== 1 ? "s" : ""}
+                </span>
+                {spanDays !== workingDays && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    ({spanDays - workingDays} weekend/holiday day
+                    {spanDays - workingDays !== 1 ? "s" : ""} skipped)
+                  </span>
+                )}
+                .
+              </p>
+              {tooLong && (
+                <p className="text-amber-700 dark:text-amber-400">
+                  A single request can span at most {maxRangeDays} days. Please split it up.
+                </p>
+              )}
+              {overQuota && (
+                <p className="text-amber-700 dark:text-amber-400">
+                  You have {remainingQuota} WFH day{remainingQuota !== 1 ? "s" : ""} left this
+                  month. Mark this as an emergency to request more - that needs both Manager and HR
+                  approval.
+                </p>
+              )}
+            </div>
+          )}
 
           {!mustBeEmergency && eligibility?.tier === 3 && (
             <div className="flex items-start gap-2">
@@ -235,8 +349,10 @@ export default function ApplyWfhPage() {
 
         <WfhMailPreview
           date={date}
+          endDate={effectiveEnd}
+          totalDays={workingDays}
           reason={reason}
-          isEmergency={mustBeEmergency ? true : isEmergency}
+          isEmergency={treatAsEmergency}
           applicantName={applicantName}
           onBodyChange={handleBodyChange}
           onSubjectChange={handleSubjectChange}

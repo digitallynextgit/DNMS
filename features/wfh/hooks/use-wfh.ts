@@ -12,7 +12,10 @@ export interface WfhEligibility {
   label: string
   eligibleFromDate: string | null
   monthlyQuota: number
+  /** Ordinary (non-emergency) WFH days already used this month. */
   usedThisMonth: number
+  /** Longest range a single request may cover, in calendar days. */
+  maxRangeDays: number
   canApplyEmergencyOnly: boolean
   joiningDate: string | null
   probationEnd: string | null
@@ -29,7 +32,12 @@ export interface WfhEmployeeSnippet {
 export interface WfhRequest {
   id: string
   employeeId: string
+  /** First day of the range. */
   date: string
+  /** Last day; equal to `date` for a single-day request. */
+  endDate: string
+  /** Working days covered - weekends/holidays inside the range are skipped. */
+  totalDays: number
   reason: string | null
   status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED"
   isEmergency: boolean
@@ -90,7 +98,10 @@ async function fetchWfhRequests(filters: WfhFilters): Promise<PaginatedResponse<
 }
 
 async function applyWfh(body: {
+  /** First day of the range. */
   date: string
+  /** Last day. Omitted = a single-day request. */
+  endDate?: string
   reason?: string
   isEmergency?: boolean
   /** Subject + letter exactly as composed/edited in the apply-screen preview. */

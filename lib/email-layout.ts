@@ -782,8 +782,12 @@ export function renderWfhRequestEmail(input: {
   /** For the signature block. */
   applicantEmail?: string | null
   applicantPhone?: string | null
-  /** "yyyy-MM-dd" - WFH is always a single day. */
+  /** "yyyy-MM-dd" - the first day of the request. */
   date: string
+  /** "yyyy-MM-dd" - the last day. Omitted or equal to `date` = a single day. */
+  endDate?: string | null
+  /** Working days the range covers (weekends/holidays inside it are skipped). */
+  totalDays?: number | null
   reason?: string | null
   /** Emergency requests need BOTH the manager and HR to sign off. */
   isEmergency?: boolean
@@ -804,6 +808,8 @@ export function renderWfhRequestEmail(input: {
     applicantEmail,
     applicantPhone,
     date,
+    endDate,
+    totalDays,
     reason,
     isEmergency,
     bodyText,
@@ -812,7 +818,15 @@ export function renderWfhRequestEmail(input: {
   } = input
 
   const day = formatEmailDate(date) ?? date
-  const subject = subjectText?.trim() || `Work From Home request - ${applicantName} - ${day}`
+  const lastDay = endDate && endDate !== date ? (formatEmailDate(endDate) ?? endDate) : null
+
+  // One phrase, built once, so the subject, the HTML letter and the plain-text
+  // letter can never describe a different stretch of days from each other.
+  const dayLabel = lastDay ? `${day} to ${lastDay}` : day
+  const daysNote = lastDay && totalDays && totalDays > 1 ? ` (${totalDays} working days)` : ""
+  const whenPhrase = lastDay ? `from ${dayLabel}${daysNote}` : `on ${dayLabel}`
+
+  const subject = subjectText?.trim() || `Work From Home request - ${applicantName} - ${dayLabel}`
 
   const reasonTrimmed = reason?.trim() || ""
   const reasonHtml = reasonTrimmed ? escapeHtml(reasonTrimmed).replace(/\n/g, "<br />") : ""
@@ -821,8 +835,9 @@ export function renderWfhRequestEmail(input: {
   // Signature block: "Designation · EMP-01 · Department" (only what exists).
   const sigParts = [designation, employeeNo, department].filter(Boolean) as string[]
 
-  const availabilityLine =
-    "I will be available online through working hours, reachable on call and chat, and will keep the day's deliverables on track."
+  const availabilityLine = lastDay
+    ? "I will be available online through working hours on each of these days, reachable on call and chat, and will keep my deliverables on track."
+    : "I will be available online through working hours, reachable on call and chat, and will keep the day's deliverables on track."
   const emergencyLine =
     "As this is an emergency request, it needs both your approval and HR's sign-off."
 
@@ -836,8 +851,8 @@ export function renderWfhRequestEmail(input: {
     <p style="margin:0 0 18px; font-size:15px; color:#111827;">Dear ${escapeHtml(approverFirstName)},</p>
 
     <p style="${para}">
-      I would like to request permission to <strong style="color:#111827;">work from home</strong> on
-      <strong style="color:#111827;">${day}</strong>.
+      I would like to request permission to <strong style="color:#111827;">work from home</strong> ${lastDay ? "from" : "on"}
+      <strong style="color:#111827;">${dayLabel}</strong>${escapeHtml(daysNote)}.
     </p>
 
     ${
@@ -876,7 +891,7 @@ export function renderWfhRequestEmail(input: {
     : [
         `Dear ${approverFirstName},`,
         ``,
-        `I would like to request permission to work from home on ${day}.`,
+        `I would like to request permission to work from home ${whenPhrase}.`,
         ``,
         reasonTrimmed || `I have submitted this request in ${BRAND_NAME} for your consideration.`,
         ...(isEmergency ? [``, emergencyLine] : []),

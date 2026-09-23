@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
+import { workingDaysBetween } from "@/lib/dates"
 import type { Session } from "next-auth"
 
 // Per-day attendance calendar for a SPECIFIC employee (HR view, opened from the
@@ -65,8 +66,15 @@ export const GET = withAuth(
           select: { startDate: true, endDate: true, leaveType: { select: { name: true } } },
         }),
         db.wfhRequest.findMany({
-          where: { employeeId, status: "APPROVED", date: { gte: monthStart, lte: monthEnd } },
-          select: { date: true },
+          // Overlap, not containment: a range that started last month still
+          // paints whichever of its days fall inside this one.
+          where: {
+            employeeId,
+            status: "APPROVED",
+            date: { lte: monthEnd },
+            endDate: { gte: monthStart },
+          },
+          select: { date: true, endDate: true },
         }),
       ])
 
@@ -84,7 +92,18 @@ export const GET = withAuth(
           cursor.setUTCDate(cursor.getUTCDate() + 1)
         }
       }
-      const wfhByDay = new Set(wfh.map((w) => ymd(w.date)))
+      // A WFH request covers a RANGE, so expand it the way `leaveByDay` above
+      // expands leave. Skipping weekends/holidays is load-bearing, not cosmetic:
+      // the day-status chain below tests wfhByDay BEFORE isWeekend, so a
+      // Saturday inside a Thu-Mon range would otherwise read "Work from home".
+      const nonWorkingDays = new Set(holidayByDay.keys())
+      const wfhByDay = new Set<string>()
+      for (const w of wfh) {
+        // Clip to the month being rendered.
+        const from = w.date > monthStart ? w.date : monthStart
+        const to = w.endDate < monthEnd ? w.endDate : monthEnd
+        for (const day of workingDaysBetween(from, to, nonWorkingDays)) wfhByDay.add(ymd(day))
+      }
 
       const firstPunch = await db.attendanceLog.findFirst({
         where: { employeeId },

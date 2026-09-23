@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { FileSpreadsheet, FolderPlus, Layers, Link2, Upload } from "lucide-react"
+import { CalendarPlus, FileSpreadsheet, FolderPlus, Layers, Link2, Upload } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,7 @@ import { toastError } from "@/lib/error-message"
 import { cn } from "@/lib/utils"
 import { useProjectDrive } from "../hooks/use-project-drive"
 import { useSheetMutations } from "../hooks/use-sheets"
+import { formatMonth } from "../lib/calendar-months"
 import {
   COLUMN_TYPE_LABEL,
   type ProjectSheet,
@@ -62,6 +63,28 @@ type Mode = "all" | "one"
 /** Where the caller came from - see the `intent` prop. */
 type Intent = "new-tab" | "new-sheet"
 type Target = "current" | "new"
+
+/**
+ * Create the workbook as another MONTH of a calendar that already exists,
+ * rather than as a new sheet of its own.
+ *
+ * A calendar is one NAME with one edition per month, so October of
+ * "SEO_AEO_GEO_Calendar" must be created under the SAME name with a different
+ * periodMonth. That is why `name` is used verbatim here and the usual
+ * "… (2)" de-duplication is skipped: suffixing would file October as a
+ * different calendar, which is the bug this exists to avoid.
+ */
+interface CreateAs {
+  /** The calendar's name, used EXACTLY as given - never suffixed. */
+  name: string
+  /** First of the month: "2026-10-01". */
+  periodMonth: string
+  /**
+   * Carry the TEAM PLAN over from an existing edition. Never the structure -
+   * the whole point of arriving by file is that the file brings its own.
+   */
+  copyFrom?: { workbookId: string; teamPlan: boolean } | null
+}
 
 const SKIP = "__skip"
 const NEW = "__new"
@@ -266,6 +289,8 @@ export function SheetImportDialog({
   sheet,
   people,
   intent,
+  createAs,
+  onCreated,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -285,6 +310,10 @@ export function SheetImportDialog({
    * plain Import button, which keeps its own judgement.
    */
   intent?: Intent
+  /** Create the workbook as a MONTH of an existing calendar - see CreateAs. */
+  createAs?: CreateAs
+  /** Fired with the new workbook's id once `createAs` has made it. */
+  onCreated?: (workbookId: string) => void
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -297,6 +326,8 @@ export function SheetImportDialog({
             sheet={sheet}
             people={people}
             intent={intent}
+            createAs={createAs}
+            onCreated={onCreated}
             onClose={() => onOpenChange(false)}
           />
         )}
@@ -319,6 +350,8 @@ function Body({
   sheet,
   people,
   intent,
+  createAs,
+  onCreated,
   onClose,
 }: {
   projectId: string
@@ -326,6 +359,8 @@ function Body({
   sheet: ProjectSheet | null
   people: Map<string, string>
   intent?: Intent
+  createAs?: CreateAs
+  onCreated?: (workbookId: string) => void
   onClose: () => void
 }) {
   const qc = useQueryClient()
@@ -337,8 +372,11 @@ function Body({
   const [sourceName, setSourceName] = useState<string | null>(null)
   const [tabs, setTabs] = useState<Tab[] | null>(null)
   const [mode, setMode] = useState<Mode>("one")
+  // Creating a month from a file has exactly one destination: the month being
+  // made. There is no "current" to add to - the open calendar is September, and
+  // adding October's tabs to it is the opposite of what was asked.
   const [target, setTarget] = useState<Target>(
-    intent === "new-sheet" || !workbook ? "new" : "current",
+    createAs || intent === "new-sheet" || !workbook ? "new" : "current",
   )
   const [newSheetName, setNewSheetName] = useState("")
   const [tabIndex, setTabIndex] = useState(0)
@@ -381,7 +419,8 @@ function Body({
     // Asked for a new tab or a new sheet, every tab in the file becomes one,
     // however few there are. Otherwise: a file with several tabs is almost
     // always "several tabs of one sheet", not "one tab and some clutter".
-    setMode(intent || nextTabs.length > 1 || !sheet ? "all" : "one")
+    // A month built from a file is always ALL TABS - the file IS the month.
+    setMode(createAs || intent || nextTabs.length > 1 || !sheet ? "all" : "one")
     setNewSheetName(stripExt(name) || "Imported sheet")
     // Everything with rows in it, to start - the common case is "all of it",
     // and unticking two is less work than ticking six.
@@ -592,7 +631,8 @@ function Body({
   const canRunAll =
     importableTabs.length > 0 &&
     oversized.length === 0 &&
-    (target === "current" ? !!workbook : newSheetName.trim().length > 0)
+    // With createAs the name is fixed by the calendar, so there is no field to fill in.
+    (target === "current" ? !!workbook : Boolean(createAs) || newSheetName.trim().length > 0)
 
   async function runImportAll() {
     if (!tabs || !canRunAll) return
@@ -608,24 +648,50 @@ function Body({
       // creation (a sheet always opens with one tab), so it is not made twice.
       let firstTab: ProjectSheet | null = null
       if (target === "new") {
-        const books = await apiFetch<{ data: WorkbookIndexEntry[] }>(
-          `/api/projects/${projectId}/sheets`,
-        )
-        const takenBooks = new Set(books.data.map((b) => normalise(b.name)))
-        const base = newSheetName.trim()
-        sheetName = base
-        for (let k = 2; takenBooks.has(normalise(sheetName)); k++) sheetName = `${base} (${k})`
+        let body: Record<string, unknown>
+        if (createAs) {
+          // The name is used VERBATIM: same name + different month is exactly
+          // what makes this another edition of the same calendar rather than a
+          // new one, so the "… (2)" de-duplication below must not run. A month
+          // that already exists is caught by the DB's unique index and comes
+          // back as "That calendar already has an edition for that month".
+          sheetName = createAs.name
+          body = {
+            name: createAs.name,
+            firstTab: importableTabs[0]!.name,
+            periodMonth: createAs.periodMonth,
+            // structure:false - the file brings its own tabs and columns, so
+            // merging last month's in would defeat the point of uploading.
+            copyFrom: createAs.copyFrom
+              ? {
+                  workbookId: createAs.copyFrom.workbookId,
+                  structure: false,
+                  teamPlan: createAs.copyFrom.teamPlan,
+                }
+              : null,
+          }
+        } else {
+          const books = await apiFetch<{ data: WorkbookIndexEntry[] }>(
+            `/api/projects/${projectId}/sheets`,
+          )
+          const takenBooks = new Set(books.data.map((b) => normalise(b.name)))
+          const base = newSheetName.trim()
+          sheetName = base
+          for (let k = 2; takenBooks.has(normalise(sheetName)); k++) sheetName = `${base} (${k})`
+          body = { name: sheetName, firstTab: importableTabs[0]!.name }
+        }
         const created = await apiFetch<{ data: SheetWorkbook }>(
           `/api/projects/${projectId}/workbooks`,
-          {
-            method: "POST",
-            headers: JSON_HEADERS,
-            body: JSON.stringify({ name: sheetName, firstTab: importableTabs[0]!.name }),
-          },
+          { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) },
         )
         workbookId = created.data.id
         firstTab = created.data.sheets[0] ?? null
         takenTabs = new Set(created.data.sheets.map((s) => normalise(s.name)))
+        // Only for a month: the caller opens it, so the grid fills in front of
+        // the person who uploaded it and a failure part-way through still leaves
+        // them looking at what was made. The ordinary "new sheet" import is left
+        // exactly as it was - it does not move you off the calendar you are on.
+        if (createAs) onCreated?.(workbookId)
       } else {
         workbookId = workbook!.id
         takenTabs = new Set(workbook!.sheets.map((s) => normalise(s.name)))
@@ -695,13 +761,23 @@ function Body({
     <>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
-          {mode === "all" && tabs ? "Import workbook" : oneTabTitle}
+          {createAs ? (
+            <CalendarPlus className="text-primary h-4 w-4" />
+          ) : (
+            <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+          )}
+          {createAs
+            ? `${formatMonth(createAs.periodMonth)} · ${createAs.name}`
+            : mode === "all" && tabs
+              ? "Import workbook"
+              : oneTabTitle}
         </DialogTitle>
         <DialogDescription>
-          {mode === "all" && tabs
-            ? "Choose the tabs you want. Each becomes a tab in a sheet here, named after it, with the file's headers as columns."
-            : "Rows are added after the last row of the tab. Nothing already in it is changed."}
+          {createAs
+            ? "The file becomes this month: its tabs, their headers and their rows. It does not have to match the month before."
+            : mode === "all" && tabs
+              ? "Choose the tabs you want. Each becomes a tab in a sheet here, named after it, with the file's headers as columns."
+              : "Rows are added after the last row of the tab. Nothing already in it is changed."}
         </DialogDescription>
       </DialogHeader>
 
@@ -808,7 +884,9 @@ function Body({
             </label>
           </div>
 
-          {sheet && (
+          {/* Not offered when building a month from a file: "one tab" would map
+              October's file onto a tab of the September that happens to be open. */}
+          {sheet && !createAs && (
             <div className="grid gap-2 sm:grid-cols-2">
               <ModeCard
                 active={mode === "all"}
@@ -833,36 +911,55 @@ function Body({
 
           {mode === "all" ? (
             <div className="space-y-3">
-              <div className="grid gap-2 sm:grid-cols-2">
-                {workbook && (
-                  <ModeCard
-                    active={target === "current"}
-                    icon={Layers}
-                    title={`Add to “${workbook.name}”`}
-                    text="New tabs next to the ones already there."
-                    onClick={() => setTarget("current")}
-                  />
-                )}
-                <ModeCard
-                  active={target === "new"}
-                  icon={FolderPlus}
-                  title="Create a new sheet"
-                  text="A fresh sheet holding these tabs."
-                  onClick={() => setTarget("new")}
-                />
-              </div>
-              {target === "new" && (
-                <div className="space-y-1.5">
-                  <Label required htmlFor="import-sheet-name" className="text-[11px]">
-                    New sheet name
-                  </Label>
-                  <Input
-                    id="import-sheet-name"
-                    value={newSheetName}
-                    onChange={(e) => setNewSheetName(e.target.value)}
-                    placeholder="Content calendar"
-                  />
+              {/* With createAs the destination was decided in the New month
+                  dialog, so there is nothing to choose here - just a reminder of
+                  where this file is about to land. */}
+              {createAs ? (
+                <div className="flex items-start gap-3 rounded-sm border p-3">
+                  <CalendarPlus className="text-primary mt-0.5 h-4 w-4 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">
+                      New month · {formatMonth(createAs.periodMonth)}
+                    </span>
+                    <span className="text-muted-foreground block text-xs">
+                      These tabs become {formatMonth(createAs.periodMonth)} of “{createAs.name}”.
+                    </span>
+                  </span>
                 </div>
+              ) : (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {workbook && (
+                      <ModeCard
+                        active={target === "current"}
+                        icon={Layers}
+                        title={`Add to “${workbook.name}”`}
+                        text="New tabs next to the ones already there."
+                        onClick={() => setTarget("current")}
+                      />
+                    )}
+                    <ModeCard
+                      active={target === "new"}
+                      icon={FolderPlus}
+                      title="Create a new sheet"
+                      text="A fresh sheet holding these tabs."
+                      onClick={() => setTarget("new")}
+                    />
+                  </div>
+                  {target === "new" && (
+                    <div className="space-y-1.5">
+                      <Label required htmlFor="import-sheet-name" className="text-[11px]">
+                        New sheet name
+                      </Label>
+                      <Input
+                        id="import-sheet-name"
+                        value={newSheetName}
+                        onChange={(e) => setNewSheetName(e.target.value)}
+                        placeholder="Content calendar"
+                      />
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="space-y-1.5">
