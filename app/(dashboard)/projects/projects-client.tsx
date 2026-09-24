@@ -100,14 +100,16 @@ export function ProjectsClient() {
     if (!isLoading && page > totalPages) setPage(totalPages)
   }, [page, totalPages, isLoading])
 
-  // Current page of projects (flat slice), then regrouped by status for the
-  // card/table section rendering.
+  // Card view shows every project; only the table view is paginated. The
+  // result is then regrouped by status for the section rendering.
+  const paginated = viewMode === "table"
   const pageProjects = useMemo(() => {
+    if (!paginated) return projects
     const start = (page - 1) * PAGE_SIZE
     return projects.slice(start, start + PAGE_SIZE)
-  }, [projects, page])
+  }, [projects, page, paginated])
 
-  // Status grouping for the card / table views - current page only.
+  // Status grouping for the card / table views.
   const pageStatusGroups = STATUS_ORDER.map(
     (status) => [status, pageProjects.filter((p) => p.status === status)] as const,
   )
@@ -400,7 +402,7 @@ export function ProjectsClient() {
         </div>
       )}
 
-      {!isLoading && total > 0 && (
+      {!isLoading && paginated && total > 0 && (
         <Pagination
           page={page}
           totalPages={totalPages}
