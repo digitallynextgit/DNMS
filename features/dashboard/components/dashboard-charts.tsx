@@ -26,7 +26,17 @@ import {
 
 const DEPT_COLORS = CHART_NEUTRAL_SERIES
 
+/** With no rows both charts drew a silent 280px blank - say why instead. */
+function ChartEmpty({ message }: { message: string }) {
+  return (
+    <div className="text-muted-foreground flex h-[280px] items-center justify-center text-sm">
+      {message}
+    </div>
+  )
+}
+
 export function DepartmentPieChart({ data }: { data: { department: string; count: number }[] }) {
+  if (data.length === 0) return <ChartEmpty message="No employees to chart yet." />
   return (
     <ResponsiveContainer width="100%" height={280}>
       <PieChart>
@@ -64,6 +74,7 @@ export function EmployeeStatusBarChart({ data }: { data: { status: string; count
     status: EMPLOYEE_STATUS_LABELS[s.status] ?? s.status,
     count: s.count,
   }))
+  if (rows.length === 0) return <ChartEmpty message="No employees to chart yet." />
   return (
     <ResponsiveContainer width="100%" height={280}>
       <BarChart data={rows} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>

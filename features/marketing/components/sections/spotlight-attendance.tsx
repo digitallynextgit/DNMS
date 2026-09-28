@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Fingerprint } from "lucide-react"
 
 import { MODULES } from "../../marketing.constants"
@@ -46,21 +46,45 @@ const TONE: Record<string, string> = {
 
 /** Pulls the live attendance snapshot (latest working day) from the public API.
  *  Client-side so the marketing page stays static; keeps the demo rows until it
- *  resolves and if it returns nothing. */
-function useAttendanceSnapshot() {
+ *  resolves and if it returns nothing. Fires only once the section is NEAR the
+ *  viewport - this sits ~8 viewports down the homepage, and fetching at mount
+ *  competed with the hero's first paint for nothing anyone could see. */
+function useAttendanceSnapshot(ref: React.RefObject<HTMLElement | null>) {
   const [snap, setSnap] = useState<Snapshot | null>(null)
   useEffect(() => {
+    const el = ref.current
     let alive = true
-    fetch("/api/marketing/attendance-snapshot", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((j) => {
-        if (alive && j?.success && j.data?.rows?.length) setSnap(j.data as Snapshot)
-      })
-      .catch(() => {})
+    const load = () => {
+      fetch("/api/marketing/attendance-snapshot", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j) => {
+          if (alive && j?.success && j.data?.rows?.length) setSnap(j.data as Snapshot)
+        })
+        .catch(() => {})
+    }
+    if (!el || typeof IntersectionObserver === "undefined") {
+      load()
+      return () => {
+        alive = false
+      }
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          io.disconnect()
+          load()
+        }
+      },
+      // A viewport of lead time, so the demo rows are usually swapped before
+      // the reader arrives at the section.
+      { rootMargin: "100% 0px" },
+    )
+    io.observe(el)
     return () => {
       alive = false
+      io.disconnect()
     }
-  }, [])
+  }, [ref])
   return snap
 }
 
@@ -68,10 +92,11 @@ function useAttendanceSnapshot() {
  *  live punch → status list. Both panels stretch to full height so the card
  *  never shows empty background. */
 function AttendanceVisual() {
-  const snap = useAttendanceSnapshot()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const snap = useAttendanceSnapshot(rootRef)
   const rows = snap?.rows ?? DEMO_ROWS
   return (
-    <div className="flex h-full flex-col gap-3 sm:flex-row">
+    <div ref={rootRef} className="flex h-full flex-col gap-3 sm:flex-row">
       {/* scanner */}
       <div className="border-border bg-background relative flex flex-1 flex-col items-center justify-center overflow-hidden rounded-sm border p-6">
         <div className="text-primary relative">
@@ -80,7 +105,10 @@ function AttendanceVisual() {
             <Fingerprint className="h-9 w-9" />
           </span>
         </div>
-        <div className="via-primary animate-dnms-scan absolute right-6 left-6 h-px bg-gradient-to-r from-transparent to-transparent" />
+        {/* Full-height track - see bento-overview.tsx for the pattern. */}
+        <div className="animate-dnms-scan pointer-events-none absolute top-0 right-6 left-6 h-full">
+          <div className="via-primary h-px bg-gradient-to-r from-transparent to-transparent" />
+        </div>
         <div className="text-muted-foreground mt-4 text-xs">Scanning · ISAPI</div>
       </div>
       {/* live rows */}

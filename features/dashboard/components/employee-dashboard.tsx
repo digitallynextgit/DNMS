@@ -107,7 +107,11 @@ async function fetchEmployeeDashboard(): Promise<EmployeeDashboardData> {
   const res = await fetch("/api/dashboard/me")
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body?.error ?? "Failed to load your dashboard")
+    // fail() nests { error: { code, message } } - reading .error alone put
+    // "[object Object]" in the user-facing banner.
+    const message =
+      typeof body?.error === "string" ? body.error : (body?.error?.message ?? undefined)
+    throw new Error(message ?? "Failed to load your dashboard")
   }
   return res.json()
 }
@@ -262,8 +266,13 @@ export function EmployeeDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {isLoading || !work ? (
+            {isLoading ? (
               <Skeleton className="h-24 w-full" />
+            ) : !work ? (
+              // A failed query must not skeleton forever - say so instead.
+              <p className="text-muted-foreground text-sm">
+                Couldn&apos;t load this week&apos;s hours.
+              </p>
             ) : (
               <>
                 <div className="flex items-baseline gap-2">

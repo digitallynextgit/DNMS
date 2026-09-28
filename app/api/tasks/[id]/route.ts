@@ -235,7 +235,25 @@ export const PATCH = withSession(
         }
       }
       if (priority !== undefined) data.priority = priority
-      if (assigneeId !== undefined) data.assigneeId = assigneeId ?? null
+      if (assigneeId !== undefined) {
+        // The tenant guard scopes WHERE clauses, not data payloads, so a bare
+        // FK write would accept any employees.id in the database - including
+        // another tenant's. Verify the new assignee is an active employee of
+        // THIS tenant (the guard scopes this read) before writing the id.
+        if (assigneeId) {
+          const assignee = await db.employee.findFirst({
+            where: { id: assigneeId, isActive: true },
+            select: { id: true },
+          })
+          if (!assignee) {
+            return NextResponse.json(
+              { error: "The new assignee is not an active employee here." },
+              { status: 422 },
+            )
+          }
+        }
+        data.assigneeId = assigneeId ?? null
+      }
       if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null
       if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null
       // Validate numbers instead of writing raw parseFloat results (API-04): an

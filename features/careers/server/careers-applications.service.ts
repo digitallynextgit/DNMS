@@ -3,6 +3,8 @@ import "server-only"
 import { randomUUID } from "node:crypto"
 import { db } from "@/server/db"
 import { createNotifications } from "@/lib/notifications"
+import { PERMISSIONS } from "@/lib/constants"
+import { getObjectKey, isB2Configured, uploadFile } from "@/lib/storage"
 import type { CareersApplicationInput } from "../schemas/application.schema"
 
 // Applications posted by the marketing site. The guiding rule throughout: NEVER
@@ -57,11 +59,22 @@ async function notifyHr(app: {
   roleResolved: boolean
 }) {
   try {
+    // Selected by PERMISSION, not by role name: hr_employee holds
+    // recruitment:write and does the actual triage, but the old role list
+    // (hr_manager, admin) never notified them.
     const recipients = await db.employee.findMany({
       where: {
         isActive: true,
         status: "ACTIVE",
-        employeeRoles: { some: { role: { name: { in: ["hr_manager", "admin"] } } } },
+        employeeRoles: {
+          some: {
+            role: {
+              rolePermissions: {
+                some: { permission: { scope: PERMISSIONS.RECRUITMENT_WRITE } },
+              },
+            },
+          },
+        },
       },
       select: { id: true },
     })
@@ -82,6 +95,46 @@ async function notifyHr(app: {
   } catch (err) {
     // Never let a notification failure cost us the application.
     console.error("[careers-application] notify failed:", err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CV copy. resumeUrl is a link into the MARKETING SITE'S storage - it can
+// expire or be cleaned up, and then the CV is gone with no trace. Copy it into
+// our own bucket right after the application is stored. Best-effort: a failed
+// copy costs nothing (resumeUrl still works today), so it never blocks or
+// fails the application itself.
+// ---------------------------------------------------------------------------
+const RESUME_MAX_BYTES = 15 * 1024 * 1024
+const RESUME_FETCH_TIMEOUT_MS = 20_000
+
+async function copyResumeToStorage(applicationId: string, resumeUrl: string): Promise<void> {
+  try {
+    if (!(await isB2Configured())) return
+    const url = new URL(resumeUrl)
+    if (url.protocol !== "https:") return
+
+    const res = await fetch(url, { signal: AbortSignal.timeout(RESUME_FETCH_TIMEOUT_MS) })
+    if (!res.ok) throw new Error(`fetch ${res.status}`)
+    const declared = Number(res.headers.get("content-length") ?? 0)
+    if (declared > RESUME_MAX_BYTES) throw new Error(`too large (${declared} bytes)`)
+    const buffer = Buffer.from(await res.arrayBuffer())
+    if (buffer.length === 0 || buffer.length > RESUME_MAX_BYTES) {
+      throw new Error(`bad size (${buffer.length} bytes)`)
+    }
+
+    const contentType = res.headers.get("content-type")?.split(";")[0]?.trim() || "application/pdf"
+    const fileName = decodeURIComponent(url.pathname.split("/").pop() || "resume.pdf")
+    const key = getObjectKey("careers/resumes", fileName, applicationId)
+    await uploadFile(key, buffer, contentType, buffer.length)
+    await db.careerApplication.update({
+      where: { id: applicationId },
+      data: { resumeKey: key },
+    })
+  } catch (err) {
+    // The application is already stored and the external link still works -
+    // log and move on; the null resumeKey records that no copy exists.
+    console.error(`[careers-application] resume copy failed for ${applicationId}:`, err)
   }
 }
 
@@ -191,6 +244,9 @@ export async function createCareerApplication(
     roleTitle: input.roleTitle,
     roleResolved: careerRoleId !== null,
   })
+
+  // Fire-and-forget: the candidate's 201 must not wait on a 15MB download.
+  void copyResumeToStorage(id, input.applicant.resumeUrl)
 
   return {
     id,

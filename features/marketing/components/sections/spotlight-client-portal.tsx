@@ -200,8 +200,15 @@ function ClientPortalVisual() {
     <div className="border-border bg-background flex h-full overflow-hidden rounded-sm border shadow-xl">
       {/* sidebar */}
       <div className="border-border/70 bg-card/40 flex w-[116px] shrink-0 flex-col border-r p-2 sm:w-[136px]">
-        {/* project switcher */}
-        <button className="border-border/70 bg-card mb-3 flex items-center gap-1.5 rounded-sm border px-1.5 py-1.5 text-left">
+        {/* project switcher (decorative - part of the product mockup, so it is
+            taken out of the tab order and hidden from assistive tech rather
+            than presenting as a button that does nothing) */}
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-hidden="true"
+          className="border-border/70 bg-card mb-3 flex items-center gap-1.5 rounded-sm border px-1.5 py-1.5 text-left"
+        >
           <span
             className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-[9px] font-bold text-white"
             style={{ backgroundColor: BRAND_RED }}

@@ -24,6 +24,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { unregisterPush } from "@/components/providers/realtime-notifications"
 import { useSidebarStore } from "@/stores/sidebar-store"
 import { useThemeStore } from "@/stores/theme-store"
 import { useAiAssistantStore } from "@/stores/ai-assistant-store"
@@ -63,9 +64,12 @@ export function Topbar({ session }: { session: Session }) {
 
   // On logout, drop any custom palette and fall back to the default (system)
   // theme so the next user / the login page starts from the default colors.
-  function handleSignOut() {
+  async function handleSignOut() {
     clearPalette()
     setTheme("system")
+    // Before the session goes: otherwise this browser keeps receiving the
+    // signed-out user's push notifications (a leak on shared devices).
+    await unregisterPush()
     signOut({ callbackUrl: "/login" })
   }
 

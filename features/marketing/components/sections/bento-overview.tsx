@@ -51,7 +51,11 @@ function AttendanceMock() {
             />
           ))}
         </div>
-        <div className="via-primary/70 animate-dnms-scan absolute inset-x-3 h-px bg-gradient-to-r from-transparent to-transparent" />
+        {/* Full-height track: translateY% in dnms-scan is relative to THIS
+            element, so the 1px line at its top scans compositor-only. */}
+        <div className="animate-dnms-scan pointer-events-none absolute inset-x-3 top-0 h-full">
+          <div className="via-primary/70 h-px bg-gradient-to-r from-transparent to-transparent" />
+        </div>
       </div>
     </div>
   )

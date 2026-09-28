@@ -206,7 +206,7 @@ export default function PayrollPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.push(`/payroll/records/${record.id}`)}
+            onClick={() => router.push(tp(`/payroll/records/${record.id}`))}
             title="View"
           >
             <Eye className="h-4 w-4" />
@@ -376,7 +376,7 @@ export default function PayrollPage() {
           rowKey={(record) => record.id}
           showSerial
           serialOffset={(page - 1) * PAGE_SIZE}
-          onRowClick={(record) => router.push(`/payroll/records/${record.id}`)}
+          onRowClick={(record) => router.push(tp(`/payroll/records/${record.id}`))}
           selection={
             can(PERMISSIONS.PAYROLL_PROCESS)
               ? { isSelected, toggle, toggleAll, allSelected, someSelected }

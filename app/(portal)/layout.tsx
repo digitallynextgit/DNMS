@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import type { Metadata } from "next"
 import { db } from "@/server/db"
 import { TenantProvider } from "@/components/tenant-link"
+import { SessionBridge } from "@/components/providers/session-bridge"
 import {
   currentTenantSlugOrFounding,
   tenantPath,
@@ -44,8 +45,11 @@ export default async function PortalLayout({ children }: { children: React.React
   const tenantSlug = await currentTenantSlugOrFounding()
 
   return (
-    <TenantProvider slug={tenantSlug}>
-      <div className="bg-background min-h-dvh">{children}</div>
-    </TenantProvider>
+    // See the dashboard layout for why the session is re-provided here.
+    <SessionBridge session={session}>
+      <TenantProvider slug={tenantSlug}>
+        <div className="bg-background min-h-dvh">{children}</div>
+      </TenantProvider>
+    </SessionBridge>
   )
 }

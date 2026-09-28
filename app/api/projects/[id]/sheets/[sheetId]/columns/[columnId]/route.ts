@@ -6,6 +6,7 @@ import {
   updateColumn,
 } from "@/features/projects/server/sheets.service"
 import { SHEET_COLUMN_TYPES, type SheetColumnType } from "@/features/projects/lib/sheet-types"
+import { AppError } from "@/lib/errors"
 import type { Session } from "next-auth"
 
 /** PATCH - rename, retype, resize. Anyone on the project. */
@@ -25,7 +26,7 @@ export const PATCH = withProjectAccess(
       return NextResponse.json({ error: `Unknown column type "${body.type}"` }, { status: 422 })
     }
     try {
-      const column = await updateColumn(columnId!, session.user.id, {
+      const column = await updateColumn(sheetId!, columnId!, session.user.id, {
         name: body.name,
         type: body.type as SheetColumnType | undefined,
         options: body.options,
@@ -33,6 +34,8 @@ export const PATCH = withProjectAccess(
       })
       return NextResponse.json({ data: column })
     } catch (e) {
+      // A NotFoundError (column not on this sheet) must stay a 404, not a 422.
+      if (e instanceof AppError) throw e
       return NextResponse.json(
         { error: e instanceof Error ? e.message : "Could not update the column" },
         { status: 422 },
@@ -54,7 +57,7 @@ export const DELETE = withProjectManager(
     if (!(await sheetBelongsToProject(sheetId!, projectId!))) {
       return NextResponse.json({ error: "Sheet not found" }, { status: 404 })
     }
-    await deleteColumn(columnId!, session.user.id)
+    await deleteColumn(sheetId!, columnId!, session.user.id)
     return NextResponse.json({ success: true })
   },
 )

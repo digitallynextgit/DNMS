@@ -90,6 +90,13 @@ export interface ActiveMembership {
    * query for it. The membership query already joins `users` to test isActive.
    */
   mustChangePassword: boolean
+  /**
+   * When the credential was last written (null = never under this regime).
+   * The JWT re-check compares it against the token's issue time to revoke
+   * sessions that predate a password change. Carried here for the same
+   * no-second-query reason as mustChangePassword.
+   */
+  passwordChangedAt: Date | null
 }
 
 /**
@@ -118,7 +125,7 @@ export async function loadActiveMemberships(userId: string): Promise<ActiveMembe
         employeeId: true,
         clientUserId: true,
         tenant: { select: { slug: true, name: true, plan: true, trialEndsAt: true } },
-        user: { select: { mustChangePassword: true } },
+        user: { select: { mustChangePassword: true, passwordChangedAt: true } },
       },
       orderBy: { createdAt: "asc" },
     })
@@ -143,6 +150,7 @@ export async function loadActiveMemberships(userId: string): Promise<ActiveMembe
         tenantName: r.tenant.name,
         profileId: (r.kind === "STAFF" ? r.employeeId : r.clientUserId) as string,
         mustChangePassword: r.user.mustChangePassword,
+        passwordChangedAt: r.user.passwordChangedAt,
       }))
   })
 }
@@ -172,7 +180,7 @@ export async function loadMembershipIfStillValid(
         employeeId: true,
         clientUserId: true,
         tenant: { select: { slug: true, name: true, plan: true, trialEndsAt: true } },
-        user: { select: { mustChangePassword: true } },
+        user: { select: { mustChangePassword: true, passwordChangedAt: true } },
       },
     })
     if (!row) return null
@@ -191,6 +199,7 @@ export async function loadMembershipIfStillValid(
       tenantName: row.tenant.name,
       profileId: (row.kind === "STAFF" ? row.employeeId : row.clientUserId) as string,
       mustChangePassword: row.user.mustChangePassword,
+      passwordChangedAt: row.user.passwordChangedAt,
     }
   })
 }
@@ -264,7 +273,12 @@ export async function setPassword(
     .map((m) => m.clientUserId as string)
 
   await db.$transaction([
-    db.user.update({ where: { id: userId }, data: { passwordHash: hash, mustChangePassword } }),
+    db.user.update({
+      where: { id: userId },
+      // passwordChangedAt is what revokes every session issued before this
+      // write (see the JWT re-check in server/auth.ts).
+      data: { passwordHash: hash, mustChangePassword, passwordChangedAt: new Date() },
+    }),
     // TRANSITIONAL: the legacy columns the deployed build still authenticates
     // against. Delete these two updates in M4, with the columns.
     ...(employeeIds.length

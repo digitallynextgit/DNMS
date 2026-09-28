@@ -79,5 +79,12 @@ declare module "next-auth/jwt" {
      * effect within that window instead of at the token's expiry.
      */
     checkedAt: number
+    /**
+     * Epoch ms of the sign-in that issued this token - when the password was
+     * actually proven. Never refreshed. The re-check signs the session out when
+     * users.passwordChangedAt is newer than this, so a credential change
+     * revokes every pre-existing session within the 15-minute window.
+     */
+    authAt: number
   }
 }

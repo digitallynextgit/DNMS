@@ -66,8 +66,9 @@ export function SpotlightCursor() {
       y = e.clientY
       if (!raf)
         raf = requestAnimationFrame(() => {
-          el.style.left = `${x}px`
-          el.style.top = `${y}px`
+          // Transform, not left/top: compositor-only, no layout per frame.
+          // The -50% pair re-centres the glow on the pointer (was in the CSS).
+          el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`
           raf = 0
         })
     }

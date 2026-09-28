@@ -35,10 +35,21 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      // If a DNMS tab is actually on screen, the in-app toast already showed this
-      // notification - don't stack an OS one on top. When every tab is hidden,
-      // minimised or closed (the case this whole feature exists for), show it.
-      const visible = clients.some((c) => c.visibilityState === "visible")
+      // If an APP tab (dashboard/portal - where the in-app toast lives) is
+      // actually on screen, that toast already showed this notification -
+      // don't stack an OS one on top. A visible marketing or login page has
+      // no toast layer, so it must NOT suppress the OS notification.
+      const APP_PATHS = ["/dashboard", "/portal", "/projects", "/chat", "/attendance"]
+      const visible = clients.some((c) => {
+        if (c.visibilityState !== "visible") return false
+        try {
+          const path = new URL(c.url).pathname
+          // Tenant-prefixed URLs (/{tenant}/dashboard) match on any segment.
+          return APP_PATHS.some((p) => path === p || path.includes(p + "/") || path.endsWith(p))
+        } catch {
+          return false
+        }
+      })
       if (visible) return undefined
       return self.registration.showNotification(title, options)
     }),
@@ -55,7 +66,12 @@ self.addEventListener("notificationclick", (event) => {
       for (const client of clients) {
         if ("focus" in client) {
           client.focus()
-          if ("navigate" in client) return client.navigate(link)
+          if ("navigate" in client) {
+            // navigate() rejects for a tab this worker does not control (e.g.
+            // opened before the SW registered) - fall back to a fresh window
+            // instead of a click that silently does nothing.
+            return client.navigate(link).catch(() => self.clients.openWindow(link))
+          }
           return undefined
         }
       }

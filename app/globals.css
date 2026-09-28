@@ -429,14 +429,12 @@
 .animate-dnms-walk {
   animation: dnms-walk 2.4s ease-in-out infinite;
   transform-origin: bottom left;
-  will-change: transform;
 }
 .animate-dnms-fade-up {
   animation: dnms-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .animate-dnms-float {
   animation: dnms-float 14s ease-in-out infinite;
-  will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -657,15 +655,19 @@
     background-position: 200% center;
   }
 }
+/* Transform-only (compositor) - this used to animate `top`, which forced
+   style+layout work on the main thread every frame for the life of the page.
+   The consumer is a FULL-HEIGHT track (translateY% is relative to the element's
+   own height) with the 1px line drawn at its top - see bento-overview.tsx. */
 @keyframes dnms-scan {
   0% {
-    top: 4%;
+    transform: translateY(4%);
   }
   50% {
-    top: 92%;
+    transform: translateY(92%);
   }
   100% {
-    top: 4%;
+    transform: translateY(4%);
   }
 }
 @keyframes dnms-bob {
@@ -715,9 +717,11 @@
 .animate-dnms-marquee-rev {
   animation: dnms-marquee-rev 38s linear infinite;
 }
+/* NOTE: no explicit will-change on the infinite animations below - the
+   compositor promotes a transform-animating element on its own, and a
+   permanent will-change just pins GPU memory per decorated chip. */
 .animate-dnms-aurora {
   animation: dnms-aurora 22s ease-in-out infinite;
-  will-change: transform;
 }
 .animate-dnms-glow {
   animation: dnms-glow 5s ease-in-out infinite;
@@ -733,7 +737,6 @@
 }
 .animate-dnms-bob {
   animation: dnms-bob 6s ease-in-out infinite;
-  will-change: transform;
 }
 /* Small, self-contained bob for the kanban chips - small enough to stay inside
    its column's padding (never overflows the box). */
@@ -748,7 +751,6 @@
 }
 .animate-dnms-bob-sm {
   animation: dnms-bob-sm 4.5s ease-in-out infinite;
-  will-change: transform;
 }
 /* A highlight segment that flows along a normalized (pathLength=1000) line, in a
    seamless loop - the dash offset advances by exactly one period. */
@@ -759,10 +761,19 @@
 }
 .animate-dnms-flow-line {
   animation: dnms-flow-line 3.2s linear infinite;
-  will-change: stroke-dashoffset;
+  /* (no will-change: stroke-dashoffset is not compositable, it did nothing) */
 }
 .animate-dnms-pulse-ring {
   animation: dnms-pulse-ring 2.6s ease-out infinite;
+}
+
+/* Below-fold marketing sections: skip their rendering (layout, paint, and the
+   paint of any decorative animation inside) until they approach the viewport.
+   contain-intrinsic-size keeps the scrollbar honest before first render; the
+   `auto` keyword remembers the real size once a section has been shown. */
+.dnms-below-fold {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 720px;
 }
 
 /* Group pauses the marquee on hover (add `group` to the wrapper). */
@@ -852,10 +863,14 @@
   border-radius: 9999px;
   pointer-events: none;
   z-index: 30;
-  transform: translate(-50%, -50%);
+  /* Positioned by TRANSFORM from fx.tsx (translate3d(x,y,0) + centering), not
+     left/top: left/top are layout properties and cannot be composited, so the
+     old per-frame left/top writes (and the will-change hinting them) forced
+     layout on every pointer move. */
+  transform: translate3d(-50%, -50%, 0);
   background: radial-gradient(circle, rgb(239 68 68 / 0.14), transparent 60%);
   transition: opacity 0.4s;
-  will-change: left, top;
+  will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -887,16 +902,14 @@
 /* Hero polish: border beam + shiny eyebrow (Magic UI-style effects)   */
 /* ------------------------------------------------------------------ */
 
-/* Animatable angle for the rotating border beam. Falls back to a static
-   red/blue arc where @property is unsupported. */
-@property --dnms-beam-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
+/* The beam ROTATES A GRADIENT LAYER with transform (compositor-only). The
+   previous version animated a registered custom property feeding the
+   conic-gradient's angle, which re-painted the hero's largest element on the
+   main thread every frame, forever. Same visual: the ring mask shows only the
+   1.5px edge of a big rotating gradient square. */
 @keyframes dnms-beam-rotate {
   to {
-    --dnms-beam-angle: 360deg;
+    transform: translate(-50%, -50%) rotate(1turn);
   }
 }
 .dnms-border-beam {
@@ -905,18 +918,24 @@
   border-radius: inherit;
   padding: 1.5px;
   pointer-events: none;
-  background: conic-gradient(
-    from var(--dnms-beam-angle),
-    transparent 0%,
-    #ef4444 6%,
-    #3b82f6 13%,
-    transparent 22%
-  );
+  overflow: hidden;
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
+}
+.dnms-border-beam::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  /* A square wider than the card's diagonal, so corners stay covered while
+     it turns. Painted ONCE, then rotated on the compositor. */
+  width: 250%;
+  aspect-ratio: 1;
+  background: conic-gradient(from 0deg, transparent 0%, #ef4444 6%, #3b82f6 13%, transparent 22%);
+  transform: translate(-50%, -50%);
   animation: dnms-beam-rotate 6s linear infinite;
 }
 
@@ -936,7 +955,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dnms-border-beam,
+  .dnms-border-beam::before,
   .dnms-shiny-text {
     animation: none;
   }

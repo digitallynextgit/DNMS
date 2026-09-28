@@ -92,26 +92,34 @@ const InsightsTab = dynamic(
     loading: tabFallback,
   },
 )
-const GoalsTab = dynamic(() => import("@/features/projects").then((m) => m.GoalsTab), {
-  loading: tabFallback,
-})
+// Concrete modules, never the feature barrel (the rule at the top of this
+// block): `import("@/features/projects")` put the ENTIRE barrel - 48 exports,
+// every recharts consumer included - into the "lazy" chunk, and since
+// GoalsOverviewCard renders on the default Overview tab, the whole feature
+// downloaded on first view, silently undoing every dynamic() around it.
+const GoalsTab = dynamic(
+  () => import("@/features/projects/components/goals-tab").then((m) => m.GoalsTab),
+  { loading: tabFallback },
+)
 const DeliverablesTab = dynamic(
-  () => import("@/features/projects").then((m) => m.DeliverablesTab),
+  () => import("@/features/projects/components/deliverables-tab").then((m) => m.DeliverablesTab),
   { loading: tabFallback },
 )
 // On Overview, but dynamic all the same: it pulls in recharts, which is far too
 // heavy to sit in this page's eager chunk for the sake of one donut.
 const GoalsOverviewCard = dynamic(
-  () => import("@/features/projects").then((m) => m.GoalsOverviewCard),
+  () =>
+    import("@/features/projects/components/goals-overview-card").then((m) => m.GoalsOverviewCard),
   { loading: () => <Skeleton className="h-56 rounded-sm" /> },
 )
-const SeoTab = dynamic(() => import("@/features/seo").then((m) => m.SeoTab), {
+const SeoTab = dynamic(() => import("@/features/seo/components/seo-tab").then((m) => m.SeoTab), {
   loading: tabFallback,
 })
 // Small enough to render inline on Overview; self-hides when there are no sites.
-const ProjectSitesCard = dynamic(() => import("@/features/seo").then((m) => m.ProjectSitesCard), {
-  loading: () => null,
-})
+const ProjectSitesCard = dynamic(
+  () => import("@/features/seo/components/project-sites-card").then((m) => m.ProjectSitesCard),
+  { loading: () => null },
+)
 const TeamsTab = dynamic(
   () => import("@/features/projects/components/teams-tab").then((m) => m.TeamsTab),
   {
@@ -125,7 +133,7 @@ const TasksTab = dynamic(
   },
 )
 const RequirementsTab = dynamic(
-  () => import("@/features/projects").then((m) => m.RequirementsTab),
+  () => import("@/features/projects/components/requirements-tab").then((m) => m.RequirementsTab),
   { loading: tabFallback },
 )
 const ActivityTab = dynamic(

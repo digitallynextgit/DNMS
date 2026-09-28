@@ -92,14 +92,23 @@ async function buildProfile(profile: string) {
       }
     }
   }
-  // Last resort so we never crash building the transporter.
-  if (!account) account = await readProfile("notifications")
+  // Nothing in the chain can authenticate: fail HERE with a message that names
+  // the problem. The old behaviour fell through to an UNAUTHENTICATED
+  // smtp.gmail.com transporter, which Gmail rejects with a 530 - so a missing
+  // config surfaced as a cryptic send failure (and the contact form silently
+  // lost enquiries) instead of "SMTP is not configured".
+  if (!account || !hasCredentials(account)) {
+    throw new Error(
+      `SMTP is not configured: no profile in the "${profile}" fallback chain has host+user+pass. ` +
+        `Set the notifications mailer in Admin → Integrations (or SMTP_NOTIFICATIONS_* env).`,
+    )
+  }
 
   const transporter = getTransporter({
-    host: account.host || "smtp.gmail.com",
+    host: account.host!,
     port: toPort(account.port),
     secure: account.secure === "true",
-    auth: account.user ? { user: account.user, pass: account.pass } : undefined,
+    auth: { user: account.user!, pass: account.pass },
   })
   // Prefer the requested profile's own From (send-as), else the sending
   // account's configured From, else a safe default.
@@ -133,6 +142,11 @@ function getTransporter(cfg: SmtpConfig): nodemailer.Transporter {
     pool: true,
     maxConnections: 3,
     maxMessages: 100,
+    // Without these a dead SMTP host holds the caller (and its HTTP request)
+    // for the OS TCP timeout - minutes. Fail in seconds instead.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
   })
   transporterCache.set(key, transporter)
   return transporter
@@ -304,6 +318,15 @@ export async function verifySmtp(smtp: Omit<ExplicitSmtp, "from" | "replyTo">): 
   await transporter.verify()
 }
 
+/** Minimal HTML entity escape for values substituted into template HTML. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
 export function renderTemplate(
   template: Pick<EmailTemplate, "subject" | "bodyHtml">,
   data: Record<string, string>,
@@ -314,7 +337,10 @@ export function renderTemplate(
   for (const [key, value] of Object.entries(data)) {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g")
     subject = subject.replace(regex, value)
-    html = html.replace(regex, value)
+    // Values are DATA, not markup: a user-supplied field substituted into the
+    // template body must never inject HTML into the recipient's mail client.
+    // (The template itself is the trusted HTML; the values are not.)
+    html = html.replace(regex, escapeHtml(value))
   }
 
   return { subject, html }

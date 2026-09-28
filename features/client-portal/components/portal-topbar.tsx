@@ -108,10 +108,12 @@ export function PortalTopbar({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled className="text-xs">
+            {/* A label, not a disabled item: this is a badge saying what kind
+                of account this is, and a greyed-out menu row read as broken. */}
+            <DropdownMenuLabel className="text-muted-foreground flex items-center text-xs font-normal">
               <User className="mr-2 h-3.5 w-3.5" />
               Client account
-            </DropdownMenuItem>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut} className="text-xs">
               <LogOut className="mr-2 h-3.5 w-3.5" />

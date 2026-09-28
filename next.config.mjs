@@ -72,6 +72,48 @@ const nextConfig = {
       },
     ],
   },
+  // ── SECURITY HEADERS ────────────────────────────────────────────────────────
+  // Applied to every response (pages and API). Notes on the choices:
+  //  - SAMEORIGIN, not DENY: the app iframes its OWN routes (project-mailer
+  //    email preview, file-preview-sheet), so cross-origin framing is blocked
+  //    while internal previews keep working.
+  //  - CSP is REPORT-ONLY for now: Next inlines scripts and styles, so an
+  //    enforcing policy needs nonces (or hash allow-lists) wired through the
+  //    framework first. Report-only documents the target policy and surfaces
+  //    violations in DevTools without breaking anything. Tighten, then enforce.
+  //  - HSTS max-age 180 days, no preload: the app is also reached by bare IP in
+  //    dev/staging (allowedDevOrigins above); browsers ignore HSTS on http and
+  //    on IP hosts, so this is safe to send unconditionally.
+  async headers() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "media-src 'self' blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https: wss:",
+      "frame-ancestors 'self'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ")
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()",
+          },
+          { key: "Strict-Transport-Security", value: "max-age=15552000; includeSubDomains" },
+          { key: "Content-Security-Policy-Report-Only", value: csp },
+        ],
+      },
+    ]
+  },
 }
 
 export default nextConfig

@@ -3,7 +3,9 @@ import { z } from "zod"
 
 import { ok, fail } from "@/lib/api-response"
 import { siteConfig } from "@/config/site"
+import { db } from "@/server/db"
 import { sendEmail } from "@/lib/mailer"
+import { rateLimited, clientIp } from "@/lib/rate-limit"
 
 // POST /api/public/contact
 //
@@ -11,9 +13,10 @@ import { sendEmail } from "@/lib/mailer"
 // page - the whole point is that the sender has no account. It lives under
 // /api/public, which proxy.ts treats as session-exempt.
 //
-// It sends mail and nothing else: no database write, so there is no table for
-// an abuser to fill. The protections are a honeypot field, a per-IP rate limit
-// and a hard length cap on every input.
+// The enquiry is STORED FIRST (contact_enquiries), then the notification email
+// is attempted - so an SMTP outage no longer loses a customer's message; it
+// just marks the row emailSent=false. Abuse is bounded by the honeypot, the
+// per-IP rate limit and hard length caps on every input.
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
@@ -29,8 +32,12 @@ const schema = z.object({
     .trim()
     .min(10, "Please add a little more detail.")
     .max(4000, "Please keep it under 4000 characters."),
-  /** Honeypot. Real people never see it, so anything here is a bot. */
-  company_website: z.string().max(0).optional().or(z.literal("")),
+  /**
+   * Honeypot. Real people never see it, so anything here is a bot. It must
+   * PASS validation when filled (max(0) used to 422 first, which told the bot
+   * it was caught before the pretend-success branch below could run).
+   */
+  company_website: z.string().max(500).optional().or(z.literal("")),
 })
 
 const SUBJECT_FOR: Record<(typeof TOPICS)[number], string> = {
@@ -50,40 +57,12 @@ const INBOX_FOR: Record<(typeof TOPICS)[number], string> = {
   other: siteConfig.emails.sales,
 }
 
-// ---------------------------------------------------------------------------
-// Per-IP rate limit: 5 messages an hour.
-//
-// In-process, so it resets on deploy and is per-instance rather than global.
-// That is a deliberate floor, not a ceiling - it stops a bored script without
-// adding a dependency. If this endpoint is ever abused in earnest, or the app
-// is clustered across instances, move the counter to Redis or a table.
-// ---------------------------------------------------------------------------
+// Per-IP rate limit: 5 messages an hour, through the shared limiter in
+// lib/rate-limit.ts (which also reads the IP from the trusted end of the
+// proxy headers - the local copy this replaced trusted the client-controlled
+// first X-Forwarded-For hop).
 const WINDOW_MS = 60 * 60_000
 const MAX_PER_WINDOW = 5
-const ATTEMPTS = new Map<string, number[]>()
-
-function rateLimited(ip: string): boolean {
-  const now = Date.now()
-  const recent = (ATTEMPTS.get(ip) ?? []).filter((t) => now - t < WINDOW_MS)
-  if (recent.length >= MAX_PER_WINDOW) {
-    ATTEMPTS.set(ip, recent)
-    return true
-  }
-  recent.push(now)
-  ATTEMPTS.set(ip, recent)
-  // Keep the map from growing without bound on a long-lived process.
-  if (ATTEMPTS.size > 5000) {
-    for (const [key, times] of ATTEMPTS) {
-      if (times.every((t) => now - t >= WINDOW_MS)) ATTEMPTS.delete(key)
-    }
-  }
-  return false
-}
-
-function clientIp(req: NextRequest): string {
-  const fwd = req.headers.get("x-forwarded-for")
-  return fwd?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown"
-}
 
 /** Escape before interpolating user input into the notification email. */
 function esc(value: string): string {
@@ -107,13 +86,19 @@ export async function POST(req: NextRequest) {
     // was detected only teaches whoever wrote it to fix the bot.
     if (company_website) return ok({ sent: true })
 
-    if (rateLimited(clientIp(req))) {
+    if (rateLimited(`contact:${clientIp(req)}`, MAX_PER_WINDOW, WINDOW_MS)) {
       return fail(
         "RATE_LIMITED",
         "Too many messages from this address. Please try again later or email us directly.",
         429,
       )
     }
+
+    // Store BEFORE sending: the row is the enquiry, the email is a notification.
+    const enquiry = await db.contactEnquiry.create({
+      data: { name, email, company: company || null, topic, message },
+      select: { id: true },
+    })
 
     const subject = `[${siteConfig.name}] ${SUBJECT_FOR[topic]} - ${name}`
     const html = `
@@ -131,14 +116,24 @@ export async function POST(req: NextRequest) {
       </div>
     `
 
-    await sendEmail({
-      to: INBOX_FOR[topic],
-      subject,
-      html,
-      text: `${SUBJECT_FOR[topic]}\n\nName: ${name}\nEmail: ${email}\n${company ? `Company: ${company}\n` : ""}Topic: ${topic}\n\n${message}`,
-      // So hitting Reply in the inbox answers the person, not our own mailbox.
-      replyTo: `${name} <${email}>`,
-    })
+    try {
+      await sendEmail({
+        to: INBOX_FOR[topic],
+        subject,
+        html,
+        text: `${SUBJECT_FOR[topic]}\n\nName: ${name}\nEmail: ${email}\n${company ? `Company: ${company}\n` : ""}Topic: ${topic}\n\n${message}`,
+        // So hitting Reply in the inbox answers the person, not our own mailbox.
+        // The name is stripped of CR/LF and address punctuation: it is user
+        // input landing in an email HEADER, where a raw value could smuggle
+        // extra headers or a second address.
+        replyTo: `${name.replace(/[\r\n<>"]/g, " ").trim()} <${email}>`,
+      })
+      await db.contactEnquiry.update({ where: { id: enquiry.id }, data: { emailSent: true } })
+    } catch (error) {
+      // The enquiry IS saved - a notification failure is ours to notice (the
+      // emailSent=false rows), not the sender's problem.
+      console.error("[CONTACT] stored enquiry but the notification email failed:", error)
+    }
 
     return ok({ sent: true })
   } catch (error) {

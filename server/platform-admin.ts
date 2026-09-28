@@ -1,6 +1,7 @@
 import "server-only"
 
 import { auth } from "@/server/auth"
+import { ForbiddenError } from "@/lib/errors"
 import { normalizeEmail } from "@/server/identity"
 import { FOUNDING_TENANT_ID } from "@/server/tenant-context"
 import type { Session } from "next-auth"
@@ -51,6 +52,22 @@ function allowList(): Set<string> {
  * to anyone reading the code. The role is now the primary signal.
  */
 const PLATFORM_ROLE = "admin_"
+
+/**
+ * Guard for routes that manage PLATFORM-GLOBAL state - models with no tenantId
+ * (StorageAccount, AppSetting). `settings:write` is a TENANT-level scope that
+ * every customer's own admin holds, so on its own it would let a second
+ * tenant's admin read the shared storage credentials, mint signed URLs into
+ * the founding tenant's bucket, or rewrite the platform mailer config. Until
+ * those models carry a tenantId, they belong to the founding tenant's admins
+ * alone. Deliberately weaker than isPlatformAdmin(): the Integrations page is
+ * day-to-day admin work, not tenant lifecycle management.
+ */
+export function assertPlatformScope(session: Session): void {
+  if (session.user.kind === "client" || session.user.tenantId !== FOUNDING_TENANT_ID) {
+    throw new ForbiddenError("This configuration is managed by the platform operator")
+  }
+}
 
 export function isPlatformAdmin(session: Session | null): boolean {
   if (!session?.user?.email) return false

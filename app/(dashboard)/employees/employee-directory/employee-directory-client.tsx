@@ -369,12 +369,14 @@ export function EmployeeDirectoryClient() {
           to be swapped out for a stand-in that guesses the column count. */}
       {isLoading && viewMode === "card" && <CardGridSkeleton count={8} />}
 
-      {/* Empty state */}
+      {/* Empty state. "Add First Employee" only when there is genuinely no
+          one - with a search active, an empty result got the same CTA, which
+          read as "your company has no employees" mid-search. */}
       {!isLoading && employees.length === 0 && (
         <EmptyState
-          title="No employees found."
+          title={search ? "No employees match your search." : "No employees found."}
           action={
-            can(PERMISSIONS.EMPLOYEE_WRITE)
+            !search && can(PERMISSIONS.EMPLOYEE_WRITE)
               ? { label: "Add First Employee", href: "/employees/new" }
               : undefined
           }

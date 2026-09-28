@@ -33,8 +33,19 @@ export function rateLimited(key: string, limit: number, windowMs = 60_000): bool
   return recent.length > limit
 }
 
-/** First X-Forwarded-For hop, then X-Real-IP, else "unknown". */
+/**
+ * Best-effort client IP for rate-limit keys.
+ *
+ * X-Real-IP first: nginx SETS it from the socket address, so a client cannot
+ * forge it through our proxy. Then the LAST X-Forwarded-For hop - the one hop
+ * appended by the proxy in front of us; the FIRST hop is whatever the client
+ * sent and taking it let an attacker rotate the limiter key per request.
+ * Behind more than one trusted proxy, adjust to hops-from-the-end.
+ */
 export function clientIp(req: Request): string {
+  const real = req.headers.get("x-real-ip")?.trim()
+  if (real) return real
   const fwd = req.headers.get("x-forwarded-for")
-  return (fwd ? fwd.split(",")[0]!.trim() : null) || req.headers.get("x-real-ip") || "unknown"
+  const last = fwd?.split(",").at(-1)?.trim()
+  return last || "unknown"
 }

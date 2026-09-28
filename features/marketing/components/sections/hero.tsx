@@ -1,15 +1,19 @@
 "use client"
 
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { useSession } from "next-auth/react"
-import { motion, type Variants } from "motion/react"
-import { Fingerprint, Wallet, Star, Sparkles, ArrowRight } from "lucide-react"
+import { Fingerprint, Wallet, Sparkles, ArrowRight } from "lucide-react"
 
 import { siteConfig } from "@/config/site"
 import { Button } from "@/components/ui/button"
 import { GridBackdrop } from "../fx"
-import { HeroAppMockup } from "../hero-app-mockup"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
+
+// The mockup is a 400-line interactive component that pulls in motion/react.
+// Code-split so the hero (and the headline's paint) never waits for it; its
+// server HTML still renders, the interactivity hydrates when the chunk lands.
+const HeroAppMockup = dynamic(() => import("../hero-app-mockup").then((m) => m.HeroAppMockup))
 
 // Headline words as one flowing line so `text-balance` can split them into two
 // even-width lines; "one platform" is the brand-red accent.
@@ -33,23 +37,19 @@ const MODULES_LIST = [
   "Portal",
   "SEO",
 ]
-// Generic placeholder avatars (initials, not real people) - swap for real proof.
-const AVATARS = ["A", "R", "M", "K", "S"]
 
-const word: Variants = {
-  hidden: { opacity: 0, y: 16, filter: "blur(8px)" },
-  show: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    filter: "blur(0px)",
-    transition: { delay: 0.08 + i * 0.06, duration: 0.55, ease: [0.22, 1, 0.36, 1] },
-  }),
-}
-
-const fade: Variants = {
-  hidden: { opacity: 0, y: 10 },
-  show: (d: number) => ({ opacity: 1, y: 0, transition: { delay: d, duration: 0.6 } }),
-}
+/**
+ * Entrances are PURE CSS (animate-dnms-fade-up), not motion/react variants.
+ * The old framer variants SSR'd the headline at opacity:0 + blur(8px), so the
+ * page's LCP element could not paint until the whole client bundle hydrated -
+ * on a slow connection the hero was a blank column. CSS animations start on
+ * first paint with no JS, and prefers-reduced-motion turns them off in
+ * globals.css.
+ */
+const enter = (delaySeconds: number): { className: string; style: React.CSSProperties } => ({
+  className: "animate-dnms-fade-up",
+  style: { animationDelay: `${delaySeconds}s` },
+})
 
 export function Hero() {
   const { data: session } = useSession()
@@ -66,7 +66,7 @@ export function Hero() {
         <div className="grid items-start gap-12 lg:grid-cols-[1.65fr_1fr] lg:gap-16">
           {/* Left */}
           <div>
-            <motion.div variants={fade} custom={0} initial="hidden" animate="show">
+            <div {...enter(0)}>
               <a
                 href="#modules"
                 className="group border-border/70 bg-card/70 hover:bg-card inline-flex items-center gap-2.5 rounded-sm border py-1 pr-3 pl-1 text-xs backdrop-blur transition-colors"
@@ -81,41 +81,31 @@ export function Hero() {
                 <span className="text-muted-foreground">10 modules, one login</span>
                 <ArrowRight className="text-muted-foreground h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
               </a>
-            </motion.div>
+            </div>
 
             <h1 className="mt-6 text-4xl font-bold tracking-tight text-balance sm:text-6xl lg:text-7xl lg:leading-[1.03]">
               {WORDS.map((w, i) => (
-                <motion.span
+                <span
                   key={w.text}
-                  custom={i}
-                  variants={word}
-                  initial="hidden"
-                  animate="show"
-                  className="mr-[0.22em] inline-block"
-                  style={w.red ? { color: BRAND_RED } : undefined}
+                  className="animate-dnms-fade-up mr-[0.22em] inline-block"
+                  style={{
+                    animationDelay: `${0.05 + i * 0.05}s`,
+                    ...(w.red ? { color: BRAND_RED } : {}),
+                  }}
                 >
                   {w.text}
-                </motion.span>
+                </span>
               ))}
             </h1>
 
-            <motion.p
-              variants={fade}
-              custom={0.7}
-              initial="hidden"
-              animate="show"
-              className="text-muted-foreground mt-6 max-w-3xl text-lg text-pretty sm:text-xl"
+            <p
+              {...enter(0.45)}
+              className="animate-dnms-fade-up text-muted-foreground mt-6 max-w-3xl text-lg text-pretty sm:text-xl"
             >
               {siteConfig.description}
-            </motion.p>
+            </p>
 
-            <motion.div
-              variants={fade}
-              custom={0.85}
-              initial="hidden"
-              animate="show"
-              className="mt-8 flex flex-wrap gap-3"
-            >
+            <div {...enter(0.55)} className="animate-dnms-fade-up mt-8 flex flex-wrap gap-3">
               {authed ? (
                 <>
                   <Button asChild variant="outline">
@@ -141,18 +131,15 @@ export function Hero() {
                   </Button>
                 </>
               )}
-            </motion.div>
+            </div>
           </div>
 
-          {/* Right: clean panel (modules + trust) - desktop only. Offset so its
-              top lines up with the title, not the pill. */}
-          <motion.div
-            variants={fade}
-            custom={0.55}
-            initial="hidden"
-            animate="show"
-            className="hidden lg:mt-14 lg:block"
-          >
+          {/* Right: clean panel (modules) - desktop only. Offset so its top
+              lines up with the title, not the pill. The placeholder avatar/star
+              "social proof" block that used to sit under the list was removed:
+              fabricated trust signals on a public page are worse than none.
+              Reinstate the section when there is REAL proof to show. */}
+          <div {...enter(0.35)} className="animate-dnms-fade-up hidden lg:mt-14 lg:block">
             <div className="border-border bg-card/50 rounded-sm border p-6 sm:p-7">
               <div className="text-muted-foreground text-xs font-medium tracking-[0.16em] uppercase">
                 Everything, in one login
@@ -170,46 +157,20 @@ export function Hero() {
               </ul>
 
               <div className="border-border/60 mt-6 border-t pt-5">
-                <div className="flex items-center gap-3">
-                  <div className="flex -space-x-2">
-                    {AVATARS.map((c, i) => (
-                      <span
-                        key={i}
-                        className="border-card flex h-8 w-8 items-center justify-center rounded-full border-2 bg-gradient-to-br from-neutral-500 to-neutral-800 text-[10px] font-medium text-white"
-                      >
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-0.5 text-amber-400">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className="h-3.5 w-3.5 fill-current" />
-                    ))}
-                  </div>
-                </div>
-                <p className="text-muted-foreground mt-3 text-sm">
-                  Trusted by teams running their whole company on one platform.
+                <p className="text-muted-foreground text-sm">
+                  One platform for the whole company - from attendance punches to client
+                  deliverables.
                 </p>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
 
         {/* ---- Interactive product mockup, centered below ---- */}
-        <motion.div
-          variants={fade}
-          custom={0.65}
-          initial="hidden"
-          animate="show"
-          className="relative mx-auto mt-20 max-w-7xl"
-        >
+        <div {...enter(0.5)} className="animate-dnms-fade-up relative mx-auto mt-20 max-w-7xl">
           <HeroAppMockup />
 
-          <motion.div
-            variants={fade}
-            custom={1.1}
-            initial="hidden"
-            animate="show"
+          <div
             className="animate-dnms-float border-border bg-card absolute -top-6 -left-6 z-10 hidden items-center gap-2 rounded-sm border p-3 shadow-lg md:flex"
             style={{ animationDelay: "-3s" }}
           >
@@ -223,12 +184,8 @@ export function Hero() {
               <div className="text-xs font-semibold">Punch synced</div>
               <div className="text-muted-foreground text-[10px]">Present · 09:02</div>
             </div>
-          </motion.div>
-          <motion.div
-            variants={fade}
-            custom={1.25}
-            initial="hidden"
-            animate="show"
+          </div>
+          <div
             className="animate-dnms-float border-border bg-card absolute -right-6 bottom-8 z-10 hidden items-center gap-2 rounded-sm border p-3 shadow-lg md:flex"
             style={{ animationDelay: "-7s" }}
           >
@@ -242,8 +199,8 @@ export function Hero() {
               <div className="text-xs font-semibold">Payroll approved</div>
               <div className="text-muted-foreground text-[10px]">142 payslips</div>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </div>
     </section>
   )

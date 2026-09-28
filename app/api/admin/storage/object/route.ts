@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
+import { assertPlatformScope } from "@/server/platform-admin"
 import { deleteStorageObject, getStorageOverview } from "@/features/storage/server/storage.service"
 import { getSignedUrl } from "@/lib/storage"
 import type { Session } from "next-auth"
@@ -10,7 +11,8 @@ import type { Session } from "next-auth"
 //   body { orphansOnly:true }-> delete every orphaned object in one go
 export const DELETE = withAuth(
   PERMISSIONS.SETTINGS_WRITE,
-  async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
+  async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
+    assertPlatformScope(session)
     try {
       const body = (await req.json().catch(() => ({}))) as { key?: string; orphansOnly?: boolean }
 
@@ -40,7 +42,8 @@ export const DELETE = withAuth(
 // them were never followed.
 export const GET = withAuth(
   PERMISSIONS.SETTINGS_WRITE,
-  async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
+  async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
+    assertPlatformScope(session)
     const key = req.nextUrl.searchParams.get("key")
     if (!key) return NextResponse.json({ error: "key is required" }, { status: 400 })
 

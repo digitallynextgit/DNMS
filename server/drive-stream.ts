@@ -21,16 +21,21 @@ import { streamDriveFile } from "@/lib/google-drive"
  * `range` is the caller's own Range header, forwarded untouched; Drive does the
  * arithmetic and its 206 + Content-Range come straight back out.
  *
- * Caching is `private, no-store` on purpose. For the public route the secret is
- * IN the URL, so a shared cache holding a copy would keep serving it after the
- * link is revoked - which would quietly undo the one property that makes
- * app-served share links safer than a Drive "anyone" permission.
+ * Caching DEFAULTS to `private, no-store` and the public share route must keep
+ * it: its secret is IN the URL, so a cache holding a copy would keep serving
+ * the file after the link is revoked - quietly undoing the one property that
+ * makes app-served share links safer than a Drive "anyone" permission. The
+ * AUTHED routes (portal/staff View buttons) pass `cacheControl` to let the
+ * viewer's own browser keep the bytes for an hour instead of re-streaming a
+ * video from Drive on every open; `private` keeps shared caches out, and the
+ * worst case after revocation is one browser replaying a file it already had.
  */
 export async function driveFileResponse(
   driveFileId: string,
   file: { fileName: string; mimeType: string },
   range: string | null,
   logTag: string,
+  cacheControl = "private, no-store",
 ): Promise<NextResponse> {
   try {
     const s = await streamDriveFile(driveFileId, range)
@@ -42,7 +47,7 @@ export async function driveFileResponse(
       // stripped - a filename is user input and this is a quoted header value.
       "Content-Disposition": `inline; filename="${file.fileName.replace(/["\\]/g, "")}"`,
       "Accept-Ranges": "bytes",
-      "Cache-Control": "private, no-store",
+      "Cache-Control": cacheControl,
       "X-Content-Type-Options": "nosniff",
     })
     if (s.contentLength) headers.set("Content-Length", s.contentLength)

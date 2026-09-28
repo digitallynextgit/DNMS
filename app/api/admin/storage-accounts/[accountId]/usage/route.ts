@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
+import { assertPlatformScope } from "@/server/platform-admin"
 import { listAllObjects } from "@/lib/storage"
 
 // GET /api/admin/storage-accounts/:id/usage
@@ -14,7 +15,8 @@ import { listAllObjects } from "@/lib/storage"
 // answers "how big is it", not "what is in it".
 const FREE_TIER_BYTES = 10 * 1024 * 1024 * 1024 // B2 free tier = 10 GB
 
-export const GET = withAuth(PERMISSIONS.SETTINGS_WRITE, async (_req, ctx) => {
+export const GET = withAuth(PERMISSIONS.SETTINGS_WRITE, async (_req, ctx, session) => {
+  assertPlatformScope(session)
   try {
     const objects = await listAllObjects(ctx.params.accountId)
     return NextResponse.json({

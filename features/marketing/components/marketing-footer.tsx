@@ -72,15 +72,8 @@ export function MarketingFooter() {
         {/* Brand */}
         <div className="max-w-sm">
           <Link href="/" className="inline-flex items-center gap-2" aria-label={siteConfig.name}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo_white_bg-96.png"
-              width={370}
-              height={96}
-              decoding="async"
-              alt={siteConfig.name}
-              className="h-10 w-auto sm:h-11 dark:hidden"
-            />
+            {/* Dark logo only - the marketing site is forced-dark, see the
+                same change in marketing-header.tsx. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo_dark_bg-96.webp"
@@ -88,7 +81,7 @@ export function MarketingFooter() {
               height={96}
               decoding="async"
               alt={siteConfig.name}
-              className="hidden h-10 w-auto sm:h-11 dark:block"
+              className="h-10 w-auto sm:h-11"
             />
           </Link>
           <p className="text-muted-foreground mt-3 text-sm leading-relaxed">

@@ -94,6 +94,10 @@ model User {
   /// Null = invited but never activated, or a Google-only account.
   passwordHash       String?   @map("password_hash")
   mustChangePassword Boolean   @default(false) @map("must_change_password")
+  /// Stamped by setPassword() on every credential write. Sessions issued before
+  /// this instant are revoked by the JWT re-check (server/auth.ts): a stolen
+  /// cookie stops working when the password changes, instead of at token expiry.
+  passwordChangedAt  DateTime? @map("password_changed_at")
   emailVerified      DateTime? @map("email_verified")
   lastLoginAt        DateTime? @map("last_login_at")
 
@@ -1224,6 +1228,24 @@ model NewsletterSubscriber {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("newsletter_subscribers")
+}
+
+// Contact-form enquiries from the public marketing site. Platform-global (no
+// tenantId): the form belongs to the platform's own site. The row is written
+// BEFORE the notification email is attempted, so an SMTP outage can no longer
+// lose an enquiry - `emailSent` records whether the notification also went out.
+model ContactEnquiry {
+  id        String   @id @default(uuid()) @map("id")
+  name      String   @map("name")
+  email     String   @map("email")
+  company   String?  @map("company")
+  topic     String   @map("topic")
+  message   String   @map("message")
+  emailSent Boolean  @default(false) @map("email_sent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("contact_enquiries")
 }
 
 // =============================================================================
@@ -3653,6 +3675,12 @@ model CareerApplication {
   linkedIn  String  @map("linked_in")
   portfolio String  @map("portfolio")
   resumeUrl String  @map("resume_url") @db.Text
+  /// B2 object key of OUR copy of the CV (same pattern as Applicant.resumeKey).
+  /// resumeUrl is an EXTERNAL link owned by the marketing site's storage - it
+  /// can expire or be deleted, losing the CV with no trace. The copy is made
+  /// best-effort right after the application is stored; null means the copy
+  /// failed (the external link is still there to try).
+  resumeKey String? @map("resume_key")
   message   String? @map("message") @db.Text
 
   submittedAt DateTime @map("submitted_at")

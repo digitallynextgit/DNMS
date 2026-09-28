@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { PlatformSidebar } from "@/components/layout/platform-sidebar"
 import { Topbar } from "@/components/layout/topbar"
+import { SessionBridge } from "@/components/providers/session-bridge"
 import { TenantProvider } from "@/components/tenant-link"
 import { getPlatformAdminSession } from "@/server/platform-admin"
 import { currentTenantSlugOrFounding } from "@/server/tenant-request"
@@ -54,18 +55,21 @@ export default async function PlatformLayout({ children }: { children: React.Rea
   const tenantSlug = await currentTenantSlugOrFounding()
 
   return (
-    <TenantProvider slug={tenantSlug}>
-      <div className="dashboard-shell bg-background fixed inset-0 grid grid-cols-1 overflow-hidden md:grid-cols-[auto_1fr]">
-        <div className="hidden md:contents">
-          <PlatformSidebar />
+    // See the dashboard layout for why the session is re-provided here.
+    <SessionBridge session={session}>
+      <TenantProvider slug={tenantSlug}>
+        <div className="dashboard-shell bg-background fixed inset-0 grid grid-cols-1 overflow-hidden md:grid-cols-[auto_1fr]">
+          <div className="hidden md:contents">
+            <PlatformSidebar />
+          </div>
+          <div className="grid h-full min-h-0 min-w-0 grid-rows-[auto_1fr_auto] overflow-hidden">
+            <Topbar session={session} />
+            <main className="min-h-0 overflow-x-hidden overflow-y-auto px-4 py-4 md:px-6">
+              {children}
+            </main>
+          </div>
         </div>
-        <div className="grid h-full min-h-0 min-w-0 grid-rows-[auto_1fr_auto] overflow-hidden">
-          <Topbar session={session} />
-          <main className="min-h-0 overflow-x-hidden overflow-y-auto px-4 py-4 md:px-6">
-            {children}
-          </main>
-        </div>
-      </div>
-    </TenantProvider>
+      </TenantProvider>
+    </SessionBridge>
   )
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/server/api-handler"
 import { PERMISSIONS } from "@/lib/constants"
+import { assertPlatformScope } from "@/server/platform-admin"
 import { getStorageOverview } from "@/features/storage/server/storage.service"
 import type { Session } from "next-auth"
 
@@ -8,7 +9,8 @@ import type { Session } from "next-auth"
 // Gated on settings:write (same as the Integrations page where B2 is configured).
 export const GET = withAuth(
   PERMISSIONS.SETTINGS_WRITE,
-  async (req: NextRequest, _ctx: { params: Record<string, string> }, _session: Session) => {
+  async (req: NextRequest, _ctx: { params: Record<string, string> }, session: Session) => {
+    assertPlatformScope(session)
     try {
       // Which bucket to look at. Omitted = the default account.
       const accountId = req.nextUrl.searchParams.get("accountId") ?? undefined

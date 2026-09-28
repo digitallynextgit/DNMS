@@ -344,7 +344,10 @@ export function Sidebar({ session }: { session: Session }) {
   return (
     <aside
       className={cn(
-        "bg-background border-border flex h-full min-h-0 shrink-0 flex-col border-r transition-all duration-200",
+        // transition-[width], not transition-all: the collapse still reflows the
+        // shell (width is a layout property), but scoping it stops every other
+        // inherited property from transitioning along for the ride.
+        "bg-background border-border flex h-full min-h-0 shrink-0 flex-col border-r transition-[width] duration-200 motion-reduce:transition-none",
         isCollapsed ? "w-14" : "w-56",
       )}
     >
@@ -358,13 +361,15 @@ export function Sidebar({ session }: { session: Session }) {
         )}
       >
         <div className={cn("flex items-center overflow-hidden", isCollapsed ? "w-9" : "w-auto")}>
+          {/* No `priority` on either twin: the theme is decided by CSS, so one
+              of the two is ALWAYS hidden - a priority preload on both meant
+              one guaranteed-wasted preload on every dashboard page. */}
           {/* Light mode → black-text logo */}
           <Image
             src="/logo_white_bg-96.png"
             alt="Digitally Next"
             width={370}
             height={96}
-            priority
             className="h-10 w-auto max-w-none dark:hidden"
           />
           {/* Dark / custom themes → white-text logo */}
@@ -373,7 +378,6 @@ export function Sidebar({ session }: { session: Session }) {
             alt="Digitally Next"
             width={370}
             height={96}
-            priority
             className="hidden h-10 w-auto max-w-none dark:block"
           />
         </div>

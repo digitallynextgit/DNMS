@@ -46,7 +46,10 @@ type Mode = "off" | "warn" | "strict"
 function readMode(): Mode {
   const raw = process.env.TENANT_ENFORCEMENT?.toLowerCase()
   if (raw === "off" || raw === "strict" || raw === "warn") return raw
-  return "warn"
+  // Unset: fail closed in production. `warn` was the single-tenant bring-up
+  // default, but a production box that lost the env var must throw on an
+  // unscoped query rather than silently read every tenant's rows.
+  return process.env.NODE_ENV === "production" ? "strict" : "warn"
 }
 
 const MODE: Mode = readMode()

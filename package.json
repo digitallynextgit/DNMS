@@ -27,9 +27,6 @@
     "test": "vitest run",
     "validate": "pnpm type-check && pnpm lint && pnpm test"
   },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1065.0",
     "@aws-sdk/s3-request-presigner": "^3.1065.0",
@@ -56,6 +53,7 @@
     "date-fns": "^4.2.1",
     "docx": "^9.7.1",
     "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
     "googleapis": "^173.0.0",
     "lucide-react": "^1.16.0",
     "mammoth": "^1.12.0",
@@ -93,7 +91,6 @@
     "eslint": "^10.4.0",
     "eslint-config-next": "^16.2.6",
     "eslint-config-prettier": "^10.1.8",
-    "exceljs": "^4.4.0",
     "postcss": "^8.5.15",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",

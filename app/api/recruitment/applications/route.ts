@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { resolvePagination, paginationMeta } from "@/lib/pagination"
+import { getSignedUrl } from "@/lib/storage"
 import { PERMISSIONS } from "@/lib/constants"
 import type { Prisma } from "@prisma/client"
 import type { Session } from "next-auth"
@@ -49,8 +50,19 @@ export const GET = withAuth(
         db.careerApplication.count({ where: { status: "RECEIVED" } }),
       ])
 
+      // Prefer OUR stored copy of the CV over the marketing site's link: the
+      // external URL can expire, the B2 key cannot (same pattern as
+      // applicants.resumeKey - a fresh signed URL is minted on every read).
+      const data = await Promise.all(
+        applications.map(async (a) =>
+          a.resumeKey
+            ? { ...a, resumeUrl: await getSignedUrl(a.resumeKey, 3600).catch(() => a.resumeUrl) }
+            : a,
+        ),
+      )
+
       return NextResponse.json({
-        data: applications,
+        data,
         meta: { ...paginationMeta(total, page, limit), newCount },
       })
     } catch (error) {

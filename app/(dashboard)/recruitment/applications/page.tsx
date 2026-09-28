@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
+import { apiFetch } from "@/lib/api-fetch"
 import { useUrlPage, useUrlState } from "@/hooks/use-url-state"
 // lucide dropped brand glyphs (no Linkedin export), so LinkedIn/portfolio use
 // generic icons.
@@ -89,6 +91,25 @@ export default function CareerApplicationsPage() {
   const del = useDeleteApplication()
   const rows = data?.data ?? []
   const meta = data?.meta
+
+  // Deep link from the "new application" notification (?id=...): open that
+  // application's detail sheet directly. The link used to land on the bare
+  // list, leaving HR to find the applicant it had just named.
+  const deepLinkId = useSearchParams().get("id")
+  useEffect(() => {
+    if (!deepLinkId) return
+    let alive = true
+    apiFetch<{ data: CareerApplication }>(`/api/recruitment/applications/${deepLinkId}`)
+      .then((res) => {
+        if (alive) setSelected(res.data)
+      })
+      .catch(() => {
+        // Deleted since the notification - the list is the right fallback.
+      })
+    return () => {
+      alive = false
+    }
+  }, [deepLinkId])
 
   const columns: DataTableColumn<CareerApplication>[] = [
     {

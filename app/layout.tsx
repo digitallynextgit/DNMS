@@ -3,15 +3,17 @@ import { Inter } from "next/font/google"
 import NextTopLoader from "nextjs-toploader"
 import "./globals.css"
 import { Providers } from "@/components/providers/providers"
-import { auth } from "@/server/auth"
 import { siteConfig } from "@/config/site"
 
 // Self-hosted via next/font (no render-blocking Google Fonts request, no FOUT,
 // no layout shift). Exposed as a CSS variable consumed by globals.css.
+// NO `weight` array: Inter is a VARIABLE font, so omitting it emits ONE woff2
+// covering every weight. Listing five static weights emitted seven files
+// (~218 KB) of which only latin-400 was preloaded - each further weight was a
+// separate late fetch that swapped text after first paint.
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
-  weight: ["300", "400", "500", "600", "700"],
   variable: "--font-inter",
 })
 
@@ -69,8 +71,14 @@ export const viewport: Viewport = {
   ],
 }
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth()
+// NO auth() here. Reading the session cookie in the ROOT layout opted every
+// route in the app out of static prerendering - all nine marketing pages and
+// /login were server-rendered per request because of that one line. The public
+// pages render with session={null} (the marketing header resolves it
+// client-side), and the authed route groups re-provide their layouts' server
+// session through <SessionBridge> so permission-gated UI is still correct on
+// first paint. See components/providers/session-bridge.tsx.
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -88,7 +96,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="antialiased" suppressHydrationWarning>
         {/* Navigation progress bar (perceived speed on route changes). */}
         <NextTopLoader color="#ef4444" height={3} showSpinner={false} shadow="0 0 8px #ef4444" />
-        <Providers session={session}>{children}</Providers>
+        <Providers session={null}>{children}</Providers>
       </body>
     </html>
   )

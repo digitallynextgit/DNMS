@@ -4,6 +4,7 @@ import { timingSafeEqual } from "node:crypto"
 import { ZodError } from "zod"
 import { careersApplicationSchema } from "@/features/careers/schemas/application.schema"
 import { createCareerApplication } from "@/features/careers/server/careers-applications.service"
+import { rateLimited, clientIp } from "@/lib/rate-limit"
 
 // POST /api/public/careers/applications
 //
@@ -30,30 +31,14 @@ function keyMatches(provided: string, expected: string): boolean {
 }
 
 // ─── Rate limiting ──────────────────────────────────────────────────────────
-// In-memory sliding window. The site says it limits 10/min/IP, but we don't
-// trust an upstream we don't control. Per-IP stops floods; per-email stops one
+// Shared in-memory sliding window (lib/rate-limit.ts - this file used to carry
+// its own copy, and its own clientIp that trusted the client-controlled first
+// X-Forwarded-For hop). The site says it limits 10/min/IP, but we don't trust
+// an upstream we don't control. Per-IP stops floods; per-email stops one
 // person hammering submit.
 const IP_LIMIT = 20
 const EMAIL_LIMIT = 5
 const WINDOW_MS = 60_000
-const hits = new Map<string, number[]>()
-
-function tooMany(key: string, limit: number): boolean {
-  const now = Date.now()
-  const recent = (hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS)
-  recent.push(now)
-  hits.set(key, recent)
-  // Opportunistic cleanup so the map can't grow unbounded.
-  if (hits.size > 5_000) {
-    for (const [k, v] of hits) if (v.every((t) => now - t >= WINDOW_MS)) hits.delete(k)
-  }
-  return recent.length > limit
-}
-
-function clientIp(req: NextRequest): string {
-  const fwd = req.headers.get("x-forwarded-for")
-  return (fwd ? fwd.split(",")[0]!.trim() : null) || req.headers.get("x-real-ip") || "unknown"
-}
 
 const fail = (code: string, message: string, status: number, extra?: object) =>
   NextResponse.json({ error: { code, message, ...(extra ?? {}) } }, { status })
@@ -72,7 +57,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ip = clientIp(req)
-  if (tooMany(`ip:${ip}`, IP_LIMIT)) {
+  if (rateLimited(`careers-apply:ip:${ip}`, IP_LIMIT, WINDOW_MS)) {
     return fail("RATE_LIMITED", "Too many requests. Try again shortly.", 429)
   }
 
@@ -93,7 +78,7 @@ export async function POST(req: NextRequest) {
   }
   const input = parsed.data
 
-  if (tooMany(`email:${input.applicant.email}`, EMAIL_LIMIT)) {
+  if (rateLimited(`careers-apply:email:${input.applicant.email}`, EMAIL_LIMIT, WINDOW_MS)) {
     return fail("RATE_LIMITED", "Too many requests. Try again shortly.", 429)
   }
 

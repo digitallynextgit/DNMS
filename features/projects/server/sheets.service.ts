@@ -1,6 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import { NotFoundError } from "@/lib/errors"
 import type { Prisma } from "@prisma/client"
 import {
   MAX_COL_W,
@@ -1009,11 +1010,15 @@ export async function addColumn(
 }
 
 export async function updateColumn(
+  sheetId: string,
   columnId: string,
   actorId: string,
   input: { name?: string; type?: SheetColumnType; options?: string[]; width?: number | null },
 ): Promise<SheetColumn> {
-  const current = await db.projectSheetColumn.findUniqueOrThrow({ where: { id: columnId } })
+  // Scoped to the sheet the route already verified: a bare columnId lookup let
+  // a member of one project edit columns on any other project's sheet (IDOR).
+  const current = await db.projectSheetColumn.findFirst({ where: { id: columnId, sheetId } })
+  if (!current) throw new NotFoundError("Column")
   const title = input.name?.trim()
   if (input.name !== undefined && !title) throw new Error("A column needs a name")
 
@@ -1056,8 +1061,14 @@ export async function updateColumn(
  * change is at least legible afterwards - which is the difference between a
  * recoverable mistake and a silent one.
  */
-export async function deleteColumn(columnId: string, actorId: string): Promise<void> {
-  const column = await db.projectSheetColumn.findUniqueOrThrow({ where: { id: columnId } })
+export async function deleteColumn(
+  sheetId: string,
+  columnId: string,
+  actorId: string,
+): Promise<void> {
+  // Scoped for the same reason as updateColumn: the id alone is not authority.
+  const column = await db.projectSheetColumn.findFirst({ where: { id: columnId, sheetId } })
+  if (!column) throw new NotFoundError("Column")
   const rows = await db.projectSheetRow.findMany({
     where: { sheetId: column.sheetId },
     select: { id: true, cells: true },
@@ -1127,12 +1138,18 @@ export async function addRow(
  * clicking into a cell and out again is not an edit and must not read as one.
  */
 export async function updateCells(
+  sheetId: string,
   rowId: string,
   actorId: string | null,
   updates: Record<string, unknown>,
   actorClientId?: string | null,
 ): Promise<void> {
-  const row = await db.projectSheetRow.findUniqueOrThrow({ where: { id: rowId } })
+  // Scoped to the sheet the caller verified. A bare rowId lookup let a member
+  // of one project write cells into any other project's sheet (IDOR) - the
+  // columns were resolved from the row's own sheetId, so the write even landed
+  // cleanly in the victim sheet.
+  const row = await db.projectSheetRow.findFirst({ where: { id: rowId, sheetId } })
+  if (!row) throw new NotFoundError("Row")
   const columns = await db.projectSheetColumn.findMany({ where: { sheetId: row.sheetId } })
   const byId = new Map(columns.map((c) => [c.id, c]))
 
@@ -1195,7 +1212,7 @@ export async function writeCellsAt(
     row = await db.projectSheetRow.create({ data: { sheetId, position, createdById: actorId } })
     await record(sheetId, actorId, "ROW_ADDED", { rowId: row.id, actorClientId })
   }
-  await updateCells(row.id, actorId, cells, actorClientId)
+  await updateCells(sheetId, row.id, actorId, cells, actorClientId)
 }
 
 /**
@@ -1255,8 +1272,10 @@ export async function importRows(
 }
 
 /** Manager-only. The row's values go into the history before it goes. */
-export async function deleteRow(rowId: string, actorId: string): Promise<void> {
-  const row = await db.projectSheetRow.findUniqueOrThrow({ where: { id: rowId } })
+export async function deleteRow(sheetId: string, rowId: string, actorId: string): Promise<void> {
+  // Scoped for the same reason as updateCells: the id alone is not authority.
+  const row = await db.projectSheetRow.findFirst({ where: { id: rowId, sheetId } })
+  if (!row) throw new NotFoundError("Row")
   const columns = await db.projectSheetColumn.findMany({ where: { sheetId: row.sheetId } })
   const cells = asCells(row.cells)
   // Stored by column NAME, not id: a history entry has to stay readable after

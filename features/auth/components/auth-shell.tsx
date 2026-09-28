@@ -49,10 +49,10 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
         {/* value proposition */}
         <div className="relative z-10 w-full max-w-xl space-y-6 py-4">
-          <h2
-            className="animate-dnms-fade-up text-4xl font-bold tracking-tight text-balance text-white sm:text-5xl"
-            style={{ animationDelay: "0.15s" }}
-          >
+          {/* No animationDelay on the LCP element: `both`-filled fade-up held
+              the page's largest text invisible for the delay + ramp, which is
+              the LCP timestamp. The smaller lines below keep their stagger. */}
+          <h2 className="animate-dnms-fade-up text-4xl font-bold tracking-tight text-balance text-white sm:text-5xl">
             Run your entire team from <span style={{ color: BRAND_RED }}>one place.</span>
           </h2>
           <p

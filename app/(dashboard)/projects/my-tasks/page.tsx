@@ -267,7 +267,7 @@ export default function MyTasksPage() {
   // drag handler patches it in place. Every other scope is a different result
   // set, so it gets its own entry rather than overwriting theirs.
   const queryKey = useMemo(() => (isMine ? ["my-tasks"] : ["my-tasks", scope]), [isMine, scope])
-  const { data, isLoading } = useQuery({ queryKey, queryFn: () => fetchMyTasks(scope) })
+  const { data, isLoading, isError } = useQuery({ queryKey, queryFn: () => fetchMyTasks(scope) })
 
   // The pickers are built from what the server says this person manages, so they
   // can never offer a team or a colleague they have no business seeing. Held
@@ -646,6 +646,10 @@ export default function MyTasksPage() {
           currentUserId={session?.user?.id ?? ""}
           isAdmin={isAdmin}
         />
+      ) : isError ? (
+        // A fetch failure is not "no tasks" - saying so sent people hunting
+        // through filters for tasks that never loaded.
+        <EmptyState icon={Inbox} variant="card" title="Couldn't load your tasks. Try reloading." />
       ) : tasks.length === 0 ? (
         <EmptyState icon={Inbox} variant="card" title="No tasks match the filter." />
       ) : (

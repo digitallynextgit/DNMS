@@ -15,6 +15,10 @@ export const dynamic = "force-dynamic"
 //
 // Wrapped in inMarketingTenant() for the same reason as the holidays route - no
 // session means no tenant context, and the guard refuses rather than guessing.
+// s-maxage=300: "the latest working day's punches" does not change meaningfully
+// inside five minutes, and this is hit by every homepage visitor who scrolls.
 export const GET = withErrorHandler(async () =>
-  ok(await inMarketingTenant(() => getPublicAttendanceSnapshot(9))),
+  ok(await inMarketingTenant(() => getPublicAttendanceSnapshot(9)), {
+    headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600" },
+  }),
 )

@@ -360,7 +360,14 @@ export function LeaveDirectoryClient() {
           {balancesLoading ? (
             <ListSkeleton rows={6} height="h-14" />
           ) : filteredBalances.length === 0 ? (
-            <EmptyState compact title="No employees match your search." />
+            <EmptyState
+              compact
+              title={
+                employeeSearch
+                  ? "No employees match your search."
+                  : "No leave balances to show yet."
+              }
+            />
           ) : (
             <>
               <LeaveBalanceDirectory employees={filteredBalances} leaveTypes={leaveTypes} />

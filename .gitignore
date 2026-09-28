@@ -61,6 +61,11 @@ completed_tasks.txt
 *-sa.json
 *.iam.gserviceaccount.json
 
-# Throwaway build dir for verification runs (see distDir in next.config.mjs),
-# kept out of .next so it cannot corrupt a running dev server.
-.next-verify
+# Throwaway build dirs for verification/audit runs (see distDir in
+# next.config.mjs), kept out of .next so they cannot corrupt a running dev
+# server. The glob covers .next-verify, .next-audit, .next-test and any future
+# NEXT_DIST_DIR value on the same pattern.
+.next-*
+
+# HR stock-register source workbook (imported into the DB via prisma/import-stock.ts; data, not code)
+/stock.xlsx

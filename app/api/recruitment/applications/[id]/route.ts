@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { createAuditLog } from "@/lib/audit"
+import { getSignedUrl } from "@/lib/storage"
 import { notifyReferrerOfStage } from "@/features/referrals/server/referrals.service"
 import { PERMISSIONS, SYSTEM_ROLES } from "@/lib/constants"
 import type { Session } from "next-auth"
@@ -39,7 +40,16 @@ export const GET = withAuth(
       if (!application) {
         return NextResponse.json({ error: "Application not found" }, { status: 404 })
       }
-      return NextResponse.json({ data: application })
+      // Prefer our stored CV copy over the external link (see the list route).
+      const data = application.resumeKey
+        ? {
+            ...application,
+            resumeUrl: await getSignedUrl(application.resumeKey, 3600).catch(
+              () => application.resumeUrl,
+            ),
+          }
+        : application
+      return NextResponse.json({ data })
     } catch (error) {
       console.error("[RECRUITMENT_APPLICATION_GET]", error)
       return NextResponse.json({ error: "Internal server error" }, { status: 500 })

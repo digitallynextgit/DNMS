@@ -75,15 +75,9 @@ export function MarketingHeader() {
           className="flex items-center gap-2 justify-self-start"
           aria-label={siteConfig.name}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/logo_white_bg-96.png"
-            width={370}
-            height={96}
-            decoding="async"
-            alt={siteConfig.name}
-            className="h-9 w-auto sm:h-11 dark:hidden"
-          />
+          {/* Dark logo only: the marketing site is forced-dark (providers.tsx
+              forcedTheme), so the theme-swapped light twin could never show -
+              it just downloaded 17KB on every marketing page for nothing. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo_dark_bg-96.webp"
@@ -91,7 +85,7 @@ export function MarketingHeader() {
             height={96}
             decoding="async"
             alt={siteConfig.name}
-            className="hidden h-9 w-auto sm:h-11 dark:block"
+            className="h-9 w-auto sm:h-11"
           />
         </Link>
 

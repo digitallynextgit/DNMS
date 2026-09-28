@@ -5,6 +5,7 @@ import { PERMISSIONS } from "@/lib/constants"
 import { encrypt } from "@/lib/crypto"
 import { createAuditLog } from "@/lib/audit"
 import { requirePermission, getAuditMeta } from "@/server/action-guard"
+import { assertPlatformScope } from "@/server/platform-admin"
 import { ok, fail, runAction, type ActionResult } from "@/server/action-result"
 import { reloadConfig } from "@/server/app-config"
 import { SETTING_FIELDS, SECRET_KEYS } from "@/features/settings/settings.registry"
@@ -25,7 +26,10 @@ export interface SettingValue {
 // ---------------------------------------------------------------------------
 export async function getSettings(): Promise<ActionResult<{ data: SettingValue[] }>> {
   return runAction(async () => {
-    await requirePermission(PERMISSIONS.SETTINGS_WRITE)
+    const session = await requirePermission(PERMISSIONS.SETTINGS_WRITE)
+    // AppSetting is platform-global (no tenantId): a second tenant's admin
+    // holds settings:write too, but must not read or write the platform config.
+    assertPlatformScope(session)
     const rows = await db.appSetting.findMany()
     const dbMap = new Map(rows.map((r) => [r.key, r.value]))
 
@@ -51,6 +55,8 @@ export async function updateSettings(
 ): Promise<ActionResult<{ updated: number }>> {
   return runAction(async () => {
     const session = await requirePermission(PERMISSIONS.SETTINGS_WRITE)
+    // Same platform-global reasoning as getSettings above.
+    assertPlatformScope(session)
 
     // Required fields (the mandatory notifications mailer) must never be left
     // blank. A blank secret is allowed only when a value is already stored

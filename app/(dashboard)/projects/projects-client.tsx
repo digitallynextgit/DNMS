@@ -54,8 +54,11 @@ interface Project {
 
 const PAGE_SIZE = 10
 
-/** Status groups, in the order they are stacked down the page. */
-const STATUS_ORDER = ["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED"] as const
+/** Status groups, in the order they are stacked down the page. CANCELLED is a
+ *  valid ProjectStatus too - leaving it out made a page whose every project was
+ *  cancelled render completely blank (the empty-state check keys off
+ *  projects.length, which was > 0). */
+const STATUS_ORDER = ["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"] as const
 
 async function fetchProjects(): Promise<{ data: Project[] }> {
   const res = await fetch("/api/projects?limit=100")
@@ -367,16 +370,23 @@ export function ProjectsClient() {
                         </div>
 
                         <div className="flex items-center gap-1">
-                          {project.members.slice(0, 5).map((m) => (
-                            <AvatarDisplay
-                              key={m.employee.id}
-                              src={m.employee.profilePhoto}
-                              firstName={m.employee.firstName}
-                              lastName={m.employee.lastName}
-                              size="chip"
-                              className="border-background -ml-1 border-2 first:ml-0"
-                            />
-                          ))}
+                          {/* Dedupe: someone on two of the project's teams
+                              appears twice in members, which drew their avatar
+                              twice AND made React key collisions. */}
+                          {Array.from(
+                            new Map(project.members.map((m) => [m.employee.id, m])).values(),
+                          )
+                            .slice(0, 5)
+                            .map((m) => (
+                              <AvatarDisplay
+                                key={m.employee.id}
+                                src={m.employee.profilePhoto}
+                                firstName={m.employee.firstName}
+                                lastName={m.employee.lastName}
+                                size="chip"
+                                className="border-background -ml-1 border-2 first:ml-0"
+                              />
+                            ))}
                           {project.members.length > 5 && (
                             <span className="text-muted-foreground ml-1 text-xs">
                               +{project.members.length - 5}

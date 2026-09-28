@@ -196,13 +196,38 @@ async function registerPush(): Promise<void> {
     const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
     if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return
 
-    await fetch("/api/notifications/push", {
+    const res = await fetch("/api/notifications/push", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
     })
-    pushActive = true
+    // Only a CONFIRMED registration may silence the SSE fallback: setting this
+    // on a failed POST turned one 4xx/5xx into no notifications of any kind.
+    if (res.ok) pushActive = true
   } catch {
     // Unsupported browser, blocked SW, or offline - ignore.
+  }
+}
+
+/**
+ * Tear down this browser's push subscription - called on SIGN-OUT, before the
+ * session goes away (the DELETE needs it). Without this, the next person on a
+ * shared device kept receiving the previous user's notifications until the
+ * subscription happened to be re-pointed. Best-effort by design: sign-out must
+ * never fail because push cleanup did.
+ */
+export async function unregisterPush(): Promise<void> {
+  try {
+    if (!("serviceWorker" in navigator)) return
+    const reg = await navigator.serviceWorker.getRegistration()
+    const sub = await reg?.pushManager.getSubscription()
+    if (!sub) return
+    await fetch(`/api/notifications/push?endpoint=${encodeURIComponent(sub.endpoint)}`, {
+      method: "DELETE",
+    }).catch(() => undefined)
+    await sub.unsubscribe().catch(() => undefined)
+    pushActive = false
+  } catch {
+    // Never block sign-out on push cleanup.
   }
 }

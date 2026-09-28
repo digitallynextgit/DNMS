@@ -20,6 +20,7 @@ import {
   type NavChild,
 } from "@/config/nav"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { unregisterPush } from "@/components/providers/realtime-notifications"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EMPLOYEE_STATUS_COLORS, EMPLOYEE_STATUS_LABELS } from "@/lib/constants"
 import { Badge } from "@/components/ui/badge"
@@ -149,9 +150,12 @@ export function MobileMoreMenu({ session }: { session: Session }) {
   const clearPalette = useThemeStore((s) => s.clearPalette)
   const { setTheme } = useTheme()
 
-  function handleSignOut() {
+  async function handleSignOut() {
     clearPalette()
     setTheme("system")
+    // Same as the desktop topbar: stop this browser receiving the signed-out
+    // user's push notifications before the session (which DELETE needs) goes.
+    await unregisterPush()
     signOut({ callbackUrl: "/login" })
   }
 

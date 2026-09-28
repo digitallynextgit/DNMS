@@ -23,7 +23,7 @@ export const PATCH = withProjectAccess(
     if (!body.cells || typeof body.cells !== "object") {
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 })
     }
-    await updateCells(rowId!, session.user.id, body.cells)
+    await updateCells(sheetId!, rowId!, session.user.id, body.cells)
     return NextResponse.json({ success: true })
   },
 )
@@ -35,7 +35,7 @@ export const DELETE = withProjectManager(
     if (!(await sheetBelongsToProject(sheetId!, projectId!))) {
       return NextResponse.json({ error: "Sheet not found" }, { status: 404 })
     }
-    await deleteRow(rowId!, session.user.id)
+    await deleteRow(sheetId!, rowId!, session.user.id)
     return NextResponse.json({ success: true })
   },
 )

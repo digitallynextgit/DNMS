@@ -187,7 +187,10 @@ export function AttendanceDirectoryClient() {
           iconBg="bg-green-50"
         />
         <StatCard
-          title="On Leave"
+          // "Not Present", because that is what the number IS: everyone without
+          // a punch today (leave, absence, or an unsynced device). Labelling it
+          // "On Leave" showed a fresh install as the whole company on leave.
+          title="Not Present"
           value={summary?.notPresent ?? 0}
           loading={isLoading}
           icon={UserX}

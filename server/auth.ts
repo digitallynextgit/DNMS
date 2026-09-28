@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
 import bcrypt from "bcryptjs"
 import { db } from "./db"
+import { clientIp, rateLimited } from "@/lib/rate-limit"
 import { enterTenant, runUnscoped } from "./tenant-context"
 import {
   adoptLegacyLogin,
@@ -117,6 +118,20 @@ function pickMembership(
   return pool[0] ?? null
 }
 
+/**
+ * True when the credential changed AFTER this token was issued.
+ *
+ * `authAt` is stamped once, at sign-in, and never refreshed - deliberately, so
+ * a session.update() from a stolen cookie cannot re-bless itself. A token with
+ * no authAt (issued before this deploy) reads as 0: the first password change
+ * after the deploy revokes it, and until then nothing changes for it.
+ */
+function passwordChangedSince(tokenAuthAt: unknown, membership: ActiveMembership): boolean {
+  if (!membership.passwordChangedAt) return false
+  const authAt = typeof tokenAuthAt === "number" ? tokenAuthAt : 0
+  return membership.passwordChangedAt.getTime() > authAt
+}
+
 /** Everything the token needs about the person, resolved from one membership. */
 async function hydrateFromMembership(membership: ActiveMembership) {
   if (membership.kind === "CLIENT") {
@@ -161,11 +176,25 @@ async function authorizeWithIdentity(
   rawEmail: unknown,
   rawPassword: unknown,
   prefer: "STAFF" | "CLIENT",
+  req?: Request,
 ) {
   if (typeof rawEmail !== "string" || typeof rawPassword !== "string") return null
   if (!rawEmail || !rawPassword) return null
 
   const email = normalizeEmail(rawEmail)
+
+  // Online-guessing throttle. Before this, nothing limited attempts against
+  // /api/auth/callback/credentials at all - bcrypt cost was the only brake.
+  // Keyed per-email AND per-IP so neither a single target nor a single source
+  // can be hammered. In-memory (see lib/rate-limit.ts): per-instance and reset
+  // on deploy, which is the accepted trade-off everywhere else it is used.
+  // Counted before the DB work so a limited request costs nothing.
+  if (req) {
+    const limited =
+      rateLimited(`login:email:${email}`, 10, 15 * 60_000) ||
+      rateLimited(`login:ip:${clientIp(req)}`, 30, 15 * 60_000)
+    if (limited) return null
+  }
 
   let candidate = await findLoginUser(email)
 
@@ -208,7 +237,10 @@ export const authOptions: NextAuthConfig = {
   // pre-existing employees in the `signIn` callback below (we never auto-create
   // users). A `User` model now exists (M2) but Account/Session still map to
   // Employee, so the PrismaAdapter's assumptions still do not hold.
-  session: { strategy: "jwt" },
+  // maxAge 7 days (down from the 30-day default): the 15-minute re-check
+  // handles revocation, but the token's own lifetime is still the ceiling on a
+  // stolen cookie whose account nobody thought to touch.
+  session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60 },
 
   // Self-hosted behind a reverse proxy / accessed by IP or custom domain (not
   // Vercel), so we must explicitly trust the incoming host. Without this,
@@ -233,7 +265,7 @@ export const authOptions: NextAuthConfig = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      authorize: (c) => authorizeWithIdentity(c?.email, c?.password, "STAFF"),
+      authorize: (c, req) => authorizeWithIdentity(c?.email, c?.password, "STAFF", req),
     }),
 
     // -----------------------------------------------------------------------
@@ -329,6 +361,9 @@ export const authOptions: NextAuthConfig = {
         // token exactly as it was rather than failing the request - the page
         // re-reads the session and will show it did not move.
         if (target && owned) {
+          // A workspace switch is still the same session: it must not outlive
+          // a password change any more than a plain request may.
+          if (passwordChangedSince(token.authAt, target)) return null
           const profile = await hydrateFromMembership(target)
           if (profile) {
             Object.assign(token, profile)
@@ -359,6 +394,9 @@ export const authOptions: NextAuthConfig = {
         const profile = await hydrateFromMembership(membership)
         if (!profile) return null
         Object.assign(token, profile)
+        // The one place authAt is written: it marks when the password was
+        // proven, and passwordChangedSince() revokes anything older.
+        token.authAt = now
         token.checkedAt = now
         return token
       }
@@ -408,6 +446,11 @@ export const authOptions: NextAuthConfig = {
         // Deactivated, offboarded, or their company was suspended: returning
         // null invalidates the session cookie, so the next request is signed out.
         if (!membership) return null
+
+        // The password changed after this token was issued - a reset after a
+        // phished cookie, or an admin rotating a compromised account. The
+        // session that made the change is signed out too (its UI says so).
+        if (passwordChangedSince(token.authAt, membership)) return null
 
         const profile = await hydrateFromMembership(membership)
         if (!profile) return null

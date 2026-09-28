@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { useTenantPath } from "@/components/tenant-link"
 import {
   Rocket,
   Users,
@@ -105,6 +106,7 @@ const ROLE_TABS: { label: string; value: RoleFilter }[] = [
 
 export default function DocsPage() {
   const router = useRouter()
+  const tp = useTenantPath()
   const [search, setSearch] = React.useState("")
   const [activeRole, setActiveRole] = React.useState<RoleFilter>("all")
 
@@ -158,7 +160,7 @@ export default function DocsPage() {
             <ModuleCardItem
               key={card.slug}
               card={card}
-              onRead={() => router.push(`/docs/${card.slug}`)}
+              onRead={() => router.push(tp(`/docs/${card.slug}`))}
             />
           ))}
         </div>

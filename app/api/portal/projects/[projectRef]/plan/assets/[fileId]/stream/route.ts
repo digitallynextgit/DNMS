@@ -31,6 +31,13 @@ export const GET = withClientSession(
     })
     if (!file?.driveFileId) return new NextResponse("Not found", { status: 404 })
 
-    return driveFileResponse(file.driveFileId, file, req.headers.get("range"), "PORTAL_STREAM")
+    // Authed route: let the viewer's browser cache the bytes (see drive-stream.ts).
+    return driveFileResponse(
+      file.driveFileId,
+      file,
+      req.headers.get("range"),
+      "PORTAL_STREAM",
+      "private, max-age=3600",
+    )
   },
 )

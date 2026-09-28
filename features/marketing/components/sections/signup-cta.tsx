@@ -1,7 +1,9 @@
+"use client"
+
 import Link from "next/link"
+import { useSession } from "next-auth/react"
 import { ArrowRight, CreditCard, Clock, ShieldCheck } from "lucide-react"
 
-import { auth } from "@/server/auth"
 import { Button } from "@/components/ui/button"
 import { BRAND_RED, demoHref } from "@/features/marketing/marketing.constants"
 import { GridBackdrop, Reveal } from "../fx"
@@ -15,14 +17,17 @@ const REASSURANCES = [
 /**
  * The conversion band: the one place on the page that asks for a signup.
  *
- * Server component so it can read the session - showing "Start free" to someone
- * already signed in is the kind of small wrongness that makes a site feel
- * untended, and they get a route back into their workspace instead.
+ * CLIENT component, session via useSession() - the same trade the Hero makes.
+ * The old server-side auth() read here was the LAST thing keeping the homepage
+ * dynamic after the root layout stopped reading the session: one CTA band made
+ * every visitor's homepage a server render. Static HTML now ships the
+ * signed-out variant and swaps to "Go to dashboard" after hydration for the
+ * minority of visitors who are signed in.
  */
-export async function SignupCta() {
-  const session = await auth()
-  const authed = Boolean(session)
-  const appHref = session?.user.kind === "client" ? "/portal" : "/dashboard"
+export function SignupCta() {
+  const { data: session } = useSession()
+  const authed = Boolean(session?.user)
+  const appHref = session?.user?.kind === "client" ? "/portal" : "/dashboard"
 
   return (
     <section id="get-started" className="relative overflow-hidden py-24">

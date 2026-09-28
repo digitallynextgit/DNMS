@@ -36,7 +36,8 @@ export function PlatformSidebar() {
   return (
     <aside
       className={cn(
-        "bg-background border-border flex h-full min-h-0 shrink-0 flex-col border-r transition-all duration-200",
+        // Scoped to width - see components/layout/sidebar.tsx.
+        "bg-background border-border flex h-full min-h-0 shrink-0 flex-col border-r transition-[width] duration-200 motion-reduce:transition-none",
         isCollapsed ? "w-14" : "w-56",
       )}
     >
@@ -52,7 +53,6 @@ export function PlatformSidebar() {
             alt="Digitally Next"
             width={370}
             height={96}
-            priority
             className="h-10 w-auto max-w-none dark:hidden"
           />
           <Image
@@ -60,7 +60,6 @@ export function PlatformSidebar() {
             alt="Digitally Next"
             width={370}
             height={96}
-            priority
             className="hidden h-10 w-auto max-w-none dark:block"
           />
         </div>
