@@ -183,6 +183,57 @@ export function useDeleteStockIssue() {
   })
 }
 
+/** One register row in the sheet-shaped matrix view. */
+export interface StockMatrixRow {
+  key: string
+  holderName: string
+  issuedOn: string | null
+  employee: StockIssueRow["employee"]
+  issueIds: string[]
+  cells: Record<string, { quantity: number; issueIds: string[] }>
+}
+
+export function useStockMatrix(filters: {
+  q: string
+  itemId: string
+  unlinkedOnly: boolean
+  page: number
+}) {
+  const params = new URLSearchParams()
+  if (filters.q) params.set("q", filters.q)
+  if (filters.itemId && filters.itemId !== "all") params.set("itemId", filters.itemId)
+  if (filters.unlinkedOnly) params.set("unlinked", "1")
+  params.set("page", String(filters.page))
+  return useQuery({
+    queryKey: ["stock", "register", filters] as const,
+    queryFn: async () =>
+      (
+        await apiFetch<{ data: { rows: StockMatrixRow[]; meta: PaginationMeta } }>(
+          `/api/stock/register?${params.toString()}`,
+        )
+      ).data,
+  })
+}
+
+/** Save one edited matrix row (holder, date, link, quantity per item). */
+export function useUpdateRegisterRow() {
+  const invalidate = useInvalidateStock()
+  return useMutation({
+    mutationFn: (input: {
+      holderName: string
+      employeeId: string | null
+      issuedOn: string | null
+      cells: { itemId: string; issueIds: string[]; quantity: number }[]
+    }) =>
+      apiFetch("/api/stock/register", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: invalidate,
+  })
+}
+
 /** One request for the selection bar: link/unlink/delete many entries at once. */
 export function useBulkStockIssues() {
   const invalidate = useInvalidateStock()

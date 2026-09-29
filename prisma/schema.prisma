@@ -1271,6 +1271,9 @@ model StockItem {
   id       String @id @default(uuid()) @map("id")
 
   name          String   @map("name")
+  /// Column order in the register matrix - mirrors the uploaded sheet's
+  /// column order (Diary, Notepad, Pen, Bottle...), new items append.
+  position      Int      @default(0) @map("position")
   /// Purchase price per piece, as uploaded. Null when the sheet had none.
   pricePerPiece Decimal? @map("price_per_piece") @db.Decimal(12, 2)
   /// Total pieces purchased so far. Restocks add to it.

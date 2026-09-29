@@ -1,7 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import { Link2, Link2Off, Package, PackagePlus, Plus, Trash2, Upload, UserX } from "lucide-react"
+import {
+  Link2,
+  Link2Off,
+  Package,
+  PackagePlus,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+  UserX,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/shared/page-header"
@@ -36,16 +46,15 @@ import { PERMISSIONS } from "@/lib/constants"
 import { formatDate } from "@/lib/utils"
 import {
   useStockItems,
-  useStockIssues,
+  useStockMatrix,
   useLinkableEmployees,
   useCreateStockItem,
   useUpdateStockItem,
   useCreateStockIssue,
-  useUpdateStockIssue,
-  useDeleteStockIssue,
+  useUpdateRegisterRow,
   useBulkStockIssues,
   type LinkableEmployee,
-  type StockIssueRow,
+  type StockMatrixRow,
   type StockItemRow,
 } from "../hooks/use-stock"
 import { StockImportDialog } from "./stock-import-dialog"
@@ -71,53 +80,58 @@ export function StockClient() {
     { mode: "create" } | { mode: "edit"; item: StockItemRow } | null
   >(null)
   const [issueOpen, setIssueOpen] = useState(false)
-  const [linkTarget, setLinkTarget] = useState<StockIssueRow | null>(null)
+  const [editRow, setEditRow] = useState<StockMatrixRow | null>(null)
+  const [linkTarget, setLinkTarget] = useState<StockMatrixRow | null>(null)
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false)
-  const [toDelete, setToDelete] = useState<StockIssueRow | null>(null)
+  const [toDelete, setToDelete] = useState<StockMatrixRow | null>(null)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   const items = useStockItems()
-  const issues = useStockIssues({ q, itemId: itemFilter, unlinkedOnly, page })
-  const updateIssue = useUpdateStockIssue()
-  const deleteIssue = useDeleteStockIssue()
+  const register = useStockMatrix({ q, itemId: itemFilter, unlinkedOnly, page })
   const bulk = useBulkStockIssues()
 
-  const rows = issues.data?.rows ?? []
-  const meta = issues.data?.meta
+  const rows = register.data?.rows ?? []
+  const meta = register.data?.meta
   const hasFilters = Boolean(q) || itemFilter !== "all" || unlinkedOnly
 
-  // Selection spans pages: toggleAll works on the CURRENT page's ids, while
-  // ids picked on other pages stay selected until acted on or cleared.
-  const selection = useRowSelection(rows.map((r) => r.id))
+  // A matrix row bundles several ledger entries, so selection is per ROW KEY
+  // and bulk actions flatten the selected rows' entry ids. Ids are resolvable
+  // only for rows on screen, so page/filter changes clear the selection.
+  const selection = useRowSelection(rows.map((r) => r.key))
 
-  /** Any filter change restarts at page 1 with a clean selection. */
-  function resetPaging() {
-    setPage(1)
+  /** Any filter/page change restarts with a clean selection. */
+  function resetPaging(nextPage = 1) {
+    setPage(nextPage)
     selection.clear()
   }
 
-  function runBulk(action: "link" | "unlink" | "delete", employeeId?: string) {
+  function selectedIssueIds(): string[] {
+    const keys = new Set(selection.selectedIds)
+    return rows.filter((r) => keys.has(r.key)).flatMap((r) => r.issueIds)
+  }
+
+  const doneWords = { delete: "Deleted", link: "Linked", unlink: "Unlinked" } as const
+
+  function runBulk(ids: string[], action: "link" | "unlink" | "delete", employeeId?: string) {
     bulk.mutate(
-      { ids: selection.selectedIds, action, employeeId },
+      { ids, action, employeeId },
       {
         onSuccess: ({ affected }) => {
-          toast.success(
-            action === "delete"
-              ? `Deleted ${affected} entr${affected === 1 ? "y" : "ies"}`
-              : action === "link"
-                ? `Linked ${affected} entr${affected === 1 ? "y" : "ies"}`
-                : `Unlinked ${affected} entr${affected === 1 ? "y" : "ies"}`,
-          )
+          toast.success(`${doneWords[action]} ${affected} entr${affected === 1 ? "y" : "ies"}`)
           selection.clear()
           setBulkLinkOpen(false)
           setBulkDeleteOpen(false)
+          setLinkTarget(null)
+          setToDelete(null)
         },
         onError: (e) => toast.error(e.message),
       },
     )
   }
 
-  const columns: DataTableColumn<StockIssueRow>[] = [
+  // Columns mirror the uploaded sheet: Holder | On date | one column PER ITEM
+  // (in the sheet's column order) with the quantity in the cell.
+  const columns: DataTableColumn<StockMatrixRow>[] = [
     {
       header: "Holder",
       cell: (r) =>
@@ -156,44 +170,48 @@ export function StockClient() {
           </div>
         ),
     },
-    { header: "Item", cell: (r) => <span className="text-sm">{r.item.name}</span> },
-    { header: "Qty", cell: (r) => <span className="text-sm tabular-nums">{r.quantity}</span> },
     {
       header: "Issued on",
       cell: (r) => (
-        <span className="text-muted-foreground text-sm">
+        <span className="text-muted-foreground text-sm whitespace-nowrap">
           {r.issuedOn ? formatDate(r.issuedOn) : "—"}
         </span>
       ),
     },
-    {
-      header: "Notes",
-      cell: (r) => (
-        <span className="text-muted-foreground line-clamp-1 max-w-[220px] text-xs">
-          {r.notes ?? ""}
-        </span>
-      ),
-    },
+    ...(items.data ?? []).map(
+      (item): DataTableColumn<StockMatrixRow> => ({
+        header: item.name,
+        cell: (r) => {
+          const qty = r.cells[item.id]?.quantity ?? 0
+          return qty > 0 ? (
+            <span className="text-sm font-medium tabular-nums">{qty}</span>
+          ) : (
+            <span className="text-muted-foreground/50 text-sm">—</span>
+          )
+        },
+      }),
+    ),
     ...(canWrite
       ? [
           {
             header: "",
-            cell: (r: StockIssueRow) => (
+            cell: (r: StockMatrixRow) => (
               <div className="flex justify-end gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Edit this row"
+                  onClick={() => setEditRow(r)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
                 {r.employee ? (
                   <Button
                     variant="ghost"
                     size="icon"
                     title="Unlink from this employee"
-                    onClick={() =>
-                      updateIssue.mutate(
-                        { id: r.id, employeeId: null },
-                        {
-                          onSuccess: () => toast.success("Unlinked - the name is kept"),
-                          onError: (e) => toast.error(e.message),
-                        },
-                      )
-                    }
+                    disabled={bulk.isPending}
+                    onClick={() => runBulk(r.issueIds, "unlink")}
                   >
                     <Link2Off className="h-3.5 w-3.5" />
                   </Button>
@@ -210,7 +228,7 @@ export function StockClient() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  title="Delete entry"
+                  title="Delete row"
                   onClick={() => setToDelete(r)}
                 >
                   <Trash2 className="text-destructive h-3.5 w-3.5" />
@@ -334,7 +352,11 @@ export function StockClient() {
               <Link2 className="mr-1.5 h-3.5 w-3.5" />
               Link to employee
             </Button>
-            <Button variant="outline" onClick={() => runBulk("unlink")} disabled={bulk.isPending}>
+            <Button
+              variant="outline"
+              onClick={() => runBulk(selectedIssueIds(), "unlink")}
+              disabled={bulk.isPending}
+            >
               <Link2Off className="mr-1.5 h-3.5 w-3.5" />
               Unlink
             </Button>
@@ -353,18 +375,18 @@ export function StockClient() {
         </div>
       )}
 
-      {!issues.isLoading && rows.length === 0 ? (
+      {!register.isLoading && rows.length === 0 ? (
         <EmptyState
           icon={Package}
           title={
-            issues.isError
+            register.isError
               ? "Couldn't load the register. Try reloading."
               : hasFilters
                 ? "Nothing matches these filters."
                 : "No stock issued yet."
           }
           description={
-            !issues.isError && !hasFilters
+            !register.isError && !hasFilters
               ? "Import the Excel workbook or record an issue to get started."
               : undefined
           }
@@ -374,9 +396,9 @@ export function StockClient() {
           <DataTable
             columns={columns}
             rows={rows}
-            rowKey={(r) => r.id}
-            loading={issues.isLoading}
-            minWidth="min-w-[760px]"
+            rowKey={(r) => r.key}
+            loading={register.isLoading}
+            minWidth="min-w-[860px]"
             showSerial
             serialOffset={meta ? (meta.page - 1) * meta.limit : 0}
             selection={canWrite ? selection : undefined}
@@ -386,8 +408,8 @@ export function StockClient() {
               page={meta.page}
               totalPages={meta.totalPages}
               total={meta.total}
-              onPageChange={setPage}
-              itemLabel="entry"
+              onPageChange={(next) => resetPaging(next)}
+              itemLabel="row"
             />
           )}
         </>
@@ -397,71 +419,162 @@ export function StockClient() {
       <StockImportDialog open={importOpen} onOpenChange={setImportOpen} />
       {itemDialog && <ItemDialog state={itemDialog} onClose={() => setItemDialog(null)} />}
       {issueOpen && <IssueDialog items={items.data ?? []} onClose={() => setIssueOpen(false)} />}
+      {editRow && (
+        <EditRowDialog row={editRow} items={items.data ?? []} onClose={() => setEditRow(null)} />
+      )}
       {linkTarget && (
         <EmployeePickerDialog
           title={`Link "${linkTarget.holderName}" to an employee`}
           description="Deactivated employees are included - the holder may have left since."
           initialSearch={linkTarget.holderName}
-          busy={updateIssue.isPending}
+          busy={bulk.isPending}
           onClose={() => setLinkTarget(null)}
-          onPick={(employee) =>
-            updateIssue.mutate(
-              { id: linkTarget.id, employeeId: employee.id },
-              {
-                onSuccess: () => {
-                  toast.success(`Linked to ${employee.firstName} ${employee.lastName}`)
-                  setLinkTarget(null)
-                },
-                onError: (err) => toast.error(err.message),
-              },
-            )
-          }
+          onPick={(employee) => runBulk(linkTarget.issueIds, "link", employee.id)}
         />
       )}
       {bulkLinkOpen && (
         <EmployeePickerDialog
-          title={`Link ${selection.count} entr${selection.count === 1 ? "y" : "ies"} to an employee`}
-          description="Every selected entry is linked to the one employee you pick (deactivated included)."
+          title={`Link ${selection.count} row${selection.count === 1 ? "" : "s"} to an employee`}
+          description="Every selected row is linked to the one employee you pick (deactivated included)."
           initialSearch=""
           busy={bulk.isPending}
           onClose={() => setBulkLinkOpen(false)}
-          onPick={(employee) => runBulk("link", employee.id)}
+          onPick={(employee) => runBulk(selectedIssueIds(), "link", employee.id)}
         />
       )}
       <ConfirmDialog
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
-        title={`Delete ${selection.count} register entr${selection.count === 1 ? "y" : "ies"}?`}
+        title={`Delete ${selection.count} register row${selection.count === 1 ? "" : "s"}?`}
         description="The selected rows are removed from the register. This cannot be undone."
         variant="destructive"
         confirmLabel="Delete selected"
         isLoading={bulk.isPending}
-        onConfirm={() => runBulk("delete")}
+        onConfirm={() => runBulk(selectedIssueIds(), "delete")}
       />
       <ConfirmDialog
         open={!!toDelete}
         onOpenChange={(open) => !open && setToDelete(null)}
-        title="Delete this register entry?"
+        title="Delete this register row?"
         description={
           toDelete
-            ? `${toDelete.quantity} × ${toDelete.item.name} issued to ${toDelete.holderName}. This cannot be undone.`
+            ? `Everything issued to ${toDelete.holderName}${
+                toDelete.issuedOn ? ` on ${formatDate(toDelete.issuedOn)}` : ""
+              } is removed. This cannot be undone.`
             : ""
         }
         variant="destructive"
         confirmLabel="Delete"
-        isLoading={deleteIssue.isPending}
-        onConfirm={() => {
-          if (!toDelete) return
-          deleteIssue.mutate(toDelete.id, {
-            onSuccess: () => {
-              toast.success("Entry deleted")
-              setToDelete(null)
-            },
-            onError: (e) => toast.error(e.message),
-          })
-        }}
+        isLoading={bulk.isPending}
+        onConfirm={() => toDelete && runBulk(toDelete.issueIds, "delete")}
       />
     </div>
+  )
+}
+
+// ─── Edit one register row (the sheet-shaped edit) ──────────────────────────
+
+function EditRowDialog({
+  row,
+  items,
+  onClose,
+}: {
+  row: StockMatrixRow
+  items: StockItemRow[]
+  onClose: () => void
+}) {
+  const [holderName, setHolderName] = useState(row.holderName)
+  const [issuedOn, setIssuedOn] = useState(row.issuedOn ? row.issuedOn.slice(0, 10) : "")
+  const [quantities, setQuantities] = useState<Record<string, string>>(() =>
+    Object.fromEntries(items.map((i) => [i.id, String(row.cells[i.id]?.quantity ?? 0)])),
+  )
+  const update = useUpdateRegisterRow()
+
+  function submit() {
+    if (!holderName.trim()) return toast.error("Holder is required")
+    const cells: { itemId: string; issueIds: string[]; quantity: number }[] = []
+    for (const item of items) {
+      const raw = (quantities[item.id] ?? "0").trim()
+      const qty = raw === "" ? 0 : Number(raw)
+      if (!Number.isInteger(qty) || qty < 0)
+        return toast.error(`${item.name}: quantity must be a whole number (0 clears it)`)
+      cells.push({ itemId: item.id, issueIds: row.cells[item.id]?.issueIds ?? [], quantity: qty })
+    }
+    if (cells.every((c) => c.quantity === 0))
+      return toast.error("Every quantity is 0 - use Delete to remove the whole row")
+    update.mutate(
+      {
+        holderName: holderName.trim(),
+        employeeId: row.employee?.id ?? null,
+        issuedOn: issuedOn || null,
+        cells,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Row updated")
+          onClose()
+        },
+        onError: (e) => toast.error(e.message),
+      },
+    )
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit register row</DialogTitle>
+          <DialogDescription>
+            Change the holder, date, or per-item quantities - 0 removes that item from the row.
+            {row.employee && ` Stays linked to ${row.employee.firstName} ${row.employee.lastName}.`}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-row-holder">Holder</Label>
+              <Input
+                id="edit-row-holder"
+                value={holderName}
+                onChange={(e) => setHolderName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-row-date">Issued on</Label>
+              <Input
+                id="edit-row-date"
+                type="date"
+                value={issuedOn}
+                onChange={(e) => setIssuedOn(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {items.map((item) => (
+              <div key={item.id} className="space-y-1.5">
+                <Label htmlFor={`edit-row-${item.id}`}>{item.name}</Label>
+                <Input
+                  id={`edit-row-${item.id}`}
+                  inputMode="numeric"
+                  value={quantities[item.id] ?? "0"}
+                  onChange={(e) =>
+                    setQuantities((prev) => ({ ...prev, [item.id]: e.target.value }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={update.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={update.isPending} loading={update.isPending}>
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

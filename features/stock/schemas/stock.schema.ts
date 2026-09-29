@@ -62,8 +62,34 @@ export const importSchema = z.object({
     .max(5000),
 })
 
+/**
+ * One REGISTER ROW (the matrix view: holder + date + a quantity per item),
+ * sent whole from the edit dialog. `issueIds` per cell are the underlying
+ * ledger entries the client saw; the service reconciles: 0 deletes them, a
+ * quantity updates the first and drops extras, a quantity with no ids creates.
+ */
+export const registerRowSchema = z.object({
+  holderName: z.string().trim().min(1, "Holder is required").max(160),
+  employeeId: z.string().nullable(),
+  issuedOn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .nullable(),
+  cells: z
+    .array(
+      z.object({
+        itemId: z.string().min(1),
+        issueIds: z.array(z.string().min(1)).max(50),
+        quantity: z.number().int().min(0).max(100_000),
+      }),
+    )
+    .min(1)
+    .max(100),
+})
+
 export type CreateItemInput = z.infer<typeof createItemSchema>
 export type UpdateItemInput = z.infer<typeof updateItemSchema>
 export type CreateIssueInput = z.infer<typeof createIssueSchema>
 export type UpdateIssueInput = z.infer<typeof updateIssueSchema>
 export type ImportInput = z.infer<typeof importSchema>
+export type RegisterRowInput = z.infer<typeof registerRowSchema>

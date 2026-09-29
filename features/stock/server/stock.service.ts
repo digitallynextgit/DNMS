@@ -1,6 +1,7 @@
 import "server-only"
 
 import { db } from "@/server/db"
+import type { Prisma } from "@prisma/client"
 import { PERMISSIONS } from "@/lib/constants"
 import { resolvePagination, paginationMeta, type PaginationMeta } from "@/lib/pagination"
 import { requirePermission } from "@/server/action-guard"
@@ -12,11 +13,13 @@ import {
   createIssueSchema,
   updateIssueSchema,
   importSchema,
+  registerRowSchema,
   type CreateItemInput,
   type UpdateItemInput,
   type CreateIssueInput,
   type UpdateIssueInput,
   type ImportInput,
+  type RegisterRowInput,
 } from "../schemas/stock.schema"
 
 // =============================================================================
@@ -116,7 +119,8 @@ export async function getStockItems(): Promise<ActionResult<StockItemRow[]>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.EMPLOYEE_READ)
     const [items, issued] = await Promise.all([
-      db.stockItem.findMany({ orderBy: { name: "asc" } }),
+      // Sheet column order first (position), name as the tie-breaker.
+      db.stockItem.findMany({ orderBy: [{ position: "asc" }, { name: "asc" }] }),
       db.stockIssue.groupBy({ by: ["itemId"], _sum: { quantity: true } }),
     ])
     const issuedByItem = new Map(issued.map((g) => [g.itemId, g._sum.quantity ?? 0]))
@@ -403,6 +407,9 @@ export async function importStock(input: ImportInput): Promise<ActionResult<Impo
     // resolve them all to ids, creating what does not exist yet.
     const existing = await db.stockItem.findMany({ select: { id: true, name: true } })
     const itemIdByName = new Map(existing.map((i) => [normalizeName(i.name), i.id]))
+    // New items append after the current columns, keeping the sheet's order.
+    let nextPosition =
+      (await db.stockItem.aggregate({ _max: { position: true } }))._max.position ?? 0
 
     for (const item of items) {
       const key = normalizeName(item.name)
@@ -422,6 +429,7 @@ export async function importStock(input: ImportInput): Promise<ActionResult<Impo
         const created = await db.stockItem.create({
           data: {
             name: item.name,
+            position: ++nextPosition,
             pricePerPiece: item.pricePerPiece,
             purchasedQty: item.purchasedQty ?? 0,
           },
@@ -440,7 +448,7 @@ export async function importStock(input: ImportInput): Promise<ActionResult<Impo
         // so the register is complete; "left" goes negative until HR fills
         // the purchase in, which is the honest state of the books.
         const created = await db.stockItem.create({
-          data: { name: issue.itemName, purchasedQty: 0 },
+          data: { name: issue.itemName, position: ++nextPosition, purchasedQty: 0 },
           select: { id: true },
         })
         itemIdByName.set(key, created.id)
@@ -512,5 +520,183 @@ export async function searchLinkableEmployees(
       },
     })
     return ok(rows)
+  })
+}
+
+// ---------------------------------------------------------------------------
+// The MATRIX view: the register pivoted to mirror the uploaded sheet - one
+// row per (holder, employee link, date), one column per item, quantities in
+// the cells. The flat per-issue ledger stays the source of truth; this only
+// changes how it is read and how a row-edit is written back.
+// ---------------------------------------------------------------------------
+
+export type StockMatrixRow = {
+  /** Stable client key for the group (holder + employee + date). */
+  key: string
+  holderName: string
+  issuedOn: Date | null
+  employee: StockIssueRow["employee"]
+  /** Every underlying ledger entry in this row (for bulk link/unlink/delete). */
+  issueIds: string[]
+  /** itemId → summed quantity + the ledger entries behind it. */
+  cells: Record<string, { quantity: number; issueIds: string[] }>
+}
+
+function matrixKey(holderName: string, employeeId: string | null, issuedOn: Date | null): string {
+  return [holderName, employeeId ?? "", issuedOn ? issuedOn.toISOString().slice(0, 10) : ""].join(
+    "§",
+  )
+}
+
+export async function getStockMatrix(filters: {
+  q?: string
+  itemId?: string
+  unlinkedOnly?: boolean
+  page?: number
+  limit?: number
+}): Promise<ActionResult<{ rows: StockMatrixRow[]; meta: PaginationMeta }>> {
+  return runAction(async () => {
+    await requirePermission(PERMISSIONS.EMPLOYEE_READ)
+    const { page, limit, skip, take } = resolvePagination(
+      { page: filters.page, limit: filters.limit },
+      25,
+    )
+    const where = {
+      ...(filters.itemId ? { itemId: filters.itemId } : {}),
+      ...(filters.unlinkedOnly ? { employeeId: null } : {}),
+      ...(filters.q
+        ? {
+            OR: [
+              { holderName: { contains: filters.q, mode: "insensitive" as const } },
+              { employee: { firstName: { contains: filters.q, mode: "insensitive" as const } } },
+              { employee: { lastName: { contains: filters.q, mode: "insensitive" as const } } },
+            ],
+          }
+        : {}),
+    }
+
+    // Page over GROUPS, not ledger entries, so one sheet row = one table row.
+    const [pageGroups, allGroups] = await Promise.all([
+      db.stockIssue.groupBy({
+        by: ["holderName", "employeeId", "issuedOn"],
+        where,
+        orderBy: [{ issuedOn: "desc" }, { holderName: "asc" }],
+        skip,
+        take,
+      }),
+      db.stockIssue.groupBy({ by: ["holderName", "employeeId", "issuedOn"], where }),
+    ])
+
+    if (pageGroups.length === 0) {
+      return ok({ rows: [], meta: paginationMeta(allGroups.length, page, limit) })
+    }
+
+    // All ledger entries behind this page's groups, in one query. NOTE: this
+    // deliberately drops the item filter - a row filtered BY an item still
+    // shows its other columns, like reading the sheet.
+    const entries = await db.stockIssue.findMany({
+      where: {
+        OR: pageGroups.map((g) => ({
+          holderName: g.holderName,
+          employeeId: g.employeeId,
+          issuedOn: g.issuedOn,
+        })),
+      },
+      select: ISSUE_SELECT,
+    })
+
+    const rowByKey = new Map<string, StockMatrixRow>()
+    for (const g of pageGroups) {
+      const key = matrixKey(g.holderName, g.employeeId, g.issuedOn)
+      rowByKey.set(key, {
+        key,
+        holderName: g.holderName,
+        issuedOn: g.issuedOn,
+        employee: null,
+        issueIds: [],
+        cells: {},
+      })
+    }
+    for (const e of entries) {
+      const row = rowByKey.get(matrixKey(e.holderName, e.employeeId, e.issuedOn))
+      if (!row) continue
+      row.employee = e.employee
+      row.issueIds.push(e.id)
+      const cell = (row.cells[e.item.id] ??= { quantity: 0, issueIds: [] })
+      cell.quantity += e.quantity
+      cell.issueIds.push(e.id)
+    }
+
+    return ok({
+      rows: [...rowByKey.values()],
+      meta: paginationMeta(allGroups.length, page, limit),
+    })
+  })
+}
+
+/**
+ * Write ONE matrix row back: holder, date, link, and a quantity per item.
+ * Reconciled against the ledger entries the client saw - per cell: 0 deletes
+ * them, a quantity updates the first (and drops accidental duplicates), a
+ * quantity with no entries creates one.
+ */
+export async function updateStockRegisterRow(
+  input: RegisterRowInput,
+): Promise<ActionResult<{ ok: true }>> {
+  return runAction(async () => {
+    await requirePermission(PERMISSIONS.EMPLOYEE_WRITE)
+    const parsed = registerRowSchema.safeParse(input)
+    if (!parsed.success) return fail("Validation failed", parsed.error.flatten().fieldErrors)
+    const { holderName, employeeId, issuedOn, cells } = parsed.data
+
+    if (employeeId) {
+      // Any status, INCLUDING deactivated - but it must be this tenant's employee.
+      const emp = await db.employee.findFirst({ where: { id: employeeId }, select: { id: true } })
+      if (!emp) return fail("That employee does not exist here")
+    }
+
+    // Everything the client claims to be editing must still exist HERE (the
+    // tenant guard scopes this read) - a stale dialog fails loudly, not partially.
+    const claimedIds = cells.flatMap((c) => c.issueIds)
+    if (new Set(claimedIds).size !== claimedIds.length) return fail("Duplicate entries in the row")
+    const [foundIssues, foundItems] = await Promise.all([
+      db.stockIssue.findMany({ where: { id: { in: claimedIds } }, select: { id: true } }),
+      db.stockItem.findMany({
+        where: { id: { in: cells.map((c) => c.itemId) } },
+        select: { id: true },
+      }),
+    ])
+    if (foundIssues.length !== claimedIds.length)
+      return fail("This row changed since it was opened - reload and try again")
+    if (foundItems.length !== new Set(cells.map((c) => c.itemId)).size)
+      return fail("An item in this row no longer exists")
+
+    const date = issuedOn ? new Date(issuedOn) : null
+    const shared = { holderName, employeeId, issuedOn: date }
+    const ops: Prisma.PrismaPromise<unknown>[] = []
+    for (const cell of cells) {
+      const [first, ...rest] = cell.issueIds
+      if (cell.quantity === 0) {
+        if (cell.issueIds.length > 0)
+          ops.push(db.stockIssue.deleteMany({ where: { id: { in: cell.issueIds } } }))
+      } else if (first) {
+        ops.push(
+          db.stockIssue.update({
+            where: { id: first },
+            data: { ...shared, quantity: cell.quantity },
+          }),
+        )
+        if (rest.length > 0) ops.push(db.stockIssue.deleteMany({ where: { id: { in: rest } } }))
+      } else {
+        ops.push(
+          db.stockIssue.create({
+            data: { ...shared, itemId: cell.itemId, quantity: cell.quantity },
+          }),
+        )
+      }
+    }
+    if (ops.length === 0) return fail("Nothing to change")
+    await db.$transaction(ops)
+    return ok({ ok: true as const })
   })
 }
