@@ -19,6 +19,7 @@ import { SearchInput } from "@/components/shared/search-input"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { DateField } from "@/components/shared/date-field"
 import { Pagination } from "@/components/shared/pagination"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { useRowSelection } from "@/hooks/use-row-selection"
@@ -540,13 +541,9 @@ function EditRowDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="edit-row-date">Issued on</Label>
-              <Input
-                id="edit-row-date"
-                type="date"
-                value={issuedOn}
-                onChange={(e) => setIssuedOn(e.target.value)}
-              />
+              <Label>Issued on</Label>
+              {/* modal: rendered inside a Dialog, so the popover must layer above it. */}
+              <DateField value={issuedOn} onChange={setIssuedOn} modal />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -795,13 +792,9 @@ function IssueDialog({ items, onClose }: { items: StockItemRow[]; onClose: () =>
             </p>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="stock-issue-date">Issued on</Label>
-            <Input
-              id="stock-issue-date"
-              type="date"
-              value={issuedOn}
-              onChange={(e) => setIssuedOn(e.target.value)}
-            />
+            <Label>Issued on</Label>
+            {/* modal: rendered inside a Dialog, so the popover must layer above it. */}
+            <DateField value={issuedOn} onChange={setIssuedOn} modal />
           </div>
         </div>
         <DialogFooter>
