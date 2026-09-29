@@ -2,6 +2,7 @@ import "server-only"
 
 import { db } from "@/server/db"
 import { PERMISSIONS } from "@/lib/constants"
+import { resolvePagination, paginationMeta, type PaginationMeta } from "@/lib/pagination"
 import { requirePermission } from "@/server/action-guard"
 import { ok, fail, runAction, type ActionResult } from "@/server/action-result"
 import { normalizeName } from "../lib/parse"
@@ -203,31 +204,84 @@ export async function getStockIssues(filters: {
   q?: string
   itemId?: string
   unlinkedOnly?: boolean
-}): Promise<ActionResult<StockIssueRow[]>> {
+  page?: number
+  limit?: number
+}): Promise<ActionResult<{ rows: StockIssueRow[]; meta: PaginationMeta }>> {
   return runAction(async () => {
     await requirePermission(PERMISSIONS.EMPLOYEE_READ)
-    const rows = await db.stockIssue.findMany({
-      where: {
-        ...(filters.itemId ? { itemId: filters.itemId } : {}),
-        ...(filters.unlinkedOnly ? { employeeId: null } : {}),
-        ...(filters.q
-          ? {
-              OR: [
-                { holderName: { contains: filters.q, mode: "insensitive" } },
-                { item: { name: { contains: filters.q, mode: "insensitive" } } },
-                { employee: { firstName: { contains: filters.q, mode: "insensitive" } } },
-                { employee: { lastName: { contains: filters.q, mode: "insensitive" } } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: [{ issuedOn: "desc" }, { createdAt: "desc" }],
-      // The register is a few hundred rows for years of stationery; a hard cap
-      // keeps a runaway import from flattening the page.
-      take: 2000,
-      select: ISSUE_SELECT,
-    })
-    return ok(rows as StockIssueRow[])
+    const { page, limit, skip, take } = resolvePagination(
+      { page: filters.page, limit: filters.limit },
+      25,
+    )
+    const where = {
+      ...(filters.itemId ? { itemId: filters.itemId } : {}),
+      ...(filters.unlinkedOnly ? { employeeId: null } : {}),
+      ...(filters.q
+        ? {
+            OR: [
+              { holderName: { contains: filters.q, mode: "insensitive" as const } },
+              { item: { name: { contains: filters.q, mode: "insensitive" as const } } },
+              { employee: { firstName: { contains: filters.q, mode: "insensitive" as const } } },
+              { employee: { lastName: { contains: filters.q, mode: "insensitive" as const } } },
+            ],
+          }
+        : {}),
+    }
+    const [rows, total] = await Promise.all([
+      db.stockIssue.findMany({
+        where,
+        orderBy: [{ issuedOn: "desc" }, { createdAt: "desc" }],
+        skip,
+        take,
+        select: ISSUE_SELECT,
+      }),
+      db.stockIssue.count({ where }),
+    ])
+    return ok({ rows: rows as StockIssueRow[], meta: paginationMeta(total, page, limit) })
+  })
+}
+
+/**
+ * Bulk action on selected register entries: link them all to one employee,
+ * unlink them, or delete them. One request instead of N PATCHes from the
+ * selection bar, and the whole batch is scoped to ids that actually exist
+ * here (the tenant guard scopes the reads and writes).
+ */
+export async function bulkStockIssues(input: {
+  ids: string[]
+  action: "link" | "unlink" | "delete"
+  employeeId?: string
+}): Promise<ActionResult<{ affected: number }>> {
+  return runAction(async () => {
+    await requirePermission(PERMISSIONS.EMPLOYEE_WRITE)
+    const ids = Array.from(new Set(input.ids ?? [])).filter(
+      (id) => typeof id === "string" && id.length > 0,
+    )
+    if (ids.length === 0 || ids.length > 500) return fail("Select between 1 and 500 entries")
+
+    if (input.action === "link") {
+      if (!input.employeeId) return fail("Pick an employee to link to")
+      // Any status, INCLUDING deactivated - but it must be this tenant's employee.
+      const emp = await db.employee.findFirst({
+        where: { id: input.employeeId },
+        select: { id: true },
+      })
+      if (!emp) return fail("That employee does not exist here")
+      const res = await db.stockIssue.updateMany({
+        where: { id: { in: ids } },
+        data: { employeeId: emp.id },
+      })
+      return ok({ affected: res.count })
+    }
+    if (input.action === "unlink") {
+      const res = await db.stockIssue.updateMany({
+        where: { id: { in: ids } },
+        data: { employeeId: null },
+      })
+      return ok({ affected: res.count })
+    }
+    const res = await db.stockIssue.deleteMany({ where: { id: { in: ids } } })
+    return ok({ affected: res.count })
   })
 }
 

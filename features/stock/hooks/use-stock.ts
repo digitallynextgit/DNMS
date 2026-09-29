@@ -51,9 +51,16 @@ export interface ImportResult {
   unlinked: number
 }
 
+export interface PaginationMeta {
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
 const KEYS = {
   items: ["stock", "items"] as const,
-  issues: (filters: { q: string; itemId: string; unlinkedOnly: boolean }) =>
+  issues: (filters: { q: string; itemId: string; unlinkedOnly: boolean; page: number }) =>
     ["stock", "issues", filters] as const,
 }
 
@@ -64,16 +71,25 @@ export function useStockItems() {
   })
 }
 
-export function useStockIssues(filters: { q: string; itemId: string; unlinkedOnly: boolean }) {
+export function useStockIssues(filters: {
+  q: string
+  itemId: string
+  unlinkedOnly: boolean
+  page: number
+}) {
   const params = new URLSearchParams()
   if (filters.q) params.set("q", filters.q)
   if (filters.itemId && filters.itemId !== "all") params.set("itemId", filters.itemId)
   if (filters.unlinkedOnly) params.set("unlinked", "1")
-  const qs = params.toString()
+  params.set("page", String(filters.page))
   return useQuery({
     queryKey: KEYS.issues(filters),
     queryFn: async () =>
-      (await apiFetch<{ data: StockIssueRow[] }>(`/api/stock/issues${qs ? `?${qs}` : ""}`)).data,
+      (
+        await apiFetch<{ data: { rows: StockIssueRow[]; meta: PaginationMeta } }>(
+          `/api/stock/issues?${params.toString()}`,
+        )
+      ).data,
   })
 }
 
@@ -163,6 +179,26 @@ export function useDeleteStockIssue() {
   const invalidate = useInvalidateStock()
   return useMutation({
     mutationFn: (id: string) => apiFetch(`/api/stock/issues/${id}`, { method: "DELETE" }),
+    onSuccess: invalidate,
+  })
+}
+
+/** One request for the selection bar: link/unlink/delete many entries at once. */
+export function useBulkStockIssues() {
+  const invalidate = useInvalidateStock()
+  return useMutation({
+    mutationFn: async (input: {
+      ids: string[]
+      action: "link" | "unlink" | "delete"
+      employeeId?: string
+    }) =>
+      (
+        await apiFetch<{ data: { affected: number } }>("/api/stock/issues/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        })
+      ).data,
     onSuccess: invalidate,
   })
 }

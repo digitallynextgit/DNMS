@@ -9,7 +9,9 @@ import { SearchInput } from "@/components/shared/search-input"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
+import { Pagination } from "@/components/shared/pagination"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
+import { useRowSelection } from "@/hooks/use-row-selection"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,6 +43,8 @@ import {
   useCreateStockIssue,
   useUpdateStockIssue,
   useDeleteStockIssue,
+  useBulkStockIssues,
+  type LinkableEmployee,
   type StockIssueRow,
   type StockItemRow,
 } from "../hooks/use-stock"
@@ -60,6 +64,7 @@ export function StockClient() {
   const [q, setQ] = useState("")
   const [itemFilter, setItemFilter] = useState("all")
   const [unlinkedOnly, setUnlinkedOnly] = useState(false)
+  const [page, setPage] = useState(1)
 
   const [importOpen, setImportOpen] = useState(false)
   const [itemDialog, setItemDialog] = useState<
@@ -67,15 +72,50 @@ export function StockClient() {
   >(null)
   const [issueOpen, setIssueOpen] = useState(false)
   const [linkTarget, setLinkTarget] = useState<StockIssueRow | null>(null)
+  const [bulkLinkOpen, setBulkLinkOpen] = useState(false)
   const [toDelete, setToDelete] = useState<StockIssueRow | null>(null)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   const items = useStockItems()
-  const issues = useStockIssues({ q, itemId: itemFilter, unlinkedOnly })
+  const issues = useStockIssues({ q, itemId: itemFilter, unlinkedOnly, page })
   const updateIssue = useUpdateStockIssue()
   const deleteIssue = useDeleteStockIssue()
+  const bulk = useBulkStockIssues()
 
-  const rows = issues.data ?? []
+  const rows = issues.data?.rows ?? []
+  const meta = issues.data?.meta
   const hasFilters = Boolean(q) || itemFilter !== "all" || unlinkedOnly
+
+  // Selection spans pages: toggleAll works on the CURRENT page's ids, while
+  // ids picked on other pages stay selected until acted on or cleared.
+  const selection = useRowSelection(rows.map((r) => r.id))
+
+  /** Any filter change restarts at page 1 with a clean selection. */
+  function resetPaging() {
+    setPage(1)
+    selection.clear()
+  }
+
+  function runBulk(action: "link" | "unlink" | "delete", employeeId?: string) {
+    bulk.mutate(
+      { ids: selection.selectedIds, action, employeeId },
+      {
+        onSuccess: ({ affected }) => {
+          toast.success(
+            action === "delete"
+              ? `Deleted ${affected} entr${affected === 1 ? "y" : "ies"}`
+              : action === "link"
+                ? `Linked ${affected} entr${affected === 1 ? "y" : "ies"}`
+                : `Unlinked ${affected} entr${affected === 1 ? "y" : "ies"}`,
+          )
+          selection.clear()
+          setBulkLinkOpen(false)
+          setBulkDeleteOpen(false)
+        },
+        onError: (e) => toast.error(e.message),
+      },
+    )
+  }
 
   const columns: DataTableColumn<StockIssueRow>[] = [
     {
@@ -243,11 +283,20 @@ export function StockClient() {
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           value={q}
-          onChange={setQ}
+          onChange={(value) => {
+            setQ(value)
+            resetPaging()
+          }}
           placeholder="Search holder, employee or item…"
           className="w-full sm:w-72"
         />
-        <Select value={itemFilter} onValueChange={setItemFilter}>
+        <Select
+          value={itemFilter}
+          onValueChange={(value) => {
+            setItemFilter(value)
+            resetPaging()
+          }}
+        >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="All items" />
           </SelectTrigger>
@@ -262,12 +311,47 @@ export function StockClient() {
         </Select>
         <Button
           variant={unlinkedOnly ? "default" : "outline"}
-          onClick={() => setUnlinkedOnly((v) => !v)}
+          onClick={() => {
+            setUnlinkedOnly((v) => !v)
+            resetPaging()
+          }}
         >
           <UserX className="mr-1.5 h-3.5 w-3.5" />
           Unlinked only
         </Button>
       </div>
+
+      {/* ── Selection bar: appears once anything is ticked ───────────────── */}
+      {canWrite && selection.count > 0 && (
+        <div className="border-border bg-muted/40 flex flex-wrap items-center gap-2 rounded-sm border px-3 py-2">
+          <span className="text-sm font-medium">{selection.count} selected</span>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setBulkLinkOpen(true)}
+              disabled={bulk.isPending}
+            >
+              <Link2 className="mr-1.5 h-3.5 w-3.5" />
+              Link to employee
+            </Button>
+            <Button variant="outline" onClick={() => runBulk("unlink")} disabled={bulk.isPending}>
+              <Link2Off className="mr-1.5 h-3.5 w-3.5" />
+              Unlink
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => setBulkDeleteOpen(true)}
+              disabled={bulk.isPending}
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+              Delete
+            </Button>
+            <Button variant="ghost" onClick={selection.clear} disabled={bulk.isPending}>
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
 
       {!issues.isLoading && rows.length === 0 ? (
         <EmptyState
@@ -286,21 +370,74 @@ export function StockClient() {
           }
         />
       ) : (
-        <DataTable
-          columns={columns}
-          rows={rows}
-          rowKey={(r) => r.id}
-          loading={issues.isLoading}
-          minWidth="min-w-[760px]"
-          showSerial
-        />
+        <>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            rowKey={(r) => r.id}
+            loading={issues.isLoading}
+            minWidth="min-w-[760px]"
+            showSerial
+            serialOffset={meta ? (meta.page - 1) * meta.limit : 0}
+            selection={canWrite ? selection : undefined}
+          />
+          {meta && (
+            <Pagination
+              page={meta.page}
+              totalPages={meta.totalPages}
+              total={meta.total}
+              onPageChange={setPage}
+              itemLabel="entry"
+            />
+          )}
+        </>
       )}
 
       {/* ── Dialogs ──────────────────────────────────────────────────────── */}
       <StockImportDialog open={importOpen} onOpenChange={setImportOpen} />
       {itemDialog && <ItemDialog state={itemDialog} onClose={() => setItemDialog(null)} />}
       {issueOpen && <IssueDialog items={items.data ?? []} onClose={() => setIssueOpen(false)} />}
-      {linkTarget && <LinkDialog issue={linkTarget} onClose={() => setLinkTarget(null)} />}
+      {linkTarget && (
+        <EmployeePickerDialog
+          title={`Link "${linkTarget.holderName}" to an employee`}
+          description="Deactivated employees are included - the holder may have left since."
+          initialSearch={linkTarget.holderName}
+          busy={updateIssue.isPending}
+          onClose={() => setLinkTarget(null)}
+          onPick={(employee) =>
+            updateIssue.mutate(
+              { id: linkTarget.id, employeeId: employee.id },
+              {
+                onSuccess: () => {
+                  toast.success(`Linked to ${employee.firstName} ${employee.lastName}`)
+                  setLinkTarget(null)
+                },
+                onError: (err) => toast.error(err.message),
+              },
+            )
+          }
+        />
+      )}
+      {bulkLinkOpen && (
+        <EmployeePickerDialog
+          title={`Link ${selection.count} entr${selection.count === 1 ? "y" : "ies"} to an employee`}
+          description="Every selected entry is linked to the one employee you pick (deactivated included)."
+          initialSearch=""
+          busy={bulk.isPending}
+          onClose={() => setBulkLinkOpen(false)}
+          onPick={(employee) => runBulk("link", employee.id)}
+        />
+      )}
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`Delete ${selection.count} register entr${selection.count === 1 ? "y" : "ies"}?`}
+        description="The selected rows are removed from the register. This cannot be undone."
+        variant="destructive"
+        confirmLabel="Delete selected"
+        isLoading={bulk.isPending}
+        onConfirm={() => runBulk("delete")}
+      />
       <ConfirmDialog
         open={!!toDelete}
         onOpenChange={(open) => !open && setToDelete(null)}
@@ -567,21 +704,32 @@ function IssueDialog({ items, onClose }: { items: StockItemRow[]; onClose: () =>
   )
 }
 
-// ─── Link an existing entry to an employee ──────────────────────────────────
+// ─── Pick an employee (single link + bulk link share this) ──────────────────
 
-function LinkDialog({ issue, onClose }: { issue: StockIssueRow; onClose: () => void }) {
-  const [search, setSearch] = useState(issue.holderName)
+function EmployeePickerDialog({
+  title,
+  description,
+  initialSearch,
+  busy,
+  onPick,
+  onClose,
+}: {
+  title: string
+  description: string
+  initialSearch: string
+  busy: boolean
+  onPick: (employee: LinkableEmployee) => void
+  onClose: () => void
+}) {
+  const [search, setSearch] = useState(initialSearch)
   const employees = useLinkableEmployees(search)
-  const update = useUpdateStockIssue()
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Link &quot;{issue.holderName}&quot; to an employee</DialogTitle>
-          <DialogDescription>
-            Deactivated employees are included - the holder may have left since.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <SearchInput value={search} onChange={setSearch} placeholder="Search employees…" />
         <div className="max-h-64 space-y-0.5 overflow-y-auto">
@@ -589,20 +737,9 @@ function LinkDialog({ issue, onClose }: { issue: StockIssueRow; onClose: () => v
             <button
               key={e.id}
               type="button"
-              disabled={update.isPending}
+              disabled={busy}
               className="hover:bg-muted flex w-full items-center gap-2.5 rounded-sm px-2 py-2 text-left text-sm"
-              onClick={() =>
-                update.mutate(
-                  { id: issue.id, employeeId: e.id },
-                  {
-                    onSuccess: () => {
-                      toast.success(`Linked to ${e.firstName} ${e.lastName}`)
-                      onClose()
-                    },
-                    onError: (err) => toast.error(err.message),
-                  },
-                )
-              }
+              onClick={() => onPick(e)}
             >
               <AvatarDisplay
                 src={e.profilePhoto}
