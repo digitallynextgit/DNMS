@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import {
+  Download,
   Link2,
   Link2Off,
   Package,
@@ -36,6 +37,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -43,7 +52,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
+import { apiFetch } from "@/lib/api-fetch"
 import { PERMISSIONS } from "@/lib/constants"
+import { exportToCsv } from "@/lib/export-csv"
+import { exportToXlsx } from "@/lib/export-xlsx"
 import { formatDate } from "@/lib/utils"
 import {
   useStockItems,
@@ -55,9 +67,11 @@ import {
   useUpdateRegisterRow,
   useBulkStockIssues,
   type LinkableEmployee,
+  type PaginationMeta,
   type StockMatrixRow,
   type StockItemRow,
 } from "../hooks/use-stock"
+import { QtyInput } from "./qty-input"
 import { StockImportDialog } from "./stock-import-dialog"
 
 // =============================================================================
@@ -81,6 +95,8 @@ export function StockClient() {
     { mode: "create" } | { mode: "edit"; item: StockItemRow } | null
   >(null)
   const [issueOpen, setIssueOpen] = useState(false)
+  const [restockItem, setRestockItem] = useState<StockItemRow | null>(null)
+  const [exporting, setExporting] = useState(false)
   const [editRow, setEditRow] = useState<StockMatrixRow | null>(null)
   const [linkTarget, setLinkTarget] = useState<StockMatrixRow | null>(null)
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false)
@@ -128,6 +144,81 @@ export function StockClient() {
         onError: (e) => toast.error(e.message),
       },
     )
+  }
+
+  // ── Export ─────────────────────────────────────────────────────────────
+  // Fetches EVERY page of the register (with the current filters applied),
+  // then hands the same sheet-shaped table to the shared xlsx/csv exporters.
+
+  async function fetchAllMatrixRows(): Promise<StockMatrixRow[]> {
+    const all: StockMatrixRow[] = []
+    for (let pageNo = 1; ; pageNo++) {
+      const params = new URLSearchParams()
+      if (q) params.set("q", q)
+      if (itemFilter !== "all") params.set("itemId", itemFilter)
+      if (unlinkedOnly) params.set("unlinked", "1")
+      params.set("page", String(pageNo))
+      params.set("limit", "100")
+      const { data } = await apiFetch<{
+        data: { rows: StockMatrixRow[]; meta: PaginationMeta }
+      }>(`/api/stock/register?${params.toString()}`)
+      all.push(...data.rows)
+      if (pageNo >= data.meta.totalPages) return all
+    }
+  }
+
+  async function handleExport(kind: "register" | "items", format: "xlsx" | "csv") {
+    setExporting(true)
+    try {
+      const stamp = new Date().toISOString().slice(0, 10)
+      const itemList = items.data ?? []
+      let header: string[]
+      let table: (string | number | null)[][]
+      if (kind === "register") {
+        const allRows = await fetchAllMatrixRows()
+        header = [
+          "Given to",
+          "Employee",
+          "Employee No",
+          "Link",
+          "Issued on",
+          ...itemList.map((i) => i.name),
+        ]
+        table = allRows.map((r) => [
+          r.holderName,
+          r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : "",
+          r.employee?.employeeNo ?? "",
+          r.employee ? (r.employee.isActive ? "Linked" : "Linked (deactivated)") : "Not linked",
+          r.issuedOn ? formatDate(r.issuedOn) : "",
+          ...itemList.map((i) => r.cells[i.id]?.quantity ?? null),
+        ])
+      } else {
+        header = ["Item", "Price per piece", "Purchased", "Issued", "Left"]
+        table = itemList.map((i) => [
+          i.name,
+          i.pricePerPiece,
+          i.purchasedQty,
+          i.issuedQty,
+          i.leftQty,
+        ])
+      }
+      const base = kind === "register" ? `stock-register-${stamp}` : `stock-items-${stamp}`
+      if (format === "xlsx") {
+        await exportToXlsx(
+          header,
+          table,
+          `${base}.xlsx`,
+          kind === "register" ? "Register" : "Items",
+        )
+      } else {
+        exportToCsv(header, table, `${base}.csv`)
+      }
+      toast.success(`Exported ${table.length} row(s)`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Export failed")
+    } finally {
+      setExporting(false)
+    }
   }
 
   // Columns mirror the uploaded sheet: Holder | On date | one column PER ITEM
@@ -247,39 +338,86 @@ export function StockClient() {
         title="Stock Register"
         description="What was bought, who holds it, and what is left."
         actions={
-          canWrite ? (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => setImportOpen(true)}>
-                <Upload className="mr-1.5 h-4 w-4" />
-                Import Excel
-              </Button>
-              <Button variant="outline" onClick={() => setItemDialog({ mode: "create" })}>
-                <PackagePlus className="mr-1.5 h-4 w-4" />
-                Add item
-              </Button>
-              <Button onClick={() => setIssueOpen(true)}>
-                <Plus className="mr-1.5 h-4 w-4" />
-                Issue stock
-              </Button>
-            </div>
-          ) : undefined
+          <div className="flex flex-wrap gap-2">
+            {/* Export is a READ affordance - everyone who can see the page
+                can take the data with them, current filters applied. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={exporting} loading={exporting}>
+                  <Download className="mr-1.5 h-4 w-4" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel className="text-muted-foreground text-xs">
+                  Register (current filters)
+                </DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleExport("register", "xlsx")}>
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("register", "csv")}>
+                  CSV (.csv)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-muted-foreground text-xs">
+                  Items summary
+                </DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => handleExport("items", "xlsx")}>
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("items", "csv")}>
+                  CSV (.csv)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {canWrite && (
+              <>
+                <Button variant="outline" onClick={() => setImportOpen(true)}>
+                  <Upload className="mr-1.5 h-4 w-4" />
+                  Import Excel
+                </Button>
+                <Button variant="outline" onClick={() => setItemDialog({ mode: "create" })}>
+                  <PackagePlus className="mr-1.5 h-4 w-4" />
+                  Add item
+                </Button>
+                <Button onClick={() => setIssueOpen(true)}>
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Issue stock
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
 
       {/* ── Items: purchased / issued / left ─────────────────────────────── */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {(items.data ?? []).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            disabled={!canWrite}
-            onClick={() => canWrite && setItemDialog({ mode: "edit", item })}
-            className="border-border bg-card enabled:hover:border-foreground/25 rounded-sm border p-4 text-left transition-colors"
-            title={canWrite ? "Edit item" : undefined}
-          >
-            <div className="flex items-center justify-between gap-2">
+          <div key={item.id} className="border-border bg-card rounded-sm border p-4">
+            <div className="flex items-center justify-between gap-1">
               <span className="truncate text-sm font-semibold">{item.name}</span>
-              <Package className="text-muted-foreground h-4 w-4 shrink-0" />
+              {canWrite ? (
+                <span className="flex shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title={`Restock ${item.name} (add pieces)`}
+                    onClick={() => setRestockItem(item)}
+                  >
+                    <PackagePlus className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title={`Edit ${item.name}`}
+                    onClick={() => setItemDialog({ mode: "edit", item })}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </span>
+              ) : (
+                <Package className="text-muted-foreground h-4 w-4 shrink-0" />
+              )}
             </div>
             <p className="mt-2 text-2xl font-semibold tabular-nums">
               {item.leftQty}
@@ -289,7 +427,7 @@ export function StockClient() {
               {item.issuedQty} issued of {item.purchasedQty}
               {item.pricePerPiece !== null && ` · ₹${item.pricePerPiece}/pc`}
             </p>
-          </button>
+          </div>
         ))}
         {items.data?.length === 0 && !items.isLoading && (
           <div className="text-muted-foreground col-span-full text-sm">
@@ -419,6 +557,7 @@ export function StockClient() {
       {/* ── Dialogs ──────────────────────────────────────────────────────── */}
       <StockImportDialog open={importOpen} onOpenChange={setImportOpen} />
       {itemDialog && <ItemDialog state={itemDialog} onClose={() => setItemDialog(null)} />}
+      {restockItem && <RestockDialog item={restockItem} onClose={() => setRestockItem(null)} />}
       {issueOpen && <IssueDialog items={items.data ?? []} onClose={() => setIssueOpen(false)} />}
       {editRow && (
         <EditRowDialog row={editRow} items={items.data ?? []} onClose={() => setEditRow(null)} />
@@ -550,13 +689,10 @@ function EditRowDialog({
             {items.map((item) => (
               <div key={item.id} className="space-y-1.5">
                 <Label htmlFor={`edit-row-${item.id}`}>{item.name}</Label>
-                <Input
+                <QtyInput
                   id={`edit-row-${item.id}`}
-                  inputMode="numeric"
                   value={quantities[item.id] ?? "0"}
-                  onChange={(e) =>
-                    setQuantities((prev) => ({ ...prev, [item.id]: e.target.value }))
-                  }
+                  onChange={(v) => setQuantities((prev) => ({ ...prev, [item.id]: v }))}
                 />
               </div>
             ))}
@@ -568,6 +704,73 @@ function EditRowDialog({
           </Button>
           <Button onClick={submit} disabled={update.isPending} loading={update.isPending}>
             Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Restock (add pieces - a purchase is an event, not a corrected total) ───
+
+function RestockDialog({ item, onClose }: { item: StockItemRow; onClose: () => void }) {
+  const [qty, setQty] = useState("1")
+  const [price, setPrice] = useState(item.pricePerPiece?.toString() ?? "")
+  const update = useUpdateStockItem()
+
+  function submit() {
+    const qtyNum = Number(qty)
+    if (!Number.isInteger(qtyNum) || qtyNum < 1) return toast.error("How many pieces were bought?")
+    const priceNum = price.trim() === "" ? null : Number(price)
+    if (priceNum !== null && (!Number.isFinite(priceNum) || priceNum < 0))
+      return toast.error("Price must be a non-negative number")
+    update.mutate(
+      // Price only when given - an empty box means "unchanged", never "clear".
+      { id: item.id, restockBy: qtyNum, ...(priceNum !== null ? { pricePerPiece: priceNum } : {}) },
+      {
+        onSuccess: () => {
+          toast.success(
+            `Added ${qtyNum} to ${item.name} (now ${item.purchasedQty + qtyNum} purchased)`,
+          )
+          onClose()
+        },
+        onError: (e) => toast.error(e.message),
+      },
+    )
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Restock {item.name}</DialogTitle>
+          <DialogDescription>
+            Adds to the {item.purchasedQty} already purchased ({item.leftQty} currently left). To
+            CORRECT a wrong total instead, use the pencil on the item card.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="restock-qty">Pieces bought</Label>
+            <QtyInput id="restock-qty" value={qty} onChange={setQty} min={1} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="restock-price">Price per piece</Label>
+            <Input
+              id="restock-price"
+              inputMode="decimal"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="unchanged if empty"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={update.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={update.isPending} loading={update.isPending}>
+            Add stock
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -647,12 +850,7 @@ function ItemDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="stock-item-purchased">Purchased qty</Label>
-              <Input
-                id="stock-item-purchased"
-                inputMode="numeric"
-                value={purchased}
-                onChange={(e) => setPurchased(e.target.value)}
-              />
+              <QtyInput id="stock-item-purchased" value={purchased} onChange={setPurchased} />
             </div>
           </div>
         </div>
@@ -732,12 +930,7 @@ function IssueDialog({ items, onClose }: { items: StockItemRow[]; onClose: () =>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="stock-issue-qty">Quantity</Label>
-              <Input
-                id="stock-issue-qty"
-                inputMode="numeric"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-              />
+              <QtyInput id="stock-issue-qty" value={quantity} onChange={setQuantity} min={1} />
             </div>
           </div>
           <div className="space-y-1.5">

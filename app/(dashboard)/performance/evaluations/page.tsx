@@ -5,6 +5,7 @@ import { useUrlPage } from "@/hooks/use-url-state"
 import { Link } from "@/components/tenant-link"
 import { Plus, Trash2, Inbox, Sparkles, Search } from "lucide-react"
 
+import { DateField } from "@/components/shared/date-field"
 import { PageHeader } from "@/components/shared/page-header"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -182,7 +183,8 @@ function NewEvaluationDialog() {
           </div>
           <div className="space-y-2">
             <Label>Due date</Label>
-            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            {/* modal: inside FormDialog, so the calendar layers above it. */}
+            <DateField value={dueDate} onChange={setDueDate} modal />
           </div>
         </div>
       </FormDialog>

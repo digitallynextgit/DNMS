@@ -1,7 +1,7 @@
 "use client"
 
+import { DateField } from "@/components/shared/date-field"
 import { FilterSelect, FilterToolbar } from "@/components/shared/filter-bar"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SearchInput } from "@/components/shared/search-input"
 import { ATTENDANCE_STATUS_LABELS } from "@/lib/constants"
@@ -47,10 +47,10 @@ export function AttendanceFilters({
       {/* Date from */}
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs">From</Label>
-        <Input
-          type="date"
+        <DateField
           value={dateFrom}
-          onChange={(e) => onDateFromChange(e.target.value)}
+          onChange={onDateFromChange}
+          placeholder="From"
           className="h-9 w-[150px]"
         />
       </div>
@@ -58,10 +58,10 @@ export function AttendanceFilters({
       {/* Date to */}
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground text-xs">To</Label>
-        <Input
-          type="date"
+        <DateField
           value={dateTo}
-          onChange={(e) => onDateToChange(e.target.value)}
+          onChange={onDateToChange}
+          placeholder="To"
           className="h-9 w-[150px]"
         />
       </div>

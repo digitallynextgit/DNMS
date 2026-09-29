@@ -185,9 +185,14 @@ export async function updateStockItem(
           ...(parsed.data.pricePerPiece !== undefined
             ? { pricePerPiece: parsed.data.pricePerPiece }
             : {}),
-          ...(parsed.data.purchasedQty !== undefined
-            ? { purchasedQty: parsed.data.purchasedQty }
-            : {}),
+          // A restock ADDS pieces (a purchase is an event); an absolute
+          // purchasedQty is a correction of the total. Restock wins when both
+          // arrive, so a stale dialog cannot silently rewrite the total.
+          ...(parsed.data.restockBy
+            ? { purchasedQty: { increment: parsed.data.restockBy } }
+            : parsed.data.purchasedQty !== undefined
+              ? { purchasedQty: parsed.data.purchasedQty }
+              : {}),
           ...(parsed.data.notes !== undefined ? { notes: parsed.data.notes || null } : {}),
         },
       })

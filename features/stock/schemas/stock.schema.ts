@@ -7,7 +7,11 @@ export const createItemSchema = z.object({
   notes: z.string().trim().max(1000).nullable().optional(),
 })
 
-export const updateItemSchema = createItemSchema.partial()
+export const updateItemSchema = createItemSchema.partial().extend({
+  /** Restock: ADD this many pieces to purchasedQty (a purchase is an event,
+   *  not a corrected total). Wins over an absolute purchasedQty if both come. */
+  restockBy: z.number().int().min(1).max(1_000_000).optional(),
+})
 
 export const createIssueSchema = z.object({
   itemId: z.string().min(1, "Pick an item"),

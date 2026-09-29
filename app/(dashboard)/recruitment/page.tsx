@@ -9,6 +9,7 @@ import { Plus, Briefcase, Users, ExternalLink, Sparkles } from "lucide-react"
 import { Spinner } from "@/components/shared/spinner"
 import { Link } from "@/components/tenant-link"
 import { Button } from "@/components/ui/button"
+import { DateField } from "@/components/shared/date-field"
 import { PageHeader } from "@/components/shared/page-header"
 import { Pagination } from "@/components/shared/pagination"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -587,10 +588,11 @@ export default function RecruitmentPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label>Closing Date</Label>
-            <Input
-              type="date"
+            {/* modal: inside the job dialog, so the calendar layers above it. */}
+            <DateField
               value={form.closingDate}
-              onChange={(e) => setForm((f) => ({ ...f, closingDate: e.target.value }))}
+              onChange={(v) => setForm((f) => ({ ...f, closingDate: v }))}
+              modal
             />
           </div>
           <div className="space-y-2">

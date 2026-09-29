@@ -1559,11 +1559,10 @@ export function EmployeeForm({ mode, employeeId }: EmployeeFormProps) {
                           </Select>
                         </FormField>
                         <FormField label="Expires (optional)">
-                          <Input
-                            type="date"
+                          <DateField
                             value={doc.expiresAt ?? ""}
-                            onChange={(e) =>
-                              updatePendingDoc(doc.uid, { expiresAt: e.target.value || undefined })
+                            onChange={(v) =>
+                              updatePendingDoc(doc.uid, { expiresAt: v || undefined })
                             }
                           />
                         </FormField>

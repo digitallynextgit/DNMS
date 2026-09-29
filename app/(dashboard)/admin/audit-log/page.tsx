@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
+import { DateField } from "@/components/shared/date-field"
 import { PageHeader } from "@/components/shared/page-header"
 import { MODULES } from "@/lib/constants"
 
@@ -248,27 +249,25 @@ export default function AuditLogPage() {
         </div>
 
         {/* Date from */}
-        <Input
-          type="date"
+        <DateField
           value={dateFrom}
-          onChange={(e) => {
-            setDateFrom(e.target.value)
+          onChange={(v) => {
+            setDateFrom(v)
             setPage(1)
           }}
+          placeholder="From date"
           className="w-full sm:w-40"
-          aria-label="Date from"
         />
 
         {/* Date to */}
-        <Input
-          type="date"
+        <DateField
           value={dateTo}
-          onChange={(e) => {
-            setDateTo(e.target.value)
+          onChange={(v) => {
+            setDateTo(v)
             setPage(1)
           }}
+          placeholder="To date"
           className="w-full sm:w-40"
-          aria-label="Date to"
         />
 
         {/* Clear filters */}
