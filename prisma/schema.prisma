@@ -702,6 +702,9 @@ model Employee {
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
 
+  // Stock issued to this employee (HRMS stock register)
+  stockIssues StockIssue[]
+
   // Attendance
   attendanceLogs          AttendanceLog[]
   regularizations         AttendanceRegularization[] @relation("RegularizationEmployee")
@@ -1246,6 +1249,74 @@ model ContactEnquiry {
 
   @@index([createdAt])
   @@map("contact_enquiries")
+}
+
+// =============================================================================
+// STOCK REGISTER (HRMS)
+// =============================================================================
+// Office stock HR buys and hands out (diaries, pens, bottles...). Two tables
+// because the source spreadsheets have two shapes: a CATALOGUE (item, price,
+// quantity purchased) and an ISSUANCE register (who got how many, when).
+// "Stock left" is COMPUTED (purchased - issued), never stored - a stored copy
+// would drift the first time HR issues something in the app.
+//
+// The HOLDER on an issue is free text first, an employee link second: sheets
+// name people who are not (or are no longer) employees, and the row is kept
+// with the name as typed. HR can link it to an employee - active or
+// deactivated - whenever one matches.
+
+model StockItem {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id       String @id @default(uuid()) @map("id")
+
+  name          String   @map("name")
+  /// Purchase price per piece, as uploaded. Null when the sheet had none.
+  pricePerPiece Decimal? @map("price_per_piece") @db.Decimal(12, 2)
+  /// Total pieces purchased so far. Restocks add to it.
+  purchasedQty  Int      @default(0) @map("purchased_qty")
+  notes         String?  @map("notes")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  issues StockIssue[]
+
+  @@unique([tenantId, name])
+  @@map("stock_items")
+}
+
+model StockIssue {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id       String @id @default(uuid()) @map("id")
+
+  itemId String @map("item_id")
+
+  /// Who holds the item, exactly as uploaded/typed. Kept even when linked, so
+  /// the sheet's original spelling survives a later unlink.
+  holderName String  @map("holder_name")
+  /// The employee this issue is linked to, when the holder matches one.
+  /// Nullable on purpose: "just mention any name" is a supported state.
+  employeeId String? @map("employee_id")
+
+  quantity Int       @default(1) @map("quantity")
+  issuedOn DateTime? @map("issued_on") @db.Date
+  notes    String?   @map("notes")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  item     StockItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  /// SetNull, not Cascade: deleting an employee must not delete the register
+  /// row - the item was still issued, and holderName still says to whom.
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([itemId])
+  @@index([employeeId])
+  @@index([tenantId, holderName])
+  @@map("stock_issues")
 }
 
 // =============================================================================

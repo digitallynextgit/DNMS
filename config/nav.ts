@@ -28,6 +28,7 @@ import {
   Building2,
   ClipboardCheck,
   DoorOpen,
+  Package,
 } from "lucide-react"
 
 import { PERMISSIONS } from "@/lib/constants"
@@ -197,6 +198,12 @@ export const HRMS_ITEMS: NavItem[] = [
     href: "/wfh/requests",
     icon: Laptop,
     permission: PERMISSIONS.WFH_APPROVE,
+  },
+  {
+    label: "Stock Register",
+    href: "/stock",
+    icon: Package,
+    permission: PERMISSIONS.EMPLOYEE_READ,
   },
   {
     label: "Payroll",

@@ -197,6 +197,9 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   // --- Holidays (HR management; employees use /holiday-calendar) ---------
   [/^\/holidays(\/|$)/, "attendance:write"],
 
+  // --- Stock register (HR) ------------------------------------------------
+  [/^\/stock(\/|$)/, "employee:read"],
+
   // --- Leave (HR) --------------------------------------------------------
   [/^\/leave\/(team|types|leave-directory)(\/|$)/, "leave:approve"],
 

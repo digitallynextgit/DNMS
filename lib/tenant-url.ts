@@ -58,6 +58,10 @@ export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   "recruitment",
   "referrals",
   "resignations",
+  // HR stock register. Like "onboarding" above, "stock" reads exactly like a
+  // company name to looksLikeSlug - without this the proxy strips it and
+  // bounces /stock to /select-workspace.
+  "stock",
   "wfh",
   // The external client portal. A client belongs to a company too, so their
   // URLs carry the same prefix.
