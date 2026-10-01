@@ -63,6 +63,9 @@ export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   // bounces /stock to /select-workspace.
   "stock",
   "wfh",
+  // Month-end work report. Hyphenated like "exit-clearance", so looksLikeSlug
+  // would otherwise take it for a company and bounce it to /select-workspace.
+  "work-reports",
   // The external client portal. A client belongs to a company too, so their
   // URLs carry the same prefix.
   "portal",

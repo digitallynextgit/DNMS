@@ -29,6 +29,7 @@ import {
   ClipboardCheck,
   DoorOpen,
   Package,
+  Presentation,
 } from "lucide-react"
 
 import { PERMISSIONS } from "@/lib/constants"
@@ -123,6 +124,9 @@ export function projectItems(canManageProjects: boolean): NavItem[] {
       href: "/projects/progress",
       icon: TrendingUp,
     },
+    // No permission gate: everyone can report on themselves, and the route
+    // widens that to a manager's reporting line or (admin/HR) anyone.
+    { label: "Work Report", href: "/work-reports", icon: Presentation },
     // The company book: who the projects are for, with their contacts and
     // portal access. Gated on its own scope rather than project:write, because
     // running projects and administering client logins are different jobs.

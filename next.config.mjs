@@ -24,7 +24,9 @@ const nextConfig = {
   // has no text" about a PDF holding 12 pages of it. mammoth is the same shape.
   // pptxgenjs (deliverables slide deck) is a CJS bundle that reaches for fs /
   // https at runtime; leaving it external avoids the same class of failure.
-  serverExternalPackages: ["exceljs", "sharp", "pdf-parse", "mammoth", "pptxgenjs"],
+  // pdfkit (work report PDF) reads its built-in font metrics (.afm files) from
+  // its own package directory at runtime, which a bundled copy cannot find.
+  serverExternalPackages: ["exceljs", "sharp", "pdf-parse", "mammoth", "pptxgenjs", "pdfkit"],
   experimental: {
     // This app has a proxy (middleware) at proxy.ts, so Next BUFFERS every request
     // body for the proxy to read - and silently TRUNCATES it at 10 MB by default.
