@@ -31,6 +31,9 @@
  */
 export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   "admin",
+  // AI Connections (Claude / ChatGPT via MCP). Hyphenated, so looksLikeSlug
+  // would otherwise take it for a company name.
+  "ai-connections",
   "analytics",
   "announcements",
   "attendance",
@@ -86,6 +89,10 @@ export const GLOBAL_SEGMENTS: ReadonlySet<string> = new Set([
   "change-password",
   "select-workspace",
   "platform",
+  // AI-connector consent screen (/oauth/consent/<id>). Reached from Claude /
+  // ChatGPT before any tenant is in the URL; "oauth" reads exactly like a
+  // company name to looksLikeSlug, so without this it would be stripped.
+  "oauth",
   // Public marketing pages. A company is never called "about" or "contact", and
   // these must resolve to the marketing route rather than being read as a tenant
   // slug and stripped. Mirrored in PUBLIC_PREFIXES in proxy.ts.

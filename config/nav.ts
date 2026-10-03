@@ -30,6 +30,7 @@ import {
   DoorOpen,
   Package,
   Presentation,
+  Bot,
 } from "lucide-react"
 
 import { PERMISSIONS } from "@/lib/constants"
@@ -79,6 +80,9 @@ export const EMPLOYEE_ITEMS: NavItem[] = [
     badge: "pending-clearances",
   },
   { label: "Notifications", href: "/notifications", icon: Bell, badge: "unread-notifications" },
+  // No permission gate: anyone can connect Claude/ChatGPT to DNMS; the AI only
+  // ever gets the connecting person's own permissions (features/mcp).
+  { label: "AI Connections", href: "/ai-connections", icon: Bot },
 ]
 
 // ── Company: shared, company-wide. Visible to everyone. ─────────────────────

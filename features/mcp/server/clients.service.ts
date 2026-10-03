@@ -1,0 +1,283 @@
+import "server-only"
+
+import { lookup } from "node:dns/promises"
+import { isIP } from "node:net"
+import { z } from "zod"
+import { db } from "@/server/db"
+import { LIFETIME, TOKEN_PREFIX } from "../constants"
+import { generateToken } from "./tokens"
+import { isAllowedRedirect } from "./redirects"
+
+// =============================================================================
+// OAuth clients - which AI app is asking.
+//
+// Two ways an app identifies itself (MCP spec 2026-07-28):
+//   CIMD (preferred) - client_id IS an https URL serving a JSON metadata
+//        document. Claude, ChatGPT and Claude Code all do this. We fetch it,
+//        check it names itself, and cache it for 24 hours.
+//   DCR (deprecated, kept for older agents) - the app POSTs its metadata to
+//        /api/oauth/register and gets a generated client_id back.
+// =============================================================================
+
+export interface ResolvedClient {
+  clientId: string
+  kind: "cimd" | "dcr"
+  name: string
+  clientUri: string | null
+  redirectUris: string[]
+}
+
+export class ClientError extends Error {
+  constructor(
+    message: string,
+    public readonly code: "invalid_client" | "invalid_client_metadata" | "invalid_redirect_uri",
+  ) {
+    super(message)
+  }
+}
+
+const MAX_DOC_BYTES = 64 * 1024
+
+const cimdSchema = z
+  .object({
+    client_id: z.string(),
+    client_name: z.string().max(200).optional(),
+    client_uri: z.string().max(500).optional(),
+    redirect_uris: z.array(z.string().max(2000)).min(1).max(30),
+  })
+  .passthrough()
+
+export function looksLikeCimdClientId(clientId: string): boolean {
+  return /^https:\/\//i.test(clientId)
+}
+
+/** Find (and if needed fetch/refresh) the client behind a client_id. */
+export async function resolveClient(clientId: string): Promise<ResolvedClient> {
+  if (!clientId || clientId.length > 2000) {
+    throw new ClientError("Missing or invalid client_id", "invalid_client")
+  }
+
+  const existing = await db.oAuthClient.findUnique({ where: { clientId } })
+
+  if (looksLikeCimdClientId(clientId)) {
+    const fresh =
+      existing?.fetchedAt && Date.now() - existing.fetchedAt.getTime() < LIFETIME.CIMD_CACHE_MS
+    if (existing && fresh) return toResolved(existing)
+    try {
+      return await fetchAndStoreCimd(clientId)
+    } catch (err) {
+      // The app's metadata host is down: keep working from the last good copy
+      // rather than locking everyone out. A client we have never seen fails.
+      if (existing) return toResolved(existing)
+      throw err
+    }
+  }
+
+  if (!existing || existing.kind !== "dcr") {
+    throw new ClientError("Unknown client_id", "invalid_client")
+  }
+  return toResolved(existing)
+}
+
+function toResolved(row: {
+  clientId: string
+  kind: string
+  name: string
+  clientUri: string | null
+  redirectUris: string[]
+}): ResolvedClient {
+  return {
+    clientId: row.clientId,
+    kind: row.kind === "dcr" ? "dcr" : "cimd",
+    name: row.name,
+    clientUri: row.clientUri,
+    redirectUris: row.redirectUris,
+  }
+}
+
+async function fetchAndStoreCimd(clientId: string): Promise<ResolvedClient> {
+  const url = new URL(clientId)
+  if (url.protocol !== "https:" || url.pathname === "/" || url.hash) {
+    throw new ClientError("client_id URL must be https with a path", "invalid_client")
+  }
+  await assertPublicHost(url.hostname)
+
+  let res: Response
+  try {
+    res = await fetch(url, {
+      headers: { accept: "application/json" },
+      redirect: "error",
+      signal: AbortSignal.timeout(5000),
+      cache: "no-store",
+    })
+  } catch {
+    throw new ClientError("Could not fetch the app's metadata document", "invalid_client")
+  }
+  if (!res.ok) {
+    throw new ClientError(`The app's metadata document returned ${res.status}`, "invalid_client")
+  }
+  const text = await readCapped(res, MAX_DOC_BYTES)
+
+  let doc: unknown
+  try {
+    doc = JSON.parse(text)
+  } catch {
+    throw new ClientError("The app's metadata document is not JSON", "invalid_client")
+  }
+  const parsed = cimdSchema.safeParse(doc)
+  if (!parsed.success) {
+    throw new ClientError("The app's metadata document is incomplete", "invalid_client")
+  }
+  // The document must name itself - otherwise any page could claim to be Claude.
+  if (parsed.data.client_id !== clientId) {
+    throw new ClientError("The app's metadata document names a different client", "invalid_client")
+  }
+
+  const name = (parsed.data.client_name || url.hostname).trim().slice(0, 200)
+  const data = {
+    kind: "cimd",
+    name,
+    clientUri: parsed.data.client_uri ?? null,
+    redirectUris: parsed.data.redirect_uris,
+    metadata: parsed.data as never,
+    fetchedAt: new Date(),
+  }
+  const row = await db.oAuthClient.upsert({
+    where: { clientId },
+    create: { clientId, ...data },
+    update: data,
+  })
+  return toResolved(row)
+}
+
+/** Read a response body, refusing anything larger than `max` bytes. */
+async function readCapped(res: Response, max: number): Promise<string> {
+  const reader = res.body?.getReader()
+  if (!reader) return ""
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > max) {
+      await reader.cancel()
+      throw new ClientError("The app's metadata document is too large", "invalid_client")
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks).toString("utf8")
+}
+
+// ---------------------------------------------------------------------------
+// SSRF guard: the client_id URL is attacker-chosen, so never let it point the
+// server at itself or the private network.
+// ---------------------------------------------------------------------------
+async function assertPublicHost(hostname: string): Promise<void> {
+  const host = hostname.replace(/^\[|\]$/g, "")
+  const addresses = isIP(host)
+    ? [host]
+    : (await lookup(host, { all: true }).catch(() => [])).map((a) => a.address)
+  if (addresses.length === 0) {
+    throw new ClientError("The app's metadata host does not resolve", "invalid_client")
+  }
+  if (addresses.some(isPrivateAddress)) {
+    throw new ClientError("The app's metadata host is not public", "invalid_client")
+  }
+}
+
+function isPrivateAddress(ip: string): boolean {
+  const v = isIP(ip)
+  if (v === 4) {
+    const [a = 0, b = 0] = ip.split(".").map(Number)
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 192 && b === 0) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      a >= 224
+    )
+  }
+  if (v === 6) {
+    const lower = ip.toLowerCase()
+    if (lower === "::" || lower === "::1") return true
+    if (lower.startsWith("fc") || lower.startsWith("fd")) return true
+    if (/^fe[89ab]/.test(lower)) return true
+    const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
+    if (mapped?.[1]) return isPrivateAddress(mapped[1])
+    return false
+  }
+  return true
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic Client Registration (RFC 7591). Deprecated by MCP 2026-07-28 but
+// still the path some agents take. Open by design - registering grants nothing
+// on its own: a person still has to sign in and click Allow, and every redirect
+// URI must pass the allowlist.
+// ---------------------------------------------------------------------------
+const dcrSchema = z
+  .object({
+    redirect_uris: z.array(z.string().max(2000)).min(1).max(20),
+    client_name: z.string().max(200).optional(),
+    client_uri: z.string().max(500).optional(),
+    grant_types: z.array(z.string()).optional(),
+    response_types: z.array(z.string()).optional(),
+    token_endpoint_auth_method: z.string().optional(),
+    scope: z.string().optional(),
+  })
+  .passthrough()
+
+export async function registerDynamicClient(body: unknown) {
+  const parsed = dcrSchema.safeParse(body)
+  if (!parsed.success) {
+    throw new ClientError("redirect_uris is required", "invalid_client_metadata")
+  }
+  const meta = parsed.data
+  for (const uri of meta.redirect_uris) {
+    if (!isAllowedRedirect(uri)) {
+      throw new ClientError(
+        `Redirect URI not allowed by this server: ${uri}`,
+        "invalid_redirect_uri",
+      )
+    }
+  }
+  const unsupported = (meta.grant_types ?? []).filter(
+    (g) => g !== "authorization_code" && g !== "refresh_token",
+  )
+  if (unsupported.length) {
+    throw new ClientError(
+      `Unsupported grant_types: ${unsupported.join(", ")}`,
+      "invalid_client_metadata",
+    )
+  }
+
+  const clientId = generateToken(TOKEN_PREFIX.DCR_CLIENT)
+  const name = (meta.client_name || "AI app").trim().slice(0, 200)
+  const row = await db.oAuthClient.create({
+    data: {
+      clientId,
+      kind: "dcr",
+      name,
+      clientUri: meta.client_uri ?? null,
+      redirectUris: meta.redirect_uris,
+      metadata: meta as never,
+    },
+  })
+
+  // Public client: we never issue a secret, whatever was asked for.
+  return {
+    client_id: row.clientId,
+    client_id_issued_at: Math.floor(row.createdAt.getTime() / 1000),
+    client_name: row.name,
+    redirect_uris: row.redirectUris,
+    grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"],
+    token_endpoint_auth_method: "none",
+  }
+}

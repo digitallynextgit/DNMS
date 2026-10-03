@@ -39,7 +39,10 @@ const MEMBERSHIP_RECHECK_MS = 15 * 60 * 1000
 // ---------------------------------------------------------------------------
 // Helper - an employee's roles and flat permission scopes.
 // ---------------------------------------------------------------------------
-async function getUserWithPermissions(employeeId: string) {
+// Exported for the AI connector (features/mcp/server/principal.ts), which
+// rebuilds the same roles/permissions on every MCP call so a role change
+// applies immediately.
+export async function getUserWithPermissions(employeeId: string) {
   // Unscoped (M4): this runs in the JWT callback, which is what DECIDES the
   // tenant. The membership it is hydrating from has already been verified to
   // belong to this user, so the employee id is not attacker-supplied.

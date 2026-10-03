@@ -16,6 +16,7 @@ import { ZodError } from "zod"
 import type { Session } from "next-auth"
 import { auth } from "@/server/auth"
 import { enterTenant } from "@/server/tenant-context"
+import { delegatedSession } from "@/server/delegated-session"
 import { isAdmin_ } from "@/lib/permissions"
 import { AppError, UnauthorizedError, ForbiddenError } from "@/lib/errors"
 import { fail, ok } from "@/lib/api-response"
@@ -35,6 +36,13 @@ import type { ActionResult } from "@/server/action-result"
  * server/tenant-request.ts, which does the same thing.
  */
 export async function getSession(): Promise<Session | null> {
+  // An AI app acting for a verified person (MCP connector). The token was
+  // checked and the tenant entered by features/mcp/server/principal.ts before
+  // anything ran, so return that person's session as-is. See
+  // server/delegated-session.ts.
+  const delegated = delegatedSession()
+  if (delegated) return delegated
+
   const session = (await auth()) as Session | null
   if (session?.user?.tenantId && session.user.tenantSlug) {
     enterTenant({ tenantId: session.user.tenantId, slug: session.user.tenantSlug })

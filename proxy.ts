@@ -113,6 +113,16 @@ const PUBLIC_PREFIXES = [
   // inside the handler, which refuses everything when that is unset, so this
   // bypasses the SESSION guard only, not authentication.
   "/api/attendance/hook",
+  // The AI connector (MCP + OAuth). Self-authenticating, like /api/cron: the
+  // MCP endpoint checks a bearer token and MUST answer a missing one with its
+  // own 401 + WWW-Authenticate (a bare 401 from this guard has no discovery
+  // pointer, and Claude/ChatGPT could never find the login). The OAuth
+  // endpoints and /.well-known metadata are called by the AI apps' servers,
+  // which have no DNMS cookie. The consent PAGE (/oauth/consent/…) is NOT
+  // listed - it needs the person's session, so it keeps the login redirect.
+  "/api/mcp",
+  "/api/oauth",
+  "/.well-known",
   "/_next",
   "/favicon.ico",
   "/public",

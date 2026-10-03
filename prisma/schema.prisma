@@ -160,6 +160,8 @@ model Membership {
   employee   Employee?   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   clientUser ClientUser? @relation(fields: [clientUserId], references: [id], onDelete: Cascade)
 
+  oauthGrants OAuthGrant[]
+
   /// One membership per person per company per capacity. A user may hold BOTH a
   /// STAFF and a CLIENT membership in the same tenant - that is a real case (a
   /// contractor who is also a client contact), which is why `kind` is in the key.
@@ -704,6 +706,9 @@ model Employee {
 
   // Stock issued to this employee (HRMS stock register)
   stockIssues StockIssue[]
+
+  // AI apps (Claude, ChatGPT, ...) this employee connected via MCP
+  oauthGrants OAuthGrant[]
 
   // Attendance
   attendanceLogs          AttendanceLog[]
@@ -5497,4 +5502,134 @@ model ProjectGoalEvent {
 
   @@index([goalId, createdAt])
   @@map("project_goal_events")
+}
+
+// =============================================================================
+// AI CONNECTOR (MCP + OAuth 2.1) - docs/mcp-connector-plan.md
+//
+// DNMS is its own OAuth authorization server for AI apps (Claude, ChatGPT,
+// Claude Code, ...). A person signs in with their normal DNMS login, clicks
+// Allow, and the app gets a token that acts as THAT person - same roles, same
+// permissions, same company - at /api/mcp.
+//
+// Tokens are opaque random strings; only their SHA-256 hashes are stored.
+// =============================================================================
+
+/// An OAuth client - one AI app. Global (no tenantId) like Permission: the same
+/// Claude serves every company. CIMD clients are keyed by their metadata URL,
+/// DCR clients by a generated id.
+model OAuthClient {
+  id           String    @id @default(uuid()) @map("id")
+  /// What the app sends as client_id: a CIMD https URL, or "dnms_dcr_..." for DCR.
+  clientId     String    @unique @map("client_id")
+  /// "cimd" | "dcr"
+  kind         String    @map("kind")
+  name         String    @map("name")
+  clientUri    String?   @map("client_uri")
+  redirectUris String[]  @map("redirect_uris")
+  /// The metadata document (CIMD) or registration request (DCR), as received.
+  metadata     Json      @map("metadata")
+  /// CIMD only: when the document was last fetched. Re-fetched after 24 hours.
+  fetchedAt    DateTime? @map("fetched_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  grants OAuthGrant[]
+
+  @@map("oauth_clients")
+}
+
+/// One authorization request: created PENDING by /api/oauth/authorize, carries
+/// a one-time code once the person clicks Allow, consumed by /api/oauth/token.
+/// Global and short-lived (10 minutes pending, 60 seconds once a code exists) -
+/// the person, and so the company, is unknown until consent.
+model OAuthAuthorization {
+  id            String    @id @default(uuid()) @map("id")
+  clientId      String    @map("client_id")
+  redirectUri   String    @map("redirect_uri")
+  state         String?   @map("state")
+  scope         String    @map("scope")
+  resource      String    @map("resource")
+  codeChallenge String    @map("code_challenge")
+  /// SHA-256 of the one-time code. Null until Allow.
+  codeHash      String?   @unique @map("code_hash")
+  /// The grant created on Allow.
+  grantId       String?   @map("grant_id")
+  expiresAt     DateTime  @map("expires_at")
+  consumedAt    DateTime? @map("consumed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("oauth_authorizations")
+}
+
+/// A connection: "Karan connected Claude to Digitally Next". What a person sees
+/// and disconnects on /ai-connections. Every token hangs off one grant, and
+/// revoking the grant kills all of them at once.
+model OAuthGrant {
+  tenantId      String    @map("tenant_id")
+  id            String    @id @default(uuid()) @map("id")
+  membershipId  String    @map("membership_id")
+  userId        String    @map("user_id")
+  employeeId    String    @map("employee_id")
+  clientId      String    @map("client_id")
+  scope         String    @map("scope")
+  resource      String    @map("resource")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  lastUsedAt    DateTime? @map("last_used_at")
+  revokedAt     DateTime? @map("revoked_at")
+  revokedReason String?   @map("revoked_reason")
+
+  client     OAuthClient   @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  employee   Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  membership Membership    @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  tokens     OAuthToken[]
+  toolCalls  McpToolCall[]
+
+  @@index([tenantId, employeeId])
+  @@index([membershipId])
+  @@map("oauth_grants")
+}
+
+/// An access or refresh token. Looked up by hash, unscoped - the token is what
+/// decides the company, so it cannot be filtered by one.
+model OAuthToken {
+  id        String    @id @default(uuid()) @map("id")
+  grantId   String    @map("grant_id")
+  /// "access" | "refresh"
+  kind      String    @map("kind")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  /// Refresh tokens: when it was exchanged. Presenting it again after this is
+  /// treated as theft and revokes the whole grant.
+  usedAt    DateTime? @map("used_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  grant OAuthGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@index([grantId])
+  @@map("oauth_tokens")
+}
+
+/// Usage log: one row per tool call an AI app made. Never written for the
+/// hidden admin_ account. Rows older than 90 days are purged.
+model McpToolCall {
+  tenantId   String   @map("tenant_id")
+  id         String   @id @default(uuid()) @map("id")
+  grantId    String   @map("grant_id")
+  employeeId String   @map("employee_id")
+  tool       String   @map("tool")
+  /// e.g. "GET /api/leave/requests" for the API pass-through tool.
+  target     String?  @map("target")
+  ok         Boolean  @map("ok")
+  status     Int?     @map("status")
+  durationMs Int      @map("duration_ms")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  grant OAuthGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([grantId, createdAt])
+  @@map("mcp_tool_calls")
 }
