@@ -61,9 +61,9 @@ sequenceDiagram
 - **Stored secrets:** the project password-vault "reveal" and decrypted ad-platform credentials.
 - **Machine and sign-in endpoints:** NextAuth, password change/reset, cron jobs, the public website APIs, the biometric push hook, live event streams.
 - **Other accounts and itself:** the client portal (client accounts only), the connector's own OAuth endpoints, and connection management.
-- **Files:** uploads and downloads. The AI is told to use the web app for those.
+- **File uploads.** The AI can't send a file into DNMS. **Downloads are supported** (see §2a).
 
-**Tools the AI sees (8):**
+**Tools the AI sees (10):**
 
 | Tool | What it does |
 |---|---|
@@ -75,8 +75,34 @@ sequenceDiagram
 | `dnms_find_endpoints` | Search the catalogue of **304 DNMS API endpoints**: path, methods, query params, body fields, required permission |
 | `dnms_get` | Read any of those endpoints |
 | `dnms_change` | POST/PUT/PATCH/DELETE any of those endpoints. Marked destructive, so Claude and ChatGPT ask the person before running it. |
+| `dnms_download` | Gives the person a **download link** for any file DNMS can produce (see §2a). Can also return the file's text so the AI can read or summarise it. |
+| `dnms_export_table` | Turns any DNMS list into an **Excel or CSV** file, with a download link; the same as the web app's Export buttons |
 
 The endpoint catalogue is generated from the code by `scripts/generate-mcp-api-map.ts`. It reads each route's own doc comments, query parameters, and the zod schema its service validates with, and runs automatically before `pnpm dev` and `pnpm build`. **New DNMS routes become available to the AI on the next build, with no tool changes**, which matters because ChatGPT Business freezes an app's tool list when it is published.
+
+### 2a. Files and downloads (added 5 Oct 2026)
+
+Claude and ChatGPT can't receive a file through MCP. So the download tools hand the person a **link**, and they click it to download.
+
+**What can be downloaded.** Every file endpoint is marked `"file": true` in the catalogue, so the AI can find it:
+
+| Kind | Endpoints | How the link works |
+|---|---|---|
+| **Generated reports** | Monthly work report (`/api/work-reports`, PPTX/PDF/DOCX), deliverables report (`/api/projects/deliverables/report`, PPTX/XLSX/DOCX), deliverables CSV (`/api/projects/deliverables/export`), attendance CSV (`/api/attendance/export`), Google Sheet → XLSX (`/api/projects/[id]/drive/export`, POST) | DNMS builds the file as the person and keeps it **in memory for 10 minutes**. The link is `https://dnms.digitallynext.com/api/mcp/files/<signed token>`. |
+| **Stored files** | Company documents (`/api/documents/[id]`), employee documents, project files/resources, brand assets, chat/gallery/project-message attachments, CVs, employee photos and project logos | DNMS already creates a short-lived **signed storage link** for these. That link is passed on as-is, with the real file name. It lasts as long as DNMS's own links do (15 min to 24 h, depending on the file type). |
+| **Any list** (`dnms_export_table`) | Stock register, employee directory, leave requests, tasks, audit log… any list endpoint | DNMS reads every page (up to 10,000 rows) as the person and builds **XLSX or CSV**. CSV cells that could run as Excel formulas are neutralised. 10-minute link. |
+
+**Reading files.** With `readText: true`, the AI also gets the text of PDF, Word, Excel, CSV and text files (up to 12,000 characters). So "summarise the WFH policy" works. PowerPoint and images are download-only.
+
+**Security of the links:**
+- Links are signed with a key derived from `AUTH_SECRET`, so they can't be forged or edited.
+- A generated-file link expires after 10 minutes.
+- Each link names the connection it was issued to. Opening it re-checks that connection: if the app has been disconnected, the person deactivated, or the password changed, the link stops working at once.
+- If the server restarts and the in-memory copy is lost, a GET report is **rebuilt as the same person**, with permissions checked again. A file made by a POST is never re-run.
+- A link is a capability: whoever holds it can download that one file until it expires, like any share link. That's why the lifetime is kept short.
+- Every download is logged in `mcp_tool_calls`, recording the tool and file name but never the contents. Nothing is logged for the hidden `admin_` account.
+
+**Not available as files:** payslips and evaluation printouts are drawn as web pages in the browser (print to PDF). DNMS has no server-side file for them, so the AI reads the figures with `dnms_get` instead. Uploading files into DNMS through the AI isn't possible.
 
 ---
 
@@ -212,6 +238,18 @@ These ran against a local dev server on the shared database. Only reads were mad
 - [x] The consent page and the AI Connections page render with a real session.
 - [x] `pnpm type-check`, eslint, the full test suite (746 tests, 20 of them new) and a production build all pass.
 
+**Downloads (5 Oct 2026, live against the dev server; every link was actually downloaded and its file type checked):**
+- [x] Work report as PPTX (416 KB), PDF and DOCX, with the text of the PDF and DOCX read back.
+- [x] Deliverables report as XLSX, DOCX and PPTX (4.2 MB); the deliverables CSV; the attendance CSV.
+- [x] A company document (PDF) through its signed storage link, with its real name and readable text; a project file (JPEG); a gallery photo (redirect style).
+- [x] Table exports: stock issues (190 rows over 2 pages), active employees (CSV), leave requests and stock items (XLSX). The Excel files open with proper headers.
+- [x] Errors come back clearly: a missing parameter returns the route's own message, and asking for a data endpoint says "use dnms_get / dnms_export_table".
+- [x] Security:
+  - an edited link and a junk link return 410;
+  - a lost in-memory copy is rebuilt for GET and refused for POST;
+  - disconnecting the app returns 403 on its old links straight away;
+  - a plain employee is refused the attendance export and the employee directory.
+
 **Not tested:**
 - [ ] **Clicking Allow in a real browser** (the server action) and a live Claude/ChatGPT connection. These need the deployed HTTPS site and a real login, so do them at step 7 of §3.
 
@@ -245,7 +283,8 @@ These ran against a local dev server on the shared database. Only reads were mad
 | Routing | `proxy.ts` (`PUBLIC_PREFIXES`: `/api/mcp`, `/api/oauth`, `/.well-known`), `lib/tenant-url.ts` (`oauth` global, `ai-connections` tenant-scoped) |
 | Database | `prisma/schema.prisma` (5 models), `prisma/migrations/20261002000000_ai_connector` |
 | Catalogue | `scripts/generate-mcp-api-map.ts` (`pnpm mcp:api-map`) |
-| Tests | `features/mcp/lib/route-match.test.ts`, `features/mcp/server/oauth-rules.test.ts` |
+| Downloads | `features/mcp/server/{download.service,download-links,safe-fetch}.ts`, `features/mcp/lib/download-utils.ts`, `app/api/mcp/files/[token]/route.ts`; `extractTextFromBuffer` in `lib/file-text.ts` |
+| Tests | `features/mcp/lib/{route-match,download-utils}.test.ts`, `features/mcp/server/{oauth-rules,download-links}.test.ts` |
 | Env | `.env.example`: `APP_PUBLIC_ORIGIN`, `MCP_ALLOWED_REDIRECT_ORIGINS` |
 
 ---

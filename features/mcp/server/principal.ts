@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { Session } from "next-auth"
+import type { OAuthGrant } from "@prisma/client"
 import {
   OAuthError,
   OAuthErrorCode,
@@ -76,71 +77,92 @@ export async function resolvePrincipal(bearer: string): Promise<Principal | null
       where: { tokenHash: sha256Hex(bearer) },
       include: { grant: true },
     })
-    const now = new Date()
-    if (!token || token.kind !== "access" || token.revokedAt || token.expiresAt <= now) return null
-    const grant = token.grant
-    if (grant.revokedAt) return null
-    // Audience binding (RFC 8707): a token minted for another resource is useless here.
-    if (grant.resource.replace(/\/+$/, "") !== mcpResource()) return null
-
-    const membership = await loadMembershipIfStillValid(grant.membershipId)
-    if (!membership || membership.kind !== "STAFF" || membership.profileId !== grant.employeeId) {
+    if (!token || token.kind !== "access" || token.revokedAt || token.expiresAt <= new Date()) {
       return null
     }
-    if (membership.passwordChangedAt && membership.passwordChangedAt > grant.createdAt) {
-      await db.oAuthGrant.update({
-        where: { id: grant.id },
-        data: { revokedAt: now, revokedReason: "password_changed" },
-      })
-      return null
-    }
+    return principalForGrant(token.grant, token.expiresAt)
+  })
+}
 
-    const [user, data] = await Promise.all([
-      db.user.findUnique({ where: { id: grant.userId }, select: { email: true, name: true } }),
-      getUserWithPermissions(grant.employeeId),
-    ])
-    if (!user || !data) return null
+/**
+ * The same person, found from a connection id instead of an access token - for
+ * the one-time file-download links (features/mcp/server/download-links.ts),
+ * which are opened in a browser that holds no bearer token. Every check a token
+ * gets still applies: connection live, account active, password unchanged,
+ * permissions loaded fresh.
+ */
+export async function resolvePrincipalByGrant(grantId: string): Promise<Principal | null> {
+  return runUnscoped("ai connector: a download link names its connection", async () => {
+    const grant = await db.oAuthGrant.findUnique({ where: { id: grantId } })
+    if (!grant) return null
+    return principalForGrant(grant, new Date(Date.now() + 10 * 60_000))
+  })
+}
 
-    if (!grant.lastUsedAt || now.getTime() - grant.lastUsedAt.getTime() > LAST_USED_EVERY_MS) {
-      void db.oAuthGrant
-        .update({ where: { id: grant.id }, data: { lastUsedAt: now } })
-        .catch(() => {})
-    }
+/** Shared by both paths above. Must run inside runUnscoped (the grant decides the company). */
+async function principalForGrant(grant: OAuthGrant, sessionExpires: Date): Promise<Principal | null> {
+  const now = new Date()
+  if (grant.revokedAt) return null
+  // Audience binding (RFC 8707): a token minted for another resource is useless here.
+  if (grant.resource.replace(/\/+$/, "") !== mcpResource()) return null
 
-    const session: Session = {
-      expires: token.expiresAt.toISOString(),
-      user: {
-        id: data.employee.id,
-        email: user.email,
-        name: user.name ?? `${data.employee.firstName} ${data.employee.lastName}`.trim(),
-        kind: "employee",
-        userId: grant.userId,
-        membershipId: membership.id,
-        tenantId: membership.tenantId,
-        tenantSlug: membership.tenantSlug,
-        employeeNo: data.employee.employeeNo,
-        firstName: data.employee.firstName,
-        lastName: data.employee.lastName,
-        company: null,
-        profilePhoto: data.employee.profilePhoto ?? null,
-        roles: data.roles,
-        permissions: data.permissions,
-        mustChangePassword: membership.mustChangePassword,
-      },
-    }
+  const membership = await loadMembershipIfStillValid(grant.membershipId)
+  if (!membership || membership.kind !== "STAFF" || membership.profileId !== grant.employeeId) {
+    return null
+  }
+  if (membership.passwordChangedAt && membership.passwordChangedAt > grant.createdAt) {
+    await db.oAuthGrant.update({
+      where: { id: grant.id },
+      data: { revokedAt: now, revokedReason: "password_changed" },
+    })
+    return null
+  }
 
-    return {
-      session,
-      grantId: grant.id,
-      clientId: grant.clientId,
+  const [user, data] = await Promise.all([
+    db.user.findUnique({ where: { id: grant.userId }, select: { email: true, name: true } }),
+    getUserWithPermissions(grant.employeeId),
+  ])
+  if (!user || !data) return null
+
+  if (!grant.lastUsedAt || now.getTime() - grant.lastUsedAt.getTime() > LAST_USED_EVERY_MS) {
+    void db.oAuthGrant
+      .update({ where: { id: grant.id }, data: { lastUsedAt: now } })
+      .catch(() => {})
+  }
+
+  const session: Session = {
+    expires: sessionExpires.toISOString(),
+    user: {
+      id: data.employee.id,
+      email: user.email,
+      name: user.name ?? `${data.employee.firstName} ${data.employee.lastName}`.trim(),
+      kind: "employee",
+      userId: grant.userId,
+      membershipId: membership.id,
       tenantId: membership.tenantId,
       tenantSlug: membership.tenantSlug,
-      tenantName: membership.tenantName,
-      scopes: grant.scope.split(" ").filter(Boolean),
-      expiresAt: Math.floor(token.expiresAt.getTime() / 1000),
-      invisible: data.roles.includes(SYSTEM_ROLES.ADMIN_),
-    } satisfies Principal
-  })
+      employeeNo: data.employee.employeeNo,
+      firstName: data.employee.firstName,
+      lastName: data.employee.lastName,
+      company: null,
+      profilePhoto: data.employee.profilePhoto ?? null,
+      roles: data.roles,
+      permissions: data.permissions,
+      mustChangePassword: membership.mustChangePassword,
+    },
+  }
+
+  return {
+    session,
+    grantId: grant.id,
+    clientId: grant.clientId,
+    tenantId: membership.tenantId,
+    tenantSlug: membership.tenantSlug,
+    tenantName: membership.tenantName,
+    scopes: grant.scope.split(" ").filter(Boolean),
+    expiresAt: Math.floor(sessionExpires.getTime() / 1000),
+    invisible: data.roles.includes(SYSTEM_ROLES.ADMIN_),
+  } satisfies Principal
 }
 
 /** The principal stashed on the verified request by verifyAccessToken. */

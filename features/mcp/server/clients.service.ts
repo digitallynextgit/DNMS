@@ -1,12 +1,11 @@
 import "server-only"
 
-import { lookup } from "node:dns/promises"
-import { isIP } from "node:net"
 import { z } from "zod"
 import { db } from "@/server/db"
 import { LIFETIME, TOKEN_PREFIX } from "../constants"
 import { generateToken } from "./tokens"
 import { isAllowedRedirect } from "./redirects"
+import { UnsafeUrlError, assertPublicHost } from "./safe-fetch"
 
 // =============================================================================
 // OAuth clients - which AI app is asking.
@@ -100,7 +99,7 @@ async function fetchAndStoreCimd(clientId: string): Promise<ResolvedClient> {
   if (url.protocol !== "https:" || url.pathname === "/" || url.hash) {
     throw new ClientError("client_id URL must be https with a path", "invalid_client")
   }
-  await assertPublicHost(url.hostname)
+  await assertPublicClientHost(url.hostname)
 
   let res: Response
   try {
@@ -171,48 +170,17 @@ async function readCapped(res: Response, max: number): Promise<string> {
 
 // ---------------------------------------------------------------------------
 // SSRF guard: the client_id URL is attacker-chosen, so never let it point the
-// server at itself or the private network.
+// server at itself or the private network (shared helper: ./safe-fetch).
 // ---------------------------------------------------------------------------
-async function assertPublicHost(hostname: string): Promise<void> {
-  const host = hostname.replace(/^\[|\]$/g, "")
-  const addresses = isIP(host)
-    ? [host]
-    : (await lookup(host, { all: true }).catch(() => [])).map((a) => a.address)
-  if (addresses.length === 0) {
-    throw new ClientError("The app's metadata host does not resolve", "invalid_client")
+async function assertPublicClientHost(hostname: string): Promise<void> {
+  try {
+    await assertPublicHost(hostname)
+  } catch (err) {
+    if (err instanceof UnsafeUrlError) {
+      throw new ClientError(`The app's metadata host problem: ${err.message}`, "invalid_client")
+    }
+    throw err
   }
-  if (addresses.some(isPrivateAddress)) {
-    throw new ClientError("The app's metadata host is not public", "invalid_client")
-  }
-}
-
-function isPrivateAddress(ip: string): boolean {
-  const v = isIP(ip)
-  if (v === 4) {
-    const [a = 0, b = 0] = ip.split(".").map(Number)
-    return (
-      a === 0 ||
-      a === 10 ||
-      a === 127 ||
-      (a === 100 && b >= 64 && b <= 127) ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 192 && b === 0) ||
-      (a === 198 && (b === 18 || b === 19)) ||
-      a >= 224
-    )
-  }
-  if (v === 6) {
-    const lower = ip.toLowerCase()
-    if (lower === "::" || lower === "::1") return true
-    if (lower.startsWith("fc") || lower.startsWith("fd")) return true
-    if (/^fe[89ab]/.test(lower)) return true
-    const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
-    if (mapped?.[1]) return isPrivateAddress(mapped[1])
-    return false
-  }
-  return true
 }
 
 // ---------------------------------------------------------------------------

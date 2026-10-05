@@ -282,6 +282,8 @@ interface MethodInfo {
   permissions?: string[]
   guard?: string
   upload?: true
+  /** Produces a downloadable file (or a signed link to one): use dnms_download. */
+  file?: true
 }
 
 function analyse(file: string, scopes: Map<string, string>) {
@@ -370,6 +372,19 @@ function analyse(file: string, scopes: Map<string, string>) {
       if (body) info.body = body.slice(0, 900)
     }
     if (/\.formData\(\)/.test(segment)) info.upload = true
+    // A route that hands back a file: bytes with a download header or a document
+    // MIME type, or (GET only) a signed storage link / redirect to one. POST
+    // routes only count when they generate the bytes themselves, because a POST
+    // that merely RETURNS a signed link is an upload.
+    const makesFile =
+      /Content-Disposition|content-disposition|application\/pdf|spreadsheetml|presentationml|wordprocessingml|text\/csv|octet-stream/.test(
+        segment,
+      )
+    const linksToFile =
+      s.method === "GET" &&
+      /get\w*(Document|Resource)Url\(|NextResponse\.redirect\(\s*(url|fresh|signed|cached)|data:\s*\{[^}]*signedUrl/.test(segment)
+    // The brand page returns a data object that merely CONTAINS signed asset links.
+    if (!info.upload && path !== "/api/projects/[id]/brand" && (makesFile || linksToFile)) info.file = true
     if (perms.length) info.permissions = perms
     if (guard) info.guard = guard
     methods[s.method] = info

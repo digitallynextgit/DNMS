@@ -56,11 +56,30 @@ const WRITE_METHODS = new Set<HttpMethod>(["POST", "PUT", "PATCH", "DELETE"])
 /** Responses bigger than this are trimmed (and the AI told how to narrow them). */
 const MAX_CHARS = 90_000
 
-export async function callApi(principal: Principal, input: ApiCallInput): Promise<ApiCallResult> {
+/** A route that was run: the raw Response plus what we know about the route. */
+export interface InvokedRoute {
+  res: Response
+  /** e.g. "GET /api/projects/[id]/tasks" */
+  route: string
+  /** The catalogue pattern, e.g. "/api/projects/[id]/tasks" */
+  pattern: string
+  info: ApiMethodInfo
+}
+
+/**
+ * Run one DNMS API route in-process as the person - every policy gate here
+ * (excluded routes, read-only connections, uploads) - and hand back the raw
+ * Response. `callApi` reads it as data; the download tools read it as a file.
+ */
+export async function invokeRoute(
+  principal: Principal,
+  input: ApiCallInput,
+): Promise<{ ok: true; value: InvokedRoute } | { ok: false; result: ApiCallResult }> {
+  const fail = (result: ApiCallResult) => ({ ok: false as const, result })
   const method = input.method.toUpperCase() as HttpMethod
   const raw = input.path.trim()
   if (!raw.startsWith("/api/")) {
-    return { ok: false, status: 400, note: "path must start with /api/ - e.g. /api/leave/requests" }
+    return fail({ ok: false, status: 400, note: "path must start with /api/ - e.g. /api/leave/requests" })
   }
 
   // Accept "/api/x?a=1" as well as a separate `query` object.
@@ -74,55 +93,55 @@ export async function callApi(principal: Principal, input: ApiCallInput): Promis
 
   const match = matchRoute(pathname)
   if (!match) {
-    return {
+    return fail({
       ok: false,
       status: 404,
       note: `No DNMS endpoint matches ${pathname}. Use dnms_find_endpoints to look one up.`,
-    }
+    })
   }
   const { entry, params } = match
   const routeLabel = `${method} ${entry.path}`
 
   const blocked = exclusionReason(entry.path, method)
   if (blocked) {
-    return {
+    return fail({
       ok: false,
       status: 403,
       route: routeLabel,
       note: `Not available through the AI connector: ${blocked}.`,
-    }
+    })
   }
   const info: ApiMethodInfo | undefined = entry.methods[method]
   if (!info) {
     const allowed = Object.keys(entry.methods).join(", ")
-    return {
+    return fail({
       ok: false,
       status: 405,
       route: routeLabel,
       note: `${entry.path} supports: ${allowed || "nothing through the AI connector"}.`,
-    }
+    })
   }
   if (WRITE_METHODS.has(method) && !principal.scopes.includes(MCP_SCOPES.WRITE)) {
-    return {
+    return fail({
       ok: false,
       status: 403,
       route: routeLabel,
       note: "This connection was granted read-only access. Reconnect DNMS and allow changes to do this.",
-    }
+    })
   }
   if (info.upload) {
-    return {
+    return fail({
       ok: false,
       status: 415,
       route: routeLabel,
       note: "This endpoint takes a file upload, which the AI connector cannot send. Use the DNMS web app for this step.",
-    }
+    })
   }
 
   const mod = (await entry.load()) as Record<string, unknown>
   const handler = mod[method] as RouteHandler | undefined
   if (typeof handler !== "function") {
-    return { ok: false, status: 405, route: routeLabel, note: `${method} is not implemented here.` }
+    return fail({ ok: false, status: 405, route: routeLabel, note: `${method} is not implemented here.` })
   }
 
   const headers = new Headers({
@@ -136,26 +155,35 @@ export async function callApi(principal: Principal, input: ApiCallInput): Promis
   }
   const req = new NextRequest(url, { method, headers, body })
 
-  let res: Response
   try {
-    res = await runAsPrincipal(principal, async () =>
+    const res = await runAsPrincipal(principal, async () =>
       handler(req, { params: Promise.resolve(params) }),
     )
+    return { ok: true, value: { res, route: routeLabel, pattern: entry.path, info } }
   } catch (err) {
     console.error("[mcp] route threw", routeLabel, err)
-    return { ok: false, status: 500, route: routeLabel, note: "The DNMS endpoint failed unexpectedly." }
+    return fail({ ok: false, status: 500, route: routeLabel, note: "The DNMS endpoint failed unexpectedly." })
   }
-
-  return readResponse(res, routeLabel)
 }
 
-async function readResponse(res: Response, route: string): Promise<ApiCallResult> {
+export async function callApi(principal: Principal, input: ApiCallInput): Promise<ApiCallResult> {
+  const run = await invokeRoute(principal, input)
+  if (!run.ok) return run.result
+  return readResponse(run.value.res, run.value.route, input.path)
+}
+
+async function readResponse(res: Response, route: string, path = ""): Promise<ApiCallResult> {
   const status = res.status
   const ok = status >= 200 && status < 300
   const type = res.headers.get("content-type") ?? ""
 
   if (status >= 300 && status < 400) {
-    return { ok: false, status, route, note: `Redirects to ${res.headers.get("location") ?? "?"}` }
+    return {
+      ok: false,
+      status,
+      route,
+      note: `This endpoint redirects to a file. Use dnms_download with path ${path || "(this path)"} to get a download link.`,
+    }
   }
   if (type.includes("application/json")) {
     const text = await res.text()
@@ -192,7 +220,7 @@ async function readResponse(res: Response, route: string): Promise<ApiCallResult
     ok,
     status,
     route,
-    note: `Returns a file (${type || "binary"}${res.headers.get("content-length") ? `, ${res.headers.get("content-length")} bytes` : ""}). Download it from the DNMS web app.`,
+    note: `Returns a file (${type || "binary"}${res.headers.get("content-length") ? `, ${res.headers.get("content-length")} bytes` : ""}). Use dnms_download with path ${path || "(this path)"} to get a download link.`,
   }
 }
 

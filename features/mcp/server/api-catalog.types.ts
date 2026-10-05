@@ -15,6 +15,8 @@ export interface ApiMethodInfo {
   guard?: string
   /** Expects multipart/form-data (a file upload) - not callable through MCP. */
   upload?: true
+  /** Produces a downloadable file (or a signed link to one): use dnms_download. */
+  file?: true
 }
 
 export interface ApiRouteEntry {
