@@ -411,7 +411,7 @@ export function EditEmploymentDetails({ emp }: { emp: EmployeeDetail }) {
               <SelectContent>
                 {departments.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
-                    {d.name}
+                    {d.label}
                   </SelectItem>
                 ))}
               </SelectContent>

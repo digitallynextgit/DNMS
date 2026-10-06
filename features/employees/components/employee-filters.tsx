@@ -54,7 +54,7 @@ export function EmployeeFilters({
       <FilterSelect
         value={departmentId}
         onChange={onDepartmentChange}
-        options={departments.map((dept) => ({ value: dept.id, label: dept.name }))}
+        options={departments.map((dept) => ({ value: dept.id, label: dept.label }))}
         allLabel="All Departments"
         className="w-[180px]"
       />

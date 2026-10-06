@@ -19,7 +19,12 @@ import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { ViewToggle, type ViewMode } from "@/components/shared/view-toggle"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { useUpdateEffect } from "@/hooks/use-update-effect"
-import { EmployeeCard } from "@/features/employees"
+import {
+  EmployeeCard,
+  EmployeeCellSkeleton,
+  EmployeeStatusSkeleton,
+  EmployeeActionsSkeleton,
+} from "@/features/employees"
 import { EmployeeFilters } from "@/features/employees"
 import { apiFetch } from "@/lib/api-fetch"
 import {
@@ -201,6 +206,7 @@ export function EmployeeDirectoryClient() {
   const columns: DataTableColumn<EmployeeListItem>[] = [
     {
       header: "Employee",
+      skeleton: <EmployeeCellSkeleton />,
       cell: (emp) => (
         <Link
           href={`/employees/${employeeSlug(emp.employeeNo, emp.firstName, emp.lastName)}`}
@@ -234,6 +240,7 @@ export function EmployeeDirectoryClient() {
     },
     {
       header: "Status",
+      skeleton: <EmployeeStatusSkeleton />,
       cell: (emp) => (
         <div className="flex flex-wrap items-center gap-1.5">
           <StatusBadge
@@ -259,6 +266,7 @@ export function EmployeeDirectoryClient() {
     {
       header: "",
       align: "right",
+      skeleton: <EmployeeActionsSkeleton />,
       cell: (emp) => {
         const fullName = `${emp.firstName} ${emp.lastName}`
         return (

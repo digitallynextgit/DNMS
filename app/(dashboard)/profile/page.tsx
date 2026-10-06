@@ -21,6 +21,7 @@ import {
   Upload,
   Pencil,
   Trash2,
+  ClipboardCheck,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -40,6 +41,7 @@ import { TaskReminderSettings } from "@/features/notifications"
 import { DocumentList } from "@/features/documents"
 import { DocumentUploadDialog } from "@/features/documents"
 import { useSession } from "next-auth/react"
+import { JoineeScorecard, useScorecard } from "@/features/joinee-scorecard"
 import { useEmployee } from "@/features/employees"
 import { formatDate } from "@/lib/utils"
 import { getProbationStatus } from "@/features/employees"
@@ -77,6 +79,10 @@ export default function ProfilePage() {
   const userId = session?.user?.id ?? null
 
   const { data, isLoading, error, refetch } = useEmployee(userId)
+  // Your own 15-day joinee scorecard, read-only - the tab only appears once HR
+  // has started one. Same query the tab renders from, so no second request.
+  const { data: scorecardData } = useScorecard(userId)
+  const hasScorecard = !!scorecardData?.scorecard
 
   const [pwForm, setPwForm] = useState({
     currentPassword: "",
@@ -256,6 +262,7 @@ export default function ProfilePage() {
             { value: "roles", label: "Roles", icon: ShieldCheck },
             { value: "security", label: "Security", icon: Shield },
             { value: "notifications", label: "Notifications", icon: Bell },
+            hasScorecard && { value: "scorecard", label: "15-Day Scorecard", icon: ClipboardCheck },
           ]}
         />
 
@@ -633,6 +640,12 @@ export default function ProfilePage() {
         <TabsContent value="notifications" className="space-y-6">
           <TaskReminderSettings />
         </TabsContent>
+
+        {hasScorecard && userId && (
+          <TabsContent value="scorecard">
+            <JoineeScorecard employeeId={userId} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

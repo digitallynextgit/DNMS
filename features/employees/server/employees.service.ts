@@ -19,9 +19,11 @@ import { canAccessEmployee } from "@/lib/permissions"
 // from the policy matrix when a new hire is created.
 import { allocateFromPolicy } from "@/features/leave/server/leave-accrual.service"
 import { instantiateAndNotify } from "@/features/hr-checklists/server/checklists.service"
+import { startScorecardFor } from "@/features/joinee-scorecard/server/scorecard.service"
 import { encrypt } from "@/lib/crypto"
 import bcrypt from "bcryptjs"
 import { randomInt } from "crypto"
+import { departmentDescendantIds } from "../lib/department-tree"
 
 // Generate a readable, reasonably strong initial password to email to a new
 // hire. Avoids ambiguous characters (0/O, 1/l/I).
@@ -112,7 +114,12 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
         { employeeNo: { contains: search, mode: "insensitive" } },
       ]
     }
-    if (departmentId) where.departmentId = departmentId
+    if (departmentId) {
+      // A department includes everyone in its sub-departments: filtering on
+      // SMG lists the people in MSG and Content too.
+      const tree = await db.department.findMany({ select: { id: true, parentId: true } })
+      where.departmentId = { in: [departmentId, ...departmentDescendantIds(tree, departmentId)] }
+    }
     if (designationId) where.designationId = designationId
     // "Active" / "Inactive" follow `isActive` - what the directory's badge shows.
     // Deactivating someone only clears isActive and leaves status ACTIVE, so
@@ -421,6 +428,15 @@ export async function createEmployee(input: unknown): Promise<ActionResult<unkno
         })
       } catch (e) {
         console.error("[createEmployee] onboarding checklist failed", e)
+      }
+
+      // And their 15-day joinee scorecard: one row per working day from the
+      // joining date, for the manager and HR to score. Best-effort likewise -
+      // HR can start one by hand from the employee's Scorecard tab.
+      try {
+        await startScorecardFor(employee.id, { actorId: session.user.id })
+      } catch (e) {
+        console.error("[createEmployee] joinee scorecard failed", e)
       }
 
       const meta = await getAuditMeta()

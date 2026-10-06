@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { useDebounce } from "@/hooks/use-debounce"
 import { apiFetch } from "@/lib/api-fetch"
 import { mutationWithToast } from "@/lib/query/mutation-with-toast"
+import { flattenDepartmentTree } from "../lib/department-tree"
 
 export interface EmployeeCodeItem {
   id: string
@@ -71,8 +72,7 @@ export interface EmployeeDetail extends EmployeeListItem {
 export interface Department {
   id: string
   name: string
-  code: string
-  description: string | null
+  parentId: string | null
   headId: string | null
 }
 
@@ -314,10 +314,16 @@ export function useOrgChart() {
   })
 }
 
+/**
+ * Active departments in TREE order - each followed by its sub-departments -
+ * with `label` holding the full path ("SMG › MSG › Content"), which is what
+ * the dropdowns show.
+ */
 export function useDepartments() {
   return useQuery({
     queryKey: ["departments"],
     queryFn: fetchDepartments,
+    select: (res) => ({ data: flattenDepartmentTree(res.data) }),
     staleTime: 300_000,
   })
 }

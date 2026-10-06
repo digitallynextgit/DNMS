@@ -14,12 +14,14 @@ import {
   Wallet,
   Upload,
   Pencil,
+  ClipboardCheck,
 } from "lucide-react"
 import { Link } from "@/components/tenant-link"
 import { EmployeeLeaveTab } from "@/features/employees"
 import { EmployeeSalaryTab } from "@/features/employees"
 import { EmployeeTaskAccess } from "@/features/employees"
 import { DocumentList } from "@/features/documents"
+import { JoineeScorecard } from "@/features/joinee-scorecard"
 import { DocumentUploadDialog } from "@/features/documents"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -120,6 +122,7 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
   const canUploadDocs = can(PERMISSIONS.DOCUMENT_WRITE)
   const canDeleteDocs = can(PERMISSIONS.DOCUMENT_DELETE)
   const canEdit = can(PERMISSIONS.EMPLOYEE_WRITE)
+  const canSeeScorecard = can(PERMISSIONS.ONBOARDING_READ) || can(PERMISSIONS.ONBOARDING_WRITE)
 
   const ca = (emp.currentAddress ?? {}) as Record<string, string>
   const pa = (emp.permanentAddress ?? {}) as Record<string, string>
@@ -247,6 +250,12 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
             // HR only: the API behind it is employee:write, so showing the tab to
             // anyone else would only ever produce a 403.
             canEdit && { value: "access", label: "Task Access", icon: History },
+            // Onboarding HR: the scorecard reads on onboarding:read, edits on :write.
+            canSeeScorecard && {
+              value: "scorecard",
+              label: "15-Day Scorecard",
+              icon: ClipboardCheck,
+            },
           ]}
         />
 
@@ -440,6 +449,13 @@ export default function EmployeeProfilePage({ params }: { params: Promise<{ id: 
         {canEdit && (
           <TabsContent value="access">
             <EmployeeTaskAccess employeeId={emp.id} employeeName={fullName} />
+          </TabsContent>
+        )}
+
+        {/* ── 15-Day Scorecard Tab ─────────────────────────────────────────── */}
+        {canSeeScorecard && (
+          <TabsContent value="scorecard">
+            <JoineeScorecard employeeId={emp.id} />
           </TabsContent>
         )}
       </Tabs>

@@ -31,10 +31,12 @@ import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS, JOB_STATUS_LABELS, JOB_STATUS_COLORS } from "@/lib/constants"
 import { cn, formatDate } from "@/lib/utils"
 import { apiFetch } from "@/lib/api-fetch"
+import { flattenDepartmentTree } from "@/features/employees"
 
 interface Department {
   id: string
   name: string
+  parentId: string | null
   careersTone?: "red" | "teal" | null
   careersJobsLabel?: string | null
 }
@@ -123,6 +125,8 @@ export default function RecruitmentPage() {
   // every render, so every downstream useMemo keyed on these re-ran regardless.
   const jobs = useMemo(() => jobsData?.data ?? [], [jobsData])
   const depts = useMemo(() => deptsData?.data ?? [], [deptsData])
+  // Tree order with full paths, for the posting's department dropdown.
+  const deptOptions = useMemo(() => flattenDepartmentTree(depts), [depts])
 
   // Client-side pagination of the postings grid. Stats below stay computed from
   // the full `jobs` list so the counts remain accurate across all pages.
@@ -482,9 +486,9 @@ export default function RecruitmentPage() {
                 <SelectValue placeholder="Select" />
               </SelectTrigger>
               <SelectContent>
-                {depts.map((d) => (
+                {deptOptions.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
-                    {d.name}
+                    {d.label}
                   </SelectItem>
                 ))}
               </SelectContent>

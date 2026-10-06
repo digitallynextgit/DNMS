@@ -798,6 +798,10 @@ model Employee {
   checklistItems      ChecklistInstanceItem[] @relation("ChecklistItemAssignee")
   checklistItemsDone  ChecklistInstanceItem[] @relation("ChecklistItemDoneBy")
 
+  // 15-day new-joinee scorecard
+  joineeScorecard       JoineeScorecard?  @relation("JoineeScorecardEmployee")
+  joineeScorecardsSpoc  JoineeScorecard[] @relation("JoineeScorecardHrSpoc")
+
   // V2 Project Management
   managedTeams           ProjectTeam[]          @relation("TeamManager")
   projectTeamMemberships ProjectTeamMember[]    @relation("ProjectTeamMembership")
@@ -1549,6 +1553,66 @@ model ChecklistInstance {
   @@index([status])
   @@index([tenantId])
   @@map("checklist_instances")
+}
+
+/// The 15-day new-joinee scorecard: the reporting manager's and HR's daily 1-5
+/// ratings over a joinee's first 15 working days, then observations and HR's
+/// recommendation. One per employee. HR/admin (onboarding:write) edit it; the
+/// employee can read their own. The six criteria and all the averages live in
+/// features/joinee-scorecard/lib/scorecard.ts - only the raw scores are stored.
+model JoineeScorecard {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id       String @id @default(uuid()) @map("id")
+
+  employeeId          String   @map("employee_id")
+  /// HR's single point of contact for this joinee.
+  hrSpocId            String?  @map("hr_spoc_id")
+  managerObservations String?  @map("manager_observations") @db.Text
+  hrObservations      String?  @map("hr_observations") @db.Text
+  /// CONTINUE | CONTINUE_WITH_IMPROVEMENTS | REVIEW_REQUIRED (null = not decided yet)
+  recommendation      String?  @map("recommendation")
+  createdById         String?  @map("created_by_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  employee Employee              @relation("JoineeScorecardEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  hrSpoc   Employee?             @relation("JoineeScorecardHrSpoc", fields: [hrSpocId], references: [id], onDelete: SetNull)
+  days     JoineeScorecardDay[]
+
+  @@unique([employeeId])
+  @@index([tenantId])
+  @@map("joinee_scorecards")
+}
+
+/// One evaluated working day of a JoineeScorecard. Every score is 1-5 or not
+/// yet given (null); a CHECK constraint holds the range.
+model JoineeScorecardDay {
+  /// Owning tenant. See the Tenant model for why this carries a DB default.
+  tenantId String @default(dbgenerated("'0197d1ab-0000-7000-8000-000000000001'")) @map("tenant_id")
+  id       String @id @default(uuid()) @map("id")
+
+  scorecardId String   @map("scorecard_id")
+  /// 1..15
+  dayNumber   Int      @map("day_number")
+  date        DateTime @map("date") @db.Date
+
+  // Manager
+  mgrJobRole       Int? @map("mgr_job_role")
+  mgrCommunication Int? @map("mgr_communication")
+  mgrLearning      Int? @map("mgr_learning")
+  // HR
+  hrDiscipline     Int? @map("hr_discipline")
+  hrCulture        Int? @map("hr_culture")
+  hrLearning       Int? @map("hr_learning")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  scorecard JoineeScorecard @relation(fields: [scorecardId], references: [id], onDelete: Cascade)
+
+  @@unique([scorecardId, dayNumber])
+  @@index([tenantId])
+  @@map("joinee_scorecard_days")
 }
 
 model ChecklistInstanceItem {

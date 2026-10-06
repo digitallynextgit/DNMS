@@ -16,6 +16,12 @@ export interface DataTableColumn<T> {
   className?: string
   /** Extra classes for this column's header cell. */
   headClassName?: string
+  /**
+   * What this column's cells show while `loading`, when a plain bar is the
+   * wrong shape - e.g. an avatar + two lines, so skeleton rows are as tall as
+   * the real ones and the table does not jump when the data lands.
+   */
+  skeleton?: React.ReactNode
 }
 
 /** Multi-select wiring - pass the result of `useRowSelection(pageIds)`. */
@@ -258,7 +264,9 @@ export function DataTable<T>({
                     {columns.map((col, i) => (
                       <td key={i} className={cn("px-4 py-3", alignClass(col.align))}>
                         <div className={cn("flex", justifyClass(col.align))}>
-                          <Skeleton className={cn("h-4", skeletonWidth(i, columns.length))} />
+                          {col.skeleton ?? (
+                            <Skeleton className={cn("h-4", skeletonWidth(i, columns.length))} />
+                          )}
                         </div>
                       </td>
                     ))}

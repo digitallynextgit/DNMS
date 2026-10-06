@@ -1,5 +1,5 @@
-import { TablePageSkeleton } from "@/components/shared/loading-skeleton"
+import { EmployeeDirectorySkeleton } from "@/features/employees"
 
 export default function EmployeeDirectoryLoading() {
-  return <TablePageSkeleton withStats cols={6} rows={10} />
+  return <EmployeeDirectorySkeleton />
 }

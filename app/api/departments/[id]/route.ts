@@ -12,13 +12,12 @@ export const GET = withErrorHandler(async (_req: NextRequest, ctx: { params: { i
   return respond(await getDepartment(id))
 })
 
-// PATCH /api/departments/[id] - update a department.
+// PATCH /api/departments/[id] - update a department; parentId moves it in the tree.
 export const PATCH = withErrorHandler(async (req: NextRequest, ctx: { params: { id: string } }) => {
   const { id } = ctx.params
   const body = (await req.json()) as {
     name?: string
-    code?: string
-    description?: string | null
+    parentId?: string | null
     headId?: string | null
     isActive?: boolean
     careersTone?: string | null

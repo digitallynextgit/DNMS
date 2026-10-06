@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { useSession } from "next-auth/react"
 import { CHECKLIST_STATUS_COLORS, CHECKLIST_STATUS_LABELS } from "@/lib/constants"
 import { formatDate } from "@/lib/utils"
+import { JoineeScorecard } from "@/features/joinee-scorecard"
 import {
   ChecklistView,
   useCancelChecklist,
@@ -99,6 +100,9 @@ export default function OnboardingDetailPage({ params }: { params: Promise<{ id:
       />
 
       <ChecklistView checklist={checklist} currentUserId={session?.user?.id ?? ""} />
+
+      {/* The joinee's first 15 working days, scored daily by manager and HR. */}
+      <JoineeScorecard employeeId={checklist.employee.id} />
 
       <ConfirmDialog
         open={confirmComplete}

@@ -164,7 +164,7 @@ export default function JobRolesPage() {
             <SelectItem value="all">All departments</SelectItem>
             {departments.map((d) => (
               <SelectItem key={d.id} value={d.id}>
-                {d.name}
+                {d.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -215,7 +215,7 @@ export default function JobRolesPage() {
             <SelectContent>
               {departments.map((d) => (
                 <SelectItem key={d.id} value={d.id}>
-                  {d.name}
+                  {d.label}
                 </SelectItem>
               ))}
             </SelectContent>

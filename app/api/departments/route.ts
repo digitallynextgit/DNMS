@@ -8,8 +8,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   return respond(await getDepartments({ includeInactive }))
 })
 
-// POST /api/departments - create a department.
+// POST /api/departments - create a department, or a sub-department with parentId.
 export const POST = withErrorHandler(async (req: NextRequest) => {
-  const body = (await req.json()) as { name: string; code: string; description?: string }
+  const body = (await req.json()) as { name: string; parentId?: string | null }
   return respond(await createDepartment(body))
 })
