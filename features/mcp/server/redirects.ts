@@ -60,11 +60,7 @@ export function redirectMatches(registered: readonly string[], requested: string
     if (!isLoopbackRedirect(candidate)) return false
     const c = parse(candidate)!
     // Port-agnostic: same scheme, host, path and query; port may differ.
-    return (
-      c.hostname === r.hostname &&
-      c.pathname === r.pathname &&
-      c.search === r.search
-    )
+    return c.hostname === r.hostname && c.pathname === r.pathname && c.search === r.search
   })
 }
 

@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { BulkActionBar } from "@/components/shared/bulk-action-bar"
 import { FormDialog } from "@/components/shared/form-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,12 +25,14 @@ import {
 import { StatusBadge } from "@/components/shared/status-badge"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { useEmployees } from "@/features/employees"
+import { useRowSelection } from "@/hooks/use-row-selection"
 import { PERMISSIONS, EVALUATION_STATUS_COLORS, EVALUATION_STATUS_LABELS } from "@/lib/constants"
 import {
   useEvaluations,
   useCreateEvaluation,
   useGenerateEvaluations,
   useDeleteEvaluation,
+  useBulkDeleteEvaluations,
   type Evaluation,
 } from "@/features/performance"
 
@@ -207,17 +210,27 @@ export default function EvaluationsPage() {
     status: status || undefined,
   })
   const del = useDeleteEvaluation()
+  const bulkDel = useBulkDeleteEvaluations()
   const [deleteTarget, setDeleteTarget] = useState<Evaluation | null>(null)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const evaluations = data?.data ?? []
   const periods = data?.periods ?? []
   const pagination = data?.pagination
+  // Select-all works on the rows on screen; page/filter changes clear it.
+  const selection = useRowSelection(evaluations.map((ev) => ev.id))
 
-  // Reset to the first page whenever a filter changes.
+  // Reset to the first page (and a clean selection) whenever a filter changes.
   function onFilter<T>(setter: (v: T) => void) {
     return (v: T) => {
       setter(v)
       setPage(1)
+      selection.clear()
     }
+  }
+
+  function changePage(p: number) {
+    setPage(p)
+    selection.clear()
   }
 
   const columns: DataTableColumn<Evaluation>[] = [
@@ -346,6 +359,19 @@ export default function EvaluationsPage() {
         </div>
       )}
 
+      {canReview && (
+        <BulkActionBar count={selection.count} onClear={selection.clear}>
+          <Button
+            variant="destructive"
+            onClick={() => setBulkDeleteOpen(true)}
+            disabled={bulkDel.isPending}
+          >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            Delete
+          </Button>
+        </BulkActionBar>
+      )}
+
       {/* The table renders from the first paint: while `isLoading` it draws
           skeleton rows inside its own real <thead>, derived from `columns`, so
           the placeholder always has the right column count and alignment. */}
@@ -356,6 +382,7 @@ export default function EvaluationsPage() {
           rowKey={(ev) => ev.id}
           showSerial
           serialOffset={(page - 1) * PAGE_SIZE}
+          selection={canReview ? selection : undefined}
           minWidth="min-w-[680px]"
           loading={isLoading}
           skeletonRows={PAGE_SIZE}
@@ -365,7 +392,7 @@ export default function EvaluationsPage() {
                   page: pagination.page,
                   totalPages: pagination.totalPages,
                   total: pagination.total,
-                  onPageChange: setPage,
+                  onPageChange: changePage,
                   itemLabel: "evaluation",
                 }
               : undefined
@@ -385,8 +412,33 @@ export default function EvaluationsPage() {
         isLoading={del.isPending}
         onConfirm={() => {
           if (!deleteTarget) return
-          del.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })
+          const id = deleteTarget.id
+          del.mutate(id, {
+            onSuccess: () => {
+              // Don't leave a deleted row counted in the selection bar.
+              if (selection.isSelected(id)) selection.toggle(id)
+              setDeleteTarget(null)
+            },
+          })
         }}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`Delete ${selection.count} evaluation${selection.count === 1 ? "" : "s"}?`}
+        description="Any self, manager or controller ratings already submitted on them are deleted too. This can't be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={bulkDel.isPending}
+        onConfirm={() =>
+          bulkDel.mutate(selection.selectedIds, {
+            onSuccess: () => {
+              selection.clear()
+              setBulkDeleteOpen(false)
+            },
+          })
+        }
       />
     </div>
   )

@@ -9,7 +9,10 @@ export interface CompiledPattern<T> {
   specificity: number
 }
 
-export function compilePatterns<T>(items: readonly T[], pathOf: (item: T) => string): CompiledPattern<T>[] {
+export function compilePatterns<T>(
+  items: readonly T[],
+  pathOf: (item: T) => string,
+): CompiledPattern<T>[] {
   return items
     .map((value) => {
       const segments = pathOf(value).split("/").filter(Boolean)

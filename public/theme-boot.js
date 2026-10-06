@@ -35,6 +35,14 @@
       root.classList.remove("light")
       root.classList.add("dark")
       root.style.colorScheme = "dark"
+
+      // Signed in? proxy.ts keeps the "dnms-auth" cookie (lib/auth-hint.ts -
+      // MIRRORED here, this file cannot import) in step on this very response,
+      // so it is already set. Stamping it on <html> lets globals.css show
+      // Dashboard instead of Log in / Start free on the first paint.
+      var hint = document.cookie.match(/(?:^|;\s*)dnms-auth=(employee|client)(?:;|$)/)
+      if (hint) root.setAttribute("data-auth", hint[1])
+      else root.removeAttribute("data-auth")
       return
     }
 

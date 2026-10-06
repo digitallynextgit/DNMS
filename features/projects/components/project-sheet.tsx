@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { SheetImportDialog } from "./sheet-import-dialog"
 
+import { useMeasuredRowHeights } from "@/hooks/use-measured-row-heights"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -921,8 +922,9 @@ export function ProjectSheetSection({
   // ── Windowing ──────────────────────────────────────────────────────────────
   // A thousand rows by twenty-six columns is 26,000 cells. Rendering them all
   // locks the tab, so only the visible band is in the DOM and two spacer rows
-  // stand in for the rest. Row height is fixed, which is what makes the maths
-  // trivial and the scrollbar honest.
+  // stand in for the rest. The maths runs on each row's MEASURED height: a row
+  // grows past its stored height to fit wrapped text, and sizing the spacers
+  // from the stored 64px made scrolling repeat rows and leap ahead.
   const scrollerRef = React.useRef<HTMLDivElement>(null)
   const [scroll, setScroll] = React.useState({ top: 0, left: 0, height: 640 })
 
@@ -937,6 +939,13 @@ export function ProjectSheetSection({
   }, [active?.id])
 
   /**
+   * How tall each row REALLY is on screen: its stored height, or what it grew
+   * to around wrapped text. heightOf stays the cells' minimum; this drives the
+   * windowing. See useMeasuredRowHeights.
+   */
+  const extentOf = useMeasuredRowHeights(scrollerRef, heightOf, active?.id ?? "")
+
+  /**
    * Cumulative y of every row: offsets[i] is where row i starts.
    *
    * Rows have their own heights now, so the visible band cannot be found by
@@ -946,12 +955,9 @@ export function ProjectSheetSection({
   const offsets = React.useMemo(() => {
     const out = new Array<number>(TOTAL_ROWS + 1)
     out[0] = 0
-    // heightOf, not the stored map: the row being dragged has to shift the ones
-    // below it as the pointer moves, or the grid tears away from the cursor and
-    // snaps back on release. A thousand additions per pointermove is nothing.
-    for (let i = 0; i < TOTAL_ROWS; i++) out[i + 1] = out[i]! + heightOf(i)
+    for (let i = 0; i < TOTAL_ROWS; i++) out[i + 1] = out[i]! + extentOf(i)
     return out
-  }, [heightOf])
+  }, [extentOf])
 
   /** First row whose bottom edge is past y. Binary search over the prefix sum. */
   const rowAt = React.useCallback(
@@ -1599,7 +1605,7 @@ export function ProjectSheetSection({
                 {window_.map((pos) => {
                   const row = rowByPos.get(pos)
                   return (
-                    <tr key={pos} className="group">
+                    <tr key={pos} data-row-pos={pos} className="group">
                       <th
                         className={cn(
                           "bg-muted border-border sticky left-0 z-10 border-r border-b px-0 font-normal",
@@ -1635,8 +1641,8 @@ export function ProjectSheetSection({
                                 kind: "row",
                                 position: pos,
                                 startY: e.clientY,
-                                startH: heightOf(pos),
-                                h: heightOf(pos),
+                                startH: extentOf(pos),
+                                h: extentOf(pos),
                               })
                             }
                             onMove={(e) =>

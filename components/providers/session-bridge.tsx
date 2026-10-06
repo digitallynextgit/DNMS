@@ -8,9 +8,10 @@ import type { Session } from "next-auth"
  *
  * The root layout deliberately no longer calls auth() - that one read made
  * every page in the app dynamic, including the static marketing site. The
- * root SessionProvider therefore starts with session={null}, and useSession()
- * under it resolves client-side (fine for the marketing header and the auth
- * pages, which handle the brief unauthenticated state anyway).
+ * root SessionProvider therefore starts with session={null} - which next-auth
+ * treats as a KNOWN signed-out session and never re-checks, so useSession()
+ * outside a bridge reports null. The marketing pages read the session
+ * themselves (useMarketingSession) for that reason.
  *
  * The dashboard/portal/platform shells are different: their layouts are
  * already dynamic (tenantScopedSession) and their UI is permission-gated, so

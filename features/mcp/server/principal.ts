@@ -100,7 +100,10 @@ export async function resolvePrincipalByGrant(grantId: string): Promise<Principa
 }
 
 /** Shared by both paths above. Must run inside runUnscoped (the grant decides the company). */
-async function principalForGrant(grant: OAuthGrant, sessionExpires: Date): Promise<Principal | null> {
+async function principalForGrant(
+  grant: OAuthGrant,
+  sessionExpires: Date,
+): Promise<Principal | null> {
   const now = new Date()
   if (grant.revokedAt) return null
   // Audience binding (RFC 8707): a token minted for another resource is useless here.

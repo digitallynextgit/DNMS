@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { AlertTriangle, ExternalLink, Plus, Table2, Trash2, User } from "lucide-react"
 
 import { apiFetch } from "@/lib/api-fetch"
+import { useMeasuredRowHeights } from "@/hooks/use-measured-row-heights"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -414,10 +415,18 @@ function SheetGrid({
     [sheet.rowHeights],
   )
 
-  /** Cumulative y of every row - drives both the window and scroll-into-view. */
-  const offsets = React.useMemo(() => rowOffsets(total, heightOf), [total, heightOf])
-
   const scrollerRef = React.useRef<HTMLDivElement>(null)
+
+  /**
+   * How tall each row REALLY is on screen: its stored height, or what it grew
+   * to around wrapped text. heightOf stays the cells' minimum; this drives the
+   * window - sized from the stored 64px, scrolling repeated rows and leapt
+   * ahead. See useMeasuredRowHeights.
+   */
+  const extentOf = useMeasuredRowHeights(scrollerRef, heightOf, sheet.id)
+
+  /** Cumulative y of every row - drives both the window and scroll-into-view. */
+  const offsets = React.useMemo(() => rowOffsets(total, extentOf), [total, extentOf])
 
   // ── Windowing ──────────────────────────────────────────────────────────────
   // A hundred rows by twenty-six columns is 2,600 cells, and every one of them
@@ -718,7 +727,7 @@ function GridRow({
   onCancel: () => void
 }) {
   return (
-    <tr>
+    <tr data-row-pos={pos}>
       <th
         className={cn(
           "bg-muted border-border text-muted-foreground sticky left-0 z-10 border-r border-b text-[11px] font-normal tabular-nums",

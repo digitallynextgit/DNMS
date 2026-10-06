@@ -65,7 +65,11 @@ export async function fetchPublicCapped(
   const u = new URL(url)
   if (u.protocol !== "https:") throw new UnsafeUrlError("Only https links can be fetched")
   await assertPublicHost(u.hostname)
-  const res = await fetch(u, { redirect: "error", signal: AbortSignal.timeout(timeoutMs), cache: "no-store" })
+  const res = await fetch(u, {
+    redirect: "error",
+    signal: AbortSignal.timeout(timeoutMs),
+    cache: "no-store",
+  })
   if (!res.ok) throw new UnsafeUrlError(`The file host answered ${res.status}`)
   const declared = Number(res.headers.get("content-length") ?? 0)
   if (declared > maxBytes) throw new UnsafeUrlError("The file is too large")

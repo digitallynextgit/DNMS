@@ -24,6 +24,8 @@
 import { auth } from "@/server/auth"
 import { NextResponse } from "next/server"
 import { isTenantScoped, splitTenant, withTenant } from "@/lib/tenant-url"
+import { isMarketingPath } from "@/lib/marketing-routes"
+import { AUTH_HINT_COOKIE, parseAuthHint } from "@/lib/auth-hint"
 import type { NextRequest } from "next/server"
 
 // ---------------------------------------------------------------------------
@@ -273,6 +275,31 @@ function isAuthorized(
   return needed.some((p) => permissions.includes(p))
 }
 
+/**
+ * Keep the readable "signed in?" hint (lib/auth-hint.ts) in step with the real
+ * session on a marketing-page response, so the static page can show Dashboard
+ * vs Log in on its first paint. Written only when it is wrong, so an ordinary
+ * visit carries no Set-Cookie at all.
+ */
+function syncAuthHint(req: NextRequest, auth: unknown, res: NextResponse): NextResponse {
+  const user = (auth as { user?: { kind?: string } } | null)?.user
+  const want = user ? (user.kind === "client" ? "client" : "employee") : null
+  if (parseAuthHint(req.cookies.get(AUTH_HINT_COOKIE)?.value) === want) return res
+  if (!want) {
+    // Path must match the set below, or the browser keeps the old cookie.
+    res.cookies.delete({ name: AUTH_HINT_COOKIE, path: "/" })
+    return res
+  }
+  res.cookies.set(AUTH_HINT_COOKIE, want, {
+    path: "/",
+    sameSite: "lax",
+    // Not httpOnly: theme-boot.js has to read it. It is a display hint only.
+    secure: req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() === "https",
+    maxAge: 7 * 24 * 60 * 60, // the session's own lifetime (server/auth.ts)
+  })
+  return res
+}
+
 export default auth((req: NextRequest & { auth: unknown }) => {
   // The URL as typed, before the tenant prefix is stripped. Used for redirects
   // and callbackUrls so the user comes back to the address they asked for.
@@ -339,9 +366,11 @@ export default auth((req: NextRequest & { auth: unknown }) => {
   }
 
   // Un-prefixed public paths: the marketing page, sign-in, static assets, the
-  // self-authenticating API families. Unchanged behaviour.
+  // self-authenticating API families. Marketing pages also get the auth hint.
   if (!claimedSlug && isPublic(requestedPath)) {
-    return passThrough()
+    return isMarketingPath(requestedPath)
+      ? syncAuthHint(req, req.auth, passThrough())
+      : passThrough()
   }
 
   // A prefix in front of something global - /{tenant}/login, /{tenant}/logo.webp.

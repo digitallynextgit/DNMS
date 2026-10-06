@@ -1,11 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { useSession } from "next-auth/react"
 import { ArrowRight, CreditCard, Clock, ShieldCheck } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { BRAND_RED, demoHref } from "@/features/marketing/marketing.constants"
+import { useMarketingSession } from "../../hooks/use-marketing-session"
 import { GridBackdrop, Reveal } from "../fx"
 
 const REASSURANCES = [
@@ -17,17 +17,15 @@ const REASSURANCES = [
 /**
  * The conversion band: the one place on the page that asks for a signup.
  *
- * CLIENT component, session via useSession() - the same trade the Hero makes.
+ * CLIENT component, session via useMarketingSession() - the same trade the Hero makes.
  * The old server-side auth() read here was the LAST thing keeping the homepage
  * dynamic after the root layout stopped reading the session: one CTA band made
- * every visitor's homepage a server render. Static HTML now ships the
- * signed-out variant and swaps to "Go to dashboard" after hydration for the
- * minority of visitors who are signed in.
+ * every visitor's homepage a server render. Static HTML now ships BOTH
+ * variants, and the `auth-member` / `auth-guest` classes (globals.css) show the
+ * right one before first paint - see useMarketingSession.
  */
 export function SignupCta() {
-  const { data: session } = useSession()
-  const authed = Boolean(session?.user)
-  const appHref = session?.user?.kind === "client" ? "/portal" : "/dashboard"
+  const { appHref } = useMarketingSession()
 
   return (
     <section id="get-started" className="relative overflow-hidden py-24">
@@ -45,57 +43,51 @@ export function SignupCta() {
       <div className="relative mx-auto max-w-[1600px] px-4 text-center sm:px-6">
         <Reveal>
           <h2 className="mx-auto max-w-4xl text-4xl font-bold tracking-tight text-balance sm:text-5xl">
-            {authed ? (
-              <>
-                Your workspace is <span style={{ color: BRAND_RED }}>ready.</span>
-              </>
-            ) : (
-              <>
-                Set your company up in <span style={{ color: BRAND_RED }}>a few minutes.</span>
-              </>
-            )}
+            <span className="auth-member">
+              Your workspace is <span style={{ color: BRAND_RED }}>ready.</span>
+            </span>
+            <span className="auth-guest">
+              Set your company up in <span style={{ color: BRAND_RED }}>a few minutes.</span>
+            </span>
           </h2>
         </Reveal>
 
         <Reveal delay={100}>
           <p className="text-muted-foreground mx-auto mt-5 max-w-2xl text-lg text-pretty">
-            {authed
-              ? "Pick up where you left off, or talk to us about rolling DNMS out to another team."
-              : "Create a workspace, invite your team, and start running attendance, leave, payroll and projects on one system of record. Nothing to install."}
+            <span className="auth-member">
+              Pick up where you left off, or talk to us about rolling DNMS out to another team.
+            </span>
+            <span className="auth-guest">
+              Create a workspace, invite your team, and start running attendance, leave, payroll and
+              projects on one system of record. Nothing to install.
+            </span>
           </p>
         </Reveal>
 
         <Reveal delay={180}>
           <div className="mt-9 flex flex-wrap justify-center gap-3">
-            {authed ? (
-              <>
-                <Button asChild>
-                  <Link href={appHref}>
-                    Go to dashboard
-                    <ArrowRight className="ml-1 h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link href="/contact">Talk to us</Link>
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button asChild>
-                  <Link href="/signup">
-                    Start free
-                    <ArrowRight className="ml-1 h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <a href={demoHref}>Book a demo</a>
-                </Button>
-              </>
-            )}
+            <Button asChild className="auth-member">
+              <Link href={appHref}>
+                Go to dashboard
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="auth-member">
+              <Link href="/contact">Talk to us</Link>
+            </Button>
+            <Button asChild className="auth-guest">
+              <Link href="/signup">
+                Start free
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="auth-guest">
+              <a href={demoHref}>Book a demo</a>
+            </Button>
           </div>
         </Reveal>
 
-        {!authed && (
+        <div className="auth-guest">
           <Reveal delay={240}>
             <ul className="text-muted-foreground mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm">
               {REASSURANCES.map(({ icon: Icon, label }) => (
@@ -112,7 +104,7 @@ export function SignupCta() {
               </Link>
             </p>
           </Reveal>
-        )}
+        </div>
       </div>
     </section>
   )

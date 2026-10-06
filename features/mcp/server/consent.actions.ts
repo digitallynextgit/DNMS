@@ -21,7 +21,9 @@ export async function approveConsent(id: string): Promise<ActionResult<{ redirec
   })
 }
 
-export async function denyConsent(id: string): Promise<ActionResult<{ redirectTo: string | null }>> {
+export async function denyConsent(
+  id: string,
+): Promise<ActionResult<{ redirectTo: string | null }>> {
   return runAction(async () => {
     await requireSession()
     return ok({ redirectTo: await denyAuthorization(id) })

@@ -65,18 +65,18 @@ sequenceDiagram
 
 **Tools the AI sees (10):**
 
-| Tool | What it does |
-|---|---|
-| `whoami` | Who the connection acts as: workspace, roles, permissions. Also ChatGPT's profile tool. |
-| `dnms_dashboard` | The person's dashboard, plus the company dashboard if they have `dashboard:read` |
-| `dnms_my_approvals` | Everything waiting for this person: team leave and WFH (company-wide for HR), resignations, floating holidays, exit clearances |
-| `dnms_who_is_away` | Company holidays, people on leave or floating holiday, and approved WFH for a date range. Never shows the leave type. |
-| `dnms_search_people` | Search the employee directory (needs `employee:read`) |
-| `dnms_find_endpoints` | Search the catalogue of **304 DNMS API endpoints**: path, methods, query params, body fields, required permission |
-| `dnms_get` | Read any of those endpoints |
-| `dnms_change` | POST/PUT/PATCH/DELETE any of those endpoints. Marked destructive, so Claude and ChatGPT ask the person before running it. |
-| `dnms_download` | Gives the person a **download link** for any file DNMS can produce (see §2a). Can also return the file's text so the AI can read or summarise it. |
-| `dnms_export_table` | Turns any DNMS list into an **Excel or CSV** file, with a download link; the same as the web app's Export buttons |
+| Tool                  | What it does                                                                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `whoami`              | Who the connection acts as: workspace, roles, permissions. Also ChatGPT's profile tool.                                                           |
+| `dnms_dashboard`      | The person's dashboard, plus the company dashboard if they have `dashboard:read`                                                                  |
+| `dnms_my_approvals`   | Everything waiting for this person: team leave and WFH (company-wide for HR), resignations, floating holidays, exit clearances                    |
+| `dnms_who_is_away`    | Company holidays, people on leave or floating holiday, and approved WFH for a date range. Never shows the leave type.                             |
+| `dnms_search_people`  | Search the employee directory (needs `employee:read`)                                                                                             |
+| `dnms_find_endpoints` | Search the catalogue of **304 DNMS API endpoints**: path, methods, query params, body fields, required permission                                 |
+| `dnms_get`            | Read any of those endpoints                                                                                                                       |
+| `dnms_change`         | POST/PUT/PATCH/DELETE any of those endpoints. Marked destructive, so Claude and ChatGPT ask the person before running it.                         |
+| `dnms_download`       | Gives the person a **download link** for any file DNMS can produce (see §2a). Can also return the file's text so the AI can read or summarise it. |
+| `dnms_export_table`   | Turns any DNMS list into an **Excel or CSV** file, with a download link; the same as the web app's Export buttons                                 |
 
 The endpoint catalogue is generated from the code by `scripts/generate-mcp-api-map.ts`. It reads each route's own doc comments, query parameters, and the zod schema its service validates with, and runs automatically before `pnpm dev` and `pnpm build`. **New DNMS routes become available to the AI on the next build, with no tool changes**, which matters because ChatGPT Business freezes an app's tool list when it is published.
 
@@ -86,15 +86,16 @@ Claude and ChatGPT can't receive a file through MCP. So the download tools hand 
 
 **What can be downloaded.** Every file endpoint is marked `"file": true` in the catalogue, so the AI can find it:
 
-| Kind | Endpoints | How the link works |
-|---|---|---|
-| **Generated reports** | Monthly work report (`/api/work-reports`, PPTX/PDF/DOCX), deliverables report (`/api/projects/deliverables/report`, PPTX/XLSX/DOCX), deliverables CSV (`/api/projects/deliverables/export`), attendance CSV (`/api/attendance/export`), Google Sheet → XLSX (`/api/projects/[id]/drive/export`, POST) | DNMS builds the file as the person and keeps it **in memory for 10 minutes**. The link is `https://dnms.digitallynext.com/api/mcp/files/<signed token>`. |
-| **Stored files** | Company documents (`/api/documents/[id]`), employee documents, project files/resources, brand assets, chat/gallery/project-message attachments, CVs, employee photos and project logos | DNMS already creates a short-lived **signed storage link** for these. That link is passed on as-is, with the real file name. It lasts as long as DNMS's own links do (15 min to 24 h, depending on the file type). |
-| **Any list** (`dnms_export_table`) | Stock register, employee directory, leave requests, tasks, audit log… any list endpoint | DNMS reads every page (up to 10,000 rows) as the person and builds **XLSX or CSV**. CSV cells that could run as Excel formulas are neutralised. 10-minute link. |
+| Kind                               | Endpoints                                                                                                                                                                                                                                                                                             | How the link works                                                                                                                                                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Generated reports**              | Monthly work report (`/api/work-reports`, PPTX/PDF/DOCX), deliverables report (`/api/projects/deliverables/report`, PPTX/XLSX/DOCX), deliverables CSV (`/api/projects/deliverables/export`), attendance CSV (`/api/attendance/export`), Google Sheet → XLSX (`/api/projects/[id]/drive/export`, POST) | DNMS builds the file as the person and keeps it **in memory for 10 minutes**. The link is `https://dnms.digitallynext.com/api/mcp/files/<signed token>`.                                                           |
+| **Stored files**                   | Company documents (`/api/documents/[id]`), employee documents, project files/resources, brand assets, chat/gallery/project-message attachments, CVs, employee photos and project logos                                                                                                                | DNMS already creates a short-lived **signed storage link** for these. That link is passed on as-is, with the real file name. It lasts as long as DNMS's own links do (15 min to 24 h, depending on the file type). |
+| **Any list** (`dnms_export_table`) | Stock register, employee directory, leave requests, tasks, audit log… any list endpoint                                                                                                                                                                                                               | DNMS reads every page (up to 10,000 rows) as the person and builds **XLSX or CSV**. CSV cells that could run as Excel formulas are neutralised. 10-minute link.                                                    |
 
 **Reading files.** With `readText: true`, the AI also gets the text of PDF, Word, Excel, CSV and text files (up to 12,000 characters). So "summarise the WFH policy" works. PowerPoint and images are download-only.
 
 **Security of the links:**
+
 - Links are signed with a key derived from `AUTH_SECRET`, so they can't be forged or edited.
 - A generated-file link expires after 10 minutes.
 - Each link names the connection it was issued to. Opening it re-checks that connection: if the app has been disconnected, the person deactivated, or the password changed, the link stops working at once.
@@ -152,11 +153,13 @@ The **AI Connections** page in DNMS (`/ai-connections`, in everyone's sidebar) s
 **OAuth 2.1 authorization server inside DNMS** (`features/mcp/server/`). It follows MCP spec revision **2026-07-28**, plus Claude's and ChatGPT's published requirements.
 
 **Discovery:**
+
 - RFC 9728 Protected Resource Metadata at `/.well-known/oauth-protected-resource/api/mcp` and at the root path.
 - RFC 8414 Authorization Server Metadata.
 - A 401 from `/api/mcp` with a `WWW-Authenticate` pointer.
 
 **How an AI app identifies itself:**
+
 - **CIMD (preferred):** the app's `client_id` is an https URL that DNMS fetches, with SSRF protection (https only, no redirects, private IPs blocked, 5 s timeout, 64 KB limit) and a 24-hour cache.
 - **DCR:** deprecated by the spec but kept for older agents.
 - Verified live against **Claude Code's** and **ChatGPT's** real client metadata documents.
@@ -164,6 +167,7 @@ The **AI Connections** page in DNMS (`/ai-connections`, in everyone's sidebar) s
 **Where a code may be sent.** It must be a redirect URI the app declared; loopback addresses match on any port, for Claude Code and other command-line agents. It must also be on an allowlist: `claude.ai`, `chatgpt.com`, loopback, plus `MCP_ALLOWED_REDIRECT_ORIGINS`. So a DNMS token can only ever reach Claude, ChatGPT, or a program on the person's own machine.
 
 **Codes and the authorization response:**
+
 - PKCE S256 only.
 - One-time codes that expire after 60 seconds.
 - Replaying a code revokes the connection.
@@ -171,23 +175,27 @@ The **AI Connections** page in DNMS (`/ai-connections`, in everyone's sidebar) s
 - Tokens are bound to `resource` (RFC 8707).
 
 **Tokens:**
+
 - Opaque random strings (`dnms_at_…`, `dnms_rt_…`); only their SHA-256 hashes are stored.
 - Access tokens last 1 hour.
 - Refresh tokens last 30 days and are **rotated** on every use. Reusing an old one after the 60-second race window revokes the connection.
 - RFC 7009 revocation.
 
 **Consent screen** (`/oauth/consent/[id]`):
+
 - Login-protected.
 - Shows the app, where the code returns to, a verified or unverified badge, who you are connecting as, and the access being granted.
 - Allow and Deny are server actions, so they get Next's origin check.
 
 **Re-checked on every MCP call:**
+
 - the token is valid and not revoked;
 - the membership, user, employee and company are still active;
 - the password has not changed since connecting;
 - roles and permissions, loaded live from the database.
 
 **Usage log (`mcp_tool_calls`):**
+
 - Records the tool, the target route, the status and the duration.
 - **Never records arguments or results**, which can contain personal data.
 - Purged after 90 days.
@@ -197,12 +205,12 @@ The **AI Connections** page in DNMS (`/ai-connections`, in everyone's sidebar) s
 
 **Rate limits** (in-memory, per Node process):
 
-| Limit | Value |
-|---|---|
-| Tool calls | 300 per 5 min per connection |
-| Token endpoint | 120 per min per IP |
-| Authorize | 60 per min per IP |
-| DCR registrations | 20 per hour per IP |
+| Limit             | Value                        |
+| ----------------- | ---------------------------- |
+| Tool calls        | 300 per 5 min per connection |
+| Token endpoint    | 120 per min per IP           |
+| Authorize         | 60 per min per IP            |
+| DCR registrations | 20 per hour per IP           |
 
 ---
 
@@ -211,20 +219,24 @@ The **AI Connections** page in DNMS (`/ai-connections`, in everyone's sidebar) s
 These ran against a local dev server on the shared database. Only reads were made, plus deliberately invalid writes that change nothing. Every test row was deleted afterwards.
 
 **Discovery and errors:**
+
 - [x] Both metadata documents are correct. `/api/mcp` without a token returns 401 with the right `WWW-Authenticate`; a bad token also returns 401.
 - [x] DCR works, and a redirect off the allowlist is refused.
 - [x] Authorize sends the browser to the consent page. A missing PKCE value goes back to the app with an error, and an unregistered redirect shows an error page.
 - [x] The consent page sends a logged-out user to `/login?callbackUrl=/oauth/consent/<id>`.
 
 **Real clients:**
+
 - [x] Real CIMD documents from `claude.ai` (Claude Code) and `chatgpt.com` (ChatGPT) are fetched, validated and matched to their callbacks.
 
 **The Allow and token path:**
+
 - [x] The real `approveAuthorization` path issues code + state + iss, puts the grant in the right company, and writes the audit row.
 - [x] Code exchange works. A wrong verifier fails, and the code is single-use, with a replay revoking the connection.
 - [x] Refresh rotates, an old refresh token is refused, and the new access token works.
 
 **Tools and permissions:**
+
 - [x] All 8 tools work end to end (≈0.4–1 s each).
 - [x] Permission parity:
   - a plain-employee connection gets 403 on the audit log and the directory;
@@ -235,10 +247,12 @@ These ran against a local dev server on the shared database. Only reads were mad
 - [x] The write path reaches the real services (validation errors come back), with nothing written.
 
 **Pages and checks:**
+
 - [x] The consent page and the AI Connections page render with a real session.
 - [x] `pnpm type-check`, eslint, the full test suite (746 tests, 20 of them new) and a production build all pass.
 
 **Downloads (5 Oct 2026, live against the dev server; every link was actually downloaded and its file type checked):**
+
 - [x] Work report as PPTX (416 KB), PDF and DOCX, with the text of the PDF and DOCX read back.
 - [x] Deliverables report as XLSX, DOCX and PPTX (4.2 MB); the deliverables CSV; the attendance CSV.
 - [x] A company document (PDF) through its signed storage link, with its real name and readable text; a project file (JPEG); a gallery photo (redirect style).
@@ -251,6 +265,7 @@ These ran against a local dev server on the shared database. Only reads were mad
   - a plain employee is refused the attendance export and the employee directory.
 
 **Not tested:**
+
 - [ ] **Clicking Allow in a real browser** (the server action) and a live Claude/ChatGPT connection. These need the deployed HTTPS site and a real login, so do them at step 7 of §3.
 
 ---
@@ -272,20 +287,20 @@ These ran against a local dev server on the shared database. Only reads were mad
 
 ## 8. Files
 
-| Area | Files |
-|---|---|
-| Session bridge | `server/delegated-session.ts`, plus 2 lines in `getSession()` (`server/api-handler.ts`). `getUserWithPermissions` is now exported from `server/auth.ts`. |
-| OAuth server | `features/mcp/server/{oauth.service,clients.service,tokens,redirects,config,http}.ts` |
-| MCP server | `features/mcp/server/{mcp-server,principal,api-dispatch,api-policy,usage}.ts`, plus the generated `api-routes.generated.ts` |
-| Routes | `app/api/mcp`, `app/api/oauth/{authorize,token,register,revoke}`, `app/.well-known/oauth-{protected-resource,authorization-server}`, `app/api/ai-connections` |
-| Pages | `app/(auth)/oauth/consent/[id]`, `app/(dashboard)/ai-connections` |
-| UI | `features/mcp/components/{consent-card,ai-connections-client}.tsx`, `features/mcp/hooks/use-ai-connections.ts`; nav entry in `config/nav.ts` |
-| Routing | `proxy.ts` (`PUBLIC_PREFIXES`: `/api/mcp`, `/api/oauth`, `/.well-known`), `lib/tenant-url.ts` (`oauth` global, `ai-connections` tenant-scoped) |
-| Database | `prisma/schema.prisma` (5 models), `prisma/migrations/20261002000000_ai_connector` |
-| Catalogue | `scripts/generate-mcp-api-map.ts` (`pnpm mcp:api-map`) |
-| Downloads | `features/mcp/server/{download.service,download-links,safe-fetch}.ts`, `features/mcp/lib/download-utils.ts`, `app/api/mcp/files/[token]/route.ts`; `extractTextFromBuffer` in `lib/file-text.ts` |
-| Tests | `features/mcp/lib/{route-match,download-utils}.test.ts`, `features/mcp/server/{oauth-rules,download-links}.test.ts` |
-| Env | `.env.example`: `APP_PUBLIC_ORIGIN`, `MCP_ALLOWED_REDIRECT_ORIGINS` |
+| Area           | Files                                                                                                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Session bridge | `server/delegated-session.ts`, plus 2 lines in `getSession()` (`server/api-handler.ts`). `getUserWithPermissions` is now exported from `server/auth.ts`.                                         |
+| OAuth server   | `features/mcp/server/{oauth.service,clients.service,tokens,redirects,config,http}.ts`                                                                                                            |
+| MCP server     | `features/mcp/server/{mcp-server,principal,api-dispatch,api-policy,usage}.ts`, plus the generated `api-routes.generated.ts`                                                                      |
+| Routes         | `app/api/mcp`, `app/api/oauth/{authorize,token,register,revoke}`, `app/.well-known/oauth-{protected-resource,authorization-server}`, `app/api/ai-connections`                                    |
+| Pages          | `app/(auth)/oauth/consent/[id]`, `app/(dashboard)/ai-connections`                                                                                                                                |
+| UI             | `features/mcp/components/{consent-card,ai-connections-client}.tsx`, `features/mcp/hooks/use-ai-connections.ts`; nav entry in `config/nav.ts`                                                     |
+| Routing        | `proxy.ts` (`PUBLIC_PREFIXES`: `/api/mcp`, `/api/oauth`, `/.well-known`), `lib/tenant-url.ts` (`oauth` global, `ai-connections` tenant-scoped)                                                   |
+| Database       | `prisma/schema.prisma` (5 models), `prisma/migrations/20261002000000_ai_connector`                                                                                                               |
+| Catalogue      | `scripts/generate-mcp-api-map.ts` (`pnpm mcp:api-map`)                                                                                                                                           |
+| Downloads      | `features/mcp/server/{download.service,download-links,safe-fetch}.ts`, `features/mcp/lib/download-utils.ts`, `app/api/mcp/files/[token]/route.ts`; `extractTextFromBuffer` in `lib/file-text.ts` |
+| Tests          | `features/mcp/lib/{route-match,download-utils}.test.ts`, `features/mcp/server/{oauth-rules,download-links}.test.ts`                                                                              |
+| Env            | `.env.example`: `APP_PUBLIC_ORIGIN`, `MCP_ALLOWED_REDIRECT_ORIGINS`                                                                                                                              |
 
 ---
 
@@ -293,9 +308,9 @@ These ran against a local dev server on the shared database. Only reads were mad
 
 - MCP Authorization spec 2026-07-28: https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization
 - July 2026 revision analysis (Descope): https://www.descope.com/blog/post/july-2026-mcp-revision
-- OpenAI, *Authenticate your users*: https://developers.openai.com/plugins/build/auth
-- OpenAI Help, *Developer mode and MCP apps in ChatGPT*: https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt
-- Claude, *Authentication for connectors*: https://claude.com/docs/connectors/building/authentication
-- Claude Help, *Custom connectors using remote MCP*: https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp
+- OpenAI, _Authenticate your users_: https://developers.openai.com/plugins/build/auth
+- OpenAI Help, _Developer mode and MCP apps in ChatGPT_: https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt
+- Claude, _Authentication for connectors_: https://claude.com/docs/connectors/building/authentication
+- Claude Help, _Custom connectors using remote MCP_: https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp
 - MCP TypeScript SDK v2 (`@modelcontextprotocol/server`): https://github.com/modelcontextprotocol/typescript-sdk
 - WorkOS Connect (fallback option): https://workos.com/changelog/standalone-oauth-for-mcp

@@ -33,7 +33,9 @@ export interface ConnectionRow {
   employee: { id: string; firstName: string; lastName: string; employeeNo: string } | null
 }
 
-export async function listConnections(scope: "mine" | "all"): Promise<ActionResult<ConnectionRow[]>> {
+export async function listConnections(
+  scope: "mine" | "all",
+): Promise<ActionResult<ConnectionRow[]>> {
   return runAction(async () => {
     const session =
       scope === "all" ? await requirePermission(PERMISSIONS.ROLE_WRITE) : await requireSession()
@@ -99,7 +101,10 @@ export async function revokeConnection(id: string): Promise<ActionResult<{ id: s
 
     await db.oAuthGrant.update({
       where: { id },
-      data: { revokedAt: new Date(), revokedReason: own ? "disconnected_by_user" : "disconnected_by_admin" },
+      data: {
+        revokedAt: new Date(),
+        revokedReason: own ? "disconnected_by_user" : "disconnected_by_admin",
+      },
     })
     await createAuditLog(session, {
       action: "ai_connector:disconnect",

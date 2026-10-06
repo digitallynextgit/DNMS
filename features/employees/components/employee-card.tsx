@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { employeeSlug } from "@/lib/utils"
-import { EMPLOYEE_STATUS_COLORS, EMPLOYEE_STATUS_LABELS, PROBATION_BADGE } from "@/lib/constants"
+import { ACTIVE_STATUS_COLORS, ACTIVE_STATUS_LABELS, PROBATION_BADGE } from "@/lib/constants"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { isOnProbation } from "@/features/employees/probation"
 
@@ -29,6 +29,7 @@ export interface EmployeeCardProps {
     jobRole?: { name: string } | null
     department?: { name: string } | null
     status: string
+    isActive?: boolean
     profilePhoto?: string | null
     onProbation?: boolean
     probationMonths?: number
@@ -135,9 +136,9 @@ export function EmployeeCard({ employee, onDelete, canEdit, canDelete }: Employe
         <div className="mt-3 flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <StatusBadge
-              status={employee.status}
-              colorMap={EMPLOYEE_STATUS_COLORS}
-              labelMap={EMPLOYEE_STATUS_LABELS}
+              status={employee.isActive === false ? "INACTIVE" : "ACTIVE"}
+              colorMap={ACTIVE_STATUS_COLORS}
+              labelMap={ACTIVE_STATUS_LABELS}
               size="xs"
             />
             {onProbation && (

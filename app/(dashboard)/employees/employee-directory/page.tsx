@@ -24,7 +24,7 @@ function first(value: string | string[] | undefined): string | undefined {
  *   - search:       `?search` (the debounce hook returns its initial value
  *                   synchronously, so the first render already uses it), else ""
  *   - departmentId: `?departmentId`, empty → undefined
- *   - status:       `?status`, defaulting to "ACTIVE"
+ *   - status:       `?status`, defaulting to "ACTIVE"; `all` → undefined
  *   - page:         `?page`, min 1
  *   - limit:        always 10
  */
@@ -37,7 +37,8 @@ export default async function EmployeeDirectoryPage({
 
   const search = first(sp.search) ?? ""
   const departmentId = first(sp.departmentId) ?? ""
-  const status = first(sp.status) ?? "ACTIVE"
+  const statusParam = first(sp.status) ?? "ACTIVE"
+  const status = statusParam === "all" ? "" : statusParam
   const page = Math.max(1, Number(first(sp.page) ?? "1"))
 
   const filters = {

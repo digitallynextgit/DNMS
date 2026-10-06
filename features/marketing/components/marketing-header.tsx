@@ -2,12 +2,12 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
-import { useSession } from "next-auth/react"
 import { Menu, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { siteConfig } from "@/config/site"
 import { Button } from "@/components/ui/button"
+import { useMarketingSession } from "../hooks/use-marketing-session"
 
 // Real pages, not in-page anchors.
 //
@@ -40,9 +40,9 @@ export function MarketingHeader() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   // Already signed in? Send them straight to their app instead of the login page.
-  const { data: session } = useSession()
-  const authed = !!session?.user
-  const appHref = session?.user?.kind === "client" ? "/portal" : "/dashboard"
+  // Both button sets are rendered; `auth-member` / `auth-guest` (globals.css)
+  // pick one before first paint - see useMarketingSession.
+  const { appHref } = useMarketingSession()
 
   useEffect(() => {
     // The marketing shell scrolls in its own container (globals.css pins the
@@ -104,22 +104,17 @@ export function MarketingHeader() {
 
         {/* Right: theme toggle + login (desktop) + hamburger (mobile) */}
         <div className="flex items-center gap-1.5 justify-self-end sm:gap-2">
-          {authed ? (
-            <Button asChild className="hidden md:inline-flex">
-              <Link href={appHref}>Dashboard</Link>
-            </Button>
-          ) : (
-            <>
-              {/* Log in is the quieter of the two: most people arriving on the
-                  marketing page do not have an account yet. */}
-              <Button asChild variant="ghost" className="hidden md:inline-flex">
-                <Link href="/login">Log in</Link>
-              </Button>
-              <Button asChild className="hidden md:inline-flex">
-                <Link href="/signup">Start free</Link>
-              </Button>
-            </>
-          )}
+          <Button asChild className="auth-member hidden md:inline-flex">
+            <Link href={appHref}>Dashboard</Link>
+          </Button>
+          {/* Log in is the quieter of the two: most people arriving on the
+              marketing page do not have an account yet. */}
+          <Button asChild variant="ghost" className="auth-guest hidden md:inline-flex">
+            <Link href="/login">Log in</Link>
+          </Button>
+          <Button asChild className="auth-guest hidden md:inline-flex">
+            <Link href="/signup">Start free</Link>
+          </Button>
           <button
             type="button"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -146,26 +141,21 @@ export function MarketingHeader() {
                 {n.label}
               </a>
             ))}
-            {authed ? (
-              <Button asChild className="mt-2 w-full">
-                <Link href={appHref} onClick={() => setMenuOpen(false)}>
-                  Dashboard
-                </Link>
-              </Button>
-            ) : (
-              <>
-                <Button asChild className="mt-2 w-full">
-                  <Link href="/signup" onClick={() => setMenuOpen(false)}>
-                    Start free
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="mt-1.5 w-full">
-                  <Link href="/login" onClick={() => setMenuOpen(false)}>
-                    Log in
-                  </Link>
-                </Button>
-              </>
-            )}
+            <Button asChild className="auth-member mt-2 w-full">
+              <Link href={appHref} onClick={() => setMenuOpen(false)}>
+                Dashboard
+              </Link>
+            </Button>
+            <Button asChild className="auth-guest mt-2 w-full">
+              <Link href="/signup" onClick={() => setMenuOpen(false)}>
+                Start free
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="auth-guest mt-1.5 w-full">
+              <Link href="/login" onClick={() => setMenuOpen(false)}>
+                Log in
+              </Link>
+            </Button>
           </nav>
         </div>
       )}

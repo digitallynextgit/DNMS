@@ -1,5 +1,9 @@
 import "server-only"
 import { db } from "@/server/db"
+import { PERMISSIONS } from "@/lib/constants"
+import { createAuditLog } from "@/lib/audit"
+import { requirePermission, getAuditMeta } from "@/server/action-guard"
+import { ok, fail, runAction, type ActionResult } from "@/server/action-result"
 import {
   DEFAULT_KPI_PROFILE,
   buildCriteria,
@@ -46,4 +50,29 @@ export async function buildEvaluationCriteria(employeeId: string): Promise<{
   }
 
   return { selfCriteria: forSide("SELF"), managerCriteria: forSide("MANAGER") }
+}
+
+// Delete many evaluations at once (HR) - the list's selection bar, in one
+// request instead of N DELETEs.
+export async function bulkDeleteEvaluations(
+  ids: string[],
+): Promise<ActionResult<{ deleted: number }>> {
+  return runAction(async () => {
+    const session = await requirePermission(PERMISSIONS.PERFORMANCE_REVIEW)
+    const list = Array.from(new Set(Array.isArray(ids) ? ids : [])).filter(
+      (id) => typeof id === "string" && id.length > 0,
+    )
+    if (list.length === 0 || list.length > 500) return fail("Select between 1 and 500 evaluations")
+
+    const res = await db.evaluation.deleteMany({ where: { id: { in: list } } })
+    const meta = await getAuditMeta()
+    await createAuditLog(session, {
+      action: "evaluation.bulk_delete",
+      module: "performance",
+      entityType: "Evaluation",
+      changes: { count: res.count, evaluationIds: list },
+      ...meta,
+    })
+    return ok({ deleted: res.count })
+  })
 }

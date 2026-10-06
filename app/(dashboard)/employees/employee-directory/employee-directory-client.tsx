@@ -16,7 +16,7 @@ import { CardGridSkeleton } from "@/components/shared/loading-skeleton"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { BulkActionBar } from "@/components/shared/bulk-action-bar"
-import { ViewToggle, useViewMode } from "@/components/shared/view-toggle"
+import { ViewToggle, type ViewMode } from "@/components/shared/view-toggle"
 import { useRowSelection } from "@/hooks/use-row-selection"
 import { useUpdateEffect } from "@/hooks/use-update-effect"
 import { EmployeeCard } from "@/features/employees"
@@ -36,7 +36,6 @@ import { isOnProbation } from "@/features/employees"
 import {
   ACTIVE_STATUS_COLORS,
   ACTIVE_STATUS_LABELS,
-  EMPLOYEE_STATUS_LABELS,
   PERMISSIONS,
   PROBATION_BADGE,
 } from "@/lib/constants"
@@ -47,10 +46,6 @@ export function EmployeeDirectoryClient() {
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const { can } = usePermissions()
-
-  // ── View mode ────────────────────────────────────────────────────────────
-  // Table is the default; users can switch to card view via the toggle.
-  const [viewMode, setViewMode] = useViewMode("employee-directory-view", "table")
 
   // ── Row action state ──────────────────────────────────────────────────────
   const [hardDeleteId, setHardDeleteId] = useState<string | null>(null)
@@ -64,12 +59,18 @@ export function EmployeeDirectoryClient() {
   const [bulkBusy, setBulkBusy] = useState(false)
 
   // ── URL-driven filters + pagination ───────────────────────────────────────
-  // The URL query string is the single source of truth: department, status, and
-  // page all live in `?…=` params, so the view survives refresh, deep-linking,
-  // and browser back/forward. `setParams` is the only writer to the URL.
+  // The URL query string is the single source of truth: department, status,
+  // page and view all live in `?…=` params, so the view survives refresh,
+  // deep-linking, and browser back/forward. `setParams` is the only writer.
   const departmentId = searchParams.get("departmentId") ?? ""
   // Default to active employees; the URL param still wins for shared links.
-  const status = searchParams.get("status") ?? "ACTIVE"
+  // "All Statuses" is an explicit `?status=all` - an empty value is dropped
+  // from the URL and would fall straight back to Active.
+  const statusParam = searchParams.get("status") ?? "ACTIVE"
+  const status = statusParam === "all" ? "" : statusParam
+  // Table is the default; card view is `?view=card`. Not localStorage: a
+  // remembered "card" made the page open as cards for good.
+  const viewMode: ViewMode = searchParams.get("view") === "card" ? "card" : "table"
   const page = Math.max(1, Number(searchParams.get("page") ?? "1"))
 
   // The search box needs immediate local state for responsive typing; its
@@ -85,6 +86,7 @@ export function EmployeeDirectoryClient() {
         const isDefault =
           value === "" ||
           (key === "status" && value === "ACTIVE") ||
+          (key === "view" && value === "table") ||
           (key === "page" && value === "1")
         if (isDefault) params.delete(key)
         else params.set(key, value)
@@ -96,6 +98,7 @@ export function EmployeeDirectoryClient() {
   )
 
   const setPage = useCallback((p: number) => setParams({ page: String(p) }), [setParams])
+  const setViewMode = (v: ViewMode) => setParams({ view: v })
 
   // Push the debounced search term to the URL, resetting to page 1. Skips the
   // initial mount so a deep-linked ?page=N isn't wiped on first render.
@@ -108,12 +111,13 @@ export function EmployeeDirectoryClient() {
   }
 
   function handleStatusChange(v: string) {
-    setParams({ status: v, page: "1" })
+    setParams({ status: v || "all", page: "1" })
   }
 
   function handleClearFilters() {
     setSearch("")
-    router.replace(pathname, { scroll: false })
+    // Back to the defaults, but keep the chosen view.
+    router.replace(viewMode === "card" ? `${pathname}?view=card` : pathname, { scroll: false })
   }
 
   // ── Data ──────────────────────────────────────────────────────────────────
@@ -162,7 +166,7 @@ export function EmployeeDirectoryClient() {
       e.email,
       e.department?.name ?? "",
       e.designation?.title ?? "",
-      EMPLOYEE_STATUS_LABELS[e.status] ?? e.status,
+      ACTIVE_STATUS_LABELS[e.isActive ? "ACTIVE" : "INACTIVE"],
       e.dateOfJoining ? formatDate(e.dateOfJoining) : "",
     ])
     const filename = `employees-${new Date().toISOString().slice(0, 10)}.csv`
@@ -456,9 +460,9 @@ export function EmployeeDirectoryClient() {
                 </p>
               </div>
               <StatusBadge
-                status={emp.status}
+                status={emp.isActive ? "ACTIVE" : "INACTIVE"}
                 colorMap={ACTIVE_STATUS_COLORS}
-                labelMap={EMPLOYEE_STATUS_LABELS}
+                labelMap={ACTIVE_STATUS_LABELS}
                 size="xs"
               />
             </Link>

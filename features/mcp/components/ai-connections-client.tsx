@@ -13,7 +13,11 @@ import { Button } from "@/components/ui/button"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { PERMISSIONS } from "@/lib/constants"
 import { formatDateTime, formatRelativeTime } from "@/lib/utils"
-import { useAiConnections, useDisconnectAiApp, type ConnectionRow } from "../hooks/use-ai-connections"
+import {
+  useAiConnections,
+  useDisconnectAiApp,
+  type ConnectionRow,
+} from "../hooks/use-ai-connections"
 
 const REASONS: Record<string, string> = {
   disconnected_by_user: "Disconnected",
@@ -61,7 +65,9 @@ export function AiConnectionsClient({ connectorUrl }: { connectorUrl: string }) 
       cell: (r) => (
         <div className="flex items-center gap-2">
           <span className="font-medium">{r.verifiedAs ?? r.app}</span>
-          {r.verifiedAs && <ShieldCheck className="size-3.5 text-emerald-600" aria-label="Verified" />}
+          {r.verifiedAs && (
+            <ShieldCheck className="size-3.5 text-emerald-600" aria-label="Verified" />
+          )}
         </div>
       ),
     },
@@ -100,7 +106,9 @@ export function AiConnectionsClient({ connectorUrl }: { connectorUrl: string }) 
     {
       header: "Person",
       cell: (r) =>
-        r.employee ? `${r.employee.firstName} ${r.employee.lastName} (${r.employee.employeeNo})` : "-",
+        r.employee
+          ? `${r.employee.firstName} ${r.employee.lastName} (${r.employee.employeeNo})`
+          : "-",
     },
     ...baseColumns,
   ]
@@ -120,7 +128,9 @@ export function AiConnectionsClient({ connectorUrl }: { connectorUrl: string }) 
         <div className="space-y-1.5">
           <p className="text-muted-foreground text-sm">DNMS connector URL</p>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <code className="bg-muted flex-1 truncate rounded-md px-3 py-2 text-sm">{connectorUrl}</code>
+            <code className="bg-muted flex-1 truncate rounded-md px-3 py-2 text-sm">
+              {connectorUrl}
+            </code>
             <Button variant="outline" onClick={copyUrl}>
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
               {copied ? "Copied" : "Copy"}
@@ -186,7 +196,12 @@ export function AiConnectionsClient({ connectorUrl }: { connectorUrl: string }) 
         <section className="space-y-3">
           <h2 className="font-semibold">Everyone in this workspace</h2>
           {!all.isLoading && (all.data?.length ?? 0) === 0 ? (
-            <EmptyState variant="card" compact icon={Bot} title="Nobody has connected an AI app yet" />
+            <EmptyState
+              variant="card"
+              compact
+              icon={Bot}
+              title="Nobody has connected an AI app yet"
+            />
           ) : (
             <DataTable
               columns={everyoneColumns}

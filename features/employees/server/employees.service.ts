@@ -114,7 +114,12 @@ export async function getEmployees(filters: EmployeeFilters = {}): Promise<Actio
     }
     if (departmentId) where.departmentId = departmentId
     if (designationId) where.designationId = designationId
-    if (status) where.status = status
+    // "Active" / "Inactive" follow `isActive` - what the directory's badge shows.
+    // Deactivating someone only clears isActive and leaves status ACTIVE, so
+    // filtering on status alone listed deactivated people as active.
+    if (status === "ACTIVE") where.isActive = true
+    else if (status === "INACTIVE") where.isActive = false
+    else if (status) where.status = status
     // Admin_ is a hidden watch account - never list it in the directory.
     where.NOT = { employeeRoles: { some: { role: { name: { in: [...HIDDEN_ROLES] } } } } }
 

@@ -174,6 +174,24 @@ export function useDeleteEvaluation() {
   )
 }
 
+/** Delete every selected evaluation in one request (the table's selection bar). */
+export function useBulkDeleteEvaluations() {
+  const qc = useQueryClient()
+  return useMutation(
+    mutationWithToast(qc, {
+      mutationFn: (ids: string[]) =>
+        apiFetch<{ data: { deleted: number } }>("/api/performance/evaluations/bulk-delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        }),
+      invalidate: [["evaluations"]],
+      success: (res) =>
+        `${res.data.deleted} evaluation${res.data.deleted === 1 ? "" : "s"} deleted`,
+    }),
+  )
+}
+
 // ─── KPI / parameter profiles (per employee, reused each cycle) ────────────────
 
 export interface PerfKpiRow {

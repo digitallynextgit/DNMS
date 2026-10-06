@@ -22,11 +22,15 @@ const gone = (message: string, status = 410) =>
       `<body style="font-family:system-ui,sans-serif;background:#0a0a0a;color:#e5e5e5;display:grid;place-items:center;min-height:100vh;margin:0;padding:16px">` +
       `<main style="max-width:420px;border:1px solid #262626;border-radius:12px;padding:24px;background:#111"><h1 style="font-size:18px;margin:0 0 8px">${message}</h1>` +
       `<p style="color:#a3a3a3;margin:0;line-height:1.5">Ask Claude or ChatGPT for the file again to get a fresh link.</p></main>`,
-    { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
+    {
+      status,
+      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+    },
   )
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
-  if (rateLimited(`mcp:file:${clientIp(req)}`, 60, 60_000)) return gone("Too many downloads. Try again in a minute.", 429)
+  if (rateLimited(`mcp:file:${clientIp(req)}`, 60, 60_000))
+    return gone("Too many downloads. Try again in a minute.", 429)
 
   const { token } = await ctx.params
   const link = verifyLink(token)

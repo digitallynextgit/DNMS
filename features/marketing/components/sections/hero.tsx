@@ -2,11 +2,11 @@
 
 import Link from "next/link"
 import dynamic from "next/dynamic"
-import { useSession } from "next-auth/react"
 import { Fingerprint, Wallet, Sparkles, ArrowRight } from "lucide-react"
 
 import { siteConfig } from "@/config/site"
 import { Button } from "@/components/ui/button"
+import { useMarketingSession } from "../../hooks/use-marketing-session"
 import { GridBackdrop } from "../fx"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
 
@@ -52,9 +52,9 @@ const enter = (delaySeconds: number): { className: string; style: React.CSSPrope
 })
 
 export function Hero() {
-  const { data: session } = useSession()
-  const authed = !!session?.user
-  const appHref = session?.user?.kind === "client" ? "/portal" : "/dashboard"
+  // Both CTA sets are rendered; `auth-member` / `auth-guest` (globals.css) pick
+  // one before first paint - see useMarketingSession.
+  const { appHref } = useMarketingSession()
 
   return (
     <section id="top" className="relative overflow-hidden">
@@ -106,31 +106,29 @@ export function Hero() {
             </p>
 
             <div {...enter(0.55)} className="animate-dnms-fade-up mt-8 flex flex-wrap gap-3">
-              {authed ? (
-                <>
-                  <Button asChild variant="outline">
-                    <a href="#modules">Browse modules</a>
-                  </Button>
-                  <Button asChild>
-                    <Link href={appHref}>
-                      Go to dashboard
-                      <ArrowRight className="ml-1 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button asChild>
-                    <Link href="/signup">
-                      Start free
-                      <ArrowRight className="ml-1 h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline">
-                    <a href="#modules">Browse modules</a>
-                  </Button>
-                </>
-              )}
+              {/* `contents` keeps each set's buttons in this flex row. */}
+              <div className="auth-member contents">
+                <Button asChild variant="outline">
+                  <a href="#modules">Browse modules</a>
+                </Button>
+                <Button asChild>
+                  <Link href={appHref}>
+                    Go to dashboard
+                    <ArrowRight className="ml-1 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+              <div className="auth-guest contents">
+                <Button asChild>
+                  <Link href="/signup">
+                    Start free
+                    <ArrowRight className="ml-1 h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <a href="#modules">Browse modules</a>
+                </Button>
+              </div>
             </div>
           </div>
 

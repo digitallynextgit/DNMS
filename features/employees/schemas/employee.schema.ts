@@ -100,7 +100,10 @@ export const employeeFilterSchema = z.object({
   departmentId: z.string().uuid().optional(),
   designationId: z.string().uuid().optional(),
   jobRoleId: z.union([z.string().uuid(), z.literal("")]).optional(),
-  status: z.enum(["ACTIVE", "ON_LEAVE", "SUSPENDED", "RESIGNED", "TERMINATED"]).optional(),
+  // INACTIVE is a filter-only value: deactivated (isActive = false).
+  status: z
+    .enum(["ACTIVE", "INACTIVE", "ON_LEAVE", "SUSPENDED", "RESIGNED", "TERMINATED"])
+    .optional(),
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]).optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),

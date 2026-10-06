@@ -106,7 +106,11 @@ export async function extractTextFromBuffer(
     return clean(out.value, max)
   }
 
-  if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || /\.(xlsx|xls|csv)$/.test(n)) {
+  if (
+    mimeType.includes("spreadsheet") ||
+    mimeType.includes("excel") ||
+    /\.(xlsx|xls|csv)$/.test(n)
+  ) {
     const XLSX = await import("xlsx")
     const wb = XLSX.read(buffer, { type: "buffer" })
     const parts: string[] = []

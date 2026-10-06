@@ -193,9 +193,8 @@ function schemaFields(name: string, file: string, depth = 0): string[] | null {
   }
 
   // Other.extend({...}) / Other.partial() / Other.merge(...)
-  const derived = /^([A-Za-z_$][\w$]*)\s*\.\s*(extend|partial|merge|pick|omit|strict|passthrough)\(/.exec(
-    rest,
-  )
+  const derived =
+    /^([A-Za-z_$][\w$]*)\s*\.\s*(extend|partial|merge|pick|omit|strict|passthrough)\(/.exec(rest)
   if (derived) {
     const parent = schemaFields(derived[1]!, file, depth + 1) ?? []
     if (derived[2] === "partial") return parent.map(makeOptional)
@@ -237,7 +236,9 @@ function bodyHint(segment: string, routeFile: string): string | null {
   const imports = importsOf(read(routeFile), routeFile)
 
   // 2. A schema parsed right in the route.
-  const direct = /(\w+[Ss]chema)\s*\.\s*(?:safeParse|parse|parseAsync|safeParseAsync)\(/.exec(segment)
+  const direct = /(\w+[Ss]chema)\s*\.\s*(?:safeParse|parse|parseAsync|safeParseAsync)\(/.exec(
+    segment,
+  )
   if (direct) {
     const fields = schemaFields(direct[1]!, imports.get(direct[1]!) ?? routeFile)
     if (fields?.length) return `{ ${fields.join(", ")} }`
@@ -257,7 +258,9 @@ function bodyHint(segment: string, routeFile: string): string | null {
     if (start) {
       const next = src.indexOf("\nexport ", start.index + 10)
       const body = src.slice(start.index, next === -1 ? undefined : next)
-      const schema = /(\w+[Ss]chema)\s*\.\s*(?:safeParse|parse|parseAsync|safeParseAsync)\(/.exec(body)
+      const schema = /(\w+[Ss]chema)\s*\.\s*(?:safeParse|parse|parseAsync|safeParseAsync)\(/.exec(
+        body,
+      )
       if (schema) {
         const fields = schemaFields(schema[1]!, serviceFile)
         if (fields?.length) return `{ ${fields.join(", ")} }`
@@ -299,7 +302,10 @@ function analyse(file: string, scopes: Map<string, string>) {
   }
   for (const m of src.matchAll(/export\s*\{([^}]*)\}/g)) {
     for (const part of m[1]!.split(",")) {
-      const alias = part.trim().split(/\s+as\s+/)[1]?.trim()
+      const alias = part
+        .trim()
+        .split(/\s+as\s+/)[1]
+        ?.trim()
       if (alias && (HTTP_METHODS as readonly string[]).includes(alias)) {
         starts.push({ method: alias as Method, index: 0 })
       }
@@ -382,9 +388,12 @@ function analyse(file: string, scopes: Map<string, string>) {
       )
     const linksToFile =
       s.method === "GET" &&
-      /get\w*(Document|Resource)Url\(|NextResponse\.redirect\(\s*(url|fresh|signed|cached)|data:\s*\{[^}]*signedUrl/.test(segment)
+      /get\w*(Document|Resource)Url\(|NextResponse\.redirect\(\s*(url|fresh|signed|cached)|data:\s*\{[^}]*signedUrl/.test(
+        segment,
+      )
     // The brand page returns a data object that merely CONTAINS signed asset links.
-    if (!info.upload && path !== "/api/projects/[id]/brand" && (makesFile || linksToFile)) info.file = true
+    if (!info.upload && path !== "/api/projects/[id]/brand" && (makesFile || linksToFile))
+      info.file = true
     if (perms.length) info.permissions = perms
     if (guard) info.guard = guard
     methods[s.method] = info
@@ -425,7 +434,9 @@ ${body}
 ]
 `
   writeFileSync(OUT, out)
-  console.log(`[mcp:api-map] ${entries.length} routes → ${relative(ROOT, OUT)} (${skipped} excluded)`)
+  console.log(
+    `[mcp:api-map] ${entries.length} routes → ${relative(ROOT, OUT)} (${skipped} excluded)`,
+  )
 }
 
 try {

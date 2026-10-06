@@ -79,7 +79,11 @@ export async function invokeRoute(
   const method = input.method.toUpperCase() as HttpMethod
   const raw = input.path.trim()
   if (!raw.startsWith("/api/")) {
-    return fail({ ok: false, status: 400, note: "path must start with /api/ - e.g. /api/leave/requests" })
+    return fail({
+      ok: false,
+      status: 400,
+      note: "path must start with /api/ - e.g. /api/leave/requests",
+    })
   }
 
   // Accept "/api/x?a=1" as well as a separate `query` object.
@@ -141,7 +145,12 @@ export async function invokeRoute(
   const mod = (await entry.load()) as Record<string, unknown>
   const handler = mod[method] as RouteHandler | undefined
   if (typeof handler !== "function") {
-    return fail({ ok: false, status: 405, route: routeLabel, note: `${method} is not implemented here.` })
+    return fail({
+      ok: false,
+      status: 405,
+      route: routeLabel,
+      note: `${method} is not implemented here.`,
+    })
   }
 
   const headers = new Headers({
@@ -162,7 +171,12 @@ export async function invokeRoute(
     return { ok: true, value: { res, route: routeLabel, pattern: entry.path, info } }
   } catch (err) {
     console.error("[mcp] route threw", routeLabel, err)
-    return fail({ ok: false, status: 500, route: routeLabel, note: "The DNMS endpoint failed unexpectedly." })
+    return fail({
+      ok: false,
+      status: 500,
+      route: routeLabel,
+      note: "The DNMS endpoint failed unexpectedly.",
+    })
   }
 }
 
@@ -284,7 +298,22 @@ export interface EndpointSummary {
   methods: Partial<Record<HttpMethod, ApiMethodInfo>>
 }
 
-const STOP = new Set(["the", "a", "an", "of", "for", "to", "in", "on", "my", "and", "or", "list", "get", "show"])
+const STOP = new Set([
+  "the",
+  "a",
+  "an",
+  "of",
+  "for",
+  "to",
+  "in",
+  "on",
+  "my",
+  "and",
+  "or",
+  "list",
+  "get",
+  "show",
+])
 
 /** Score routes against free-text keywords; best matches first. */
 export function findEndpoints(query: string, limit = 25): EndpointSummary[] {

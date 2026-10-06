@@ -37,7 +37,8 @@ export function ConsentCard({ request, personName, personEmail, workspace }: Con
 
   async function decide(kind: "allow" | "deny") {
     setBusy(kind)
-    const result = kind === "allow" ? await approveConsent(request.id) : await denyConsent(request.id)
+    const result =
+      kind === "allow" ? await approveConsent(request.id) : await denyConsent(request.id)
     if (!result.ok) {
       toast.error(result.error)
       setBusy(null)
@@ -57,9 +58,7 @@ export function ConsentCard({ request, personName, personEmail, workspace }: Con
         <div className="bg-primary/10 text-primary mx-auto flex size-12 items-center justify-center rounded-full">
           <Bot className="size-6" />
         </div>
-        <h1 className="text-xl font-semibold">
-          {name} wants to access DNMS as you
-        </h1>
+        <h1 className="text-xl font-semibold">{name} wants to access DNMS as you</h1>
         <p className="text-muted-foreground text-sm">
           Connecting as <span className="text-foreground font-medium">{personName}</span> (
           {personEmail}) in <span className="text-foreground font-medium">{workspace}</span>
@@ -71,7 +70,8 @@ export function ConsentCard({ request, personName, personEmail, workspace }: Con
           <p className="flex items-start gap-2 text-emerald-600 dark:text-emerald-400">
             <ShieldCheck className="mt-0.5 size-4 shrink-0" />
             <span>
-              Verified: sign-in returns to <strong>{request.redirectHost}</strong> ({request.verifiedAs}
+              Verified: sign-in returns to <strong>{request.redirectHost}</strong> (
+              {request.verifiedAs}
               ).
             </span>
           </p>

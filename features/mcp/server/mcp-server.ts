@@ -13,7 +13,13 @@ import { getAwayDaysForMany, type AwayDay } from "@/features/leave/server/day-st
 import { rateLimited } from "@/lib/rate-limit"
 import { isAdmin_ } from "@/lib/permissions"
 import { PERMISSIONS } from "@/lib/constants"
-import { callApi, describeEndpoint, endpointIndex, findEndpoints, type ApiCallResult } from "./api-dispatch"
+import {
+  callApi,
+  describeEndpoint,
+  endpointIndex,
+  findEndpoints,
+  type ApiCallResult,
+} from "./api-dispatch"
 import { exportTable, prepareDownload, type FileOutcome } from "./download.service"
 import { principalFrom, runAsPrincipal, type Principal } from "./principal"
 import { logToolCall } from "./usage"
@@ -72,7 +78,9 @@ async function runTool(
     return asError("Not signed in to DNMS. Reconnect the DNMS connector.")
   }
   if (principal.session.user.mustChangePassword) {
-    return asError("This DNMS account must change its password in the DNMS web app before the AI connector can be used.")
+    return asError(
+      "This DNMS account must change its password in the DNMS web app before the AI connector can be used.",
+    )
   }
   // Generous: an agent may chain many calls for one question. Per connection.
   if (rateLimited(`mcp:grant:${principal.grantId}`, 300, 5 * 60_000)) {
@@ -109,7 +117,10 @@ const fileResult = (o: FileOutcome): { result: CallToolResult; status: number } 
       }.`
     : undefined
   return {
-    result: { ...asText({ ...o, ...(message && { message }) }), ...(o.ok ? {} : { isError: true }) },
+    result: {
+      ...asText({ ...o, ...(message && { message }) }),
+      ...(o.ok ? {} : { isError: true }),
+    },
     status: o.status,
   }
 }
@@ -195,7 +206,10 @@ function registerTools(server: McpServer) {
             ? callApi(p, { method: "GET", path: "/api/dashboard/stats" })
             : Promise.resolve(null),
         ])
-        return { result: asText({ me, company: company ?? "not permitted for this user" }), status: me.status }
+        return {
+          result: asText({ me, company: company ?? "not permitted for this user" }),
+          status: me.status,
+        }
       }),
   )
 
@@ -223,7 +237,11 @@ function registerTools(server: McpServer) {
           get("/api/clearances"),
         ])
         const pick = (r: ApiCallResult | null) =>
-          r === null ? "not applicable" : r.ok ? r.data : { unavailable: r.status, note: r.note ?? r.data }
+          r === null
+            ? "not applicable"
+            : r.ok
+              ? r.data
+              : { unavailable: r.status, note: r.note ?? r.data }
         return {
           result: asText({
             leaveFromMyTeam: pick(teamLeave),
@@ -247,7 +265,10 @@ function registerTools(server: McpServer) {
       inputSchema: z.object({
         from: z.string().optional().describe("Start date YYYY-MM-DD (default today)"),
         to: z.string().optional().describe("End date YYYY-MM-DD (default = from)"),
-        departmentName: z.string().optional().describe("Only people whose department name contains this"),
+        departmentName: z
+          .string()
+          .optional()
+          .describe("Only people whose department name contains this"),
       }),
       annotations: readOnly,
     },
@@ -284,7 +305,11 @@ function registerTools(server: McpServer) {
           const byPerson = new Map<string, AwayDay[]>()
           for (let i = 0; i < people.length; i += 100) {
             const chunk = people.slice(i, i + 100)
-            const days = await getAwayDaysForMany(chunk.map((e) => e.id), from, to)
+            const days = await getAwayDaysForMany(
+              chunk.map((e) => e.id),
+              from,
+              to,
+            )
             for (const e of chunk) byPerson.set(e.id, days[e.id] ?? [])
           }
 
@@ -307,7 +332,8 @@ function registerTools(server: McpServer) {
               return { date: date!, label: label! }
             })
           const isCompanyHoliday = (d: AwayDay) =>
-            d.status === "holiday" && companyHolidays.some((h) => h.date === d.date && h.label === d.label)
+            d.status === "holiday" &&
+            companyHolidays.some((h) => h.date === d.date && h.label === d.label)
 
           const individuals = people.flatMap((e) => {
             // Birthdays are not absences.
@@ -355,9 +381,7 @@ function registerTools(server: McpServer) {
         "Search the employee directory by name, email or employee code. Returns ids you can use with other endpoints (e.g. /api/employees/[id], /api/leave/balances?employeeId=). Needs the employee:read permission; otherwise use whoami / org chart.",
       inputSchema: z.object({
         search: z.string().optional().describe("Name, email or employee number"),
-        status: z
-          .enum(["ACTIVE", "ON_LEAVE", "SUSPENDED", "RESIGNED", "TERMINATED"])
-          .optional(),
+        status: z.enum(["ACTIVE", "ON_LEAVE", "SUSPENDED", "RESIGNED", "TERMINATED"]).optional(),
         page: z.number().int().min(1).optional(),
         limit: z.number().int().min(1).max(100).optional(),
       }),
@@ -369,7 +393,12 @@ function registerTools(server: McpServer) {
           await callApi(p, {
             method: "GET",
             path: "/api/employees",
-            query: { search: args.search, status: args.status, page: args.page, limit: args.limit ?? 25 },
+            query: {
+              search: args.search,
+              status: args.status,
+              page: args.page,
+              limit: args.limit ?? 25,
+            },
           }),
         ),
       ),
@@ -394,13 +423,17 @@ function registerTools(server: McpServer) {
         if (!q) return { result: asText({ endpoints: endpointIndex() }) }
         if (q.startsWith("/api/")) {
           const one = describeEndpoint(q)
-          return { result: one ? asText(one) : asError(`No endpoint ${q}. Search with keywords instead.`) }
+          return {
+            result: one ? asText(one) : asError(`No endpoint ${q}. Search with keywords instead.`),
+          }
         }
         const found = findEndpoints(q, args.limit ?? 20)
         return {
           result: found.length
             ? asText({ matches: found })
-            : asError("No endpoints matched. Try other keywords, or call with no query for the full index."),
+            : asError(
+                "No endpoints matched. Try other keywords, or call with no query for the full index.",
+              ),
         }
       }),
   )
@@ -412,7 +445,9 @@ function registerTools(server: McpServer) {
       description:
         "GET any DNMS API endpoint as the connected user (read-only). Find the path with dnms_find_endpoints first. Example: path '/api/leave/requests', query {status:'PENDING', limit:50}.",
       inputSchema: z.object({
-        path: z.string().describe("Endpoint path with real ids, e.g. /api/projects/<projectId>/tasks"),
+        path: z
+          .string()
+          .describe("Endpoint path with real ids, e.g. /api/projects/<projectId>/tasks"),
         query: z.record(z.string(), queryValue).optional().describe("Query parameters"),
       }),
       annotations: readOnly,
@@ -435,12 +470,22 @@ function registerTools(server: McpServer) {
         query: z.record(z.string(), queryValue).optional(),
         body: z.unknown().optional().describe("JSON body"),
       }),
-      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
     },
     async (args, ctx) =>
       runTool(ctx, "dnms_change", `${args.method} ${args.path}`, async (p) =>
         apiResult(
-          await callApi(p, { method: args.method, path: args.path, query: args.query, body: args.body }),
+          await callApi(p, {
+            method: args.method,
+            path: args.path,
+            query: args.query,
+            body: args.body,
+          }),
         ),
       ),
   )
@@ -453,8 +498,16 @@ function registerTools(server: McpServer) {
         "Get a DOWNLOAD LINK for any file DNMS can produce, as the connected user: work reports (PPTX/PDF/DOCX), deliverables reports (PPTX/XLSX/DOCX) and CSV exports, attendance CSV, company and employee documents, project resources and brand assets, chat/gallery/message attachments, CVs, photos. Find the endpoint with dnms_find_endpoints (file endpoints are marked file:true). Example: path '/api/work-reports', query {month:'2026-09', format:'pptx', employeeIds:'<id>'}. Returns a link the user clicks - give it to them. Set readText:true to also get the file's text (PDF, Word, Excel, CSV, text) so you can read or summarise it.",
       inputSchema: z.object({
         path: z.string().describe("Endpoint path with real ids, e.g. /api/documents/<id>"),
-        query: z.record(z.string(), queryValue).optional().describe("Query parameters, e.g. {month:'2026-09', format:'pdf'}"),
-        method: z.enum(["GET", "POST"]).optional().describe("Default GET. POST only for the few endpoints that generate a file from a body."),
+        query: z
+          .record(z.string(), queryValue)
+          .optional()
+          .describe("Query parameters, e.g. {month:'2026-09', format:'pdf'}"),
+        method: z
+          .enum(["GET", "POST"])
+          .optional()
+          .describe(
+            "Default GET. POST only for the few endpoints that generate a file from a body.",
+          ),
         body: z.unknown().optional().describe("JSON body, for POST endpoints"),
         readText: z.boolean().optional().describe("Also return the extracted text of the file"),
       }),
@@ -474,7 +527,10 @@ function registerTools(server: McpServer) {
         "Turn any DNMS LIST endpoint into an Excel (.xlsx) or CSV file and get a download link - the same as the Export buttons in the DNMS web app. Pages through all rows (up to maxRows, default 2000). Use for lists that have no file endpoint of their own: stock register, employee directory, leave requests, tasks, attendance logs, audit log... Example: path '/api/stock/issues', format 'xlsx'. Filters go in query. Give the returned link to the user.",
       inputSchema: z.object({
         path: z.string().describe("A list endpoint, e.g. /api/employees"),
-        query: z.record(z.string(), queryValue).optional().describe("Filters, e.g. {status:'ACTIVE'}"),
+        query: z
+          .record(z.string(), queryValue)
+          .optional()
+          .describe("Filters, e.g. {status:'ACTIVE'}"),
         format: z.enum(["xlsx", "csv"]).optional().describe("Default xlsx"),
         fileName: z.string().optional().describe("Name for the file (no extension needed)"),
         maxRows: z.number().int().min(1).max(10000).optional(),

@@ -5,6 +5,16 @@ import { SearchInput } from "@/components/shared/search-input"
 import { EMPLOYEE_STATUS_LABELS } from "@/lib/constants"
 import { useDepartments } from "@/features/employees/hooks/use-employees"
 
+// "Active" / "Inactive" match the directory's status badge (employee.isActive);
+// the rest are the offboarding statuses.
+const STATUS_OPTIONS = [
+  { value: "ACTIVE", label: "Active" },
+  { value: "INACTIVE", label: "Inactive" },
+  ...Object.entries(EMPLOYEE_STATUS_LABELS)
+    .filter(([value]) => value !== "ACTIVE")
+    .map(([value, label]) => ({ value, label })),
+]
+
 export interface EmployeeFiltersProps {
   search: string
   onSearchChange: (v: string) => void
@@ -27,7 +37,8 @@ export function EmployeeFilters({
   const { data: departmentsData } = useDepartments()
   const departments = departmentsData?.data ?? []
 
-  const hasActiveFilters = search !== "" || departmentId !== "" || status !== ""
+  // Active is the directory's default status, so it doesn't count as a filter.
+  const hasActiveFilters = search !== "" || departmentId !== "" || status !== "ACTIVE"
 
   return (
     <FilterToolbar hasActiveFilters={hasActiveFilters} onClear={onClear}>
@@ -52,7 +63,7 @@ export function EmployeeFilters({
       <FilterSelect
         value={status}
         onChange={onStatusChange}
-        options={Object.entries(EMPLOYEE_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+        options={STATUS_OPTIONS}
         allLabel="All Statuses"
         className="w-[150px]"
       />

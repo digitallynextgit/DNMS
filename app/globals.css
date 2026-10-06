@@ -383,6 +383,17 @@
   }
 }
 
+/* ── Marketing: signed-in vs signed-out buttons ───────────────────────── */
+/* The static marketing HTML carries BOTH variants; theme-boot.js stamps
+   <html data-auth> from the proxy's hint cookie (lib/auth-hint.ts) before
+   paint, so the right one shows on the first frame - no "Log in" flash for
+   someone already signed in. !important beats the buttons' own display
+   utilities (hidden md:inline-flex). */
+html[data-auth] .auth-guest,
+html:not([data-auth]) .auth-member {
+  display: none !important;
+}
+
 /* ── Auth / login animations ──────────────────────────────────────────── */
 
 /* Logo "walk" - a gentle stepping bob that pivots from the feet (the red mark

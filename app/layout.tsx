@@ -74,8 +74,8 @@ export const viewport: Viewport = {
 // NO auth() here. Reading the session cookie in the ROOT layout opted every
 // route in the app out of static prerendering - all nine marketing pages and
 // /login were server-rendered per request because of that one line. The public
-// pages render with session={null} (the marketing header resolves it
-// client-side), and the authed route groups re-provide their layouts' server
+// pages render with session={null} (the marketing pages look it up themselves
+// via useMarketingSession), and the authed route groups re-provide their layouts' server
 // session through <SessionBridge> so permission-gated UI is still correct on
 // first paint. See components/providers/session-bridge.tsx.
 export default function RootLayout({ children }: { children: React.ReactNode }) {

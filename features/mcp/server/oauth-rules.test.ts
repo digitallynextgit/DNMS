@@ -6,12 +6,10 @@ import { describe, expect, it, vi } from "vitest"
 vi.mock("server-only", () => ({}))
 
 const { pkceMatches, isValidChallenge, generateToken, sha256Hex } = await import("./tokens")
-const { isAllowedRedirect, redirectMatches, isLoopbackRedirect, verifiedClientName } = await import(
-  "./redirects"
-)
+const { isAllowedRedirect, redirectMatches, isLoopbackRedirect, verifiedClientName } =
+  await import("./redirects")
 
-const challengeFor = (verifier: string) =>
-  createHash("sha256").update(verifier).digest("base64url")
+const challengeFor = (verifier: string) => createHash("sha256").update(verifier).digest("base64url")
 
 describe("PKCE (S256)", () => {
   const verifier = "a".repeat(43) + "-._~XYZ"

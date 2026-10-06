@@ -45,9 +45,7 @@ const sameResource = (a: string, b: string) =>
   a.replace(/\/+$/, "").toLowerCase() === b.replace(/\/+$/, "").toLowerCase()
 
 function parseScopes(raw: string | null | undefined): string[] {
-  const requested = (raw ?? "")
-    .split(/\s+/)
-    .filter((s) => SUPPORTED_SCOPES.includes(s))
+  const requested = (raw ?? "").split(/\s+/).filter((s) => SUPPORTED_SCOPES.includes(s))
   // `offline_access`, OIDC scopes and anything unknown are ignored rather than
   // refused - refresh tokens are always issued, and refusing would only break
   // clients that ask for a little extra.
@@ -227,7 +225,10 @@ export async function approveAuthorization(id: string, session: Session): Promis
 
   const row = await db.oAuthAuthorization.findUnique({ where: { id } })
   if (!row || row.consumedAt || row.codeHash || row.expiresAt < new Date()) {
-    throw new OAuthFlowError("invalid_request", "This sign-in request has expired. Start again from the AI app.")
+    throw new OAuthFlowError(
+      "invalid_request",
+      "This sign-in request has expired. Start again from the AI app.",
+    )
   }
 
   // Confirm the membership is live right now, not just when the cookie was minted.
@@ -361,7 +362,8 @@ export async function exchangeCode(form: URLSearchParams): Promise<TokenResponse
     await revokeGrant(row.grantId, "authorization_code_replayed")
     throw new OAuthFlowError("invalid_grant", "Authorization code already used")
   }
-  if (row.expiresAt < new Date()) throw new OAuthFlowError("invalid_grant", "Authorization code expired")
+  if (row.expiresAt < new Date())
+    throw new OAuthFlowError("invalid_grant", "Authorization code expired")
 
   const clientId = form.get("client_id")
   if (clientId && clientId !== row.clientId) {
@@ -369,7 +371,10 @@ export async function exchangeCode(form: URLSearchParams): Promise<TokenResponse
   }
   const redirectUri = form.get("redirect_uri")
   if (redirectUri && redirectUri !== row.redirectUri) {
-    throw new OAuthFlowError("invalid_grant", "redirect_uri does not match the authorization request")
+    throw new OAuthFlowError(
+      "invalid_grant",
+      "redirect_uri does not match the authorization request",
+    )
   }
   const resource = form.get("resource")
   if (resource && !sameResource(resource, row.resource)) {

@@ -52,7 +52,15 @@ describe("exclusionReason (AI connector policy)", () => {
   })
 
   it("blocks machine, sign-in and connector endpoints", () => {
-    for (const p of ["/api/cron/birthdays", "/api/auth/[...nextauth]", "/api/password", "/api/oauth/token", "/api/mcp", "/api/portal/overview", "/api/chat/stream"]) {
+    for (const p of [
+      "/api/cron/birthdays",
+      "/api/auth/[...nextauth]",
+      "/api/password",
+      "/api/oauth/token",
+      "/api/mcp",
+      "/api/portal/overview",
+      "/api/chat/stream",
+    ]) {
       expect(exclusionReason(p)).not.toBeNull()
     }
   })
@@ -63,7 +71,12 @@ describe("exclusionReason (AI connector policy)", () => {
   })
 
   it("allows ordinary HR modules", () => {
-    for (const p of ["/api/leave/requests", "/api/payroll/records", "/api/employees/[id]", "/api/projects/[id]/tasks"]) {
+    for (const p of [
+      "/api/leave/requests",
+      "/api/payroll/records",
+      "/api/employees/[id]",
+      "/api/projects/[id]/tasks",
+    ]) {
       expect(exclusionReason(p, "GET")).toBeNull()
     }
   })

@@ -123,7 +123,10 @@ async function capture(
     // Our own address: that is another DNMS route, not a file host. Follow it
     // once, as the same person, so the same checks apply.
     if (target.origin === publicOrigin() && principal && hop < 1) {
-      const next = await invokeRoute(principal, { method: "GET", path: target.pathname + target.search })
+      const next = await invokeRoute(principal, {
+        method: "GET",
+        path: target.pathname + target.search,
+      })
       if (!next.ok) return { kind: "error", outcome: next.result }
       return capture(next.value.res, next.value.route, target.pathname, hop + 1, principal)
     }
@@ -216,8 +219,15 @@ async function textOf(
     return { textNote: `Reading the text of ${contentType || "this file type"} is not supported.` }
   }
   try {
-    const text = await extractTextFromBuffer(Buffer.from(bytes), contentType, fileName, MAX_TEXT_CHARS)
-    return text ? { text } : { textNote: "The file has no readable text (it may be scanned images)." }
+    const text = await extractTextFromBuffer(
+      Buffer.from(bytes),
+      contentType,
+      fileName,
+      MAX_TEXT_CHARS,
+    )
+    return text
+      ? { text }
+      : { textNote: "The file has no readable text (it may be scanned images)." }
   } catch (err) {
     console.error("[mcp] text extraction failed", fileName, err)
     return { textNote: "The file's text could not be read." }
@@ -227,12 +237,19 @@ async function textOf(
 // ---------------------------------------------------------------------------
 // dnms_download
 // ---------------------------------------------------------------------------
-export async function prepareDownload(principal: Principal, input: DownloadInput): Promise<FileOutcome> {
+export async function prepareDownload(
+  principal: Principal,
+  input: DownloadInput,
+): Promise<FileOutcome> {
   const method = input.method ?? "GET"
   const pathname = new URL(input.path.trim(), publicOrigin()).pathname.replace(/\/+$/, "")
   const query = { ...(input.query ?? {}) }
   const hasDownloadInPath = /[?&]download=/.test(input.path)
-  if (query.download === undefined && !hasDownloadInPath && supportsDownloadParam(pathname, method)) {
+  if (
+    query.download === undefined &&
+    !hasDownloadInPath &&
+    supportsDownloadParam(pathname, method)
+  ) {
     query.download = "1"
   }
   const full = buildPath(input.path, query)
@@ -354,17 +371,32 @@ export async function exportTable(principal: Principal, input: ExportInput): Pro
     const res = run.value.res
     if (!res.ok) {
       const t = (await res.text().catch(() => "")).slice(0, 500)
-      return { ok: false, status: res.status, route, note: t || `The endpoint answered ${res.status}.` }
+      return {
+        ok: false,
+        status: res.status,
+        route,
+        note: t || `The endpoint answered ${res.status}.`,
+      }
     }
     if (!(res.headers.get("content-type") ?? "").includes("application/json")) {
       await res.body?.cancel().catch(() => {})
-      return { ok: false, status: 422, route, note: "This endpoint does not return a list. Use dnms_download for files." }
+      return {
+        ok: false,
+        status: 422,
+        route,
+        note: "This endpoint does not return a list. Use dnms_download for files.",
+      }
     }
     const json = await res.json().catch(() => null)
     const picked = pickRows(json)
     if (!picked) {
       return page === 1
-        ? { ok: false, status: 422, route, note: "No list of records was found in this response, so there is nothing to export." }
+        ? {
+            ok: false,
+            status: 422,
+            route,
+            note: "No list of records was found in this response, so there is nothing to export.",
+          }
         : finish()
     }
     collected.push(...picked.rows)
@@ -375,7 +407,13 @@ export async function exportTable(principal: Principal, input: ExportInput): Pro
       collected.length = Math.min(collected.length, maxRows)
       break
     }
-    if (!supports.includes("page") || totalPages === null || page >= totalPages || page >= MAX_PAGES) break
+    if (
+      !supports.includes("page") ||
+      totalPages === null ||
+      page >= totalPages ||
+      page >= MAX_PAGES
+    )
+      break
     page++
   }
   return finish()
@@ -383,13 +421,19 @@ export async function exportTable(principal: Principal, input: ExportInput): Pro
   async function finish(): Promise<FileOutcome> {
     const { columns, rows } = flattenRows(collected)
     const stamp = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10)
-    const base = safeFileName(input.fileName ?? pathname.split("/").filter(Boolean).slice(1).join("-"), "export")
+    const base = safeFileName(
+      input.fileName ?? pathname.split("/").filter(Boolean).slice(1).join("-"),
+      "export",
+    )
     const fileName = `${base.replace(/\.(csv|xlsx)$/i, "")}-${stamp}.${format}`
 
     let bytes: Uint8Array
     let contentType: string
     if (format === "csv") {
-      const text = toCsv(rows.map((r) => r.map(guardCsvCell)), columns)
+      const text = toCsv(
+        rows.map((r) => r.map(guardCsvCell)),
+        columns,
+      )
       bytes = new Uint8Array(Buffer.from("﻿" + text, "utf8")) // BOM so Excel reads UTF-8
       contentType = "text/csv"
     } else {
@@ -397,7 +441,12 @@ export async function exportTable(principal: Principal, input: ExportInput): Pro
       contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     }
     if (bytes.byteLength > MAX_FILE_BYTES) {
-      return { ok: false, status: 413, route, note: "The export is too large. Narrow it with filters." }
+      return {
+        ok: false,
+        status: 413,
+        route,
+        note: "The export is too large. Narrow it with filters.",
+      }
     }
     return {
       ok: true,
@@ -413,9 +462,14 @@ async function buildXlsx(title: string, columns: string[], rows: unknown[][]): P
   const ExcelJS = (await import("exceljs")).default
   const wb = new ExcelJS.Workbook()
   wb.creator = "DNMS"
-  const ws = wb.addWorksheet(safeFileName(title).replace(/[[\]:*?/\\]/g, " ").slice(0, 31) || "Export", {
-    views: [{ state: "frozen", ySplit: 1 }],
-  })
+  const ws = wb.addWorksheet(
+    safeFileName(title)
+      .replace(/[[\]:*?/\\]/g, " ")
+      .slice(0, 31) || "Export",
+    {
+      views: [{ state: "frozen", ySplit: 1 }],
+    },
+  )
   ws.columns = columns.map((header, i) => ({
     header,
     key: `c${i}`,

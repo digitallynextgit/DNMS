@@ -33,7 +33,10 @@ export async function GET(req: NextRequest) {
  */
 function errorPage(title: string, message: string, status: number) {
   const esc = (s: string) =>
-    s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!)
+    s.replace(
+      /[&<>"']/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+    )
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} · DNMS</title>
 <style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#0a0a0a;color:#e5e5e5;display:grid;place-items:center;min-height:100vh;margin:0;padding:16px}main{max-width:440px;border:1px solid #262626;border-radius:12px;padding:28px;background:#111}h1{font-size:18px;margin:0 0 8px}p{color:#a3a3a3;line-height:1.5;margin:0}</style></head>
 <body><main><h1>${esc(title)}</h1><p>${esc(message)}</p></main></body></html>`

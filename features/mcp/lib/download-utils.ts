@@ -70,7 +70,9 @@ export function extensionFor(contentType: string): string | null {
 export function contentTypeFromName(name: string): string {
   const ext = name.toLowerCase().match(/\.([a-z0-9]{1,5})$/)?.[1]
   if (!ext) return ""
-  const hit = Object.entries(EXT_BY_TYPE).find(([, e]) => e === ext || (ext === "jpeg" && e === "jpg"))
+  const hit = Object.entries(EXT_BY_TYPE).find(
+    ([, e]) => e === ext || (ext === "jpeg" && e === "jpg"),
+  )
   return hit?.[0] ?? ""
 }
 
@@ -131,7 +133,10 @@ export function signedUrlExpiry(url: string): Date | null {
 export function looksLikePresignedStorageUrl(url: string): boolean {
   try {
     const u = new URL(url)
-    return u.protocol === "https:" && (u.searchParams.has("X-Amz-Signature") || u.searchParams.has("Signature"))
+    return (
+      u.protocol === "https:" &&
+      (u.searchParams.has("X-Amz-Signature") || u.searchParams.has("Signature"))
+    )
   } catch {
     return false
   }
@@ -176,7 +181,8 @@ export function pickRows(json: Json): { rows: Record<string, Json>[]; path: stri
       if (!best || rows.length > best.rows.length) best = { rows, path }
       return
     }
-    if (isObject(node)) for (const [k, v] of Object.entries(node)) visit(v, path ? `${path}.${k}` : k, depth + 1)
+    if (isObject(node))
+      for (const [k, v] of Object.entries(node)) visit(v, path ? `${path}.${k}` : k, depth + 1)
   }
   visit(json, "", 0)
   return best
@@ -211,7 +217,9 @@ function flattenInto(out: Record<string, Cell>, prefix: string, value: Json, dep
   } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
     out[prefix] = value
   } else if (Array.isArray(value)) {
-    out[prefix] = value.every((v) => v === null || ["string", "number", "boolean"].includes(typeof v))
+    out[prefix] = value.every(
+      (v) => v === null || ["string", "number", "boolean"].includes(typeof v),
+    )
       ? value.join("; ")
       : JSON.stringify(value).slice(0, 2000)
   } else if (isObject(value)) {
@@ -219,12 +227,16 @@ function flattenInto(out: Record<string, Cell>, prefix: string, value: Json, dep
       out[prefix] = JSON.stringify(value).slice(0, 2000)
       return
     }
-    for (const [k, v] of Object.entries(value)) flattenInto(out, prefix ? `${prefix}.${k}` : k, v, depth + 1)
+    for (const [k, v] of Object.entries(value))
+      flattenInto(out, prefix ? `${prefix}.${k}` : k, v, depth + 1)
   }
 }
 
 /** Flatten records into a header + rows grid. Nested objects become "a.b" columns. */
-export function flattenRows(records: Record<string, Json>[]): { columns: string[]; rows: Cell[][] } {
+export function flattenRows(records: Record<string, Json>[]): {
+  columns: string[]
+  rows: Cell[][]
+} {
   const flat = records.map((r) => {
     const out: Record<string, Cell> = {}
     flattenInto(out, "", r, 0)
