@@ -31,6 +31,7 @@ import {
   Package,
   Presentation,
   Bot,
+  LifeBuoy,
 } from "lucide-react"
 
 import { PERMISSIONS } from "@/lib/constants"
@@ -94,6 +95,9 @@ export const COMPANY_ITEMS: NavItem[] = [
   { label: "Photo Gallery", href: "/gallery", icon: Images },
   { label: "Documents", href: "/documents", icon: FileText },
   { label: "Organisation Chart", href: "/employees/org-chart", icon: Network },
+  // Step-by-step guides for every module (features/help). Open to everyone; each
+  // reader only sees guides for the pages their own sidebar shows.
+  { label: "Help & Guides", href: "/help", icon: LifeBuoy },
 ]
 
 // ── Project: personal project workspace. Shown to anyone with project access. ─
