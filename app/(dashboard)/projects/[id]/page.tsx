@@ -45,7 +45,6 @@ import {
   MessageSquare,
   Mail,
   KeyRound,
-  UserCog,
   Palette,
   CalendarDays,
   HardDrive,
@@ -156,10 +155,6 @@ const PasswordsTab = dynamic(
     loading: tabFallback,
   },
 )
-const ProjectClientsTab = dynamic(
-  () => import("@/features/client-portal").then((m) => m.ProjectClientsTab),
-  { loading: tabFallback },
-)
 const ProjectMailerTab = dynamic(
   () => import("@/features/project-mailer").then((m) => m.ProjectMailerTab),
   { loading: tabFallback },
@@ -192,7 +187,6 @@ const PROJECT_TABS = [
   "messages",
   "activity",
   "passwords",
-  "clients",
   "monitoring",
   "mailer",
 ] as const
@@ -442,13 +436,8 @@ export default function ProjectDetailPage() {
               // not only whoever happens to own the project.
               { value: "monitoring", label: "Monitoring", icon: Activity },
               { value: "mailer", label: "Mailer", icon: Mail },
-              // Clients STAYS manage-only: it mints portal logins and resets their
-              // passwords, which is account administration rather than project work.
-              // as const: inside a conditional spread the literal widens to
-              // string, which defeats the check below.
-              ...(canManage
-                ? [{ value: "clients" as const, label: "Portal access", icon: UserCog }]
-                : []),
+              // Portal access is managed from the client's page (Clients →
+              // Contacts), not per project.
               // Typed against PROJECT_TABS: adding a tab here without adding its
               // value there stops the build instead of shipping a dead tab.
             ] satisfies {
@@ -577,10 +566,6 @@ export default function ProjectDetailPage() {
             <PasswordsTab projectId={projectRef} currentUserId={userId} canManage={canManage} />
           </TabsContent>
         )}
-
-        <TabsContent value="clients" className="mt-4">
-          <ProjectClientsTab projectRef={projectRef} canManage={canManage} />
-        </TabsContent>
 
         {/* `canManage` is hardcoded true for these two because reaching this page
             at all already means project access (every read behind it is wrapped

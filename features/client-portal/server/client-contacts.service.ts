@@ -19,8 +19,8 @@ import { generatePassword, sendCredentials } from "./client-admin.service"
 // =============================================================================
 // Client → Contacts (staff side)
 // =============================================================================
-// The same accounts and grants as Project → Portal access, reached from the
-// other end. Here the CLIENT is fixed by the route guard (withClient) and a
+// The only place portal access is managed (projects have no tab for it).
+// The CLIENT is fixed by the route guard (withClient) and a
 // grant names a project and a person. Everything checks that the person, and
 // the project, belong to that client, so this surface cannot be used to reach
 // another company's projects or people.

@@ -4,10 +4,9 @@
  * Client → Contacts tab: the people at a client who can sign in, and which of
  * the client's projects each of them can see.
  *
- * The same accounts and grants as a project's Portal access tab, from the
- * other end. Here a person is the unit and their projects hang off them, so
- * "give Priya the new store too" is one click on her card rather than a
- * re-typed invitation on the store's page.
+ * The ONLY place portal access is managed (projects have no tab for it). A
+ * person is the unit and their projects hang off them, so "give Priya the new
+ * store too" is one click on her card.
  *
  * Types are declared here rather than imported from features/clients, because
  * that feature renders this tab: importing its hooks from here would make the
@@ -306,7 +305,7 @@ export function ClientContactsTab({
                       className="bg-muted/30 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-sm px-3 py-2"
                     >
                       <Link
-                        href={`/projects/${g.project.slug || g.project.id}?tab=clients`}
+                        href={`/projects/${g.project.slug || g.project.id}`}
                         className="inline-flex min-w-40 items-center gap-1.5 text-xs font-medium hover:underline"
                       >
                         <FolderKanban className="text-muted-foreground h-3.5 w-3.5" />

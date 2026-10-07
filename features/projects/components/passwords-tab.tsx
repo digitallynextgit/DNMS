@@ -17,10 +17,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { EmptyState } from "@/components/shared/empty-state"
+import { SearchInput } from "@/components/shared/search-input"
 import { ListSkeleton } from "@/components/shared/loading-skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { FormDialog } from "@/components/shared/form-dialog"
-import { formatDate } from "@/lib/utils"
+import { cn, formatDate } from "@/lib/utils"
 import {
   Plus,
   Eye,
@@ -44,6 +45,16 @@ export function PasswordsTab({ projectId, currentUserId, canManage }: Props) {
   const { data, isLoading } = useProjectPasswords(projectId)
   const entries = data?.data ?? []
   const [createOpen, setCreateOpen] = useState(false)
+  const [search, setSearch] = useState("")
+
+  // Client-side: the list is already loaded. Passwords themselves are not
+  // searchable - they are encrypted and only decrypted on reveal.
+  const query = search.trim().toLowerCase()
+  const shown = query
+    ? entries.filter((e) =>
+        [e.label, e.username, e.url, e.notes].some((v) => v?.toLowerCase().includes(query)),
+      )
+    : entries
 
   if (isLoading) {
     return <ListSkeleton rows={3} height="h-20" className="space-y-3" />
@@ -72,6 +83,22 @@ export function PasswordsTab({ projectId, currentUserId, canManage }: Props) {
         this tab, or read an entry through the API.
       </p>
 
+      {entries.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by name, username, website or notes"
+            className="w-full sm:max-w-sm"
+          />
+          {query && (
+            <span className="text-muted-foreground text-xs">
+              {shown.length} of {entries.length}
+            </span>
+          )}
+        </div>
+      )}
+
       {entries.length === 0 ? (
         <EmptyState
           compact
@@ -79,9 +106,16 @@ export function PasswordsTab({ projectId, currentUserId, canManage }: Props) {
           title="No credentials saved yet"
           description="Store API keys, logins, and secrets here securely."
         />
+      ) : shown.length === 0 ? (
+        <EmptyState
+          compact
+          icon={KeyRound}
+          title="No matching credentials"
+          description={`Nothing matches "${search.trim()}". Try a name, username or website.`}
+        />
       ) : (
         <div className="space-y-2">
-          {entries.map((entry) => (
+          {shown.map((entry) => (
             <PasswordRow
               key={entry.id}
               entry={entry}
@@ -120,7 +154,6 @@ function PasswordRow({
   const [showing, setShowing] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
 
   const isOwner = entry.createdBy.id === currentUserId
 
@@ -137,27 +170,18 @@ function PasswordRow({
     })
   }
 
-  async function handleCopy() {
-    let pw = revealedPw
-    if (!pw) {
-      const res = await new Promise<string | null>((resolve) => {
-        reveal.mutate(entry.id, {
-          onSuccess: (r) => {
-            setRevealedPw(r.data.password)
-            resolve(r.data.password)
-          },
-          onError: () => resolve(null),
-        })
+  /** The plaintext, decrypting it on first use (copy works without revealing). */
+  function fetchPassword(): Promise<string | null> {
+    if (revealedPw) return Promise.resolve(revealedPw)
+    return new Promise((resolve) => {
+      reveal.mutate(entry.id, {
+        onSuccess: (r) => {
+          setRevealedPw(r.data.password)
+          resolve(r.data.password)
+        },
+        onError: () => resolve(null),
       })
-      if (!pw) pw = res
-    }
-    if (pw) {
-      navigator.clipboard.writeText(pw).then(() => {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-        toast.success("Copied to clipboard")
-      })
-    }
+    })
   }
 
   return (
@@ -186,9 +210,17 @@ function PasswordRow({
             </div>
 
             {entry.username && (
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                <span className="font-medium">Username:</span> {entry.username}
-              </p>
+              <div className="text-muted-foreground mt-0.5 flex min-w-0 items-center gap-1 text-xs">
+                <span className="min-w-0 truncate">
+                  <span className="font-medium">Username:</span> {entry.username}
+                </span>
+                <CopyButton
+                  title="Copy username"
+                  what="Username"
+                  getText={() => entry.username}
+                  className="h-6 w-6"
+                />
+              </div>
             )}
 
             <div className="mt-2 flex items-center gap-2">
@@ -205,19 +237,7 @@ function PasswordRow({
               >
                 {showing ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={handleCopy}
-                title="Copy password"
-              >
-                {copied ? (
-                  <Check className="h-3.5 w-3.5 text-emerald-600" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-              </Button>
+              <CopyButton title="Copy password" what="Password" getText={fetchPassword} />
             </div>
 
             {entry.notes && (
@@ -283,6 +303,51 @@ function PasswordRow({
         onConfirm={() => del.mutate(entry.id, { onSuccess: () => setConfirmOpen(false) })}
       />
     </Card>
+  )
+}
+
+/** Copies a value and flashes a tick. `getText` may be async (the password is decrypted on demand). */
+function CopyButton({
+  title,
+  what,
+  getText,
+  className,
+}: {
+  title: string
+  what: string
+  getText: () => string | null | Promise<string | null>
+  className?: string
+}) {
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    const text = await getText()
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      toast.success(`${what} copied`)
+    } catch {
+      toast.error("Couldn't copy - your browser blocked clipboard access")
+    }
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn("text-muted-foreground hover:text-foreground shrink-0", className)}
+      onClick={copy}
+      title={title}
+      aria-label={title}
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-emerald-600" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </Button>
   )
 }
 

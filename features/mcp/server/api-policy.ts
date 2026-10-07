@@ -31,7 +31,6 @@ export const EXCLUDED_API_PATHS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/admin\/storage(\/|$)/, "platform storage (superadmin)"],
   [/^\/api\/admin\/storage-accounts(\/|$)/, "platform storage accounts (superadmin)"],
   [/^\/api\/clients\/\[id\]\/contacts\/\[contactId\]\/password$/, "client portal passwords"],
-  [/^\/api\/projects\/\[id\]\/clients\/\[accessId\]\/password$/, "client portal passwords"],
 ]
 
 /** Single methods that would hand stored secrets to the AI. */

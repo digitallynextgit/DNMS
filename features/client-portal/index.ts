@@ -3,9 +3,9 @@
 //
 // NOTE: server-only modules (server/*.service, server/*.queries, emails) are
 // intentionally NOT re-exported here - API routes and server components import
-// those directly. The Clients tab is rendered from a CLIENT component
-// (app/(dashboard)/projects/[id]/page.tsx), so anything reachable through this
-// barrel is pulled into the browser bundle; re-exporting a service would drag
+// those directly. The Contacts tab is rendered from a CLIENT component
+// (features/clients/components/client-detail.tsx), so anything reachable through
+// this barrel is pulled into the browser bundle; re-exporting a service would drag
 // `import "server-only"` in with it and fail the build. Same rule as
 // features/projects/index.ts.
 
@@ -21,9 +21,6 @@ export {
 
 // Schemas (zod only - safe on both sides).
 export {
-  projectClientCreateSchema,
-  projectClientUpdateSchema,
-  projectClientResetSchema,
   clientPasswordSchema,
   productListQuerySchema,
   clientContactCreateSchema,
@@ -31,9 +28,6 @@ export {
   clientContactResetSchema,
   clientGrantCreateSchema,
   clientGrantUpdateSchema,
-  type ProjectClientCreateInput,
-  type ProjectClientUpdateInput,
-  type ProjectClientResetInput,
   type ClientPasswordInput,
   type ProductListQuery,
   type ClientContactCreateInput,
@@ -62,7 +56,6 @@ export { PortalDocuments } from "./components/portal-documents"
 export { PortalPlan } from "./components/portal-plan"
 export { PortalCalendars } from "./components/portal-calendars"
 export { PortalActivityLog } from "./components/portal-activity-log"
-export { ProjectClientsTab } from "./components/project-clients-tab"
 export {
   ClientContactsTab,
   type ContactRow,

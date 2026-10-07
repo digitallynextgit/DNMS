@@ -27,17 +27,16 @@ export const POST = withSession(
         year: "numeric",
       })
 
-      // Active employees who actually HAVE a KPI profile configured, excluding
-      // admins (admin + the invisible admin_ account) - admins aren't evaluated,
-      // and anyone without KPIs has nothing meaningful to be scored on.
+      // Active employees who actually HAVE a KPI profile configured - anyone
+      // without KPIs has nothing meaningful to be scored on. The KPI profile is
+      // the opt-in: an `admin` who has one (team leads who also run DNMS) is
+      // evaluated like anyone else. Only the invisible admin_ account is skipped.
       const employees = await db.employee.findMany({
         where: {
           isActive: true,
           status: "ACTIVE",
           perfKpis: { some: {} },
-          employeeRoles: {
-            none: { role: { name: { in: [SYSTEM_ROLES.ADMIN_, SYSTEM_ROLES.ADMIN] } } },
-          },
+          employeeRoles: { none: { role: { name: SYSTEM_ROLES.ADMIN_ } } },
         },
         select: { id: true, managerId: true, firstName: true },
       })

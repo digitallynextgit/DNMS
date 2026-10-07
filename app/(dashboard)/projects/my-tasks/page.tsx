@@ -233,11 +233,12 @@ export default function MyTasksPage() {
   const [projectFilter, setProjectFilter] = useState("all")
   /** "" means every date; otherwise a "yyyy-MM-dd" due date. */
   const [dateFilter, setDateFilter] = useState("")
-  // Anyone who last used the table or the board still has it in localStorage.
-  // Both are gone, so fold them back to cards rather than render a toggle with
-  // nothing selected over a list that silently fell through to the default.
-  const [storedView, setViewMode] = useViewMode("my-tasks")
-  const viewMode = storedView === "sheet" ? "sheet" : "card"
+  // The sheet (the week's plan) is the default. The key is new so everyone
+  // starts there once, including people whose old "my-tasks" key remembered
+  // cards; a switch to cards after that is remembered as usual. Anything else
+  // stored (the retired table and board views) folds back to the sheet.
+  const [storedView, setViewMode] = useViewMode("my-tasks:view", "sheet")
+  const viewMode = storedView === "card" ? "card" : "sheet"
   const qc = useQueryClient()
   const askFollowUpConflict = useFollowUpConflictStore((s) => s.ask)
 
