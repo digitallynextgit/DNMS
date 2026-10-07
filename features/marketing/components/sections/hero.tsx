@@ -4,7 +4,7 @@ import Link from "next/link"
 import dynamic from "next/dynamic"
 import { Fingerprint, Wallet, Sparkles, ArrowRight } from "lucide-react"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { Button } from "@/components/ui/button"
 import { useMarketingSession } from "../../hooks/use-marketing-session"
 import { GridBackdrop } from "../fx"

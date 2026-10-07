@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { AboutContent } from "@/features/marketing"
 
 export const metadata: Metadata = {

@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { FaqContent } from "@/features/marketing"
 import { ALL_FAQS } from "@/features/marketing/faq.content"
 

@@ -11,7 +11,7 @@ import {
   type DriveFile,
 } from "@/lib/google-drive"
 import { MAX_VIDEO_SIZE } from "@/lib/constants"
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 
 // =============================================================================
 // Where a content-plan asset is stored, and who can see it.

@@ -1,4 +1,4 @@
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 
 // =============================================================================
 // Legal document content.
@@ -12,7 +12,7 @@ import { siteConfig } from "@/config/site"
 // Jurisdiction assumed: India (DPDP Act 2023, IT Act 2000 and the SPDI Rules).
 // Selling into the EU/UK adds GDPR obligations this draft only gestures at.
 //
-// Everything identifying the company comes from config/site.ts, so the entity
+// Everything identifying the company comes from lib/site.ts, so the entity
 // name, address and inboxes are corrected in one place.
 // =============================================================================
 

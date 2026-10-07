@@ -1,8 +1,8 @@
 # Brand masters
 
-Full-resolution source images. **Not in `public/`, and that is the point** - every
-file under `public/` is served at the root, so a 729 KB master sitting there is a
-729 KB file the internet can fetch, on a site whose own pages never link it.
+Full-resolution source images. Everything under `public/` is served at the site
+root, so these are publicly reachable at `/brand-masters/...` - but no page links
+them; the site uses the small derivatives below.
 
 | File                | Size        | Derivatives it produces                                                                                                     |
 | ------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -21,7 +21,7 @@ The web icons used by `app/manifest.ts`:
 node -e "
 const s=require('sharp');
 (async()=>{
-  const src='assets/brand-masters/brand-mark.png';
+  const src='public/brand-masters/brand-mark.png';
   for (const n of [192,512]) {
     await s(src).resize(n,n,{fit:'contain',background:{r:0,g:0,b:0,alpha:0}})
       .png({compressionLevel:9}).toFile('public/icon-'+n+'.png');

@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import dynamic from "next/dynamic"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import {
   Hero,
   MarqueeStrip,

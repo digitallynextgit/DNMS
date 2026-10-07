@@ -21,6 +21,7 @@
  */
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve, sep } from "node:path"
+import { format, resolveConfig } from "prettier"
 
 const ROOT = process.cwd()
 const APP_DIR = join(ROOT, "app")
@@ -402,7 +403,7 @@ function analyse(file: string, scopes: Map<string, string>) {
   return { path, methods, load: importSpecifier(file) }
 }
 
-function main() {
+async function main() {
   const scopes = permissionScopes()
   const files = walk(API_DIR).sort()
   const entries = []
@@ -433,15 +434,24 @@ export const API_ROUTES: readonly ApiRouteEntry[] = [
 ${body}
 ]
 `
-  writeFileSync(OUT, out)
-  console.log(
-    `[mcp:api-map] ${entries.length} routes → ${relative(ROOT, OUT)} (${skipped} excluded)`,
-  )
+  // Format exactly as the pre-commit hook would, and write only on a real
+  // change. The raw output differs from the committed (Prettier-formatted)
+  // file, so every dev/build used to leave it modified - which then blocked
+  // `git pull` on the server.
+  const formatted = await format(out, {
+    ...(await resolveConfig(OUT)),
+    filepath: OUT,
+  })
+  const label = `${entries.length} routes → ${relative(ROOT, OUT)} (${skipped} excluded)`
+  if (existsSync(OUT) && readFileSync(OUT, "utf8") === formatted) {
+    console.log(`[mcp:api-map] ${label}, unchanged`)
+    return
+  }
+  writeFileSync(OUT, formatted)
+  console.log(`[mcp:api-map] ${label}`)
 }
 
-try {
-  main()
-} catch (err) {
+main().catch((err) => {
   // Never block dev/build on the catalogue - the previous file stays in place.
   console.warn("[mcp:api-map] generation failed, keeping the existing catalogue:", err)
-}
+})

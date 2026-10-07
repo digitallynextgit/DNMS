@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { Button } from "@/components/ui/button"
 import { PLANS, GST_RATE, type Plan } from "@/features/tenants"
 import { BRAND_RED, demoHref } from "@/features/marketing/marketing.constants"

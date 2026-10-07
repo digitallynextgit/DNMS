@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next"
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { LEGAL_DOCS, LEGAL_INDEX } from "@/features/marketing/legal.content"
 
 // Only PUBLIC pages belong here; every other route is a gated app screen.

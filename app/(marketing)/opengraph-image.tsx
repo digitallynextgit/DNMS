@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og"
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 
 // Branded social-share card (LinkedIn / Slack / X / WhatsApp previews). Rendered
 // once at build/first-request; self-contained with inline styles and the default

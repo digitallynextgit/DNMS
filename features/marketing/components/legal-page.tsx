@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { FileText } from "lucide-react"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
 import { LEGAL_INDEX, type LegalDoc } from "@/features/marketing/legal.content"
 import { GridBackdrop, Reveal } from "./fx"

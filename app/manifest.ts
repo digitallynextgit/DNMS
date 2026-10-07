@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next"
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 
 /**
  * Web app manifest, served at /manifest.webmanifest.
@@ -14,8 +14,8 @@ import { siteConfig } from "@/config/site"
  * /dashboard to /{tenantSlug}/dashboard for a signed-in user and to /login
  * otherwise, so the installed icon lands in the right place either way.
  *
- * Icons are generated from assets/brand-masters/brand-mark.png (kept out of
- * public/ so the 729 KB master is never served). Neither is declared `maskable`:
+ * Icons are generated from public/brand-masters/brand-mark.png (see the README
+ * there). Neither is declared `maskable`:
  * they are contain-fitted to the full square, so an Android maskable crop would
  * cut into the mark. Add a separately padded file if that is ever wanted.
  */

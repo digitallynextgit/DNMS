@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ArrowRight, HelpCircle } from "lucide-react"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { Button } from "@/components/ui/button"
 import { BRAND_RED, demoHref } from "@/features/marketing/marketing.constants"
 import { FAQ_CATEGORIES, ALL_FAQS } from "@/features/marketing/faq.content"

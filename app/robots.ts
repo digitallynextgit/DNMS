@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next"
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 
 // ─── WHY THIS IS AN ALLOW-LIST ───────────────────────────────────────────────
 // This file used to disallow the app's INTERNAL paths - /dashboard, /employees,

@@ -1,6 +1,6 @@
 import { Sparkles } from "lucide-react"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { GridBackdrop, Reveal } from "../fx"
 import { NewsletterForm } from "../newsletter-form"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"

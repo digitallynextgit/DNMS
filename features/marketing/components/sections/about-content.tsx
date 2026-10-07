@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ArrowRight, Building2, Compass, Layers, Lock, Users } from "lucide-react"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { Button } from "@/components/ui/button"
 import { BRAND_RED, MODULES, demoHref } from "@/features/marketing/marketing.constants"
 import { GridBackdrop, Reveal } from "../fx"

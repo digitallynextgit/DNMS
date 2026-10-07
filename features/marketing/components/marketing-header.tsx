@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { Menu, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { Button } from "@/components/ui/button"
 import { useMarketingSession } from "../hooks/use-marketing-session"
 

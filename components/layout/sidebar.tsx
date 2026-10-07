@@ -21,7 +21,7 @@ import {
   canAccess,
   isItemVisible,
   type NavItem,
-} from "@/config/nav"
+} from "@/lib/nav"
 import { usePendingResignationCount } from "@/features/resignations"
 import { useMyClearanceCount } from "@/features/hr-checklists"
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications"

@@ -1,6 +1,6 @@
 import Link from "next/link"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
 import { LEGAL_INDEX } from "@/features/marketing/legal.content"
 

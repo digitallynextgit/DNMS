@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { z } from "zod"
 
 import { ok, fail } from "@/lib/api-response"
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { db } from "@/server/db"
 import { sendEmail } from "@/lib/mailer"
 import { rateLimited, clientIp } from "@/lib/rate-limit"

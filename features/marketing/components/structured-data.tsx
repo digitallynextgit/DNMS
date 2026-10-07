@@ -1,4 +1,4 @@
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 
 /** JSON-LD for rich search results: the org + the product. Rendered once in the
  *  page head area. Kept data-only (no offers/pricing while pricing is hidden). */

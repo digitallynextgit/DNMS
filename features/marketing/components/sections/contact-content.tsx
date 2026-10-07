@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Mail, MapPin, MessageSquare, Clock, Phone, LifeBuoy, ShieldCheck } from "lucide-react"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 import { BRAND_RED } from "@/features/marketing/marketing.constants"
 import { GridBackdrop, Reveal } from "../fx"
 import { ContactForm } from "../contact-form"

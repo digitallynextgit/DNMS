@@ -21,9 +21,9 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/lib/site"
 
-/** Pre-filled "Book a demo" mailto. Change the address in config/site.ts. */
+/** Pre-filled "Book a demo" mailto. Change the address in lib/site.ts. */
 /**
  * The marketing/auth accent red (matches the logo mark).
  *

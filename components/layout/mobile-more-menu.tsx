@@ -18,7 +18,7 @@ import {
   isItemVisible,
   type NavItem,
   type NavChild,
-} from "@/config/nav"
+} from "@/lib/nav"
 import { AvatarDisplay } from "@/components/shared/avatar-display"
 import { unregisterPush } from "@/components/providers/realtime-notifications"
 import { StatusBadge } from "@/components/shared/status-badge"
