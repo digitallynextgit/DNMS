@@ -3,6 +3,8 @@ import "server-only"
 import { readFileSync } from "fs"
 import { google, type drive_v3 } from "googleapis"
 import { getConfig } from "@/server/app-config"
+import { currentTenant } from "@/server/tenant-context"
+import { FOUNDING_TENANT_ID } from "@/lib/tenant-url"
 
 // =============================================================================
 // Google Drive client (service account -> a company Shared Drive).
@@ -42,7 +44,21 @@ async function readCredentials(): Promise<{ client_email: string; private_key: s
   return null
 }
 
+/**
+ * The Shared Drive and its credentials are platform-wide settings (AppSetting
+ * has no tenantId), so they belong to the founding tenant - the same rule
+ * assertPlatformScope applies to the Integrations page. Any other company gets
+ * no Drive: otherwise just opening one of its projects' Repository tab would
+ * create a folder in Digitally Next's Drive and share it with that company's
+ * people. No tenant context (a platform job) counts as the founding tenant.
+ */
+function driveAllowedHere(): boolean {
+  const tenant = currentTenant()
+  return !tenant || tenant.tenantId === FOUNDING_TENANT_ID
+}
+
 export async function isDriveConfigured(): Promise<boolean> {
+  if (!driveAllowedHere()) return false
   const [creds, driveId] = await Promise.all([
     readCredentials(),
     getConfig("GOOGLE_DRIVE_SHARED_DRIVE_ID"),
@@ -51,6 +67,7 @@ export async function isDriveConfigured(): Promise<boolean> {
 }
 
 async function getDrive(): Promise<{ drive: drive_v3.Drive; sharedDriveId: string }> {
+  if (!driveAllowedHere()) throw new Error("Google Drive is not available for this workspace")
   if (cached) return cached
   const creds = await readCredentials()
   const sharedDriveId = await getConfig("GOOGLE_DRIVE_SHARED_DRIVE_ID")

@@ -191,6 +191,9 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   [/^\/clearances(\/|$)/, null],
   [/^\/holiday-calendar(\/|$)/, null],
   [/^\/calendar(\/|$)/, null],
+  // Help & Guides: open to everyone; each guide hides itself from readers who
+  // can't open the page it explains (features/help/lib/visibility.ts).
+  [/^\/help(\/|$)/, null],
   [/^\/leave$/, null],
   [/^\/wfh$/, null],
 

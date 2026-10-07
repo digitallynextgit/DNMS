@@ -15,7 +15,15 @@ export const GET = withProjectAccess(
         where: { projectId },
         include: {
           manager: { select: EMPLOYEE_SUMMARY_SELECT },
-          members: { include: { employee: { select: EMPLOYEE_SUMMARY_SELECT } } },
+          // The member cards show each person's designation ("No designation"
+          // otherwise) - the shared summary select doesn't carry it.
+          members: {
+            include: {
+              employee: {
+                select: { ...EMPLOYEE_SUMMARY_SELECT, designation: { select: { title: true } } },
+              },
+            },
+          },
           _count: { select: { tasks: true } },
         },
       })

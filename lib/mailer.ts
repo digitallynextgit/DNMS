@@ -3,6 +3,7 @@ import type { EmailTemplate } from "@prisma/client"
 import { db } from "@/server/db"
 import { tryDecrypt } from "@/lib/crypto"
 import { getConfig } from "@/server/app-config"
+import { isDemoEmail } from "@/lib/demo"
 
 // ---------------------------------------------------------------------------
 // Mailer profiles
@@ -175,19 +176,29 @@ interface SendEmailOptions {
 
 // Normalize an address (or list) into the comma-joined string nodemailer wants,
 // or undefined when there are no addresses.
+/**
+ * Recipients as one header value. Demo-workspace addresses (lib/demo.ts) are
+ * dropped: they can never receive mail, and every send path goes through here.
+ */
 function addressList(value?: string | string[]): string | undefined {
   if (!value) return undefined
-  const joined = Array.isArray(value) ? value.filter(Boolean).join(", ") : value
-  return joined || undefined
+  const all = (Array.isArray(value) ? value : value.split(","))
+    .map((a) => a.trim())
+    .filter((a) => a && !isDemoEmail(a))
+  return all.length ? all.join(", ") : undefined
 }
 
 export async function sendEmail(options: SendEmailOptions): Promise<string | null> {
+  const to = addressList(options.to)
+  const cc = addressList(options.cc)
+  // Nobody left once demo addresses are dropped - nothing to send.
+  if (!to && !cc) return null
   const { transporter, from } = await buildProfile(options.profile ?? "default")
   // NOTE: no transporter.close() - it is pooled and shared (see getTransporter).
   const info = await transporter.sendMail({
     from: options.from ?? from,
-    to: addressList(options.to),
-    cc: addressList(options.cc),
+    to,
+    cc,
     subject: options.subject,
     html: options.html,
     text: options.text,
@@ -242,11 +253,14 @@ export async function sendEmailAs(
   })
 
   const fromName = `${emp.firstName} ${emp.lastName}`.trim() || emp.email
+  const to = addressList(options.to)
+  const cc = addressList(options.cc)
+  if (!to && !cc) return null
 
   const info = await perUser.sendMail({
     from: `"${fromName}" <${emp.email}>`,
-    to: addressList(options.to),
-    cc: addressList(options.cc),
+    to,
+    cc,
     subject: options.subject,
     html: options.html,
     text: options.text,

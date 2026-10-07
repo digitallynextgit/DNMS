@@ -61,7 +61,9 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "robots",
   // public/ entries
   "avatars",
+  "brand-masters",
   "email-icons",
+  "help-shots",
   // brand protection
   "www",
   "mail",

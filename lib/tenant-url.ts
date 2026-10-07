@@ -39,7 +39,6 @@ export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   "attendance",
   "chat",
   "dashboard",
-  "docs",
   "documents",
   "employees",
   "gallery",
@@ -48,6 +47,8 @@ export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   // would otherwise take for a company name.
   "calendar",
   "holidays",
+  // Help & Guides. A plain word that looksLikeSlug would take for a company.
+  "help",
   "leave",
   "more",
   "notifications",
@@ -114,7 +115,10 @@ export const GLOBAL_SEGMENTS: ReadonlySet<string> = new Set([
   // pattern rejects. scripts/verify-tenant-urls.ts asserts this list stays in
   // step with the directory.
   "avatars",
+  "brand-masters",
   "email-icons",
+  // Help & Guides screenshots (features/help).
+  "help-shots",
   // Next.js metadata routes served at the root.
   "favicon.ico",
   "robots.txt",
