@@ -442,7 +442,7 @@ export function EmployeeDashboard() {
               Upcoming Holidays
             </CardTitle>
             <Button className="gap-1" asChild variant="ghost">
-              <Link href="/holiday-calendar">
+              <Link href="/calendar?view=holidays">
                 View all <ArrowRight className="h-3 w-3" />
               </Link>
             </Button>

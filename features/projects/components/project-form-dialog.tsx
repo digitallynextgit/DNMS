@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { apiFetch } from "@/lib/api-fetch"
+import { toastError } from "@/lib/error-message"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,7 +27,12 @@ import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import { ClientCombobox } from "@/features/clients/components/client-combobox"
 import { ClientFormDialog } from "@/features/clients/components/client-form-dialog"
 import { ProjectLogoPicker } from "./project-logo-picker"
-import { PERMISSIONS, PROJECT_STATUS_LABELS, TASK_PRIORITY_LABELS } from "@/lib/constants"
+import {
+  PERMISSIONS,
+  PROJECT_STAGE_LABELS,
+  PROJECT_STATUS_LABELS,
+  TASK_PRIORITY_LABELS,
+} from "@/lib/constants"
 import { IndianRupee, Plus } from "lucide-react"
 
 interface ProjectFormValues {
@@ -34,6 +41,8 @@ interface ProjectFormValues {
   description: string
   status: string
   priority: string
+  /** Lifecycle "Phase" (LAUNCH…DECLINE); "" = not set. */
+  stage: string
   startDate: string // labelled "Onboarding Date" in UI
   budget: string
   accountManagerId: string
@@ -43,11 +52,15 @@ interface ProjectFormValues {
   clientName?: string
 }
 
+/** The Phase picker's "not set" choice (a Select item cannot have value ""). */
+const NO_STAGE = "__none__"
+
 const EMPTY_FORM: ProjectFormValues = {
   name: "",
   description: "",
   status: "PLANNING",
   priority: "MEDIUM",
+  stage: "",
   startDate: "",
   budget: "",
   accountManagerId: "",
@@ -112,19 +125,15 @@ export function ProjectFormDialog({
     [selectedManager],
   )
 
+  // apiFetch reads the `{ error: { message } }` envelope the route wrapper
+  // sends; reading `err.error` as a string toasted "[object Object]".
   const create = useMutation({
-    mutationFn: async (body: Record<string, unknown>) => {
-      const res = await fetch("/api/projects", {
+    mutationFn: (body: Record<string, unknown>) =>
+      apiFetch<{ data?: { id?: string } }>("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to create project" }))
-        throw new Error(err.error || "Failed to create project")
-      }
-      return res.json()
-    },
+      }),
     onSuccess: async (data) => {
       const newId = data?.data?.id as string | undefined
       // Send the deferred logo now that there is something to attach it to. A
@@ -147,22 +156,16 @@ export function ProjectFormDialog({
       onSuccess?.(newId as string)
       onClose()
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toastError(e, "Couldn't create the project"),
   })
 
   const update = useMutation({
-    mutationFn: async (body: Record<string, unknown>) => {
-      const res = await fetch(`/api/projects/${projectId}`, {
+    mutationFn: (body: Record<string, unknown>) =>
+      apiFetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to update project" }))
-        throw new Error(err.error || "Failed to update project")
-      }
-      return res.json()
-    },
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] })
       qc.invalidateQueries({ queryKey: ["project", projectId] })
@@ -172,7 +175,7 @@ export function ProjectFormDialog({
       onSuccess?.(projectId!)
       onClose()
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toastError(e, "Couldn't save the project"),
   })
 
   const isPending = create.isPending || update.isPending
@@ -186,6 +189,7 @@ export function ProjectFormDialog({
       description: form.description.trim() || null,
       status: form.status,
       priority: form.priority,
+      stage: form.stage || null,
       startDate: form.startDate || null,
       accountManagerId: form.accountManagerId,
     }
@@ -308,7 +312,7 @@ export function ProjectFormDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="space-y-2">
               <Label>Status</Label>
               <Select
@@ -338,6 +342,25 @@ export function ProjectFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(TASK_PRIORITY_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Phase</Label>
+              <Select
+                value={form.stage || NO_STAGE}
+                onValueChange={(v) => setForm((f) => ({ ...f, stage: v === NO_STAGE ? "" : v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_STAGE}>Not set</SelectItem>
+                  {Object.entries(PROJECT_STAGE_LABELS).map(([k, v]) => (
                     <SelectItem key={k} value={k}>
                       {v}
                     </SelectItem>

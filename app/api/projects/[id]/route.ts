@@ -3,7 +3,7 @@ import { db } from "@/server/db"
 import { withAuth } from "@/server/api-handler"
 import { withProjectManager, withProjectAccess } from "@/features/projects/server/project-access"
 import { createAuditLog } from "@/lib/audit"
-import { PERMISSIONS } from "@/lib/constants"
+import { PERMISSIONS, PROJECT_STAGE_LABELS } from "@/lib/constants"
 import type { Session } from "next-auth"
 
 export const GET = withProjectAccess(
@@ -69,7 +69,13 @@ export const PATCH = withProjectManager(
         isArchived,
         accountManagerId,
         clientId,
+        stage,
       } = body
+
+      // Lifecycle "Phase": a known stage, or null/"" to clear it.
+      if (stage && !(stage in PROJECT_STAGE_LABELS)) {
+        return NextResponse.json({ error: "Unknown project phase" }, { status: 422 })
+      }
 
       // `null` clears the client; a string must name one in this tenant.
       if (clientId) {
@@ -98,6 +104,9 @@ export const PATCH = withProjectManager(
           ...(description !== undefined && { description }),
           ...(status !== undefined && { status }),
           ...(priority !== undefined && { priority }),
+          ...(stage !== undefined && {
+            stage: (stage || null) as "LAUNCH" | "GROWTH" | "REBRANDING" | "DECLINE" | null,
+          }),
           ...(startDate !== undefined && { startDate: startDate ? new Date(startDate) : null }),
           ...(budget !== undefined && { budget: budget ? parseFloat(budget) : null }),
           ...(isArchived !== undefined && { isArchived }),
@@ -116,6 +125,7 @@ export const PATCH = withProjectManager(
           description,
           status,
           priority,
+          stage,
           startDate,
           budget,
           accountManagerId,

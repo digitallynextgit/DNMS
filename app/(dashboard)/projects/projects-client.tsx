@@ -22,7 +22,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
-import { PERMISSIONS, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from "@/lib/constants"
+import {
+  PERMISSIONS,
+  PROJECT_STAGE_COLORS,
+  PROJECT_STAGE_LABELS,
+  PROJECT_STATUS_LABELS,
+  PROJECT_STATUS_COLORS,
+} from "@/lib/constants"
 import { formatDate } from "@/lib/utils"
 import { ProjectFormDialog, ProjectLogo, projectHref } from "@/features/projects"
 // The leaf helper, not the clients barrel: the barrel would land the whole
@@ -40,6 +46,8 @@ interface Project {
   logo: string | null
   status: string
   priority: string
+  /** Lifecycle "Phase" (LAUNCH…DECLINE), or null when not set. */
+  stage: string | null
   startDate: string | null
   endDate: string | null
   budget: number | null
@@ -141,6 +149,19 @@ export function ProjectsClient() {
           </Link>
         ) : (
           <span className="text-muted-foreground text-xs">Internal</span>
+        ),
+    },
+    {
+      header: "Phase",
+      cell: (p) =>
+        p.stage ? (
+          <StatusBadge
+            status={p.stage}
+            colorMap={PROJECT_STAGE_COLORS}
+            labelMap={PROJECT_STAGE_LABELS}
+          />
+        ) : (
+          <span className="text-muted-foreground text-xs">-</span>
         ),
     },
     {
@@ -294,9 +315,19 @@ export function ProjectsClient() {
                             <p className="line-clamp-1 text-sm font-medium group-hover:underline">
                               {project.name}
                             </p>
-                            <p className="text-muted-foreground mt-0.5 font-mono text-xs">
-                              {project.code}
-                            </p>
+                            <div className="mt-0.5 flex items-center gap-2">
+                              <p className="text-muted-foreground font-mono text-xs">
+                                {project.code}
+                              </p>
+                              {project.stage && (
+                                <StatusBadge
+                                  status={project.stage}
+                                  colorMap={PROJECT_STAGE_COLORS}
+                                  labelMap={PROJECT_STAGE_LABELS}
+                                  size="xs"
+                                />
+                              )}
+                            </div>
                             {project.client && (
                               <p className="text-muted-foreground mt-0.5 truncate text-xs">
                                 for{" "}
@@ -436,6 +467,7 @@ export function ProjectsClient() {
             description: editing.description ?? "",
             status: editing.status,
             priority: editing.priority,
+            stage: editing.stage ?? "",
             startDate: editing.startDate ? editing.startDate.split("T")[0] : "",
             budget: editing.budget != null ? String(editing.budget) : "",
             accountManagerId: editing.owner.id,

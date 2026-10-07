@@ -30,6 +30,8 @@ export interface ProjectListItem {
   logo: string | null
   status: string
   priority: string
+  /** Lifecycle "Phase" (LAUNCH…DECLINE), or null when not set. */
+  stage: string | null
   startDate: string | null
   endDate: string | null
   budget: number | null

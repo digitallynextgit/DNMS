@@ -190,6 +190,7 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   // it to the caller's OWN assigned items, which is the real boundary.
   [/^\/clearances(\/|$)/, null],
   [/^\/holiday-calendar(\/|$)/, null],
+  [/^\/calendar(\/|$)/, null],
   [/^\/leave$/, null],
   [/^\/wfh$/, null],
 
@@ -206,7 +207,7 @@ const ROUTE_RULES: ReadonlyArray<readonly [RegExp, RoutePerm]> = [
   // --- Attendance (HR) ---------------------------------------------------
   [/^\/attendance(\/|$)/, "attendance:write"],
 
-  // --- Holidays (HR management; employees use /holiday-calendar) ---------
+  // --- Holidays (HR management; employees use /calendar) -----------------
   [/^\/holidays(\/|$)/, "attendance:write"],
 
   // --- Stock register (HR) ------------------------------------------------

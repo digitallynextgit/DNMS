@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/server/db"
 import { withAuth, withSession } from "@/server/api-handler"
 import { createAuditLog } from "@/lib/audit"
-import { PERMISSIONS } from "@/lib/constants"
+import { PERMISSIONS, PROJECT_STAGE_LABELS } from "@/lib/constants"
 import { listProjects } from "@/features/projects/server/projects.queries"
 import { generateProjectSlug } from "@/features/projects/server/project-slug"
 import { ensureProjectTeams } from "@/features/projects/server/project-teams"
@@ -36,6 +36,11 @@ export const POST = withAuth(
       const body = await req.json()
       const { name, description, status, priority, startDate, budget, accountManagerId, clientId } =
         body
+      // Optional lifecycle "Phase"; anything but a known stage is refused.
+      const stage: string | null = body.stage || null
+      if (stage && !(stage in PROJECT_STAGE_LABELS)) {
+        return NextResponse.json({ error: "Unknown project phase" }, { status: 422 })
+      }
 
       // Optional: the company this is delivered for. Looked up through the
       // tenant guard, so an id from another company reads as "not found".
@@ -88,6 +93,7 @@ export const POST = withAuth(
               slug: await generateProjectSlug(name, code),
               status: status ?? "PLANNING",
               priority: priority ?? "MEDIUM",
+              stage: stage as "LAUNCH" | "GROWTH" | "REBRANDING" | "DECLINE" | null,
               ownerId,
               clientId: clientId || null,
               startDate: startDate ? new Date(startDate) : null,

@@ -16,8 +16,8 @@ import { CalendarLegend, type CalendarLegendItem } from "@/components/shared/cal
 import { cn } from "@/lib/utils"
 
 // =============================================================================
-// The ONE month-grid holiday calendar. Used by both the employee Holiday
-// Calendar and the HR Holidays page - don't hand-roll another grid.
+// The ONE month-grid calendar. Used by the Calendar page's Holiday and Birthday
+// views and by the HR Holidays page - don't hand-roll another grid.
 // =============================================================================
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -74,9 +74,15 @@ export function HolidayMonthCalendar({
   const firstDow = new Date(Date.UTC(year, month, 1)).getUTCDay()
   const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
 
+  // Only what can actually appear: the Birthday Calendar passes no holidays,
+  // and a legend promising public holidays there would be noise.
   const legend: CalendarLegendItem[] = [
-    { swatch: "bg-blue-100 dark:bg-blue-950/40", label: "Public holiday" },
-    { swatch: "bg-amber-100 dark:bg-amber-950/40", label: "Floating holiday" },
+    ...(holidays.length > 0
+      ? [
+          { swatch: "bg-blue-100 dark:bg-blue-950/40", label: "Public holiday" },
+          { swatch: "bg-amber-100 dark:bg-amber-950/40", label: "Floating holiday" },
+        ]
+      : []),
     ...(birthdays && birthdays.length > 0
       ? [{ swatch: "bg-rose-100 dark:bg-rose-950/40", label: "Birthday" }]
       : []),

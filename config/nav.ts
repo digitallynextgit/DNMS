@@ -8,6 +8,7 @@ import {
   Mail,
   Clock,
   CalendarDays,
+  CalendarRange,
   DollarSign,
   FolderKanban,
   TrendingUp,
@@ -20,7 +21,6 @@ import {
   UserMinus,
   Plug,
   HardDrive,
-  PartyPopper,
   UserPlus,
   Megaphone,
   Images,
@@ -67,7 +67,9 @@ export const EMPLOYEE_ITEMS: NavItem[] = [
   { label: "My Payslips", href: "/payroll/me", icon: DollarSign },
   { label: "My Performance", href: "/performance/me", icon: Star },
   { label: "Work From Home", href: "/wfh", icon: Laptop },
-  { label: "Holiday Calendar", href: "/holiday-calendar", icon: PartyPopper },
+  // Holidays, birthdays and any later calendar - picked inside the page
+  // (features/calendar/calendars.ts). Open to everyone.
+  { label: "Calendar", href: "/calendar", icon: CalendarRange },
   // No permission gate: referring somebody is open to every employee, and the
   // page only ever shows the caller's own referrals.
   { label: "My Referrals", href: "/referrals", icon: UserPlus },
@@ -186,10 +188,11 @@ export const HRMS_ITEMS: NavItem[] = [
       { label: "Devices", href: "/attendance/devices" },
     ],
   },
+  // HR's side of the Calendar: the same calendars, holidays manageable here.
   {
-    label: "Holiday Calendar",
+    label: "Calendar",
     href: "/holidays",
-    icon: PartyPopper,
+    icon: CalendarRange,
     permission: PERMISSIONS.HOLIDAY_WRITE,
   },
   {

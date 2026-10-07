@@ -677,6 +677,21 @@ export const PROJECT_STATUS_COLORS: Record<string, string> = {
   CANCELLED: TONE.neutral,
 }
 
+/** A project's "Phase": where the client's brand is in its lifecycle. In order. */
+export const PROJECT_STAGE_LABELS: Record<string, string> = {
+  LAUNCH: "Launch",
+  GROWTH: "Growth",
+  REBRANDING: "Rebranding",
+  DECLINE: "Decline",
+}
+
+export const PROJECT_STAGE_COLORS: Record<string, string> = {
+  LAUNCH: TONE.blue,
+  GROWTH: TONE.green,
+  REBRANDING: TONE.purple,
+  DECLINE: TONE.orange,
+}
+
 export const CLIENT_STATUS_LABELS: Record<string, string> = {
   PROSPECT: "Prospect",
   ACTIVE: "Active",

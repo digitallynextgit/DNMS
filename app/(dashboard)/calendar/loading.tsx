@@ -1,12 +1,18 @@
 import { PageHeaderSkeleton, StatCardSkeleton } from "@/components/shared/loading-skeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// Employee Holiday Calendar: header with tabs/year actions, a 2-up stat strip,
-// then the default (calendar) tab: a month stepper above the month grid.
-export default function HolidayCalendarLoading() {
+// Calendar (default view: Holiday Calendar): header with the calendar picker, a
+// toolbar, a 2-up stat strip, then a month stepper above the month grid.
+export default function CalendarLoading() {
   return (
     <div className="space-y-6">
       <PageHeaderSkeleton withActions />
+
+      {/* The view's toolbar: its tabs, and the year. */}
+      <div className="flex items-center justify-between gap-2">
+        <Skeleton className="bg-muted h-9 w-72 animate-pulse rounded-sm" />
+        <Skeleton className="bg-muted h-9 w-28 animate-pulse rounded-sm" />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {Array.from({ length: 2 }).map((_, i) => (

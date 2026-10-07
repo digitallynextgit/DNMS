@@ -152,7 +152,9 @@ export async function prepareFloatingHolidayLetter(
     year: input.year,
     // Approvals live on the "Requests" tab of the holiday calendar, the same
     // link the in-app notification points at.
-    reviewUrl: appUrl ? `${appUrl.replace(/\/$/, "")}/holiday-calendar?tab=requests` : undefined,
+    reviewUrl: appUrl
+      ? `${appUrl.replace(/\/$/, "")}/calendar?view=holidays&tab=requests`
+      : undefined,
   })
 
   // Cc the applicant so the letter lands in their mailbox too.

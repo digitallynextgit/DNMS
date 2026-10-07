@@ -26,6 +26,8 @@ import {
 import { usePermissions } from "@/features/admin/hooks/use-permissions"
 import {
   PERMISSIONS,
+  PROJECT_STAGE_COLORS,
+  PROJECT_STAGE_LABELS,
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_COLORS,
   TASK_PRIORITY_LABELS,
@@ -358,10 +360,18 @@ export default function ProjectDetailPage() {
         /* The description is NOT passed here: PageHeader's subtitle truncates to one
            line, but a project description is a full paragraph, so it is rendered in
            full below the header instead. */
-        /* Status + priority are sized to match the Edit button: same height,
-           same corner radius, so the row reads as one control group. */
+        /* Phase + status + priority are sized to match the Edit button: same
+           height, same corner radius, so the row reads as one control group. */
         actions={
           <>
+            {project.stage && (
+              <StatusBadge
+                status={project.stage}
+                colorMap={PROJECT_STAGE_COLORS}
+                label={`${PROJECT_STAGE_LABELS[project.stage] ?? project.stage} phase`}
+                size="button"
+              />
+            )}
             <StatusBadge
               status={project.status}
               colorMap={PROJECT_STATUS_COLORS}
@@ -600,6 +610,7 @@ export default function ProjectDetailPage() {
           description: project.description ?? "",
           status: project.status,
           priority: project.priority,
+          stage: project.stage ?? "",
           startDate: project.startDate ? project.startDate.split("T")[0] : "",
           budget: project.budget != null ? String(project.budget) : "",
           accountManagerId: project.owner.id,

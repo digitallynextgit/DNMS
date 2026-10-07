@@ -255,6 +255,14 @@ enum ProjectStatus {
   CANCELLED
 }
 
+/// Where the client's brand is in its lifecycle - shown as the project "Phase".
+enum ProjectStage {
+  LAUNCH
+  GROWTH
+  REBRANDING
+  DECLINE
+}
+
 enum TaskStatus {
   TODO
   IN_PROGRESS
@@ -1928,6 +1936,9 @@ model Project {
   slug           String?       @map("slug")
   status         ProjectStatus @default(PLANNING) @map("status")
   priority       TaskPriority  @default(MEDIUM) @map("priority")
+  /// The client brand's lifecycle "Phase" in the UI (Launch → Decline). Not
+  /// `currentPhase`, the unused legacy ProjectPhase relation below. Null = not set.
+  stage          ProjectStage? @map("stage")
   /// Stable serve URL (/api/projects/<id>/logo?v=<ts>), NOT a bucket URL - the
   /// bucket is private, so the route redirects to a short-lived signed URL. The
   /// ?v= changes on every upload so cached <img>s refresh.

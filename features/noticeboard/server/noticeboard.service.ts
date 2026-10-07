@@ -470,6 +470,55 @@ export async function listUpcomingBirthdays(days = 30): Promise<ActionResult<unk
   })
 }
 
+/**
+ * Every birthday that falls in `year`, as calendar days - the Birthday
+ * Calendar's month grid. Same rules as the list above: month and day only, the
+ * birth year is never returned, and 29 February lands on 1 March in a
+ * non-leap year.
+ */
+export async function listBirthdaysForYear(year: number): Promise<ActionResult<unknown>> {
+  return runAction(async () => {
+    if (!Number.isInteger(year) || year < 1900 || year > 2200) return fail("Invalid year")
+    const people = await db.employee.findMany({
+      where: { isActive: true, dateOfBirth: { not: null }, ...VISIBLE_EMPLOYEE_FILTER },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        profilePhoto: true,
+        dateOfBirth: true,
+        designation: { select: { title: true } },
+      },
+    })
+    const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+    const pad2 = (n: number) => String(n).padStart(2, "0")
+
+    const days = people.flatMap((p) => {
+      if (!p.dateOfBirth) return []
+      // A DATE column: read it in UTC so no timezone shifts the day.
+      let month = p.dateOfBirth.getUTCMonth()
+      let day = p.dateOfBirth.getUTCDate()
+      if (month === 1 && day === 29 && !isLeap(year)) {
+        month = 2
+        day = 1
+      }
+      return [
+        {
+          id: p.id,
+          name: `${p.firstName} ${p.lastName ?? ""}`.trim(),
+          firstName: p.firstName,
+          lastName: p.lastName ?? "",
+          profilePhoto: p.profilePhoto,
+          designation: p.designation?.title ?? null,
+          date: `${year}-${pad2(month + 1)}-${pad2(day)}`,
+        },
+      ]
+    })
+    days.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name))
+    return ok(serialize({ data: days }))
+  })
+}
+
 /** Send a birthday wish as an in-app notification, from one employee to another. */
 export async function sendBirthdayWish(
   toEmployeeId: string,

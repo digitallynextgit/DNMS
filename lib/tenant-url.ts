@@ -44,6 +44,9 @@ export const TENANT_SCOPED_SEGMENTS: ReadonlySet<string> = new Set([
   "employees",
   "gallery",
   "holiday-calendar",
+  // The Calendar page (holidays, birthdays...). A plain word that looksLikeSlug
+  // would otherwise take for a company name.
+  "calendar",
   "holidays",
   "leave",
   "more",
